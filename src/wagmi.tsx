@@ -10,7 +10,7 @@ import { rainbowConfig } from "./rainbow";
 
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [polygon, polygonMumbai],
+  [polygon, polygonMumbai, foundry],
 
   [
     alchemyProvider({ apiKey: import.meta.env.VITE_ALCHEMY_API_KEY! }),
@@ -27,7 +27,7 @@ const { chains, publicClient, webSocketPublicClient } = configureChains(
 );
 
 
-const { wallets, connectors: walletConnectors } = getDefaultWallets({
+const { wallets } = getDefaultWallets({
     projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID, 
     appName: "aHand",
     chains,

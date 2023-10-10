@@ -1,3 +1,6 @@
+const defaultTheme = require('tailwindcss/defaultTheme');
+
+
 /** @type {import('tailwindcss').Config} */
 export default {
   mode: 'jit',
@@ -8,9 +11,14 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        pixel: "PixelGosub"
+         'sans': ['"AnonymousPro"', ...defaultTheme.fontFamily.sans],
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require("daisyui")
+  ],
+  daisyui: {
+    themes: ["light", "dark", "black"],
+  },
 }
