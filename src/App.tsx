@@ -4,7 +4,7 @@ import { useAccount } from "wagmi";
 import { Link, Route } from "wouter";
 
 import { Header, Body, Footer } from "./components";
-import { Welcome, Hand, Raise, Shake, Give, Solution } from "./pages";
+import { Welcome, Hand, Hands, Raise, Share, Give, Solution } from "./pages";
 
 
 export function App() {
@@ -14,9 +14,9 @@ export function App() {
     <Body>
       <Route path="/" component={Welcome} />
       <Route path="/raise" component={Raise} />
-      <Route path="/hand/:hand" component={Hand} />
-      <Route path="/hand/:hand/shake/:ref" component={Shake} />
-      <Route path="/hand/:hand/give/:ref" component={Give} />
+      <Route path="/hands" component={Hands} />
+      <Route path="/hand/:hand/:ref" component={Hand} />
+      <Route path="/hand/:hand/:ref/share" component={Share} />
     </Body>
     <Footer />
   </div>

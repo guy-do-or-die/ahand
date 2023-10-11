@@ -10,59 +10,78 @@ contract AHand {
         string solution;
     }
 
+    address public base;
     address public raiser;
+
     string public problem;
 
     uint public solutionsNumber;
     bool public solved;
 
+    uint constant MAX_SHAKES_CHAIN_LENGTH = 100;
+
+    mapping(address => address) private refs;
     mapping(address => address) public shakes;
+
     mapping(uint => Solution) public solutions;
 
-    event Shaken(address indexed referrer, address indexed shaker);
-    event Given(uint solutionIndex, address indexed referrer, address indexed giver);
+    event Shaken(address indexed ref, address indexed shaker);
+    event Given(uint solutionIndex, address indexed ref, address indexed giver);
+    event Thanked(uint solutionIndex, address thanker, address indexed receiver, uint amount);
 
-    event Thanked(address indexed receiver, uint amount);
+    modifier onlyBase() {
+        require(msg.sender == base, "Can be called from base contract only");
+        _;
+    }
 
-    constructor(address _raiser, string memory _problem) payable {
+    constructor(address _raiser, string memory _problem, address ref) payable {
         require(_raiser != address(0), "Invalid raiser address");
-        raiser = _raiser;
+        refs[ref] = raiser = _raiser;
         problem = _problem;
+        base = msg.sender;
     }
 
     receive() external payable {}
     fallback() external payable {}
 
-    function _shake(address referrer) internal {
+    function deRef(address ref) internal view returns (address refAddress) {
+        refAddress = refs[ref];
+    }
+
+    function _shake(address refAddress, address shaker) internal {
         require(!solved, "Already solved");
-        require(shakes[msg.sender] == address(0), "Already shaken");
-        require(referrer != address(0) && (referrer == raiser || shakes[referrer] != address(0)), "Invalid recepient");
+        require(shakes[shaker] == address(0), "Already shaken");
+        require(refAddress != address(0) && (refAddress == raiser || shakes[refAddress] != address(0)), "Invalid recepient");
 
-        shakes[msg.sender] = referrer;
+        shakes[shaker] = refAddress;
     }
 
-    function shake(address referrer) external {
-        _shake(referrer);
+    function shake(address ref, address newRef, address shaker) external onlyBase {
+        address refAddress = deRef(ref);
+        _shake(refAddress, shaker);
+        refs[newRef] = shaker;
 
-        emit Shaken(referrer, msg.sender);
+        emit Shaken(refAddress, shaker);
     }
 
-    function give(address referrer, string calldata solution) external {
-        _shake(referrer);
+    function give(address ref, address newRef, address giver, string calldata solution) external onlyBase {
+        address refAddress = deRef(ref);
+        _shake(refAddress, giver);
+        refs[newRef] = giver;
 
         Solution memory _solution;
-        _solution.giver = msg.sender;
+        _solution.giver = giver;
         _solution.solution = solution;
 
         solutions[solutionsNumber] = _solution;
-        emit Given(solutionsNumber, referrer, msg.sender);
+        emit Given(solutionsNumber, refAddress, giver);
 
         solutionsNumber++;
     }
 
-    function thank(uint solutionIndex) external {
+    function thank(address thanker, uint solutionIndex) external onlyBase {
         require(!solved, "Already solved");
-        require(msg.sender == raiser, "Only raiser can thank");
+        require(thanker == raiser, "Only raiser can thank");
 
         address receiver = solutions[solutionIndex].giver;
         require(receiver != address(0), "Solution doesn't exist");
@@ -76,7 +95,7 @@ contract AHand {
 
             while (receiver != raiser && amount > 0) {
                 payable(receiver).transfer(amount);
-                emit Thanked(receiver, amount);
+                emit Thanked(solutionIndex, thanker, receiver, amount);
 
                 receiver = shakes[receiver];
                 amount /= 2;
@@ -84,6 +103,26 @@ contract AHand {
         }
 
         solved = true;
+    }
+
+    function shakesChain(address shaker) external view returns (address[] memory chain) {
+        chain = new address[](MAX_SHAKES_CHAIN_LENGTH);
+        
+        if(shakes[shaker] == address(0)) {
+            return new address[](0);
+        }
+        
+        uint256 counter = 0;
+        
+        while(shaker != address(0) && counter < MAX_SHAKES_CHAIN_LENGTH) {
+            chain[counter] = shaker;
+            shaker = shakes[shaker];
+            counter++;
+        }
+        
+        assembly {
+            mstore(chain, counter)
+        }
     }
 
 }

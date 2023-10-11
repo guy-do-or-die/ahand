@@ -1,22 +1,27 @@
 import { useState } from "react";
 import { parseEther } from "viem";
+import { useLocation } from "wouter";
 
-import { useNetwork, useAccount, useBlockNumber } from "wagmi";
+import { useAccount, useNetwork, useBlockNumber } from "wagmi";
+
+import { Button } from "../components";
+import { genRef } from "../utils";
 
 import {
-  useAHandBaseHandsNumber,
   usePrepareAHandBaseRaise,
   useAHandBaseRaise,
+  useAHandBaseRaisedEvent,
 } from "../contracts";
 
 
 export const Raise = () => {
 
-  const { chain } = useNetwork();
-  const { address } = useAccount();
+  const {address} = useAccount();
+  const {chain} = useNetwork();
+
+  const [location, setLocation] = useLocation();
 
   const [block, setBlock] = useState(0);
-  const [handsNumber, setHandsNumber] = useState(0);
 
   const [problem, setProblem] = useState();
   const [reward, setReward] = useState("");
@@ -24,44 +29,45 @@ export const Raise = () => {
   const handleRewardChange = (event) => {
     const value = event.target.value;
 
-    if (value === '' || value === '.' || value === '0.' || (/^\d*\.?\d+$/.test(value) && parseFloat(value) >= 0)) {
+    if (
+      value === ''
+      || value === '.'
+      || value === '0.'
+      || (/^\d*\.?\d+$/.test(value) && parseFloat(value) >= 0)
+    ) {
       setReward(value);
     }
   };
 
-  useBlockNumber({
-    onBlock: data => setBlock(parseInt(data)),
-  });
+  const ref = genRef();
 
-  const { data, error: prepareError } = useAHandBaseHandsNumber({
-    onSettled: data => setHandsNumber(parseInt(data)),
-    watch: true,
-  });
-
-  const { config, error: writeError } = usePrepareAHandBaseRaise({
-    args: [problem],
+  const raiseParams = {
+    args: [problem, ref],
     value: parseEther(reward),
+  };
 
-    onSettled: (data, error) => {
-      console.log(data);
-      console.log(error);
+  useAHandBaseRaisedEvent({
+    listener(log) {
+      (log || []).every(item => {
+        const {hand, raiser} = item.args;
+
+        if (raiser === address) {
+          setLocation(`/hand/${hand}/${ref}`);
+          return
+        }
+      })
     }
-  })
-
-  const { write } = useAHandBaseRaise(config);
+  });
 
   return <div>
     <div>
-      <textarea className="textarea textarea-bordered w-full" placeholder="Problem" 
-                onChange={event => setProblem(event.target.value)}>
-      </textarea>
+      <textarea className="textarea textarea-bordered w-full" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
     </div>
-    <div className="flex items-center space-x-4">
+    <div className="flex items-center space-x-2">
       <input type="text" placeholder="Reward" className="input input-bordered w-full max-w-xs"
-             pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$"
-             value={reward} onChange={handleRewardChange} />
-      <button className="btn btn-ghost" disabled={!write}
-              onClick={() => write?.()}>✋ Raise</button>
+             pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
+
+      <Button prepareHook={usePrepareAHandBaseRaise} writeHook={useAHandBaseRaise} params={raiseParams} emoji="✋" text="Raise" />
     </div>
   </div>
 }
