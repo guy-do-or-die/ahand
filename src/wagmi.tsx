@@ -1,16 +1,17 @@
 import { WagmiConfig, configureChains, createConfig } from "wagmi";
-import { foundry, polygon, polygonMumbai } from "wagmi/chains";
+import { foundry, polygon, polygonMumbai, /*scroll,*/ scrollSepolia } from "wagmi/chains";
 
 import { jsonRpcProvider } from "wagmi/providers/jsonRpc";
 import { alchemyProvider } from "wagmi/providers/alchemy";
 
+import { googleWallet, facebookWallet, githubWallet, discordWallet, twitterWallet } from '@zerodev/wagmi/rainbowkit';
 import { RainbowKitProvider, getDefaultWallets, connectorsForWallets } from "@rainbow-me/rainbowkit";
 
 import { rainbowConfig } from "./rainbow";
 
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [polygon, polygonMumbai],
+  [polygonMumbai],
 
   [
     alchemyProvider({ apiKey: import.meta.env.VITE_ALCHEMY_API_KEY! }),
@@ -34,11 +35,32 @@ const { wallets, connectors: walletConnectors } = getDefaultWallets({
 });
 
 
-const connectors = connectorsForWallets([...wallets])
+const accountConfig = {
+  chains,
+  options: {
+    projectId: import.meta.env.VITE_ZERODEV_PROJECT_ID_POLYGON_MUMBAI,
+    shimDisconnect: true
+  }
+}
+
+
+const connectors = connectorsForWallets([
+  {
+    groupName: 'Connect Account',
+    wallets: [
+      googleWallet(accountConfig),
+      githubWallet(accountConfig),
+      discordWallet(accountConfig),
+      twitterWallet(accountConfig),
+    ]
+  },
+
+  ...wallets.map(group => ({...group, groupName: "Connect Wallet"})),
+])
 
 
 const config = createConfig({
-  autoConnect: true,
+  autoConnect: false,
   connectors, 
 
   publicClient,

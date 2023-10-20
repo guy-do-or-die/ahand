@@ -1,3 +1,11 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+input::placeholder,
+textarea::placeholder {
+  font-size: 1rem;
+  color: #A1A1A1;
+  opacity: 1;
+}

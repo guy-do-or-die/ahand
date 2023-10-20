@@ -61,5 +61,4 @@ contracts/lib/*
 
 ./deployedAddress.ts
 ./deployedMetaAddress.ts
-src/contracts.ts
 *.mjs
