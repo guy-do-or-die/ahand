@@ -39,12 +39,17 @@ export const Raise = () => {
     }
   };
 
-  const ref = genRef();
+  const [ref, setRef] = useState(genRef());
 
   const raiseParams = {
     args: [problem, ref],
     value: parseEther(reward),
+    enabled: problem?.length > 0 && parseFloat(reward) > 0,
   };
+
+  const onRaiseReceipt = () => {
+    setRef(genRef());
+  }
 
   useAHandBaseRaisedEvent({
     listener(log) {
@@ -52,7 +57,7 @@ export const Raise = () => {
         const {hand, raiser} = item.args;
 
         if (raiser === address) {
-          setLocation(`/hand/${hand}/${ref}`);
+          setLocation(`/hand/${hand}/${ref}/share`);
           return
         }
       })
@@ -67,7 +72,7 @@ export const Raise = () => {
       <input type="text" placeholder="Reward" className="input input-bordered w-full max-w-xs"
              pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
 
-      <Button prepareHook={usePrepareAHandBaseRaise} writeHook={useAHandBaseRaise} params={raiseParams} emoji="✋" text="Raise" />
+      <Button prepareHook={usePrepareAHandBaseRaise} writeHook={useAHandBaseRaise} params={raiseParams} onReceipt={onRaiseReceipt} emoji="✋" text="Raise" />
     </div>
   </div>
 }

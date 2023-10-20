@@ -20,7 +20,7 @@ contract AHand {
 
     uint constant MAX_SHAKES_CHAIN_LENGTH = 100;
 
-    mapping(address => address) private refs;
+    mapping(address => address) public refs;
     mapping(address => address) public shakes;
 
     mapping(uint => Solution) public solutions;
@@ -51,7 +51,8 @@ contract AHand {
     function _shake(address refAddress, address shaker) internal {
         require(!solved, "Already solved");
         require(shakes[shaker] == address(0), "Already shaken");
-        require(refAddress != address(0) && (refAddress == raiser || shakes[refAddress] != address(0)), "Invalid recepient");
+        require(refAddress != address(0) && refAddress != shaker, "Invalid ref");
+        require(refAddress == raiser || shakes[refAddress] != address(0), "Invalid ref");
 
         shakes[shaker] = refAddress;
     }
@@ -83,22 +84,30 @@ contract AHand {
         require(!solved, "Already solved");
         require(thanker == raiser, "Only raiser can thank");
 
-        address receiver = solutions[solutionIndex].giver;
-        require(receiver != address(0), "Solution doesn't exist");
+        address giver = solutions[solutionIndex].giver;
+        require(giver != address(0), "Solution doesn't exist");
 
-        uint256 amount;
+        uint remainder = address(this).balance;
+
+        address receiver = giver;
         if (shakes[receiver] == raiser) {
-            amount = address(this).balance;
-            payable(receiver).transfer(amount);
+            payable(receiver).transfer(remainder);
         } else {
-            amount = address(this).balance / 2;
+            uint amount = remainder / 2;
 
-            while (receiver != raiser && amount > 0) {
-                payable(receiver).transfer(amount);
-                emit Thanked(solutionIndex, thanker, receiver, amount);
+            while (receiver != raiser && amount > 0 && remainder > 0) {
+                uint transferAmount = amount > remainder ? remainder : amount;
 
+                payable(receiver).transfer(transferAmount);
+                emit Thanked(solutionIndex, thanker, receiver, transferAmount);
+
+                remainder -= transferAmount;
                 receiver = shakes[receiver];
                 amount /= 2;
+            }
+            
+            if (remainder > 0) {
+                payable(giver).transfer(remainder);
             }
         }
 

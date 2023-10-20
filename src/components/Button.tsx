@@ -22,7 +22,7 @@ export const Button = ({prepareHook, writeHook, onReceipt, params, emoji, text})
   });
 
   return <div>
-    <button className="btn btn-ghost w-32" disabled={!write} onClick={() => write?.()}>
+    <button className="btn btn-ghost w-32" disabled={!params.enabled || !write} onClick={() => write?.()}>
       {
         isPreparing || isWriting || isConfirmating ? 
           <span className="loading loading-spinner"></span>

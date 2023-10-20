@@ -12,7 +12,7 @@ export const HandsItem = ({id}) => {
     args: [id],
   });
 
-  return <div>
+  return <div key={id}>
     <Link href={`/hand/${hand}`}>{hand}</Link>
   </div>
 }
@@ -25,6 +25,6 @@ export const Hands = () => {
   });
 
   return <div>
-    { [...Array(parseInt(handsNumber || 0)).keys()].map(id => <HandsItem id={id} key={id} />) }  
+    { [...Array(parseInt(handsNumber || 0)).keys()].map(id => <HandsItem id={id} />) }  
   </div>
 }

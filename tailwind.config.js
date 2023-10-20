@@ -21,4 +21,8 @@ export default {
   daisyui: {
     themes: ["light", "dark", "black"],
   },
+  extend: {
+    opacity: ['group-hover'],
+    visibility: ['group-hover'],
+  },
 }
