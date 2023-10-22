@@ -110,7 +110,7 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
 }
 
 
-const ThankButton = ({hand, solutionId, ref}) => {
+const ThankButton = ({hand, solutionId, giverRef}) => {
 
   const [location, setLocation] = useLocation();
 
@@ -118,7 +118,7 @@ const ThankButton = ({hand, solutionId, ref}) => {
     args: [hand, solutionId],
     enabled: true,
     onReceipt: data => {
-      setLocation(`/hand/${hand}/${ref}/thanked`);
+      setLocation(`/hand/${hand}/${giverRef}/thanked`);
     }
   }
 
@@ -143,7 +143,7 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
     <div className="collapse-title text-xl font-medium relative">
       {(solution || "").substring(0, 10)}
       <div className="absolute top-2 right-10 opacity-0 group-hover:opacity-100 z-10">
-        <ThankButton hand={hand} solutionId={id} ref={giver} />
+        <ThankButton hand={hand} solutionId={id} giverRef={giver} />
       </div>
     </div>
     <div className="collapse-content">
