@@ -190,7 +190,7 @@ const Shake = ({params}) => {
 
 export const Hand = ({params}) => {
 
-  const url = `${window.location.origin}/${params.hand}/${params.ref}`;
+  const url = `${window.location.origin}/hand/${params.hand}/${params.ref}`;
   
   const action = params.action || "other";
 
