@@ -9,3 +9,20 @@ textarea::placeholder {
   color: #A1A1A1;
   opacity: 1;
 }
+
+
+.shakes .badge {
+  position: relative;
+}
+
+.shakes .badge:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  transform: translate(100%, -50%);
+  width: 1.5rem;
+  height: 1px;
+  background-color: black;
+  z-index: 0;
+}

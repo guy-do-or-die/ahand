@@ -47,10 +47,6 @@ export const Raise = () => {
     enabled: problem?.length > 0 && parseFloat(reward) > 0,
   };
 
-  const onRaiseReceipt = () => {
-    setRef(genRef());
-  }
-
   useAHandBaseRaisedEvent({
     listener(log) {
       (log || []).every(item => {
@@ -68,11 +64,14 @@ export const Raise = () => {
     <div>
       <textarea className="textarea textarea-bordered w-full" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
     </div>
-    <div className="flex items-center space-x-2">
+    <div className="card-actions justify-center mt-2">
       <input type="text" placeholder="Reward" className="input input-bordered w-full max-w-xs"
              pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
 
-      <Button prepareHook={usePrepareAHandBaseRaise} writeHook={useAHandBaseRaise} params={raiseParams} onReceipt={onRaiseReceipt} emoji="✋" text="Raise" />
+      <Button emoji="✋" text="Raise"
+              prepareHook={usePrepareAHandBaseRaise}
+              writeHook={useAHandBaseRaise}
+              params={raiseParams} />
     </div>
   </div>
 }
