@@ -110,7 +110,7 @@ contract AHand {
         }
         
         if (remainder > 0) {
-            (bool thankSuccess, ) = payable(giver).call{value: remainder}("");
+            (bool thankSuccess, ) = payable(deRef(giver)).call{value: remainder}("");
             require(thankSuccess, "Thank giver failed");
         }
 
