@@ -1,16 +1,33 @@
 import {useWaitForTransaction} from "wagmi";
 
 
-export const Button = ({prepareHook, writeHook, onReceipt, params, emoji, text}) => {
+export const Button = ({prepareHook, writeHook, params, emoji, text}) => {
 
   const { config, isLoading: isPreparing, error: prepareError } = prepareHook({
-    onSettled: (data, error) => {
+
+    onError: error => {
+      params.onPrepareError?.(error);
+    },
+
+    onSuccess: data => {
+      params.onPrepareSuccess?.(data);
     },
 
     ...params,
   })
 
-  const {data, write, isLoading: isWriting } = writeHook(config);
+  const {data, write, isLoading: isWriting } = writeHook({
+
+    onError: error => {
+      params.onWriteError?.(error);
+    },
+
+    onSuccess: data => {
+      params.onWriteSuccess?.(data);
+    },
+
+    ...config
+  });
 
   const {isLoading: isConfirmating} = useWaitForTransaction({
     confirmations: 1,

@@ -51,6 +51,7 @@ contract AHand {
     function _shake(address refAddress, address shaker) internal {
         require(!solved, "Already solved");
         require(shakes[shaker] == address(0), "Already shaken");
+        require(shaker != raiser, "Raiser can't solve own problem");
         require(refAddress != address(0) && refAddress != shaker, "Invalid ref");
         require(refAddress == raiser || shakes[refAddress] != address(0), "Invalid ref");
 
@@ -58,7 +59,10 @@ contract AHand {
     }
 
     function shake(address ref, address newRef, address shaker) external onlyBase {
+
         address refAddress = deRef(ref);
+        require(refAddress != address(0), "No such ref");
+
         _shake(refAddress, shaker);
         refs[newRef] = shaker;
 
@@ -90,42 +94,44 @@ contract AHand {
         uint remainder = address(this).balance;
 
         address receiver = giver;
-        if (shakes[receiver] == raiser) {
-            payable(receiver).transfer(remainder);
-        } else {
-            uint amount = remainder / 2;
+        uint amount = remainder / 2;
 
-            while (receiver != raiser && amount > 0 && remainder > 0) {
-                uint transferAmount = amount > remainder ? remainder : amount;
+        while (receiver != raiser && amount > 0 && remainder > 0) {
+            uint transferAmount = amount > remainder ? remainder : amount;
 
-                payable(receiver).transfer(transferAmount);
-                emit Thanked(solutionIndex, thanker, receiver, transferAmount);
+            (bool thankSuccess, ) = payable(receiver).call{value: transferAmount}("");
+            require(thankSuccess, "Thank shaker failed");
 
-                remainder -= transferAmount;
-                receiver = shakes[receiver];
-                amount /= 2;
-            }
-            
-            if (remainder > 0) {
-                payable(giver).transfer(remainder);
-            }
+            emit Thanked(solutionIndex, thanker, receiver, transferAmount);
+
+            remainder -= transferAmount;
+            receiver = shakes[receiver];
+            amount /= 2;
+        }
+        
+        if (remainder > 0) {
+            (bool thankSuccess, ) = payable(deRef(giver)).call{value: remainder}("");
+            require(thankSuccess, "Thank giver failed");
         }
 
         solved = true;
     }
 
-    function shakesChain(address shaker) external view returns (address[] memory chain) {
-        chain = new address[](MAX_SHAKES_CHAIN_LENGTH);
+    function shakesChain(address ref) external view returns (address[] memory chain) {
+        address refAddress = deRef(ref);
+        require(refAddress != address(0), "No such ref");
         
-        if(shakes[shaker] == address(0)) {
+        chain = new address[](MAX_SHAKES_CHAIN_LENGTH);
+
+        if(shakes[refAddress] == address(0)) {
             return new address[](0);
         }
         
-        uint256 counter = 0;
+        uint counter = 0;
         
-        while(shaker != address(0) && counter < MAX_SHAKES_CHAIN_LENGTH) {
-            chain[counter] = shaker;
-            shaker = shakes[shaker];
+        while(refAddress != address(0) && counter < MAX_SHAKES_CHAIN_LENGTH) {
+            chain[counter] = refAddress;
+            refAddress = shakes[refAddress];
             counter++;
         }
         
