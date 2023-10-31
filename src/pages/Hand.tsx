@@ -42,7 +42,7 @@ const Problem = ({params: {hand, ref}}) => {
   const shakes = chainData || [];
   const reward = parseInt(rewardData?.value) || 0;
 
-  const [baseReward, ...rewards] = shakes.reverse().reduce((acc, _, i) => {
+  const [baseReward, ...rewards] = shakes.map((v) => v * 2).reduce((acc, _, i) => {
     const amount = (i === 0 ? reward : acc[i - 1]) / 2;
     acc.push(amount);
     return acc;
@@ -57,7 +57,7 @@ const Problem = ({params: {hand, ref}}) => {
     </div>
     <div className="flex justify-center space-x-4 mb-4 shakes">
       <div className="badge badge-neutral badge-lg"> 🙌 </div>
-      {rewards.map((node, i) => <div className="badge badge-neutral badge-lg" key={node}>🤝 {formatEther(rewards[i])}</div>)}
+      {rewards.reverse().map((node, i) => <div className="badge badge-neutral badge-lg" key={node}>🤝 {formatEther(rewards[i])}</div>)}
       <div className="badge badge-success badge-lg">🫵 {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
     </div>
   </div>
