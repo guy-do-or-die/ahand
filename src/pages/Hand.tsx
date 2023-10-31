@@ -42,7 +42,7 @@ const Problem = ({params: {hand, ref}}) => {
   const shakes = chainData || [];
   const reward = parseInt(rewardData?.value) || 0;
 
-  const [baseReward, ...rewards] = shakes.map((v) => v * 2).reduce((acc, _, i) => {
+  const [baseReward, ...rewards] = shakes.reduce((acc, _, i) => {
     const amount = (i === 0 ? reward : acc[i - 1]) / 2;
     acc.push(amount);
     return acc;
