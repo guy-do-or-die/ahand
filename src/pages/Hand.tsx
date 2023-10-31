@@ -56,9 +56,9 @@ const Problem = ({params: {hand, ref}}) => {
       {problem}
     </div>
     <div className="flex justify-center space-x-4 mb-4 shakes">
-      <div className="badge badge-neutral badge-lg"> 🙌 </div>
-      {rewards.reverse().map((node, i) => <div className="badge badge-neutral badge-lg" key={node}>🤝 {formatEther(rewards[i])}</div>)}
-      <div className="badge badge-success badge-lg">🫵 {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
+      <div className="badge badge-neutral badge-lg h-8">✋</div>
+      {rewards.reverse().map((node, i) => <div className="badge badge-neutral badge-lg h-8" key={node}>🤝 {formatEther(rewards[i])}</div>)}
+      <div className="badge badge-success badge-lg h-8">🫵 {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
     </div>
   </div>
 }
