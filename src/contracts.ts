@@ -204,9 +204,14 @@ export const aHandABI = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export const aHandBaseABI = [
   { stateMutability: 'nonpayable', type: 'constructor', inputs: [] },
@@ -440,7 +445,14 @@ export const aHandBaseABI = [
     outputs: [],
   },
   {
-    stateMutability: 'view',
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'thumbsDown',
+    outputs: [],
+  },
+  {
+    stateMutability: 'pure',
     type: 'function',
     inputs: [{ name: 'tokenId', internalType: 'uint256', type: 'uint256' }],
     name: 'uri',
@@ -449,20 +461,36 @@ export const aHandBaseABI = [
 ] as const
 
 /**
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export const aHandBaseAddress = {
+  10: '0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab',
   137: '0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D',
+  420: '0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7',
+  8453: '0xE6cb0c675C8A532638d6a811559A48369F9f4DE8',
   31337: '0xb609D06B30481d9c8f220e3051d3BA41f48DDb2A',
   80001: '0x4e9642dfB5FAf70a512651DA1334DBfE5934D781',
+  84531: '0xE6cb0c675C8A532638d6a811559A48369F9f4DE8',
+  534351: '0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6',
+  534352: '0xe8099DA63a29ac26E51bce9df7506333D739e438',
 } as const
 
 /**
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export const aHandBaseConfig = {
   address: aHandBaseAddress,
@@ -1621,9 +1649,14 @@ export function useAHandThankedEvent(
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseRead<
   TFunctionName extends string,
@@ -1647,9 +1680,14 @@ export function useAHandBaseRead<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"balanceOf"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseBalanceOf<
   TFunctionName extends 'balanceOf',
@@ -1674,9 +1712,14 @@ export function useAHandBaseBalanceOf<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"balanceOfBatch"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseBalanceOfBatch<
   TFunctionName extends 'balanceOfBatch',
@@ -1701,9 +1744,14 @@ export function useAHandBaseBalanceOfBatch<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"getProblem"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseGetProblem<
   TFunctionName extends 'getProblem',
@@ -1728,9 +1776,14 @@ export function useAHandBaseGetProblem<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"hands"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseHands<
   TFunctionName extends 'hands',
@@ -1755,9 +1808,14 @@ export function useAHandBaseHands<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"handsNumber"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseHandsNumber<
   TFunctionName extends 'handsNumber',
@@ -1782,9 +1840,14 @@ export function useAHandBaseHandsNumber<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"isApprovedForAll"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseIsApprovedForAll<
   TFunctionName extends 'isApprovedForAll',
@@ -1809,9 +1872,14 @@ export function useAHandBaseIsApprovedForAll<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"supportsInterface"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseSupportsInterface<
   TFunctionName extends 'supportsInterface',
@@ -1836,9 +1904,14 @@ export function useAHandBaseSupportsInterface<
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"uri"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseUri<
   TFunctionName extends 'uri',
@@ -1863,9 +1936,14 @@ export function useAHandBaseUri<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseWrite<
   TFunctionName extends string,
@@ -1900,9 +1978,14 @@ export function useAHandBaseWrite<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"give"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseGive<
   TMode extends WriteContractMode = undefined,
@@ -1938,9 +2021,14 @@ export function useAHandBaseGive<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"raise"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseRaise<
   TMode extends WriteContractMode = undefined,
@@ -1976,9 +2064,14 @@ export function useAHandBaseRaise<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseSafeBatchTransferFrom<
   TMode extends WriteContractMode = undefined,
@@ -2022,9 +2115,14 @@ export function useAHandBaseSafeBatchTransferFrom<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeTransferFrom"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseSafeTransferFrom<
   TMode extends WriteContractMode = undefined,
@@ -2064,9 +2162,14 @@ export function useAHandBaseSafeTransferFrom<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"setApprovalForAll"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseSetApprovalForAll<
   TMode extends WriteContractMode = undefined,
@@ -2110,9 +2213,14 @@ export function useAHandBaseSetApprovalForAll<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"shake"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseShake<
   TMode extends WriteContractMode = undefined,
@@ -2148,9 +2256,14 @@ export function useAHandBaseShake<
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thank"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseThank<
   TMode extends WriteContractMode = undefined,
@@ -2184,11 +2297,59 @@ export function useAHandBaseThank<
 }
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__.
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thumbsDown"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ */
+export function useAHandBaseThumbsDown<
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof aHandBaseAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof aHandBaseABI,
+          'thumbsDown'
+        >['request']['abi'],
+        'thumbsDown',
+        TMode
+      > & { address?: Address; chainId?: TChainId; functionName?: 'thumbsDown' }
+    : UseContractWriteConfig<typeof aHandBaseABI, 'thumbsDown', TMode> & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+        functionName?: 'thumbsDown'
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<typeof aHandBaseABI, 'thumbsDown', TMode>({
+    abi: aHandBaseABI,
+    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+    functionName: 'thumbsDown',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__.
+ *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
+ * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * -
+ * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseWrite<TFunctionName extends string>(
   config: Omit<
@@ -2209,9 +2370,14 @@ export function usePrepareAHandBaseWrite<TFunctionName extends string>(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"give"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseGive(
   config: Omit<
@@ -2233,9 +2399,14 @@ export function usePrepareAHandBaseGive(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"raise"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseRaise(
   config: Omit<
@@ -2257,9 +2428,14 @@ export function usePrepareAHandBaseRaise(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseSafeBatchTransferFrom(
   config: Omit<
@@ -2284,9 +2460,14 @@ export function usePrepareAHandBaseSafeBatchTransferFrom(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeTransferFrom"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseSafeTransferFrom(
   config: Omit<
@@ -2308,9 +2489,14 @@ export function usePrepareAHandBaseSafeTransferFrom(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"setApprovalForAll"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseSetApprovalForAll(
   config: Omit<
@@ -2332,9 +2518,14 @@ export function usePrepareAHandBaseSetApprovalForAll(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"shake"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseShake(
   config: Omit<
@@ -2356,9 +2547,14 @@ export function usePrepareAHandBaseShake(
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thank"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function usePrepareAHandBaseThank(
   config: Omit<
@@ -2378,11 +2574,45 @@ export function usePrepareAHandBaseThank(
 }
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__.
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thumbsDown"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ */
+export function usePrepareAHandBaseThumbsDown(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'thumbsDown'>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: aHandBaseABI,
+    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+    functionName: 'thumbsDown',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'thumbsDown'>)
+}
+
+/**
+ * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__.
+ *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
+ * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * -
+ * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseEvent<TEventName extends string>(
   config: Omit<
@@ -2403,9 +2633,14 @@ export function useAHandBaseEvent<TEventName extends string>(
 /**
  * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"ApprovalForAll"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseApprovalForAllEvent(
   config: Omit<
@@ -2427,9 +2662,14 @@ export function useAHandBaseApprovalForAllEvent(
 /**
  * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"Raised"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseRaisedEvent(
   config: Omit<
@@ -2451,9 +2691,14 @@ export function useAHandBaseRaisedEvent(
 /**
  * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"TransferBatch"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseTransferBatchEvent(
   config: Omit<
@@ -2475,9 +2720,14 @@ export function useAHandBaseTransferBatchEvent(
 /**
  * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"TransferSingle"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseTransferSingleEvent(
   config: Omit<
@@ -2499,9 +2749,14 @@ export function useAHandBaseTransferSingleEvent(
 /**
  * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"URI"`.
  *
+ * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
  * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
+ * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
  * -
  * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
+ * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
  */
 export function useAHandBaseUriEvent(
   config: Omit<
