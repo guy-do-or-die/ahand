@@ -1,5 +1,5 @@
 import { WagmiConfig, configureChains, createConfig } from "wagmi";
-import { foundry, polygon, polygonMumbai, /*scroll,*/ scrollSepolia } from "wagmi/chains";
+import * as wagmiChains from "wagmi/chains";
 
 import { jsonRpcProvider } from "wagmi/providers/jsonRpc";
 import { alchemyProvider } from "wagmi/providers/alchemy";
@@ -11,13 +11,17 @@ import { rainbowConfig } from "./rainbow";
 
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [polygonMumbai],
-
+  [
+    wagmiChains.optimismGoerli,
+    wagmiChains.baseGoerli,
+    wagmiChains.polygonMumbai,
+    wagmiChains.scrollSepolia
+  ],
   [
     alchemyProvider({ apiKey: import.meta.env.VITE_ALCHEMY_API_KEY! }),
     jsonRpcProvider({
       rpc: (chain) => {
-        if (chain.id === foundry.id) {
+        if (chain.id === wagmiChains.foundry.id) {
           return { http: "http://localhost:8545" };
         }
 
@@ -38,7 +42,11 @@ const { wallets, connectors: walletConnectors } = getDefaultWallets({
 const accountConfig = {
   chains,
   options: {
-    projectId: import.meta.env.VITE_ZERODEV_PROJECT_ID_POLYGON_MUMBAI,
+    projectIds: [
+      import.meta.env.VITE_ZERODEV_PROJECT_ID_OPTIMISM_GOERLI,
+      import.meta.env.VITE_ZERODEV_PROJECT_ID_BASE_GOERLI,
+      import.meta.env.VITE_ZERODEV_PROJECT_ID_POLYGON_MUMBAI,
+    ],
     shimDisconnect: true
   }
 }
