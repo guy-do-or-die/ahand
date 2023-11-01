@@ -21,13 +21,31 @@ import {
 } from "../contracts";
 
 
-const Problem = ({params: {hand, ref}}) => {
-
-  const { chain } = useNetwork()
+const Problem = ({params: {hand, ref}, action}) => {
 
   const {data: problem} = useAHandProblem({
     address: hand,
   })
+
+  const {data: rewardData} = useBalance({
+    address: hand,
+  })
+
+  const reward = parseInt(rewardData?.value) || 0;
+
+  return <div className="mb-8">
+    <ShareMeta title={problem} reward={reward} />
+    <div className="card-title text-center mb-8 text-4xl justify-center">
+      {problem}
+    </div>
+    <Rewards params={hand, ref} reward={reward} action={action} />
+  </div>
+}
+
+
+const Rewards = ({params: {hand, ref}, reward, action}) => {
+
+  const { chain } = useNetwork()
 
   const {data: chainData} = useAHandShakesChain({
     address: hand,
@@ -35,12 +53,7 @@ const Problem = ({params: {hand, ref}}) => {
     args: [ref],
   });
 
-  const {data: rewardData} = useBalance({
-    address: hand,
-  })
-
   const shakes = chainData || [];
-  const reward = parseInt(rewardData?.value) || 0;
 
   const [baseReward, ...rewards] = shakes.reduce((acc, _, i) => {
     const amount = (i === 0 ? reward : acc[i - 1]) / 2;
@@ -50,17 +63,18 @@ const Problem = ({params: {hand, ref}}) => {
 
   const potentialReward = (baseReward || reward) + (rewards.at(-1) || 0);
 
-  return <div className="mb-8">
-    <ShareMeta title={problem} reward={reward} />
-    <div className="card-title text-center mb-8 text-4xl justify-center">
-      {problem}
-    </div>
+  const lastIcon = {
+    "given": "🙌",
+    "other": "🫵"
+  }[action]
+
+  return <>
     <div className="flex justify-center space-x-4 mb-4 shakes">
       <div className="badge badge-neutral badge-lg h-8">✋</div>
       {rewards.reverse().map((node, i) => <div className="badge badge-neutral badge-lg h-8" key={node}>🤝 {formatEther(rewards[i])}</div>)}
-      <div className="badge badge-success badge-lg h-8">🫵 {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
+      <div className="badge badge-success badge-lg h-8">{lastIcon} {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
     </div>
-  </div>
+  </>
 }
 
 
@@ -118,7 +132,7 @@ const ThankButton = ({hand, solutionId, giverRef}) => {
     args: [hand, solutionId],
     enabled: true,
     onReceipt: data => {
-      setLocation(`/hand/${hand}/${giverRef}/thanked`);
+      setLocation(`/hand/${hand}/${ref}/thanked`);
     }
   }
 
@@ -206,7 +220,7 @@ export const Hand = ({params}) => {
   }[action]
 
   return <div>
-    <Problem params={params} />
+    <Problem params={params} action={action} />
     <p className="text-2xl text-gray-700 text-center">{msg}</p>
     { params.ref ? <div>{el}</div> : <Solutions hand={params.hand} /> }
   </div>
