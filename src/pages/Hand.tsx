@@ -1,10 +1,14 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useRef, useEffect } from "react";
+
+import { useSpring, animated } from '@react-spring/web'
+import { useDrag } from '@use-gesture/react'
 
 import { useAccount, useBalance, useNetwork } from "wagmi";
 import { formatEther } from "viem";
 
-import { Button, Share, ShareMeta } from "../components";
+import { useLocation } from "wouter";
+
+import { Button, ShareForm, ShareMeta } from "../components";
 import { genRef } from "../utils";
 
 import {
@@ -38,22 +42,31 @@ const Problem = ({params: {hand, ref}, action}) => {
     <div className="card-title text-center mb-8 text-4xl justify-center">
       {problem}
     </div>
-    <Rewards params={hand, ref} reward={reward} action={action} />
+    <Shakes hand={hand} shakeRef={ref} reward={reward} action={action} />
   </div>
 }
 
 
-const Rewards = ({params: {hand, ref}, reward, action}) => {
+const Shake = ({children, classes = 'badge-neutral'}) => {
+  return (
+    <div className={`badge badge-lg h-8 ${classes}`}>
+      {children}
+    </div>
+  );
+};
+
+
+const Shakes = ({hand, shakeRef, reward, action}) => {
 
   const { chain } = useNetwork()
 
-  const {data: chainData} = useAHandShakesChain({
+  const {data: shakesData} = useAHandShakesChain({
     address: hand,
-    enabled: ref,
-    args: [ref],
+    enabled: shakeRef,
+    args: [shakeRef],
   });
 
-  const shakes = chainData || [];
+  const shakes = shakesData || [];
 
   const [baseReward, ...rewards] = shakes.reduce((acc, _, i) => {
     const amount = (i === 0 ? reward : acc[i - 1]) / 2;
@@ -68,11 +81,35 @@ const Rewards = ({params: {hand, ref}, reward, action}) => {
     "other": "🫵"
   }[action]
 
+  const shakesRef = useRef(null);
+
+  const [{ x, y }, set] = useSpring(() => ({ x: 0, y: 0 }));
+  const drag = useDrag(({ offset: [dx] }) => {
+    if (shakesRef.current) {
+      shakesRef.current.scrollLeft = -dx;
+    }
+  });
+
+  useEffect(() => {
+    if (shakesRef.current) {
+      shakesRef.current.scrollLeft = shakesRef.current.scrollWidth;
+    }
+  }, []);
+
   return <>
-    <div className="flex justify-center space-x-4 mb-4 shakes">
-      <div className="badge badge-neutral badge-lg h-8">✋</div>
-      {rewards.reverse().map((node, i) => <div className="badge badge-neutral badge-lg h-8" key={node}>🤝 {formatEther(rewards[i])}</div>)}
-      <div className="badge badge-success badge-lg h-8">{lastIcon} {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
+    <div className="flex justify-center mb-4 shakes">
+      <div ref={shakesRef} {...drag()} style={{ x, y, touchAction: 'none' }}
+           className="flex overflow-x-scroll no-scrollbar select-none">
+        <div className="flex-shrink-0 space-x-4 m-auto">
+          <Shake classes="badge-neutral !ml-4">✋</Shake>
+          {rewards.reverse().map((reward, i) => (
+            <Shake key={i}>🤝 {formatEther(reward)}</Shake>
+          ))}
+          <Shake classes="badge-success !mr-4">
+            {lastIcon} {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}
+          </Shake>
+        </div>
+      </div>
     </div>
   </>
 }
@@ -186,7 +223,7 @@ const Solutions = ({hand}) => {
 }
 
 
-const Shake = ({params}) => {
+const ShakeForm = ({params}) => {
 
   const [newRef] = useState(genRef());
   const [solution, setSolution] = useState();
@@ -215,8 +252,8 @@ export const Hand = ({params}) => {
   }[action];
 
   const el = {
-    "share": <Share url={url} />,
-    "other": <Shake params={params} />,
+    "share": <ShareForm url={url} />,
+    "other": <ShakeForm params={params} />,
   }[action]
 
   return <div>

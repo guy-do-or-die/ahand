@@ -4,7 +4,7 @@ import { Link } from "wouter";
 
 
 const Logo = () => {
-  return <div className="mx-5 cursor-pointer" title="Raise, shake, give and get rewarded!">
+  return <div className="mx-5 mb-4 cursor-pointer" title="Raise, shake, give and get rewarded!">
     <Link href="/">
       <span className="text-6xl sm:text-5xl">a</span>
       <span className="font-bold text-7xl sm:text-6xl">🙌</span>

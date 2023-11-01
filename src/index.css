@@ -15,6 +15,7 @@ textarea::placeholder {
   position: relative;
 }
 
+
 .shakes .badge:not(:last-child)::after {
   content: '';
   position: absolute;
@@ -25,4 +26,45 @@ textarea::placeholder {
   height: 1px;
   background-color: black;
   z-index: 0;
+}
+
+
+.shakes {
+    position: relative;
+    overflow: hidden;
+}
+
+
+.shakes::before,
+.shakes::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    pointer-events: none;
+}
+
+
+.shakes::before {
+    left: 0;
+    z-index: 1000;
+    background: linear-gradient(to right, white, transparent);
+}
+
+
+.shakes::after {
+    right: 0;
+    background: linear-gradient(to left, white, transparent);
+}
+
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
