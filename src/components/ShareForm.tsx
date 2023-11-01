@@ -1,7 +1,7 @@
 import { ShareSocial } from "react-share-social"; 
 
 
-export const Share = ({url}) => {
+export const ShareForm = ({url}) => {
 
   const style = {
     root: {

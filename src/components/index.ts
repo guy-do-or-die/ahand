@@ -4,7 +4,9 @@ export { Body } from "./Body";
 
 export { Button } from "./Button"; 
 
-export { Share } from "./Share";
+export { ShareForm } from "./ShareForm";
 export { ShareMeta } from "./ShareMeta";
 
 export { Links } from "./Links";
+
+export { Notification, notify } from "./Notification";

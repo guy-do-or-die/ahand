@@ -3,13 +3,14 @@ import { useAccount } from "wagmi";
 
 import { Link, Route } from "wouter";
 
-import { Header, Body, Footer } from "./components";
+import { Notification, Header, Body, Footer } from "./components";
 import { Welcome, Hand, Hands, Raise, Solution } from "./pages";
 
 
 export function App() {
 
   return <div className="flex flex-col items-center min-h-screen">
+    <Notification />
     <Header />
     <Body>
       <Route path="/" component={Welcome} />

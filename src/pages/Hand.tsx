@@ -1,10 +1,14 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useRef, useEffect } from "react";
+
+import { useSpring, animated } from '@react-spring/web'
+import { useDrag } from '@use-gesture/react'
 
 import { useAccount, useBalance, useNetwork } from "wagmi";
 import { formatEther } from "viem";
 
-import { Button, Share, ShareMeta } from "../components";
+import { useLocation } from "wouter";
+
+import { Button, ShareForm, ShareMeta } from "../components";
 import { genRef } from "../utils";
 
 import {
@@ -21,28 +25,50 @@ import {
 } from "../contracts";
 
 
-const Problem = ({params: {hand, ref}}) => {
-
-  const { chain } = useNetwork()
+const Problem = ({params: {hand, ref}, action}) => {
 
   const {data: problem} = useAHandProblem({
     address: hand,
   })
 
-  const {data: chainData} = useAHandShakesChain({
-    address: hand,
-    enabled: ref,
-    args: [ref],
-  });
-
   const {data: rewardData} = useBalance({
     address: hand,
   })
 
-  const shakes = chainData || [];
   const reward = parseInt(rewardData?.value) || 0;
 
-  const [baseReward, ...rewards] = shakes.map((v) => v * 2).reduce((acc, _, i) => {
+  return <div className="mb-8">
+    <ShareMeta title={problem} reward={reward} />
+    <div className="card-title text-center mb-8 text-4xl justify-center">
+      {problem}
+    </div>
+    <Shakes hand={hand} shakeRef={ref} reward={reward} action={action} />
+  </div>
+}
+
+
+const Shake = ({children, classes = 'badge-neutral'}) => {
+  return (
+    <div className={`badge badge-lg h-8 ${classes}`}>
+      {children}
+    </div>
+  );
+};
+
+
+const Shakes = ({hand, shakeRef, reward, action}) => {
+
+  const { chain } = useNetwork()
+
+  const {data: shakesData} = useAHandShakesChain({
+    address: hand,
+    enabled: shakeRef,
+    args: [shakeRef],
+  });
+
+  const shakes = shakesData || [];
+
+  const [baseReward, ...rewards] = shakes.reduce((acc, _, i) => {
     const amount = (i === 0 ? reward : acc[i - 1]) / 2;
     acc.push(amount);
     return acc;
@@ -50,17 +76,42 @@ const Problem = ({params: {hand, ref}}) => {
 
   const potentialReward = (baseReward || reward) + (rewards.at(-1) || 0);
 
-  return <div className="mb-8">
-    <ShareMeta title={problem} reward={reward} />
-    <div className="card-title text-center mb-8 text-4xl justify-center">
-      {problem}
+  const lastIcon = {
+    "given": "🙌",
+    "other": "🫵"
+  }[action]
+
+  const shakesRef = useRef(null);
+
+  const [{ x, y }, set] = useSpring(() => ({ x: 0, y: 0 }));
+  const drag = useDrag(({ offset: [dx] }) => {
+    if (shakesRef.current) {
+      shakesRef.current.scrollLeft = -dx;
+    }
+  });
+
+  useEffect(() => {
+    if (shakesRef.current) {
+      shakesRef.current.scrollLeft = shakesRef.current.scrollWidth;
+    }
+  }, []);
+
+  return <>
+    <div className="flex justify-center mb-4 shakes">
+      <div ref={shakesRef} {...drag()} style={{ x, y, touchAction: 'none' }}
+           className="flex overflow-x-scroll no-scrollbar select-none">
+        <div className="flex-shrink-0 space-x-4 m-auto">
+          <Shake classes="badge-neutral !ml-4">✋</Shake>
+          {rewards.reverse().map((reward, i) => (
+            <Shake key={i}>🤝 {formatEther(reward)}</Shake>
+          ))}
+          <Shake classes="badge-success !mr-4">
+            {lastIcon} {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}
+          </Shake>
+        </div>
+      </div>
     </div>
-    <div className="flex justify-center space-x-4 mb-4 shakes">
-      <div className="badge badge-neutral badge-lg"> 🙌 </div>
-      {rewards.reverse().map((node, i) => <div className="badge badge-neutral badge-lg" key={node}>🤝 {formatEther(rewards[i])}</div>)}
-      <div className="badge badge-success badge-lg">🫵 {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}</div>
-    </div>
-  </div>
+  </>
 }
 
 
@@ -118,7 +169,7 @@ const ThankButton = ({hand, solutionId, giverRef}) => {
     args: [hand, solutionId],
     enabled: true,
     onReceipt: data => {
-      setLocation(`/hand/${hand}/${giverRef}/thanked`);
+      setLocation(`/hand/${hand}/${ref}/thanked`);
     }
   }
 
@@ -172,7 +223,7 @@ const Solutions = ({hand}) => {
 }
 
 
-const Shake = ({params}) => {
+const ShakeForm = ({params}) => {
 
   const [newRef] = useState(genRef());
   const [solution, setSolution] = useState();
@@ -201,12 +252,12 @@ export const Hand = ({params}) => {
   }[action];
 
   const el = {
-    "share": <Share url={url} />,
-    "other": <Shake params={params} />,
+    "share": <ShareForm url={url} />,
+    "other": <ShakeForm params={params} />,
   }[action]
 
   return <div>
-    <Problem params={params} />
+    <Problem params={params} action={action} />
     <p className="text-2xl text-gray-700 text-center">{msg}</p>
     { params.ref ? <div>{el}</div> : <Solutions hand={params.hand} /> }
   </div>
