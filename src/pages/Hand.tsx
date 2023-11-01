@@ -78,8 +78,8 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 
   const lastIcon = {
     "given": "🙌",
-    "other": "🫵"
-  }[action]
+    "thanked": "🙏",
+  }[action] || "🫵"
 
   const shakesRef = useRef(null);
 
