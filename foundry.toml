@@ -1,0 +1,19 @@
+[profile.default]
+src = 'contracts/src'
+test = 'contracts/test'
+out = 'contracts/out'
+libs = ['contracts/lib']
+solc = '0.8.21'
+
+optimizer = true
+optimizer_runs = 20_000
+
+gas_limit = 30000000
+
+verbosity = 4
+
+remappings = [
+    '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
+]
+
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
