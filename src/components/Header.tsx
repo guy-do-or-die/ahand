@@ -1,4 +1,4 @@
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { usePrivy } from "@privy-io/react-auth";
 
 import { Link } from "wouter";
 
@@ -15,13 +15,26 @@ const Logo = () => {
 
 
 export const Header = () => {
+ 
+  const { ready, authenticated, login, logout } = usePrivy();
+
   return <div className="flex flex-col items-center justify-start w-full sm:flex-row sm:justify-between p-2">
     <div className="w-full text-center sm:text-left">
       <Logo />
     </div>
 
     <div className="order-1 m-4 sm:m-0 sm:order-2 sm:absolute sm:top-5 sm:right-6">
-      <ConnectButton label="Sign In" accountStatus="address" chainStatus="icon" />
+      {
+        ready && authenticated
+          ?
+        <button className="btn btn-outline w-32" onClick={logout}>
+          Log Out
+        </button>
+          :
+        <button className="btn w-32" onClick={login}>
+          Log In
+        </button>
+       }
     </div>
   </div>
 }

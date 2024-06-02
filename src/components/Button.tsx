@@ -1,4 +1,4 @@
-import { useNetwork, useWaitForTransaction } from "wagmi";
+import { useAccount, useWaitForTransactionReceipt } from "wagmi";
 
 import { notify } from "./Notification";
 
@@ -32,7 +32,7 @@ export const parseError = (error) => {
 
 export const Button = ({prepareHook, writeHook, params, emoji, text}) => {
 
-  const { chain } = useNetwork();
+  const { chain } = useAccount();
 
   const etherscan = chain?.blockExplorers?.etherscan;
   const txLink = (hash, msg) => <a href={`${etherscan.url}/tx/${hash}`} target="_blank">{msg}</a>
@@ -63,7 +63,7 @@ export const Button = ({prepareHook, writeHook, params, emoji, text}) => {
     ...config
   });
 
-  const {isLoading: isConfirmating} = useWaitForTransaction({
+  const {isLoading: isConfirmating} = useWaitForTransactionReceipt({
     confirmations: 1,
     hash: data?.hash,
 

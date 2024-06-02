@@ -1,4 +1,4 @@
-import { useNetwork } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 import { aHandBaseAddress } from '../contracts';
 
@@ -20,7 +20,7 @@ const Link = ({href, icon, title}) => {
 
 
 export const Links = () => {
-  const { chain } = useNetwork();
+  const { chain } = useAccount();
 
   const etherscan = chain?.blockExplorers?.etherscan.url;
   const contractAddress = aHandBaseAddress[chain?.id];

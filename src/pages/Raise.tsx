@@ -2,22 +2,21 @@ import { useState } from "react";
 import { parseEther } from "viem";
 import { useLocation } from "wouter";
 
-import { useAccount, useNetwork, useBlockNumber } from "wagmi";
+import { useAccount, useBlockNumber } from "wagmi";
 
 import { Button } from "../components";
 import { genRef } from "../utils";
 
 import {
-  usePrepareAHandBaseRaise,
-  useAHandBaseRaise,
-  useAHandBaseRaisedEvent,
+  useSimulateAHandBaseRaise,
+  useWriteAHandBaseRaise,
+  useWatchAHandBaseRaisedEvent,
 } from "../contracts";
 
 
 export const Raise = () => {
 
-  const {address} = useAccount();
-  const {chain} = useNetwork();
+  const {address, chain} = useAccount();
 
   const [location, setLocation] = useLocation();
 
@@ -47,7 +46,7 @@ export const Raise = () => {
     enabled: problem?.length > 0 && parseFloat(reward) > 0,
   };
 
-  useAHandBaseRaisedEvent({
+  useWatchAHandBaseRaisedEvent({
     listener(log) {
       (log || []).every(item => {
         const {hand, raiser} = item.args;
@@ -69,8 +68,8 @@ export const Raise = () => {
              pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
 
       <Button emoji="✋" text="Raise"
-              prepareHook={usePrepareAHandBaseRaise}
-              writeHook={useAHandBaseRaise}
+              prepareHook={useSimulateAHandBaseRaise}
+              writeHook={useWriteAHandBaseRaise}
               params={raiseParams} />
     </div>
   </div>

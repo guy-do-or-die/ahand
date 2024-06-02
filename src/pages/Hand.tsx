@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSpring, animated } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 
-import { useAccount, useBalance, useNetwork } from "wagmi";
+import { useAccount, useBalance } from "wagmi";
 import { formatEther } from "viem";
 
 import { useLocation } from "wouter";
@@ -12,22 +12,22 @@ import { Button, ShareForm, ShareMeta } from "../components";
 import { genRef } from "../utils";
 
 import {
-  useAHandProblem,
-  usePrepareAHandBaseShake,
-  usePrepareAHandBaseGive,
-  usePrepareAHandBaseThank,
-  useAHandBaseShake,
-  useAHandBaseGive,
-  useAHandBaseThank,
-  useAHandShakesChain,
-  useAHandSolutionsNumber,
-  useAHandSolutions,
+  useReadAHandProblem,
+  useReadAHandShakesChain,
+  useReadAHandSolutionsNumber,
+  useReadAHandSolutions,
+  useSimulateAHandBaseShake,
+  useSimulateAHandBaseGive,
+  useSimulateAHandBaseThank,
+  useWriteAHandBaseShake,
+  useWriteAHandBaseGive,
+  useWriteAHandBaseThank,
 } from "../contracts";
 
 
 const Problem = ({params: {hand, ref}, action}) => {
 
-  const {data: problem} = useAHandProblem({
+  const {data: problem} = useReadAHandProblem({
     address: hand,
   })
 
@@ -58,9 +58,9 @@ const Shake = ({children, classes = 'badge-neutral'}) => {
 
 const Shakes = ({hand, shakeRef, reward, action}) => {
 
-  const { chain } = useNetwork()
+  const { chain } = useAccount()
 
-  const {data: shakesData} = useAHandShakesChain({
+  const {data: shakesData} = useReadAHandShakesChain({
     address: hand,
     enabled: shakeRef,
     args: [shakeRef],
@@ -136,8 +136,8 @@ const ShakeButton = ({params: {hand, ref}, newRef}) => {
   }
 
   return <Button emoji="🤝" text="Shake" 
-                 prepareHook={usePrepareAHandBaseShake}
-                 writeHook={useAHandBaseShake}
+                 prepareHook={useSimulateAHandBaseShake}
+                 writeHook={useWriteAHandBaseShake}
                  params={shakeParams} />
 }
 
@@ -155,8 +155,8 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
   }
 
   return <Button emoji="🙌" text="Give" 
-                 prepareHook={usePrepareAHandBaseGive}
-                 writeHook={useAHandBaseGive}
+                 prepareHook={useSimulateAHandBaseGive}
+                 writeHook={useWriteAHandBaseGive}
                  params={giveParams} />
 }
 
@@ -174,15 +174,15 @@ const ThankButton = ({hand, solutionId, giverRef}) => {
   }
 
   return <Button emoji="🙏" text="Thank" 
-                 prepareHook={usePrepareAHandBaseThank}
-                 writeHook={useAHandBaseThank}
+                 prepareHook={useSimulateAHandBaseThank}
+                 writeHook={useWriteAHandBaseThank}
                  params={thankParams} />
 }
 
 
 const Solution = ({hand, id, isOpen, onToggle}) => {
 
-  const {data} = useAHandSolutions({
+  const {data} = useReadAHandSolutions({
     address: hand,
     args: [id], 
   })
@@ -208,7 +208,7 @@ const Solutions = ({hand}) => {
 
   const [openAccordion, setOpenAccordion] = useState(null);
 
-  const {data: solutionsNumber} = useAHandSolutionsNumber({
+  const {data: solutionsNumber} = useReadAHandSolutionsNumber({
     address: hand,
   })
 
