@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 
 export const Welcome = () => {
 
-  const { ready, authenticated, login } = usePrivy();
+  const {ready, authenticated, login} = usePrivy();
 
   const [location, setLocation] = useLocation();
 

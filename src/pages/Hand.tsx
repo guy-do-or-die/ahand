@@ -117,8 +117,8 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 
 const SolutionInput = ({setValue}) => {
 
-  return <div>
-    <textarea className="textarea textarea-bordered w-full" placeholder="Solution" onChange={event => setValue(event.target.value)} />
+  return <div className="lg:tooltip w-full h-32" data-tip="Provide your solution or contacts">
+    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y h-32" placeholder="Solution" onChange={event => setValue(event.target.value)} />
   </div>
 }
 
@@ -136,7 +136,7 @@ const ShakeButton = ({params: {hand, ref}, newRef}) => {
   }
 
   return <Button emoji="🤝" text="Shake" 
-                 prepareHook={useSimulateAHandBaseShake}
+                 simulateHook={useSimulateAHandBaseShake}
                  writeHook={useWriteAHandBaseShake}
                  params={shakeParams} />
 }
@@ -155,7 +155,7 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
   }
 
   return <Button emoji="🙌" text="Give" 
-                 prepareHook={useSimulateAHandBaseGive}
+                 simulateHook={useSimulateAHandBaseGive}
                  writeHook={useWriteAHandBaseGive}
                  params={giveParams} />
 }
@@ -174,7 +174,7 @@ const ThankButton = ({hand, solutionId, giverRef}) => {
   }
 
   return <Button emoji="🙏" text="Thank" 
-                 prepareHook={useSimulateAHandBaseThank}
+                 simulateHook={useSimulateAHandBaseThank}
                  writeHook={useWriteAHandBaseThank}
                  params={thankParams} />
 }
@@ -231,8 +231,12 @@ const ShakeForm = ({params}) => {
   return <div>
     <SolutionInput setValue={setSolution}/>
     <div className="card-actions justify-center mt-2 space-x-2">
-      <ShakeButton params={params} newRef={newRef} />
-      <GiveButton params={params} newRef={newRef} solution={solution} />
+      <div className="lg:tooltip" data-tip="Just share the problem to your peers and get rewarded if someone else provides a solution">
+        <ShakeButton params={params} newRef={newRef} />
+      </div>
+      <div className="lg:tooltip" data-tip="Deliver privately to the problem's raiser"> 
+        <GiveButton params={params} newRef={newRef} solution={solution} />
+      </div>
     </div>
   </div>
 

@@ -30,27 +30,27 @@ export const parseError = (error) => {
 }
 
 
-export const Button = ({prepareHook, writeHook, params, emoji, text}) => {
+export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
 
   const { chain } = useAccount();
 
   const etherscan = chain?.blockExplorers?.etherscan;
   const txLink = (hash, msg) => <a href={`${etherscan.url}/tx/${hash}`} target="_blank">{msg}</a>
 
-  const { config, isLoading: isPreparing, error: prepareError } = prepareHook({
+  const { data: simulateData, isLoading: isPreparing, error: simulateError } = simulateHook({
 
     onError: error => {
-      params.onPrepareError?.(error) || notify(parseError(error), "error");
+      params.onSimulateError?.(error) || notify(parseError(error), "error");
     },
 
     onSuccess: data => {
-      params.onPrepareSuccess?.(data) || notify(data?.result, "success");
+      params.onSimulateSuccess?.(data) || notify(data?.result, "success");
     },
 
     ...params,
   })
 
-  const {data, write, isLoading: isWriting } = writeHook({
+  const {data: writeData, writeContract, isLoading: isWriting } = writeHook({
 
     onError: error => {
       params.onWriteError?.(error) || notify(parseError(error), "error");
@@ -60,12 +60,11 @@ export const Button = ({prepareHook, writeHook, params, emoji, text}) => {
       params.onWriteSuccess?.(data) || notify(txLink(data?.hash, "Transaction sent"), "success");
     },
 
-    ...config
   });
 
   const {isLoading: isConfirmating} = useWaitForTransactionReceipt({
     confirmations: 1,
-    hash: data?.hash,
+    hash: writeData?.hash,
 
     onError: error => {
       notify(parseError(error), "error");
@@ -77,7 +76,9 @@ export const Button = ({prepareHook, writeHook, params, emoji, text}) => {
   });
 
   return <div>
-    <button className="btn btn-ghost w-32" disabled={!params.enabled || !write} onClick={() => write?.()}>
+    <button className="btn btn-ghost w-32"
+            disabled={!params.enabled || !Boolean(simulateData?.request)}
+            onClick={() => writeContract(simulateData!.request)}>
       {
         isPreparing || isWriting || isConfirmating ? 
           <span className="loading loading-spinner"></span>

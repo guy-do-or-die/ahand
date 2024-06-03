@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { parseEther } from "viem";
 import { useLocation } from "wouter";
 
 import { useAccount, useBlockNumber } from "wagmi";
+
+import { usePrivy } from "@privy-io/react-auth";
 
 import { Button } from "../components";
 import { genRef } from "../utils";
@@ -16,6 +18,8 @@ import {
 
 export const Raise = () => {
 
+  const {ready, authenticated} = usePrivy();
+
   const {address, chain} = useAccount();
 
   const [location, setLocation] = useLocation();
@@ -24,6 +28,10 @@ export const Raise = () => {
 
   const [problem, setProblem] = useState();
   const [reward, setReward] = useState("");
+
+  useEffect(() => {
+    !ready || !authenticated && setLocation("/");
+  }, [ready, authenticated])
 
   const handleRewardChange = (event) => {
     const value = event.target.value;
@@ -60,17 +68,21 @@ export const Raise = () => {
   });
 
   return <div>
-    <div>
-      <textarea className="textarea textarea-bordered w-full" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
+    <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Type or paste a link to your problem description">
+      <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y h-48 md:h-32" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
     </div>
     <div className="card-actions justify-center mt-2">
-      <input type="text" placeholder="Reward" className="input input-bordered w-full max-w-xs"
-             pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
+      <div className="lg:tooltip w-full max-w-xs" data-tip="Set fair reward for a solution participants">
+        <input type="text" placeholder="Reward" className="input input-bordered w-full"
+               pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
+      </div>
 
-      <Button emoji="✋" text="Raise"
-              prepareHook={useSimulateAHandBaseRaise}
-              writeHook={useWriteAHandBaseRaise}
-              params={raiseParams} />
+      <div className="lg:tooltip" data-tip="Publish your problem">
+        <Button emoji="✋" text="Raise"
+                simulateHook={useSimulateAHandBaseRaise}
+                writeHook={useWriteAHandBaseRaise}
+                params={raiseParams} />
+      </div>
     </div>
   </div>
 }

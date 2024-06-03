@@ -5,6 +5,7 @@ import { aHandBaseAddress } from '../contracts';
 import xUrl from '../../assets/x.png';
 import telegramUrl from '../../assets/telegram.png';
 import discordUrl from '../../assets/discord.png';
+import farcasterUrl from '../../assets/farcaster.png';
 import guildUrl from '../../assets/guild.png';
 import gitUrl from '../../assets/git.png';
 import etherscanUrl from '../../assets/etherscan.png';
@@ -25,11 +26,12 @@ export const Links = () => {
   const etherscan = chain?.blockExplorers?.etherscan.url;
   const contractAddress = aHandBaseAddress[chain?.id];
 
-  return <div className="flex justify-center items-start"> 
+  return <div className="links flex justify-center items-start"> 
     <div className="flex space-x-4 filter grayscale">
-      <Link title="X" href="http://x.com/ahand_social" icon={xUrl} />
-      <Link title="Telegram" href="https://t.me/" icon={telegramUrl} />
-      <Link title="Discord" href="https://discord.gg/" icon={discordUrl} />
+      <Link title="X" href="http://x.com/ahand_in" icon={xUrl} />
+      <Link title="Telegram" href="https://t.me/ahand" icon={telegramUrl} />
+      <Link title="Discord" href="https://discord.gg/ahand" icon={discordUrl} />
+      <Link title="Farcaster" href="https://warpcast.com/ahand" icon={farcasterUrl} />
       <Link title="Guild" href="https://guild.xyz/ahand" icon={guildUrl} />
       <Link title="Code" href="https://gitlab.com/the-gethering/ahand" icon={gitUrl} />
       {chain ? <Link title="Contract" href={`${etherscan}/address/${contractAddress}#code`} icon={etherscanUrl} /> : ""}

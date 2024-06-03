@@ -2,10 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig } from "wagmi";
 import * as wagmiChains from "wagmi/chains";
 
-import { ZeroDevProvider } from "@zerodev/privy";
-import { PrivyProvider } from '@privy-io/react-auth';
-
 import { http } from 'viem';
+
+import { WalletProvider } from './wallet';
 
 
 const chains = [wagmiChains.polygonMumbai, wagmiChains.foundry];
@@ -24,14 +23,12 @@ const queryClient = new QueryClient();
 
 export const WagmiWrapper = ({children}) => {
   return (
-    <WagmiProvider config={config}>
+    <WalletProvider>
       <QueryClientProvider client={queryClient}>
-        <ZeroDevProvider projectId={import.meta.env.VITE_ZERODEV_PROJECT_ID_POLYGON_MUMBAI}>
-          <PrivyProvider appId={import.meta.env.VITE_PRIVY_APP_ID}>
-            {children}
-          </PrivyProvider>
-        </ZeroDevProvider>
+        <WagmiProvider config={config}>
+          {children}
+        </WagmiProvider>
       </QueryClientProvider>
-    </WagmiProvider>
+    </WalletProvider>
   )
 }

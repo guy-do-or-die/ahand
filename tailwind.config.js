@@ -19,7 +19,7 @@ export default {
     require("daisyui")
   ],
   daisyui: {
-    themes: ["light", "dark", "black"],
+    themes: ["light", "dark", "black", "night", "dim"],
   },
   extend: {
     opacity: ['group-hover'],
