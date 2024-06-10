@@ -6,7 +6,7 @@ import { useAccount, useBlockNumber } from "wagmi";
 
 import { usePrivy } from "@privy-io/react-auth";
 
-import { Button } from "../components";
+import { Button, notify } from "../components";
 import { genRef } from "../utils";
 
 import {
@@ -55,8 +55,11 @@ export const Raise = () => {
   };
 
   useWatchAHandBaseRaisedEvent({
-    listener(log) {
-      (log || []).every(item => {
+    onError(error) {
+      console.log(error.message)
+    },
+    onLogs(logs) {
+      (logs || []).every(item => {
         const {hand, raiser} = item.args;
 
         if (raiser === address) {
@@ -69,7 +72,7 @@ export const Raise = () => {
 
   return <div>
     <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Type or paste a link to your problem description">
-      <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y h-48 md:h-32" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
+      <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
     </div>
     <div className="card-actions justify-center mt-2">
       <div className="lg:tooltip w-full max-w-xs" data-tip="Set fair reward for a solution participants">

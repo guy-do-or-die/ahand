@@ -26,7 +26,7 @@ contract AHandBase is ERC1155 {
 
     event Raised(address indexed hand, address indexed raiser);
 
-    constructor() ERC1155("") {}
+    constructor() ERC1155("AHAND") {}
 
     function raise(string calldata problem, address ref) public payable {
         require(msg.value > 0, "Reward can't be 0");
@@ -78,11 +78,9 @@ contract AHandBase is ERC1155 {
         else return "";
 
         return string(abi.encodePacked(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="', Strings.toString(PIC_SIZE),
-            '" height="', Strings.toString(PIC_SIZE), '">',
-            '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="', Strings.toString(PIC_SIZE / 2), '">',
-            emoji,
-            '</text></svg>'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="', Strings.toString(PIC_SIZE), '" height="', Strings.toString(PIC_SIZE), '">',
+            '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="128" font-family="EmojiFont, sans-serif">',
+            emoji, '</text></svg>'
         ));
     }
 
@@ -95,7 +93,7 @@ contract AHandBase is ERC1155 {
                         abi.encodePacked(
                             "{",
                                 '  "image": "', Base64.encode(bytes(getImage(tokenId))), '"',
-                                ', "name":"Bit #', Strings.toString(tokenId), '"',
+                                ', "name": "Bit #', Strings.toString(tokenId), '"',
                                 ', "description": "aHand"',
                             "}"
                         )

@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'
 
+import { useConfig } from '../Store'
 
-export const getTheme = () => localStorage.getItem('theme') || 'light';
-export const setTheme = (theme) => localStorage.setItem('theme', theme);
 
 export const ThemeToggle = () => {
 
@@ -11,24 +10,19 @@ export const ThemeToggle = () => {
     'dark': 'black',
   }
 
-  const [theme, setThemeState] = useState(() => {
-    return getTheme();
-  });
+  const {config, setConfig} = useConfig()
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', THEMES[theme]);
-    setTheme(theme);
-  }, [theme]);
+  const theme = config.theme || 'light'
 
   const toggleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', THEMES[newTheme]);
-    setThemeState(newTheme);
-  };
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    document.documentElement.setAttribute('data-theme', THEMES[newTheme])
+    setConfig('theme', newTheme)
+  }
 
   return (
     <button className="btn btn-ghost mr-2 text-lg w-8 md:w-12" title={theme === 'dark' ? 'Light Theme' : 'Dark Theme'} onClick={toggleTheme}>
       {theme === 'dark' ? '🌞' : '🌚'}
     </button>
-  );
-};
+  )
+}

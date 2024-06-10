@@ -1,4 +1,5 @@
-import { Links } from "./Links";
+import { Links } from "./Links"
+
 
 const Base = () => {
   return <div className="base-logo">
@@ -19,7 +20,7 @@ export const Footer = () => {
     <div className="mt-auto">
       <div className="bottom-0 left-0 w-full my-5">
           <div className="flex justify-center text-center">
-            <div className="mr-2 mt-1">built on</div>
+            <div className="mr-3 mt-1">built on</div>
             <div className="mt-1">
               <a href="https://base.org/" target="_blank">
                 <Base />

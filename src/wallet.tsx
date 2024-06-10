@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { PrivyProvider } from '@privy-io/react-auth';
 import { ZeroDevProvider } from "@zerodev/privy";
 
-import { getTheme } from './components/Theme';
+import { useConfig } from './Store';
 
 
 export const ZeroDev = ({props, children}) => {
@@ -15,15 +15,12 @@ export const ZeroDev = ({props, children}) => {
 }
 
 export const Privy = ({props, children}) => {
-  const [theme, setThemeState] = useState(getTheme()); 
 
-  useEffect(() => {
-    setThemeState(getTheme())
-  }, []);
+  const {config: globalConfig} = useConfig();
 
   const config = {
     appearance: {
-      theme,
+      theme: globalConfig.theme || 'light',
     }
   }
 

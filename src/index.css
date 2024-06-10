@@ -2,15 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+    font-family: AnonymousPro;
+    src: url("/assets/fonts/AnonymousPro.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
 :root {
-  --badge-separator-color: black;
-  --badge-gradient-start: white;
+    --badge-separator-color: black;
+    --badge-gradient-start: white;
 }
 
 
 html[data-theme='black'] {
-  --badge-separator-color: white;
-  --badge-gradient-start: black;
+    --badge-separator-color: white;
+    --badge-gradient-start: black;
 }
 
 
@@ -37,10 +44,10 @@ html {
 }
 
 @media (hover: none) {
-  [data-tip]:focus,
-  [data-tip]:active {
-    
-  }
+    [data-tip]:focus,
+    [data-tip]:active {
+
+    }
 }
 
 input::placeholder,
@@ -68,21 +75,22 @@ textarea::before {
 }
 
 
+
 .shakes .badge {
-  position: relative;
+    position: relative;
 }
 
 
 .shakes .badge:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: -1px;
-  transform: translate(100%, -50%);
-  width: 1.5rem;
-  height: 1px;
-  z-index: 0;
-  background-color: var(--badge-separator-color);
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -1px;
+    transform: translate(100%, -50%);
+    width: 1.5rem;
+    height: 1px;
+    z-index: 0;
+    background-color: var(--badge-separator-color);
 }
 
 

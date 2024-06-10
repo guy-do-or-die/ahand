@@ -1,4 +1,4 @@
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast"
 
 
 export const notify = (content, type, params) => {
@@ -9,9 +9,11 @@ export const notify = (content, type, params) => {
     "success": {
       duration: 5000,
     }
-  }[type] || {};
+  }[type] || {}
 
-  return content && (toast[type] || toast)(content, {...defaultParams, ...params});
+  if (content) {
+    return (toast[type] || toast)(content, {...defaultParams, ...params})
+  }
 }
 
 

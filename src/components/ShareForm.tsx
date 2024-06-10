@@ -1,4 +1,4 @@
-import { ShareSocial } from "react-share-social"; 
+import { ShareSocial } from "react-share-social"
 
 
 export const ShareForm = ({url}) => {
@@ -21,7 +21,7 @@ export const ShareForm = ({url}) => {
     copyIcon: {
       color: "#000",
     }
-  };
+  }
 
   return <div className="w-full">
     <ShareSocial url={url} style={style} socialTypes={["twitter", "telegram", "reddit", "linkedin", "facebook"]} />

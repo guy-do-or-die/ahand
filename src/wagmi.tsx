@@ -7,12 +7,12 @@ import { http } from 'viem';
 import { WalletProvider } from './wallet';
 
 
-const chains = [wagmiChains.polygonMumbai, wagmiChains.foundry];
+const chains = [wagmiChains.baseSepolia, wagmiChains.foundry];
 
 const config = createConfig({
   chains,
   transports: {
-    [wagmiChains.polygonMumbai.id]: http(),
+    [wagmiChains.baseSepolia.id]: http(),
     [wagmiChains.foundry.id]: http("http://localhost:8545")
   }
 });
