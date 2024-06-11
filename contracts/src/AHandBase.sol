@@ -2,7 +2,7 @@
 
 pragma solidity >=0.8.20;
 
-import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
@@ -26,7 +26,7 @@ contract AHandBase is ERC1155 {
 
     event Raised(address indexed hand, address indexed raiser);
 
-    constructor() ERC1155("") {}
+    constructor() ERC1155("AHAND") {}
 
     function raise(string calldata problem, address ref) public payable {
         require(msg.value > 0, "Reward can't be 0");
@@ -78,11 +78,9 @@ contract AHandBase is ERC1155 {
         else return "";
 
         return string(abi.encodePacked(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="', Strings.toString(PIC_SIZE),
-            '" height="', Strings.toString(PIC_SIZE), '">',
-            '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="', Strings.toString(PIC_SIZE / 2), '">',
-            emoji,
-            '</text></svg>'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="', Strings.toString(PIC_SIZE), '" height="', Strings.toString(PIC_SIZE), '">',
+            '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="128" font-family="EmojiFont, sans-serif">',
+            emoji, '</text></svg>'
         ));
     }
 
@@ -95,7 +93,7 @@ contract AHandBase is ERC1155 {
                         abi.encodePacked(
                             "{",
                                 '  "image": "', Base64.encode(bytes(getImage(tokenId))), '"',
-                                ', "name":"Bit #', Strings.toString(tokenId), '"',
+                                ', "name": "Bit #', Strings.toString(tokenId), '"',
                                 ', "description": "aHand"',
                             "}"
                         )
@@ -103,11 +101,6 @@ contract AHandBase is ERC1155 {
                 )
             )
         );
-    }
-
-    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) internal override(ERC1155) {
-        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
-        require(from == address(0) || to == address(0), "Transfer not allowed");
     }
 
 }

@@ -10,7 +10,7 @@ contract AHand {
         string solution;
     }
 
-    address public base;
+    address public origin;
     address public raiser;
 
     string public problem;
@@ -30,7 +30,7 @@ contract AHand {
     event Thanked(uint solutionIndex, address thanker, address indexed receiver, uint amount);
 
     modifier onlyBase() {
-        require(msg.sender == base, "Can be called from base contract only");
+        require(msg.sender == origin, "Can be called from origin contract only");
         _;
     }
 
@@ -38,7 +38,7 @@ contract AHand {
         require(_raiser != address(0), "Invalid raiser address");
         refs[ref] = raiser = _raiser;
         problem = _problem;
-        base = msg.sender;
+        origin = msg.sender;
     }
 
     receive() external payable {}

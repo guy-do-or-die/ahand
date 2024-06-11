@@ -1,8 +1,8 @@
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet"
 
-import { MetaHeadEmbed } from "@phntms/react-share";
+import { MetaHeadEmbed } from "@phntms/react-share"
 
-import { useLocation } from "wouter";
+import { useLocation } from "wouter"
 
 
 export const ShareMeta = ({title, children}) => {

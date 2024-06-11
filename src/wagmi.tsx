@@ -1,87 +1,34 @@
-import { WagmiConfig, configureChains, createConfig } from "wagmi";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider, createConfig } from "wagmi";
 import * as wagmiChains from "wagmi/chains";
 
-import { jsonRpcProvider } from "wagmi/providers/jsonRpc";
-import { alchemyProvider } from "wagmi/providers/alchemy";
+import { http } from 'viem';
 
-import { googleWallet, facebookWallet, githubWallet, discordWallet, twitterWallet } from '@zerodev/wagmi/rainbowkit';
-import { RainbowKitProvider, getDefaultWallets, connectorsForWallets } from "@rainbow-me/rainbowkit";
-
-import { rainbowConfig } from "./rainbow";
+import { WalletProvider } from './wallet';
 
 
-const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [
-    wagmiChains.optimismGoerli,
-    wagmiChains.baseGoerli,
-    wagmiChains.polygonMumbai,
-    wagmiChains.scrollSepolia
-  ],
-  [
-    alchemyProvider({ apiKey: import.meta.env.VITE_ALCHEMY_API_KEY! }),
-    jsonRpcProvider({
-      rpc: (chain) => {
-        if (chain.id === wagmiChains.foundry.id) {
-          return { http: "http://localhost:8545" };
-        }
-
-        return { http: chain.rpcUrls.default.http[0] };
-      },
-    }),
-  ],
-);
-
-
-const { wallets, connectors: walletConnectors } = getDefaultWallets({
-    projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID, 
-    appName: "aHand",
-    chains,
-});
-
-
-const accountConfig = {
-  chains,
-  options: {
-    projectIds: [
-      import.meta.env.VITE_ZERODEV_PROJECT_ID_OPTIMISM_GOERLI,
-      import.meta.env.VITE_ZERODEV_PROJECT_ID_BASE_GOERLI,
-      import.meta.env.VITE_ZERODEV_PROJECT_ID_POLYGON_MUMBAI,
-    ],
-    shimDisconnect: true
-  }
-}
-
-
-const connectors = connectorsForWallets([
-  {
-    groupName: 'Connect Account',
-    wallets: [
-      googleWallet(accountConfig),
-      githubWallet(accountConfig),
-      discordWallet(accountConfig),
-      twitterWallet(accountConfig),
-    ]
-  },
-
-  ...wallets.map(group => ({...group, groupName: "Connect Wallet"})),
-])
-
+const chains = [wagmiChains.baseSepolia, wagmiChains.foundry];
 
 const config = createConfig({
-  autoConnect: true,
-  connectors, 
-
-  publicClient,
-  webSocketPublicClient,
+  chains,
+  transports: {
+    [wagmiChains.baseSepolia.id]: http(),
+    [wagmiChains.foundry.id]: http("http://localhost:8545")
+  }
 });
+
+
+const queryClient = new QueryClient();
 
 
 export const WagmiWrapper = ({children}) => {
   return (
-    <WagmiConfig config={config}>
-      <RainbowKitProvider chains={chains} theme={rainbowConfig.theme} modalSize="compact">
-        {children}
-      </RainbowKitProvider>
-    </WagmiConfig>
+    <WalletProvider>
+      <QueryClientProvider client={queryClient}>
+        <WagmiProvider config={config}>
+          {children}
+        </WagmiProvider>
+      </QueryClientProvider>
+    </WalletProvider>
   )
 }

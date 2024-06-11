@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSpring, animated } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 
-import { useAccount, useBalance, useNetwork } from "wagmi";
+import { useAccount, useBalance } from "wagmi";
 import { formatEther } from "viem";
 
 import { useLocation } from "wouter";
@@ -12,22 +12,23 @@ import { Button, ShareForm, ShareMeta } from "../components";
 import { genRef } from "../utils";
 
 import {
-  useAHandProblem,
-  usePrepareAHandBaseShake,
-  usePrepareAHandBaseGive,
-  usePrepareAHandBaseThank,
-  useAHandBaseShake,
-  useAHandBaseGive,
-  useAHandBaseThank,
-  useAHandShakesChain,
-  useAHandSolutionsNumber,
-  useAHandSolutions,
+  useReadAHandProblem,
+  useReadAHandShakesChain,
+  useReadAHandRaiser,
+  useReadAHandSolutionsNumber,
+  useReadAHandSolutions,
+  useSimulateAHandBaseShake,
+  useSimulateAHandBaseGive,
+  useSimulateAHandBaseThank,
+  useWriteAHandBaseShake,
+  useWriteAHandBaseGive,
+  useWriteAHandBaseThank,
 } from "../contracts";
 
 
 const Problem = ({params: {hand, ref}, action}) => {
 
-  const {data: problem} = useAHandProblem({
+  const {data: problem} = useReadAHandProblem({
     address: hand,
   })
 
@@ -39,7 +40,7 @@ const Problem = ({params: {hand, ref}, action}) => {
 
   return <div className="mb-8">
     <ShareMeta title={problem} reward={reward} />
-    <div className="card-title text-center mb-8 text-4xl justify-center">
+    <div className="card-title text-center mb-8 text-xl md:text-2xl lg:text-3xl justify-center">
       {problem}
     </div>
     <Shakes hand={hand} shakeRef={ref} reward={reward} action={action} />
@@ -58,9 +59,9 @@ const Shake = ({children, classes = 'badge-neutral'}) => {
 
 const Shakes = ({hand, shakeRef, reward, action}) => {
 
-  const { chain } = useNetwork()
+  const { chain } = useAccount()
 
-  const {data: shakesData} = useAHandShakesChain({
+  const {data: shakesData} = useReadAHandShakesChain({
     address: hand,
     enabled: shakeRef,
     args: [shakeRef],
@@ -117,8 +118,8 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 
 const SolutionInput = ({setValue}) => {
 
-  return <div>
-    <textarea className="textarea textarea-bordered w-full" placeholder="Solution" onChange={event => setValue(event.target.value)} />
+  return <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Provide your comment, solution or contacts">
+    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" placeholder="Comment or Solution" onChange={event => setValue(event.target.value)} />
   </div>
 }
 
@@ -130,14 +131,14 @@ const ShakeButton = ({params: {hand, ref}, newRef}) => {
   const shakeParams = {
     args: [hand, ref, newRef],
     enabled: true,
-    onReceipt: data => {
+    onConfirmationSuccess: data => {
       setLocation(`/hand/${hand}/${newRef}/share`);
     }
   }
 
   return <Button emoji="🤝" text="Shake" 
-                 prepareHook={usePrepareAHandBaseShake}
-                 writeHook={useAHandBaseShake}
+                 simulateHook={useSimulateAHandBaseShake}
+                 writeHook={useWriteAHandBaseShake}
                  params={shakeParams} />
 }
 
@@ -149,14 +150,14 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
   const giveParams = {
     args: [hand, ref, newRef, solution],
     enabled: solution?.length > 0,
-    onReceipt: data => {
-      setLocation(`/hand/${hand}/${newRef}/given`);
+    onConfirmationSuccess: data => {
+      setLocation(`/hand/${hand}/${ref}/given`);
     }
   }
 
   return <Button emoji="🙌" text="Give" 
-                 prepareHook={usePrepareAHandBaseGive}
-                 writeHook={useAHandBaseGive}
+                 simulateHook={useSimulateAHandBaseGive}
+                 writeHook={useWriteAHandBaseGive}
                  params={giveParams} />
 }
 
@@ -168,21 +169,21 @@ const ThankButton = ({hand, solutionId, giverRef}) => {
   const thankParams = {
     args: [hand, solutionId],
     enabled: true,
-    onReceipt: data => {
-      setLocation(`/hand/${hand}/${ref}/thanked`);
+    onConfirmationSuccess: data => {
+      setLocation(`/hand/${hand}/${giverRef}/thanked`);
     }
   }
 
   return <Button emoji="🙏" text="Thank" 
-                 prepareHook={usePrepareAHandBaseThank}
-                 writeHook={useAHandBaseThank}
+                 simulateHook={useSimulateAHandBaseThank}
+                 writeHook={useWriteAHandBaseThank}
                  params={thankParams} />
 }
 
 
 const Solution = ({hand, id, isOpen, onToggle}) => {
 
-  const {data} = useAHandSolutions({
+  const {data} = useReadAHandSolutions({
     address: hand,
     args: [id], 
   })
@@ -208,7 +209,7 @@ const Solutions = ({hand}) => {
 
   const [openAccordion, setOpenAccordion] = useState(null);
 
-  const {data: solutionsNumber} = useAHandSolutionsNumber({
+  const {data: solutionsNumber} = useReadAHandSolutionsNumber({
     address: hand,
   })
 
@@ -231,8 +232,12 @@ const ShakeForm = ({params}) => {
   return <div>
     <SolutionInput setValue={setSolution}/>
     <div className="card-actions justify-center mt-2 space-x-2">
-      <ShakeButton params={params} newRef={newRef} />
-      <GiveButton params={params} newRef={newRef} solution={solution} />
+      <div className="lg:tooltip" data-tip="Just share the problem to your peers and get rewarded if someone else provides a solution">
+        <ShakeButton params={params} newRef={newRef} />
+      </div>
+      <div className="lg:tooltip" data-tip="Deliver privately to the problem's raiser"> 
+        <GiveButton params={params} newRef={newRef} solution={solution} />
+      </div>
     </div>
   </div>
 
@@ -241,8 +246,17 @@ const ShakeForm = ({params}) => {
 
 export const Hand = ({params}) => {
 
+  const [location, setLocation] = useLocation();
+
   const url = `${window.location.origin}/hand/${params.hand}/${params.ref}`;
   
+  const {address} = useAccount()
+  const {data: raiser } = useReadAHandRaiser({
+    address: params.hand,
+  })
+
+  address === raiser && !params.action && setLocation(`/hand/${params.hand}`)
+
   const action = params.action || "other";
 
   const msg = {

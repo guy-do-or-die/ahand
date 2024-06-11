@@ -1,35 +1,124 @@
 import {
-  useContractRead,
-  UseContractReadConfig,
-  useContractWrite,
-  UseContractWriteConfig,
-  usePrepareContractWrite,
-  UsePrepareContractWriteConfig,
-  useContractEvent,
-  UseContractEventConfig,
-  useNetwork,
-  useChainId,
-  Address,
-} from 'wagmi'
-import {
-  ReadContractResult,
-  WriteContractMode,
-  PrepareWriteContractResult,
-} from 'wagmi/actions'
+  createUseReadContract,
+  createUseWriteContract,
+  createUseSimulateContract,
+  createUseWatchContractEvent,
+} from 'wagmi/codegen'
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // AHand
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const aHandABI = [
+export const aHandAbi = [
   {
-    stateMutability: 'payable',
     type: 'constructor',
     inputs: [
       { name: '_raiser', internalType: 'address', type: 'address' },
       { name: '_problem', internalType: 'string', type: 'string' },
       { name: 'ref', internalType: 'address', type: 'address' },
     ],
+    stateMutability: 'payable',
+  },
+  { type: 'fallback', stateMutability: 'payable' },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'ref', internalType: 'address', type: 'address' },
+      { name: 'newRef', internalType: 'address', type: 'address' },
+      { name: 'giver', internalType: 'address', type: 'address' },
+      { name: 'solution', internalType: 'string', type: 'string' },
+    ],
+    name: 'give',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'origin',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'problem',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'raiser',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'refs',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'ref', internalType: 'address', type: 'address' },
+      { name: 'newRef', internalType: 'address', type: 'address' },
+      { name: 'shaker', internalType: 'address', type: 'address' },
+    ],
+    name: 'shake',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'shakes',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'ref', internalType: 'address', type: 'address' }],
+    name: 'shakesChain',
+    outputs: [{ name: 'chain', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'solutions',
+    outputs: [
+      { name: 'giver', internalType: 'address', type: 'address' },
+      { name: 'solution', internalType: 'string', type: 'string' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'solutionsNumber',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'solved',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'thanker', internalType: 'address', type: 'address' },
+      { name: 'solutionIndex', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'thank',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'event',
@@ -96,107 +185,6 @@ export const aHandABI = [
     ],
     name: 'Thanked',
   },
-  { stateMutability: 'payable', type: 'fallback' },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [],
-    name: 'base',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'ref', internalType: 'address', type: 'address' },
-      { name: 'newRef', internalType: 'address', type: 'address' },
-      { name: 'giver', internalType: 'address', type: 'address' },
-      { name: 'solution', internalType: 'string', type: 'string' },
-    ],
-    name: 'give',
-    outputs: [],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [],
-    name: 'problem',
-    outputs: [{ name: '', internalType: 'string', type: 'string' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [],
-    name: 'raiser',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
-    name: 'refs',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'ref', internalType: 'address', type: 'address' },
-      { name: 'newRef', internalType: 'address', type: 'address' },
-      { name: 'shaker', internalType: 'address', type: 'address' },
-    ],
-    name: 'shake',
-    outputs: [],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
-    name: 'shakes',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: 'ref', internalType: 'address', type: 'address' }],
-    name: 'shakesChain',
-    outputs: [{ name: 'chain', internalType: 'address[]', type: 'address[]' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    name: 'solutions',
-    outputs: [
-      { name: 'giver', internalType: 'address', type: 'address' },
-      { name: 'solution', internalType: 'string', type: 'string' },
-    ],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [],
-    name: 'solutionsNumber',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [],
-    name: 'solved',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'thanker', internalType: 'address', type: 'address' },
-      { name: 'solutionIndex', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'thank',
-    outputs: [],
-  },
-  { stateMutability: 'payable', type: 'receive' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -204,17 +192,163 @@ export const aHandABI = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export const aHandBaseABI = [
-  { stateMutability: 'nonpayable', type: 'constructor', inputs: [] },
+export const aHandBaseAbi = [
+  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    name: 'balanceOfBatch',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'hand', internalType: 'address', type: 'address' }],
+    name: 'getProblem',
+    outputs: [],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'hand', internalType: 'address', type: 'address' },
+      { name: 'ref', internalType: 'address', type: 'address' },
+      { name: 'newRef', internalType: 'address', type: 'address' },
+      { name: 'solution', internalType: 'string', type: 'string' },
+    ],
+    name: 'give',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'hands',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'handsNumber',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'operator', internalType: 'address', type: 'address' },
+    ],
+    name: 'isApprovedForAll',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'problem', internalType: 'string', type: 'string' },
+      { name: 'ref', internalType: 'address', type: 'address' },
+    ],
+    name: 'raise',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'values', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeBatchTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'approved', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setApprovalForAll',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'hand', internalType: 'address', type: 'address' },
+      { name: 'ref', internalType: 'address', type: 'address' },
+      { name: 'newRef', internalType: 'address', type: 'address' },
+    ],
+    name: 'shake',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
+    name: 'supportsInterface',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'hand', internalType: 'address', type: 'address' },
+      { name: 'solutionIndex', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'thank',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'thumbsDown',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tokenId', internalType: 'uint256', type: 'uint256' }],
+    name: 'uri',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'pure',
+  },
   {
     type: 'event',
     anonymous: false,
@@ -308,7 +442,80 @@ export const aHandBaseABI = [
     name: 'URI',
   },
   {
-    stateMutability: 'view',
+    type: 'error',
+    inputs: [
+      { name: 'sender', internalType: 'address', type: 'address' },
+      { name: 'balance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+      { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC1155InsufficientBalance',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'approver', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidApprover',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'idsLength', internalType: 'uint256', type: 'uint256' },
+      { name: 'valuesLength', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC1155InvalidArrayLength',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'operator', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidOperator',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'receiver', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidReceiver',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'sender', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidSender',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'owner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ERC1155MissingApprovalForAll',
+  },
+] as const
+
+/**
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
+ */
+export const aHandBaseAddress = {
+  8453: '0x5253BDB502be3D85c3932292AcCAf16233058e7F',
+  31337: '0xb609D06B30481d9c8f220e3051d3BA41f48DDb2A',
+  84532: '0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5',
+} as const
+
+/**
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
+ */
+export const aHandBaseConfig = {
+  address: aHandBaseAddress,
+  abi: aHandBaseAbi,
+} as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ERC1155
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const erc1155Abi = [
+  {
     type: 'function',
     inputs: [
       { name: 'account', internalType: 'address', type: 'address' },
@@ -316,9 +523,9 @@ export const aHandBaseABI = [
     ],
     name: 'balanceOf',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [
       { name: 'accounts', internalType: 'address[]', type: 'address[]' },
@@ -326,42 +533,9 @@ export const aHandBaseABI = [
     ],
     name: 'balanceOfBatch',
     outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
-  },
-  {
     stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: 'hand', internalType: 'address', type: 'address' }],
-    name: 'getProblem',
-    outputs: [],
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'hand', internalType: 'address', type: 'address' },
-      { name: 'ref', internalType: 'address', type: 'address' },
-      { name: 'newRef', internalType: 'address', type: 'address' },
-      { name: 'solution', internalType: 'string', type: 'string' },
-    ],
-    name: 'give',
-    outputs: [],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    name: 'hands',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [],
-    name: 'handsNumber',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-  },
-  {
-    stateMutability: 'view',
     type: 'function',
     inputs: [
       { name: 'account', internalType: 'address', type: 'address' },
@@ -369,45 +543,35 @@ export const aHandBaseABI = [
     ],
     name: 'isApprovedForAll',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'payable',
-    type: 'function',
-    inputs: [
-      { name: 'problem', internalType: 'string', type: 'string' },
-      { name: 'ref', internalType: 'address', type: 'address' },
-    ],
-    name: 'raise',
-    outputs: [],
-  },
-  {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'from', internalType: 'address', type: 'address' },
       { name: 'to', internalType: 'address', type: 'address' },
       { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'amounts', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'values', internalType: 'uint256[]', type: 'uint256[]' },
       { name: 'data', internalType: 'bytes', type: 'bytes' },
     ],
     name: 'safeBatchTransferFrom',
     outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'from', internalType: 'address', type: 'address' },
       { name: 'to', internalType: 'address', type: 'address' },
       { name: 'id', internalType: 'uint256', type: 'uint256' },
-      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
       { name: 'data', internalType: 'bytes', type: 'bytes' },
     ],
     name: 'safeTransferFrom',
     outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'operator', internalType: 'address', type: 'address' },
@@ -415,97 +579,21 @@ export const aHandBaseABI = [
     ],
     name: 'setApprovalForAll',
     outputs: [],
-  },
-  {
     stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'hand', internalType: 'address', type: 'address' },
-      { name: 'ref', internalType: 'address', type: 'address' },
-      { name: 'newRef', internalType: 'address', type: 'address' },
-    ],
-    name: 'shake',
-    outputs: [],
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
-    inputs: [
-      { name: 'hand', internalType: 'address', type: 'address' },
-      { name: 'solutionIndex', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'thank',
-    outputs: [],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
-    name: 'thumbsDown',
-    outputs: [],
-  },
-  {
-    stateMutability: 'pure',
-    type: 'function',
-    inputs: [{ name: 'tokenId', internalType: 'uint256', type: 'uint256' }],
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'uri',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
-  },
-] as const
-
-/**
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
- */
-export const aHandBaseAddress = {
-  10: '0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab',
-  137: '0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D',
-  420: '0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7',
-  8453: '0xE6cb0c675C8A532638d6a811559A48369F9f4DE8',
-  31337: '0xb609D06B30481d9c8f220e3051d3BA41f48DDb2A',
-  80001: '0x4e9642dfB5FAf70a512651DA1334DBfE5934D781',
-  84531: '0xE6cb0c675C8A532638d6a811559A48369F9f4DE8',
-  534351: '0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6',
-  534352: '0xe8099DA63a29ac26E51bce9df7506333D739e438',
-} as const
-
-/**
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
- */
-export const aHandBaseConfig = {
-  address: aHandBaseAddress,
-  abi: aHandBaseABI,
-} as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ERC1155
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const erc1155ABI = [
-  {
-    stateMutability: 'nonpayable',
-    type: 'constructor',
-    inputs: [{ name: 'uri_', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
   },
   {
     type: 'event',
@@ -586,84 +674,50 @@ export const erc1155ABI = [
     name: 'URI',
   },
   {
-    stateMutability: 'view',
-    type: 'function',
+    type: 'error',
     inputs: [
-      { name: 'account', internalType: 'address', type: 'address' },
-      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'sender', internalType: 'address', type: 'address' },
+      { name: 'balance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+      { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
     ],
-    name: 'balanceOf',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'ERC1155InsufficientBalance',
   },
   {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [
-      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
-      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-    ],
-    name: 'balanceOfBatch',
-    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    type: 'error',
+    inputs: [{ name: 'approver', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidApprover',
   },
   {
-    stateMutability: 'view',
-    type: 'function',
+    type: 'error',
     inputs: [
-      { name: 'account', internalType: 'address', type: 'address' },
-      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'idsLength', internalType: 'uint256', type: 'uint256' },
+      { name: 'valuesLength', internalType: 'uint256', type: 'uint256' },
     ],
-    name: 'isApprovedForAll',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    name: 'ERC1155InvalidArrayLength',
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'from', internalType: 'address', type: 'address' },
-      { name: 'to', internalType: 'address', type: 'address' },
-      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'amounts', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'data', internalType: 'bytes', type: 'bytes' },
-    ],
-    name: 'safeBatchTransferFrom',
-    outputs: [],
+    type: 'error',
+    inputs: [{ name: 'operator', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidOperator',
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'from', internalType: 'address', type: 'address' },
-      { name: 'to', internalType: 'address', type: 'address' },
-      { name: 'id', internalType: 'uint256', type: 'uint256' },
-      { name: 'amount', internalType: 'uint256', type: 'uint256' },
-      { name: 'data', internalType: 'bytes', type: 'bytes' },
-    ],
-    name: 'safeTransferFrom',
-    outputs: [],
+    type: 'error',
+    inputs: [{ name: 'receiver', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidReceiver',
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
+    type: 'error',
+    inputs: [{ name: 'sender', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidSender',
+  },
+  {
+    type: 'error',
     inputs: [
       { name: 'operator', internalType: 'address', type: 'address' },
-      { name: 'approved', internalType: 'bool', type: 'bool' },
+      { name: 'owner', internalType: 'address', type: 'address' },
     ],
-    name: 'setApprovalForAll',
-    outputs: [],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
-    name: 'supportsInterface',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    name: 'uri',
-    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    name: 'ERC1155MissingApprovalForAll',
   },
 ] as const
 
@@ -671,7 +725,7 @@ export const erc1155ABI = [
 // ERC1155Supply
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const erc1155SupplyABI = [
+export const erc1155SupplyAbi = [
   {
     type: 'event',
     anonymous: false,
@@ -751,7 +805,6 @@ export const erc1155SupplyABI = [
     name: 'URI',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [
       { name: 'account', internalType: 'address', type: 'address' },
@@ -759,9 +812,9 @@ export const erc1155SupplyABI = [
     ],
     name: 'balanceOf',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [
       { name: 'accounts', internalType: 'address[]', type: 'address[]' },
@@ -769,16 +822,16 @@ export const erc1155SupplyABI = [
     ],
     name: 'balanceOfBatch',
     outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
     name: 'exists',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [
       { name: 'account', internalType: 'address', type: 'address' },
@@ -786,9 +839,9 @@ export const erc1155SupplyABI = [
     ],
     name: 'isApprovedForAll',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'from', internalType: 'address', type: 'address' },
@@ -799,9 +852,9 @@ export const erc1155SupplyABI = [
     ],
     name: 'safeBatchTransferFrom',
     outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'from', internalType: 'address', type: 'address' },
@@ -812,9 +865,9 @@ export const erc1155SupplyABI = [
     ],
     name: 'safeTransferFrom',
     outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'operator', internalType: 'address', type: 'address' },
@@ -822,27 +875,28 @@ export const erc1155SupplyABI = [
     ],
     name: 'setApprovalForAll',
     outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
     name: 'totalSupply',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'uri',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
   },
 ] as const
 
@@ -850,13 +904,13 @@ export const erc1155SupplyABI = [
 // ERC165
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const erc165ABI = [
+export const erc165Abi = [
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
 ] as const
 
@@ -864,7 +918,80 @@ export const erc165ABI = [
 // IERC1155
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const ierc1155ABI = [
+export const ierc1155Abi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    name: 'balanceOfBatch',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'operator', internalType: 'address', type: 'address' },
+    ],
+    name: 'isApprovedForAll',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'values', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeBatchTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'approved', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setApprovalForAll',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
+    name: 'supportsInterface',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
   {
     type: 'event',
     anonymous: false,
@@ -943,78 +1070,58 @@ export const ierc1155ABI = [
     ],
     name: 'URI',
   },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC1155Errors
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc1155ErrorsAbi = [
   {
-    stateMutability: 'view',
-    type: 'function',
+    type: 'error',
     inputs: [
-      { name: 'account', internalType: 'address', type: 'address' },
-      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'sender', internalType: 'address', type: 'address' },
+      { name: 'balance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+      { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
     ],
-    name: 'balanceOf',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'ERC1155InsufficientBalance',
   },
   {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [
-      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
-      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-    ],
-    name: 'balanceOfBatch',
-    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    type: 'error',
+    inputs: [{ name: 'approver', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidApprover',
   },
   {
-    stateMutability: 'view',
-    type: 'function',
+    type: 'error',
     inputs: [
-      { name: 'account', internalType: 'address', type: 'address' },
-      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'idsLength', internalType: 'uint256', type: 'uint256' },
+      { name: 'valuesLength', internalType: 'uint256', type: 'uint256' },
     ],
-    name: 'isApprovedForAll',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    name: 'ERC1155InvalidArrayLength',
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'from', internalType: 'address', type: 'address' },
-      { name: 'to', internalType: 'address', type: 'address' },
-      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'amounts', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'data', internalType: 'bytes', type: 'bytes' },
-    ],
-    name: 'safeBatchTransferFrom',
-    outputs: [],
+    type: 'error',
+    inputs: [{ name: 'operator', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidOperator',
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'from', internalType: 'address', type: 'address' },
-      { name: 'to', internalType: 'address', type: 'address' },
-      { name: 'id', internalType: 'uint256', type: 'uint256' },
-      { name: 'amount', internalType: 'uint256', type: 'uint256' },
-      { name: 'data', internalType: 'bytes', type: 'bytes' },
-    ],
-    name: 'safeTransferFrom',
-    outputs: [],
+    type: 'error',
+    inputs: [{ name: 'receiver', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidReceiver',
   },
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
+    type: 'error',
+    inputs: [{ name: 'sender', internalType: 'address', type: 'address' }],
+    name: 'ERC1155InvalidSender',
+  },
+  {
+    type: 'error',
     inputs: [
       { name: 'operator', internalType: 'address', type: 'address' },
-      { name: 'approved', internalType: 'bool', type: 'bool' },
+      { name: 'owner', internalType: 'address', type: 'address' },
     ],
-    name: 'setApprovalForAll',
-    outputs: [],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
-    name: 'supportsInterface',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    name: 'ERC1155MissingApprovalForAll',
   },
 ] as const
 
@@ -1022,7 +1129,87 @@ export const ierc1155ABI = [
 // IERC1155MetadataURI
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const ierc1155MetadataUriABI = [
+export const ierc1155MetadataUriAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    name: 'balanceOfBatch',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'operator', internalType: 'address', type: 'address' },
+    ],
+    name: 'isApprovedForAll',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'values', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeBatchTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'approved', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setApprovalForAll',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
+    name: 'supportsInterface',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'uri',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
   {
     type: 'event',
     anonymous: false,
@@ -1101,95 +1288,14 @@ export const ierc1155MetadataUriABI = [
     ],
     name: 'URI',
   },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [
-      { name: 'account', internalType: 'address', type: 'address' },
-      { name: 'id', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'balanceOf',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [
-      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
-      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-    ],
-    name: 'balanceOfBatch',
-    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [
-      { name: 'account', internalType: 'address', type: 'address' },
-      { name: 'operator', internalType: 'address', type: 'address' },
-    ],
-    name: 'isApprovedForAll',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'from', internalType: 'address', type: 'address' },
-      { name: 'to', internalType: 'address', type: 'address' },
-      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'amounts', internalType: 'uint256[]', type: 'uint256[]' },
-      { name: 'data', internalType: 'bytes', type: 'bytes' },
-    ],
-    name: 'safeBatchTransferFrom',
-    outputs: [],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'from', internalType: 'address', type: 'address' },
-      { name: 'to', internalType: 'address', type: 'address' },
-      { name: 'id', internalType: 'uint256', type: 'uint256' },
-      { name: 'amount', internalType: 'uint256', type: 'uint256' },
-      { name: 'data', internalType: 'bytes', type: 'bytes' },
-    ],
-    name: 'safeTransferFrom',
-    outputs: [],
-  },
-  {
-    stateMutability: 'nonpayable',
-    type: 'function',
-    inputs: [
-      { name: 'operator', internalType: 'address', type: 'address' },
-      { name: 'approved', internalType: 'bool', type: 'bool' },
-    ],
-    name: 'setApprovalForAll',
-    outputs: [],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
-    name: 'supportsInterface',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-  },
-  {
-    stateMutability: 'view',
-    type: 'function',
-    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
-    name: 'uri',
-    outputs: [{ name: '', internalType: 'string', type: 'string' }],
-  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IERC1155Receiver
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const ierc1155ReceiverABI = [
+export const ierc1155ReceiverAbi = [
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'operator', internalType: 'address', type: 'address' },
@@ -1200,9 +1306,9 @@ export const ierc1155ReceiverABI = [
     ],
     name: 'onERC1155BatchReceived',
     outputs: [{ name: '', internalType: 'bytes4', type: 'bytes4' }],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'nonpayable',
     type: 'function',
     inputs: [
       { name: 'operator', internalType: 'address', type: 'address' },
@@ -1213,13 +1319,14 @@ export const ierc1155ReceiverABI = [
     ],
     name: 'onERC1155Received',
     outputs: [{ name: '', internalType: 'bytes4', type: 'bytes4' }],
+    stateMutability: 'nonpayable',
   },
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
   },
 ] as const
 
@@ -1227,13 +1334,135 @@ export const ierc1155ReceiverABI = [
 // IERC165
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const ierc165ABI = [
+export const ierc165Abi = [
   {
-    stateMutability: 'view',
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC20Errors
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc20ErrorsAbi = [
+  {
+    type: 'error',
+    inputs: [
+      { name: 'spender', internalType: 'address', type: 'address' },
+      { name: 'allowance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC20InsufficientAllowance',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'sender', internalType: 'address', type: 'address' },
+      { name: 'balance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC20InsufficientBalance',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'approver', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidApprover',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'receiver', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidReceiver',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'sender', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidSender',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'spender', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidSpender',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC721Errors
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc721ErrorsAbi = [
+  {
+    type: 'error',
+    inputs: [
+      { name: 'sender', internalType: 'address', type: 'address' },
+      { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
+      { name: 'owner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ERC721IncorrectOwner',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC721InsufficientApproval',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'approver', internalType: 'address', type: 'address' }],
+    name: 'ERC721InvalidApprover',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'operator', internalType: 'address', type: 'address' }],
+    name: 'ERC721InvalidOperator',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'ERC721InvalidOwner',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'receiver', internalType: 'address', type: 'address' }],
+    name: 'ERC721InvalidReceiver',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'sender', internalType: 'address', type: 'address' }],
+    name: 'ERC721InvalidSender',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'tokenId', internalType: 'uint256', type: 'uint256' }],
+    name: 'ERC721NonexistentToken',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Math
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const mathAbi = [
+  { type: 'error', inputs: [], name: 'MathOverflowedMulDiv' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Strings
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const stringsAbi = [
+  {
+    type: 'error',
+    inputs: [
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'length', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'StringsInsufficientHexLength',
   },
 ] as const
 
@@ -1242,3477 +1471,1362 @@ export const ierc165ABI = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__
  */
-export function useAHandRead<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({ abi: aHandABI, ...config } as UseContractReadConfig<
-    typeof aHandABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadAHand = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"base"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"origin"`
  */
-export function useAHandBase<
-  TFunctionName extends 'base',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'base',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandOrigin = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'origin',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"problem"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"problem"`
  */
-export function useAHandProblem<
-  TFunctionName extends 'problem',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'problem',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandProblem = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'problem',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"raiser"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"raiser"`
  */
-export function useAHandRaiser<
-  TFunctionName extends 'raiser',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'raiser',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandRaiser = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'raiser',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"refs"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"refs"`
  */
-export function useAHandRefs<
-  TFunctionName extends 'refs',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'refs',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandRefs = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'refs',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"shakes"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"shakes"`
  */
-export function useAHandShakes<
-  TFunctionName extends 'shakes',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'shakes',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandShakes = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'shakes',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"shakesChain"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"shakesChain"`
  */
-export function useAHandShakesChain<
-  TFunctionName extends 'shakesChain',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'shakesChain',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandShakesChain = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'shakesChain',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"solutions"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"solutions"`
  */
-export function useAHandSolutions<
-  TFunctionName extends 'solutions',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'solutions',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandSolutions = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'solutions',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"solutionsNumber"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"solutionsNumber"`
  */
-export function useAHandSolutionsNumber<
-  TFunctionName extends 'solutionsNumber',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'solutionsNumber',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandSolutionsNumber = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'solutionsNumber',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"solved"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"solved"`
  */
-export function useAHandSolved<
-  TFunctionName extends 'solved',
-  TSelectData = ReadContractResult<typeof aHandABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: aHandABI,
-    functionName: 'solved',
-    ...config,
-  } as UseContractReadConfig<typeof aHandABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandSolved = /*#__PURE__*/ createUseReadContract({
+  abi: aHandAbi,
+  functionName: 'solved',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandAbi}__
  */
-export function useAHandWrite<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<typeof aHandABI, string>['request']['abi'],
-        TFunctionName,
-        TMode
-      >
-    : UseContractWriteConfig<typeof aHandABI, TFunctionName, TMode> & {
-        abi?: never
-      } = {} as any,
-) {
-  return useContractWrite<typeof aHandABI, TFunctionName, TMode>({
-    abi: aHandABI,
-    ...config,
-  } as any)
-}
+export const useWriteAHand = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandAbi,
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"give"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"give"`
  */
-export function useAHandGive<TMode extends WriteContractMode = undefined>(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<typeof aHandABI, 'give'>['request']['abi'],
-        'give',
-        TMode
-      > & { functionName?: 'give' }
-    : UseContractWriteConfig<typeof aHandABI, 'give', TMode> & {
-        abi?: never
-        functionName?: 'give'
-      } = {} as any,
-) {
-  return useContractWrite<typeof aHandABI, 'give', TMode>({
-    abi: aHandABI,
-    functionName: 'give',
-    ...config,
-  } as any)
-}
+export const useWriteAHandGive = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandAbi,
+  functionName: 'give',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"shake"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"shake"`
  */
-export function useAHandShake<TMode extends WriteContractMode = undefined>(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<typeof aHandABI, 'shake'>['request']['abi'],
-        'shake',
-        TMode
-      > & { functionName?: 'shake' }
-    : UseContractWriteConfig<typeof aHandABI, 'shake', TMode> & {
-        abi?: never
-        functionName?: 'shake'
-      } = {} as any,
-) {
-  return useContractWrite<typeof aHandABI, 'shake', TMode>({
-    abi: aHandABI,
-    functionName: 'shake',
-    ...config,
-  } as any)
-}
+export const useWriteAHandShake = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandAbi,
+  functionName: 'shake',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"thank"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"thank"`
  */
-export function useAHandThank<TMode extends WriteContractMode = undefined>(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<typeof aHandABI, 'thank'>['request']['abi'],
-        'thank',
-        TMode
-      > & { functionName?: 'thank' }
-    : UseContractWriteConfig<typeof aHandABI, 'thank', TMode> & {
-        abi?: never
-        functionName?: 'thank'
-      } = {} as any,
-) {
-  return useContractWrite<typeof aHandABI, 'thank', TMode>({
-    abi: aHandABI,
-    functionName: 'thank',
-    ...config,
-  } as any)
-}
+export const useWriteAHandThank = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandAbi,
+  functionName: 'thank',
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandAbi}__
  */
-export function usePrepareAHandWrite<TFunctionName extends string>(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandABI, TFunctionName>,
-    'abi'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: aHandABI,
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandABI, TFunctionName>)
-}
+export const useSimulateAHand = /*#__PURE__*/ createUseSimulateContract({
+  abi: aHandAbi,
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"give"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"give"`
  */
-export function usePrepareAHandGive(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandABI, 'give'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: aHandABI,
-    functionName: 'give',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandABI, 'give'>)
-}
+export const useSimulateAHandGive = /*#__PURE__*/ createUseSimulateContract({
+  abi: aHandAbi,
+  functionName: 'give',
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"shake"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"shake"`
  */
-export function usePrepareAHandShake(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandABI, 'shake'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: aHandABI,
-    functionName: 'shake',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandABI, 'shake'>)
-}
+export const useSimulateAHandShake = /*#__PURE__*/ createUseSimulateContract({
+  abi: aHandAbi,
+  functionName: 'shake',
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandABI}__ and `functionName` set to `"thank"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandAbi}__ and `functionName` set to `"thank"`
  */
-export function usePrepareAHandThank(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandABI, 'thank'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: aHandABI,
-    functionName: 'thank',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandABI, 'thank'>)
-}
+export const useSimulateAHandThank = /*#__PURE__*/ createUseSimulateContract({
+  abi: aHandAbi,
+  functionName: 'thank',
+})
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandABI}__.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandAbi}__
  */
-export function useAHandEvent<TEventName extends string>(
-  config: Omit<
-    UseContractEventConfig<typeof aHandABI, TEventName>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: aHandABI,
-    ...config,
-  } as UseContractEventConfig<typeof aHandABI, TEventName>)
-}
+export const useWatchAHandEvent = /*#__PURE__*/ createUseWatchContractEvent({
+  abi: aHandAbi,
+})
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandABI}__ and `eventName` set to `"Given"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandAbi}__ and `eventName` set to `"Given"`
  */
-export function useAHandGivenEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandABI, 'Given'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: aHandABI,
+export const useWatchAHandGivenEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandAbi,
     eventName: 'Given',
-    ...config,
-  } as UseContractEventConfig<typeof aHandABI, 'Given'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandABI}__ and `eventName` set to `"Shaken"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandAbi}__ and `eventName` set to `"Shaken"`
  */
-export function useAHandShakenEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandABI, 'Shaken'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: aHandABI,
+export const useWatchAHandShakenEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandAbi,
     eventName: 'Shaken',
-    ...config,
-  } as UseContractEventConfig<typeof aHandABI, 'Shaken'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandABI}__ and `eventName` set to `"Thanked"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandAbi}__ and `eventName` set to `"Thanked"`
  */
-export function useAHandThankedEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandABI, 'Thanked'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: aHandABI,
+export const useWatchAHandThankedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandAbi,
     eventName: 'Thanked',
-    ...config,
-  } as UseContractEventConfig<typeof aHandABI, 'Thanked'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseRead<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandBase = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"balanceOf"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"balanceOf"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseBalanceOf<
-  TFunctionName extends 'balanceOf',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'balanceOf',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandBaseBalanceOf = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'balanceOf',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"balanceOfBatch"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"balanceOfBatch"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseBalanceOfBatch<
-  TFunctionName extends 'balanceOfBatch',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useReadAHandBaseBalanceOfBatch =
+  /*#__PURE__*/ createUseReadContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'balanceOfBatch',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"getProblem"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"getProblem"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseGetProblem<
-  TFunctionName extends 'getProblem',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'getProblem',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandBaseGetProblem = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'getProblem',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"hands"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"hands"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseHands<
-  TFunctionName extends 'hands',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'hands',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandBaseHands = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'hands',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"handsNumber"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"handsNumber"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseHandsNumber<
-  TFunctionName extends 'handsNumber',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'handsNumber',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandBaseHandsNumber = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'handsNumber',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"isApprovedForAll"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"isApprovedForAll"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseIsApprovedForAll<
-  TFunctionName extends 'isApprovedForAll',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useReadAHandBaseIsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'isApprovedForAll',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"supportsInterface"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseSupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useReadAHandBaseSupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"uri"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"uri"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseUri<
-  TFunctionName extends 'uri',
-  TSelectData = ReadContractResult<typeof aHandBaseABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractRead({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'uri',
-    ...config,
-  } as UseContractReadConfig<typeof aHandBaseABI, TFunctionName, TSelectData>)
-}
+export const useReadAHandBaseUri = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'uri',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseWrite<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          string
-        >['request']['abi'],
-        TFunctionName,
-        TMode
-      > & { address?: Address; chainId?: TChainId }
-    : UseContractWriteConfig<typeof aHandBaseABI, TFunctionName, TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, TFunctionName, TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    ...config,
-  } as any)
-}
+export const useWriteAHandBase = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"give"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"give"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseGive<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'give'
-        >['request']['abi'],
-        'give',
-        TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'give' }
-    : UseContractWriteConfig<typeof aHandBaseABI, 'give', TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'give'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'give', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'give',
-    ...config,
-  } as any)
-}
+export const useWriteAHandBaseGive = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'give',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"raise"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"raise"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseRaise<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'raise'
-        >['request']['abi'],
-        'raise',
-        TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'raise' }
-    : UseContractWriteConfig<typeof aHandBaseABI, 'raise', TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'raise'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'raise', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'raise',
-    ...config,
-  } as any)
-}
+export const useWriteAHandBaseRaise = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'raise',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseSafeBatchTransferFrom<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'safeBatchTransferFrom'
-        >['request']['abi'],
-        'safeBatchTransferFrom',
-        TMode
-      > & {
-        address?: Address
-        chainId?: TChainId
-        functionName?: 'safeBatchTransferFrom'
-      }
-    : UseContractWriteConfig<
-        typeof aHandBaseABI,
-        'safeBatchTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'safeBatchTransferFrom'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'safeBatchTransferFrom', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWriteAHandBaseSafeBatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"safeTransferFrom"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseSafeTransferFrom<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'safeTransferFrom'
-        >['request']['abi'],
-        'safeTransferFrom',
-        TMode
-      > & {
-        address?: Address
-        chainId?: TChainId
-        functionName?: 'safeTransferFrom'
-      }
-    : UseContractWriteConfig<typeof aHandBaseABI, 'safeTransferFrom', TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'safeTransferFrom'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'safeTransferFrom', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWriteAHandBaseSafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"setApprovalForAll"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseSetApprovalForAll<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'setApprovalForAll'
-        >['request']['abi'],
-        'setApprovalForAll',
-        TMode
-      > & {
-        address?: Address
-        chainId?: TChainId
-        functionName?: 'setApprovalForAll'
-      }
-    : UseContractWriteConfig<
-        typeof aHandBaseABI,
-        'setApprovalForAll',
-        TMode
-      > & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'setApprovalForAll'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'setApprovalForAll', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWriteAHandBaseSetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"shake"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"shake"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseShake<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'shake'
-        >['request']['abi'],
-        'shake',
-        TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'shake' }
-    : UseContractWriteConfig<typeof aHandBaseABI, 'shake', TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'shake'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'shake', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'shake',
-    ...config,
-  } as any)
-}
+export const useWriteAHandBaseShake = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'shake',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thank"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thank"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseThank<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'thank'
-        >['request']['abi'],
-        'thank',
-        TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'thank' }
-    : UseContractWriteConfig<typeof aHandBaseABI, 'thank', TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'thank'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'thank', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'thank',
-    ...config,
-  } as any)
-}
+export const useWriteAHandBaseThank = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'thank',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thumbsDown"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbsDown"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseThumbsDown<
-  TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof aHandBaseAddress,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof aHandBaseABI,
-          'thumbsDown'
-        >['request']['abi'],
-        'thumbsDown',
-        TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'thumbsDown' }
-    : UseContractWriteConfig<typeof aHandBaseABI, 'thumbsDown', TMode> & {
-        abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'thumbsDown'
-      } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof aHandBaseABI, 'thumbsDown', TMode>({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'thumbsDown',
-    ...config,
-  } as any)
-}
+export const useWriteAHandBaseThumbsDown = /*#__PURE__*/ createUseWriteContract(
+  { abi: aHandBaseAbi, address: aHandBaseAddress, functionName: 'thumbsDown' },
+)
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseWrite<TFunctionName extends string>(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, TFunctionName>,
-    'abi' | 'address'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, TFunctionName>)
-}
+export const useSimulateAHandBase = /*#__PURE__*/ createUseSimulateContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"give"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"give"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseGive(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'give'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    functionName: 'give',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'give'>)
-}
+export const useSimulateAHandBaseGive = /*#__PURE__*/ createUseSimulateContract(
+  { abi: aHandBaseAbi, address: aHandBaseAddress, functionName: 'give' },
+)
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"raise"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"raise"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseRaise(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'raise'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseRaise =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'raise',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'raise'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseSafeBatchTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'safeBatchTransferFrom'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseSafeBatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof aHandBaseABI,
-    'safeBatchTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"safeTransferFrom"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseSafeTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'safeTransferFrom'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseSafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'safeTransferFrom'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"setApprovalForAll"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseSetApprovalForAll(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'setApprovalForAll'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseSetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'setApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"shake"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"shake"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseShake(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'shake'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseShake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'shake',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'shake'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thank"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thank"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseThank(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'thank'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseThank =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'thank',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'thank'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link aHandBaseABI}__ and `functionName` set to `"thumbsDown"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbsDown"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function usePrepareAHandBaseThumbsDown(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof aHandBaseABI, 'thumbsDown'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return usePrepareContractWrite({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useSimulateAHandBaseThumbsDown =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     functionName: 'thumbsDown',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof aHandBaseABI, 'thumbsDown'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseEvent<TEventName extends string>(
-  config: Omit<
-    UseContractEventConfig<typeof aHandBaseABI, TEventName>,
-    'abi' | 'address'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractEvent({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
-    ...config,
-  } as UseContractEventConfig<typeof aHandBaseABI, TEventName>)
-}
+export const useWatchAHandBaseEvent = /*#__PURE__*/ createUseWatchContractEvent(
+  { abi: aHandBaseAbi, address: aHandBaseAddress },
+)
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"ApprovalForAll"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"ApprovalForAll"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseApprovalForAllEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandBaseABI, 'ApprovalForAll'>,
-    'abi' | 'address' | 'eventName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractEvent({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWatchAHandBaseApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     eventName: 'ApprovalForAll',
-    ...config,
-  } as UseContractEventConfig<typeof aHandBaseABI, 'ApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"Raised"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"Raised"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseRaisedEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandBaseABI, 'Raised'>,
-    'abi' | 'address' | 'eventName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractEvent({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWatchAHandBaseRaisedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     eventName: 'Raised',
-    ...config,
-  } as UseContractEventConfig<typeof aHandBaseABI, 'Raised'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"TransferBatch"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"TransferBatch"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseTransferBatchEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandBaseABI, 'TransferBatch'>,
-    'abi' | 'address' | 'eventName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractEvent({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWatchAHandBaseTransferBatchEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     eventName: 'TransferBatch',
-    ...config,
-  } as UseContractEventConfig<typeof aHandBaseABI, 'TransferBatch'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"TransferSingle"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"TransferSingle"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseTransferSingleEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandBaseABI, 'TransferSingle'>,
-    'abi' | 'address' | 'eventName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractEvent({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWatchAHandBaseTransferSingleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     eventName: 'TransferSingle',
-    ...config,
-  } as UseContractEventConfig<typeof aHandBaseABI, 'TransferSingle'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link aHandBaseABI}__ and `eventName` set to `"URI"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"URI"`
  *
- * - [__View Contract on Op Mainnet Optimism Explorer__](https://explorer.optimism.io/address/0xBD4Bac9f3D33800518C243173b4e5D3C34A8f9ab)
- * - [__View Contract on Polygon Polygon Scan__](https://polygonscan.com/address/0xE1443A1b6D9AF6893a61Aa4281200c2A16CFAc4D)
- * - [__View Contract on Optimism Goerli Etherscan__](https://goerli-optimism.etherscan.io/address/0x8CD0C31FaF26801b51Bc556eBCCbbB35A51927c7)
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Polygon Mumbai Polygon Scan__](https://mumbai.polygonscan.com/address/0x4e9642dfB5FAf70a512651DA1334DBfE5934D781)
- * - [__View Contract on Base Goerli Basescan__](https://goerli.basescan.org/address/0xE6cb0c675C8A532638d6a811559A48369F9f4DE8)
- * - [__View Contract on Scroll Sepolia Blockscout__](https://sepolia-blockscout.scroll.io/address/0x9066E0f7097849B78f3b45c7C2F9fe69371bA6E6)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x4A8936aaD950da2B02A6DF6DA7B0114B884546e5)
  */
-export function useAHandBaseUriEvent(
-  config: Omit<
-    UseContractEventConfig<typeof aHandBaseABI, 'URI'>,
-    'abi' | 'address' | 'eventName'
-  > & { chainId?: keyof typeof aHandBaseAddress } = {} as any,
-) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractEvent({
-    abi: aHandBaseABI,
-    address: aHandBaseAddress[chainId as keyof typeof aHandBaseAddress],
+export const useWatchAHandBaseUriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
     eventName: 'URI',
-    ...config,
-  } as UseContractEventConfig<typeof aHandBaseABI, 'URI'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155ABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155Abi}__
  */
-export function useErc1155Read<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof erc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155ABI,
-    ...config,
-  } as UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>)
-}
+export const useReadErc1155 = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155Abi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"balanceOf"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"balanceOf"`
  */
-export function useErc1155BalanceOf<
-  TFunctionName extends 'balanceOf',
-  TSelectData = ReadContractResult<typeof erc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155ABI,
-    functionName: 'balanceOf',
-    ...config,
-  } as UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>)
-}
+export const useReadErc1155BalanceOf = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155Abi,
+  functionName: 'balanceOf',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"balanceOfBatch"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"balanceOfBatch"`
  */
-export function useErc1155BalanceOfBatch<
-  TFunctionName extends 'balanceOfBatch',
-  TSelectData = ReadContractResult<typeof erc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155ABI,
-    functionName: 'balanceOfBatch',
-    ...config,
-  } as UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>)
-}
+export const useReadErc1155BalanceOfBatch = /*#__PURE__*/ createUseReadContract(
+  { abi: erc1155Abi, functionName: 'balanceOfBatch' },
+)
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"isApprovedForAll"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"isApprovedForAll"`
  */
-export function useErc1155IsApprovedForAll<
-  TFunctionName extends 'isApprovedForAll',
-  TSelectData = ReadContractResult<typeof erc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155ABI,
+export const useReadErc1155IsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155Abi,
     functionName: 'isApprovedForAll',
-    ...config,
-  } as UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useErc1155SupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof erc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155ABI,
+export const useReadErc1155SupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155Abi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"uri"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"uri"`
  */
-export function useErc1155Uri<
-  TFunctionName extends 'uri',
-  TSelectData = ReadContractResult<typeof erc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155ABI,
-    functionName: 'uri',
-    ...config,
-  } as UseContractReadConfig<typeof erc1155ABI, TFunctionName, TSelectData>)
-}
+export const useReadErc1155Uri = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155Abi,
+  functionName: 'uri',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155ABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155Abi}__
  */
-export function useErc1155Write<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<typeof erc1155ABI, string>['request']['abi'],
-        TFunctionName,
-        TMode
-      >
-    : UseContractWriteConfig<typeof erc1155ABI, TFunctionName, TMode> & {
-        abi?: never
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155ABI, TFunctionName, TMode>({
-    abi: erc1155ABI,
-    ...config,
-  } as any)
-}
+export const useWriteErc1155 = /*#__PURE__*/ createUseWriteContract({
+  abi: erc1155Abi,
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function useErc1155SafeBatchTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155ABI,
-          'safeBatchTransferFrom'
-        >['request']['abi'],
-        'safeBatchTransferFrom',
-        TMode
-      > & { functionName?: 'safeBatchTransferFrom' }
-    : UseContractWriteConfig<
-        typeof erc1155ABI,
-        'safeBatchTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'safeBatchTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155ABI, 'safeBatchTransferFrom', TMode>({
-    abi: erc1155ABI,
+export const useWriteErc1155SafeBatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155Abi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function useErc1155SafeTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155ABI,
-          'safeTransferFrom'
-        >['request']['abi'],
-        'safeTransferFrom',
-        TMode
-      > & { functionName?: 'safeTransferFrom' }
-    : UseContractWriteConfig<typeof erc1155ABI, 'safeTransferFrom', TMode> & {
-        abi?: never
-        functionName?: 'safeTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155ABI, 'safeTransferFrom', TMode>({
-    abi: erc1155ABI,
+export const useWriteErc1155SafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155Abi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function useErc1155SetApprovalForAll<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155ABI,
-          'setApprovalForAll'
-        >['request']['abi'],
-        'setApprovalForAll',
-        TMode
-      > & { functionName?: 'setApprovalForAll' }
-    : UseContractWriteConfig<typeof erc1155ABI, 'setApprovalForAll', TMode> & {
-        abi?: never
-        functionName?: 'setApprovalForAll'
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155ABI, 'setApprovalForAll', TMode>({
-    abi: erc1155ABI,
+export const useWriteErc1155SetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155Abi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155ABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155Abi}__
  */
-export function usePrepareErc1155Write<TFunctionName extends string>(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155ABI, TFunctionName>,
-    'abi'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155ABI,
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof erc1155ABI, TFunctionName>)
-}
+export const useSimulateErc1155 = /*#__PURE__*/ createUseSimulateContract({
+  abi: erc1155Abi,
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function usePrepareErc1155SafeBatchTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155ABI, 'safeBatchTransferFrom'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155ABI,
+export const useSimulateErc1155SafeBatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155Abi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof erc1155ABI,
-    'safeBatchTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function usePrepareErc1155SafeTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155ABI, 'safeTransferFrom'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155ABI,
+export const useSimulateErc1155SafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155Abi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof erc1155ABI, 'safeTransferFrom'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155ABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155Abi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function usePrepareErc1155SetApprovalForAll(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155ABI, 'setApprovalForAll'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155ABI,
+export const useSimulateErc1155SetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155Abi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof erc1155ABI, 'setApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155ABI}__.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155Abi}__
  */
-export function useErc1155Event<TEventName extends string>(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155ABI, TEventName>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155ABI,
-    ...config,
-  } as UseContractEventConfig<typeof erc1155ABI, TEventName>)
-}
+export const useWatchErc1155Event = /*#__PURE__*/ createUseWatchContractEvent({
+  abi: erc1155Abi,
+})
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155ABI}__ and `eventName` set to `"ApprovalForAll"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155Abi}__ and `eventName` set to `"ApprovalForAll"`
  */
-export function useErc1155ApprovalForAllEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155ABI, 'ApprovalForAll'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155ABI,
+export const useWatchErc1155ApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155Abi,
     eventName: 'ApprovalForAll',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155ABI, 'ApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155ABI}__ and `eventName` set to `"TransferBatch"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155Abi}__ and `eventName` set to `"TransferBatch"`
  */
-export function useErc1155TransferBatchEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155ABI, 'TransferBatch'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155ABI,
+export const useWatchErc1155TransferBatchEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155Abi,
     eventName: 'TransferBatch',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155ABI, 'TransferBatch'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155ABI}__ and `eventName` set to `"TransferSingle"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155Abi}__ and `eventName` set to `"TransferSingle"`
  */
-export function useErc1155TransferSingleEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155ABI, 'TransferSingle'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155ABI,
+export const useWatchErc1155TransferSingleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155Abi,
     eventName: 'TransferSingle',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155ABI, 'TransferSingle'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155ABI}__ and `eventName` set to `"URI"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155Abi}__ and `eventName` set to `"URI"`
  */
-export function useErc1155UriEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155ABI, 'URI'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155ABI,
+export const useWatchErc1155UriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155Abi,
     eventName: 'URI',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155ABI, 'URI'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__
  */
-export function useErc1155SupplyRead<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadErc1155Supply = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155SupplyAbi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"balanceOf"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"balanceOf"`
  */
-export function useErc1155SupplyBalanceOf<
-  TFunctionName extends 'balanceOf',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
+export const useReadErc1155SupplyBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155SupplyAbi,
     functionName: 'balanceOf',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"balanceOfBatch"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"balanceOfBatch"`
  */
-export function useErc1155SupplyBalanceOfBatch<
-  TFunctionName extends 'balanceOfBatch',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
+export const useReadErc1155SupplyBalanceOfBatch =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155SupplyAbi,
     functionName: 'balanceOfBatch',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"exists"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"exists"`
  */
-export function useErc1155SupplyExists<
-  TFunctionName extends 'exists',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
-    functionName: 'exists',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadErc1155SupplyExists = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155SupplyAbi,
+  functionName: 'exists',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"isApprovedForAll"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"isApprovedForAll"`
  */
-export function useErc1155SupplyIsApprovedForAll<
-  TFunctionName extends 'isApprovedForAll',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
+export const useReadErc1155SupplyIsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155SupplyAbi,
     functionName: 'isApprovedForAll',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useErc1155SupplySupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
+export const useReadErc1155SupplySupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155SupplyAbi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"totalSupply"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"totalSupply"`
  */
-export function useErc1155SupplyTotalSupply<
-  TFunctionName extends 'totalSupply',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
+export const useReadErc1155SupplyTotalSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155SupplyAbi,
     functionName: 'totalSupply',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"uri"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"uri"`
  */
-export function useErc1155SupplyUri<
-  TFunctionName extends 'uri',
-  TSelectData = ReadContractResult<typeof erc1155SupplyABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc1155SupplyABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc1155SupplyABI,
-    functionName: 'uri',
-    ...config,
-  } as UseContractReadConfig<
-    typeof erc1155SupplyABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadErc1155SupplyUri = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155SupplyAbi,
+  functionName: 'uri',
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155SupplyAbi}__
  */
-export function useErc1155SupplyWrite<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155SupplyABI,
-          string
-        >['request']['abi'],
-        TFunctionName,
-        TMode
-      >
-    : UseContractWriteConfig<typeof erc1155SupplyABI, TFunctionName, TMode> & {
-        abi?: never
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155SupplyABI, TFunctionName, TMode>({
-    abi: erc1155SupplyABI,
-    ...config,
-  } as any)
-}
+export const useWriteErc1155Supply = /*#__PURE__*/ createUseWriteContract({
+  abi: erc1155SupplyAbi,
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function useErc1155SupplySafeBatchTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155SupplyABI,
-          'safeBatchTransferFrom'
-        >['request']['abi'],
-        'safeBatchTransferFrom',
-        TMode
-      > & { functionName?: 'safeBatchTransferFrom' }
-    : UseContractWriteConfig<
-        typeof erc1155SupplyABI,
-        'safeBatchTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'safeBatchTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<
-    typeof erc1155SupplyABI,
-    'safeBatchTransferFrom',
-    TMode
-  >({
-    abi: erc1155SupplyABI,
+export const useWriteErc1155SupplySafeBatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155SupplyAbi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function useErc1155SupplySafeTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155SupplyABI,
-          'safeTransferFrom'
-        >['request']['abi'],
-        'safeTransferFrom',
-        TMode
-      > & { functionName?: 'safeTransferFrom' }
-    : UseContractWriteConfig<
-        typeof erc1155SupplyABI,
-        'safeTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'safeTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155SupplyABI, 'safeTransferFrom', TMode>({
-    abi: erc1155SupplyABI,
+export const useWriteErc1155SupplySafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155SupplyAbi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function useErc1155SupplySetApprovalForAll<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof erc1155SupplyABI,
-          'setApprovalForAll'
-        >['request']['abi'],
-        'setApprovalForAll',
-        TMode
-      > & { functionName?: 'setApprovalForAll' }
-    : UseContractWriteConfig<
-        typeof erc1155SupplyABI,
-        'setApprovalForAll',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'setApprovalForAll'
-      } = {} as any,
-) {
-  return useContractWrite<typeof erc1155SupplyABI, 'setApprovalForAll', TMode>({
-    abi: erc1155SupplyABI,
+export const useWriteErc1155SupplySetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155SupplyAbi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155SupplyAbi}__
  */
-export function usePrepareErc1155SupplyWrite<TFunctionName extends string>(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155SupplyABI, TFunctionName>,
-    'abi'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155SupplyABI,
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof erc1155SupplyABI, TFunctionName>)
-}
+export const useSimulateErc1155Supply = /*#__PURE__*/ createUseSimulateContract(
+  { abi: erc1155SupplyAbi },
+)
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function usePrepareErc1155SupplySafeBatchTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<
-      typeof erc1155SupplyABI,
-      'safeBatchTransferFrom'
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155SupplyABI,
+export const useSimulateErc1155SupplySafeBatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155SupplyAbi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof erc1155SupplyABI,
-    'safeBatchTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function usePrepareErc1155SupplySafeTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155SupplyABI, 'safeTransferFrom'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155SupplyABI,
+export const useSimulateErc1155SupplySafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155SupplyAbi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof erc1155SupplyABI,
-    'safeTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link erc1155SupplyABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function usePrepareErc1155SupplySetApprovalForAll(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof erc1155SupplyABI, 'setApprovalForAll'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: erc1155SupplyABI,
+export const useSimulateErc1155SupplySetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155SupplyAbi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof erc1155SupplyABI,
-    'setApprovalForAll'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155SupplyABI}__.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155SupplyAbi}__
  */
-export function useErc1155SupplyEvent<TEventName extends string>(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155SupplyABI, TEventName>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155SupplyABI,
-    ...config,
-  } as UseContractEventConfig<typeof erc1155SupplyABI, TEventName>)
-}
+export const useWatchErc1155SupplyEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: erc1155SupplyAbi })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155SupplyABI}__ and `eventName` set to `"ApprovalForAll"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `eventName` set to `"ApprovalForAll"`
  */
-export function useErc1155SupplyApprovalForAllEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155SupplyABI, 'ApprovalForAll'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155SupplyABI,
+export const useWatchErc1155SupplyApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155SupplyAbi,
     eventName: 'ApprovalForAll',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155SupplyABI, 'ApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155SupplyABI}__ and `eventName` set to `"TransferBatch"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `eventName` set to `"TransferBatch"`
  */
-export function useErc1155SupplyTransferBatchEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155SupplyABI, 'TransferBatch'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155SupplyABI,
+export const useWatchErc1155SupplyTransferBatchEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155SupplyAbi,
     eventName: 'TransferBatch',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155SupplyABI, 'TransferBatch'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155SupplyABI}__ and `eventName` set to `"TransferSingle"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `eventName` set to `"TransferSingle"`
  */
-export function useErc1155SupplyTransferSingleEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155SupplyABI, 'TransferSingle'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155SupplyABI,
+export const useWatchErc1155SupplyTransferSingleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155SupplyAbi,
     eventName: 'TransferSingle',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155SupplyABI, 'TransferSingle'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link erc1155SupplyABI}__ and `eventName` set to `"URI"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155SupplyAbi}__ and `eventName` set to `"URI"`
  */
-export function useErc1155SupplyUriEvent(
-  config: Omit<
-    UseContractEventConfig<typeof erc1155SupplyABI, 'URI'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: erc1155SupplyABI,
+export const useWatchErc1155SupplyUriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155SupplyAbi,
     eventName: 'URI',
-    ...config,
-  } as UseContractEventConfig<typeof erc1155SupplyABI, 'URI'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc165ABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc165Abi}__
  */
-export function useErc165Read<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof erc165ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc165ABI, TFunctionName, TSelectData>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({ abi: erc165ABI, ...config } as UseContractReadConfig<
-    typeof erc165ABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadErc165 = /*#__PURE__*/ createUseReadContract({
+  abi: erc165Abi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link erc165ABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc165Abi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useErc165SupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof erc165ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof erc165ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: erc165ABI,
+export const useReadErc165SupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc165Abi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<typeof erc165ABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155Abi}__
  */
-export function useIerc1155Read<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof ierc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ABI,
-    ...config,
-  } as UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>)
-}
+export const useReadIerc1155 = /*#__PURE__*/ createUseReadContract({
+  abi: ierc1155Abi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"balanceOf"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"balanceOf"`
  */
-export function useIerc1155BalanceOf<
-  TFunctionName extends 'balanceOf',
-  TSelectData = ReadContractResult<typeof ierc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ABI,
-    functionName: 'balanceOf',
-    ...config,
-  } as UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>)
-}
+export const useReadIerc1155BalanceOf = /*#__PURE__*/ createUseReadContract({
+  abi: ierc1155Abi,
+  functionName: 'balanceOf',
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"balanceOfBatch"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"balanceOfBatch"`
  */
-export function useIerc1155BalanceOfBatch<
-  TFunctionName extends 'balanceOfBatch',
-  TSelectData = ReadContractResult<typeof ierc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ABI,
+export const useReadIerc1155BalanceOfBatch =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155Abi,
     functionName: 'balanceOfBatch',
-    ...config,
-  } as UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"isApprovedForAll"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"isApprovedForAll"`
  */
-export function useIerc1155IsApprovedForAll<
-  TFunctionName extends 'isApprovedForAll',
-  TSelectData = ReadContractResult<typeof ierc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ABI,
+export const useReadIerc1155IsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155Abi,
     functionName: 'isApprovedForAll',
-    ...config,
-  } as UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useIerc1155SupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof ierc1155ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ABI,
+export const useReadIerc1155SupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155Abi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<typeof ierc1155ABI, TFunctionName, TSelectData>)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155Abi}__
  */
-export function useIerc1155Write<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ABI,
-          string
-        >['request']['abi'],
-        TFunctionName,
-        TMode
-      >
-    : UseContractWriteConfig<typeof ierc1155ABI, TFunctionName, TMode> & {
-        abi?: never
-      } = {} as any,
-) {
-  return useContractWrite<typeof ierc1155ABI, TFunctionName, TMode>({
-    abi: ierc1155ABI,
-    ...config,
-  } as any)
-}
+export const useWriteIerc1155 = /*#__PURE__*/ createUseWriteContract({
+  abi: ierc1155Abi,
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function useIerc1155SafeBatchTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ABI,
-          'safeBatchTransferFrom'
-        >['request']['abi'],
-        'safeBatchTransferFrom',
-        TMode
-      > & { functionName?: 'safeBatchTransferFrom' }
-    : UseContractWriteConfig<
-        typeof ierc1155ABI,
-        'safeBatchTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'safeBatchTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<typeof ierc1155ABI, 'safeBatchTransferFrom', TMode>({
-    abi: ierc1155ABI,
+export const useWriteIerc1155SafeBatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155Abi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function useIerc1155SafeTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ABI,
-          'safeTransferFrom'
-        >['request']['abi'],
-        'safeTransferFrom',
-        TMode
-      > & { functionName?: 'safeTransferFrom' }
-    : UseContractWriteConfig<typeof ierc1155ABI, 'safeTransferFrom', TMode> & {
-        abi?: never
-        functionName?: 'safeTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<typeof ierc1155ABI, 'safeTransferFrom', TMode>({
-    abi: ierc1155ABI,
+export const useWriteIerc1155SafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155Abi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function useIerc1155SetApprovalForAll<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ABI,
-          'setApprovalForAll'
-        >['request']['abi'],
-        'setApprovalForAll',
-        TMode
-      > & { functionName?: 'setApprovalForAll' }
-    : UseContractWriteConfig<typeof ierc1155ABI, 'setApprovalForAll', TMode> & {
-        abi?: never
-        functionName?: 'setApprovalForAll'
-      } = {} as any,
-) {
-  return useContractWrite<typeof ierc1155ABI, 'setApprovalForAll', TMode>({
-    abi: ierc1155ABI,
+export const useWriteIerc1155SetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155Abi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155Abi}__
  */
-export function usePrepareIerc1155Write<TFunctionName extends string>(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof ierc1155ABI, TFunctionName>,
-    'abi'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ABI,
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof ierc1155ABI, TFunctionName>)
-}
+export const useSimulateIerc1155 = /*#__PURE__*/ createUseSimulateContract({
+  abi: ierc1155Abi,
+})
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function usePrepareIerc1155SafeBatchTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof ierc1155ABI, 'safeBatchTransferFrom'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ABI,
+export const useSimulateIerc1155SafeBatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155Abi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155ABI,
-    'safeBatchTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function usePrepareIerc1155SafeTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof ierc1155ABI, 'safeTransferFrom'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ABI,
+export const useSimulateIerc1155SafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155Abi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof ierc1155ABI, 'safeTransferFrom'>)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155Abi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function usePrepareIerc1155SetApprovalForAll(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof ierc1155ABI, 'setApprovalForAll'>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ABI,
+export const useSimulateIerc1155SetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155Abi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof ierc1155ABI, 'setApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155ABI}__.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155Abi}__
  */
-export function useIerc1155Event<TEventName extends string>(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155ABI, TEventName>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155ABI,
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155ABI, TEventName>)
-}
+export const useWatchIerc1155Event = /*#__PURE__*/ createUseWatchContractEvent({
+  abi: ierc1155Abi,
+})
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155ABI}__ and `eventName` set to `"ApprovalForAll"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155Abi}__ and `eventName` set to `"ApprovalForAll"`
  */
-export function useIerc1155ApprovalForAllEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155ABI, 'ApprovalForAll'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155ABI,
+export const useWatchIerc1155ApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155Abi,
     eventName: 'ApprovalForAll',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155ABI, 'ApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155ABI}__ and `eventName` set to `"TransferBatch"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155Abi}__ and `eventName` set to `"TransferBatch"`
  */
-export function useIerc1155TransferBatchEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155ABI, 'TransferBatch'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155ABI,
+export const useWatchIerc1155TransferBatchEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155Abi,
     eventName: 'TransferBatch',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155ABI, 'TransferBatch'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155ABI}__ and `eventName` set to `"TransferSingle"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155Abi}__ and `eventName` set to `"TransferSingle"`
  */
-export function useIerc1155TransferSingleEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155ABI, 'TransferSingle'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155ABI,
+export const useWatchIerc1155TransferSingleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155Abi,
     eventName: 'TransferSingle',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155ABI, 'TransferSingle'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155ABI}__ and `eventName` set to `"URI"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155Abi}__ and `eventName` set to `"URI"`
  */
-export function useIerc1155UriEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155ABI, 'URI'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155ABI,
+export const useWatchIerc1155UriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155Abi,
     eventName: 'URI',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155ABI, 'URI'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155MetadataUriABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__
  */
-export function useIerc1155MetadataUriRead<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155MetadataUriABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155MetadataUriABI,
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadIerc1155MetadataUri = /*#__PURE__*/ createUseReadContract({
+  abi: ierc1155MetadataUriAbi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"balanceOf"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"balanceOf"`
  */
-export function useIerc1155MetadataUriBalanceOf<
-  TFunctionName extends 'balanceOf',
-  TSelectData = ReadContractResult<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155MetadataUriABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155MetadataUriABI,
+export const useReadIerc1155MetadataUriBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'balanceOf',
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"balanceOfBatch"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"balanceOfBatch"`
  */
-export function useIerc1155MetadataUriBalanceOfBatch<
-  TFunctionName extends 'balanceOfBatch',
-  TSelectData = ReadContractResult<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155MetadataUriABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155MetadataUriABI,
+export const useReadIerc1155MetadataUriBalanceOfBatch =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'balanceOfBatch',
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"isApprovedForAll"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"isApprovedForAll"`
  */
-export function useIerc1155MetadataUriIsApprovedForAll<
-  TFunctionName extends 'isApprovedForAll',
-  TSelectData = ReadContractResult<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155MetadataUriABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155MetadataUriABI,
+export const useReadIerc1155MetadataUriIsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'isApprovedForAll',
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useIerc1155MetadataUriSupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155MetadataUriABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155MetadataUriABI,
+export const useReadIerc1155MetadataUriSupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"uri"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"uri"`
  */
-export function useIerc1155MetadataUriUri<
-  TFunctionName extends 'uri',
-  TSelectData = ReadContractResult<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155MetadataUriABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155MetadataUriABI,
+export const useReadIerc1155MetadataUriUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'uri',
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__
  */
-export function useIerc1155MetadataUriWrite<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155MetadataUriABI,
-          string
-        >['request']['abi'],
-        TFunctionName,
-        TMode
-      >
-    : UseContractWriteConfig<
-        typeof ierc1155MetadataUriABI,
-        TFunctionName,
-        TMode
-      > & {
-        abi?: never
-      } = {} as any,
-) {
-  return useContractWrite<typeof ierc1155MetadataUriABI, TFunctionName, TMode>({
-    abi: ierc1155MetadataUriABI,
-    ...config,
-  } as any)
-}
+export const useWriteIerc1155MetadataUri = /*#__PURE__*/ createUseWriteContract(
+  { abi: ierc1155MetadataUriAbi },
+)
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function useIerc1155MetadataUriSafeBatchTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155MetadataUriABI,
-          'safeBatchTransferFrom'
-        >['request']['abi'],
-        'safeBatchTransferFrom',
-        TMode
-      > & { functionName?: 'safeBatchTransferFrom' }
-    : UseContractWriteConfig<
-        typeof ierc1155MetadataUriABI,
-        'safeBatchTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'safeBatchTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<
-    typeof ierc1155MetadataUriABI,
-    'safeBatchTransferFrom',
-    TMode
-  >({
-    abi: ierc1155MetadataUriABI,
+export const useWriteIerc1155MetadataUriSafeBatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function useIerc1155MetadataUriSafeTransferFrom<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155MetadataUriABI,
-          'safeTransferFrom'
-        >['request']['abi'],
-        'safeTransferFrom',
-        TMode
-      > & { functionName?: 'safeTransferFrom' }
-    : UseContractWriteConfig<
-        typeof ierc1155MetadataUriABI,
-        'safeTransferFrom',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'safeTransferFrom'
-      } = {} as any,
-) {
-  return useContractWrite<
-    typeof ierc1155MetadataUriABI,
-    'safeTransferFrom',
-    TMode
-  >({
-    abi: ierc1155MetadataUriABI,
+export const useWriteIerc1155MetadataUriSafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function useIerc1155MetadataUriSetApprovalForAll<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155MetadataUriABI,
-          'setApprovalForAll'
-        >['request']['abi'],
-        'setApprovalForAll',
-        TMode
-      > & { functionName?: 'setApprovalForAll' }
-    : UseContractWriteConfig<
-        typeof ierc1155MetadataUriABI,
-        'setApprovalForAll',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'setApprovalForAll'
-      } = {} as any,
-) {
-  return useContractWrite<
-    typeof ierc1155MetadataUriABI,
-    'setApprovalForAll',
-    TMode
-  >({
-    abi: ierc1155MetadataUriABI,
+export const useWriteIerc1155MetadataUriSetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__
  */
-export function usePrepareIerc1155MetadataUriWrite<
-  TFunctionName extends string,
->(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof ierc1155MetadataUriABI, TFunctionName>,
-    'abi'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155MetadataUriABI,
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155MetadataUriABI,
-    TFunctionName
-  >)
-}
+export const useSimulateIerc1155MetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({ abi: ierc1155MetadataUriAbi })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"safeBatchTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  */
-export function usePrepareIerc1155MetadataUriSafeBatchTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<
-      typeof ierc1155MetadataUriABI,
-      'safeBatchTransferFrom'
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155MetadataUriABI,
+export const useSimulateIerc1155MetadataUriSafeBatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'safeBatchTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155MetadataUriABI,
-    'safeBatchTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"safeTransferFrom"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"safeTransferFrom"`
  */
-export function usePrepareIerc1155MetadataUriSafeTransferFrom(
-  config: Omit<
-    UsePrepareContractWriteConfig<
-      typeof ierc1155MetadataUriABI,
-      'safeTransferFrom'
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155MetadataUriABI,
+export const useSimulateIerc1155MetadataUriSafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'safeTransferFrom',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155MetadataUriABI,
-    'safeTransferFrom'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `functionName` set to `"setApprovalForAll"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `functionName` set to `"setApprovalForAll"`
  */
-export function usePrepareIerc1155MetadataUriSetApprovalForAll(
-  config: Omit<
-    UsePrepareContractWriteConfig<
-      typeof ierc1155MetadataUriABI,
-      'setApprovalForAll'
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155MetadataUriABI,
+export const useSimulateIerc1155MetadataUriSetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155MetadataUriAbi,
     functionName: 'setApprovalForAll',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155MetadataUriABI,
-    'setApprovalForAll'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriABI}__.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__
  */
-export function useIerc1155MetadataUriEvent<TEventName extends string>(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155MetadataUriABI, TEventName>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155MetadataUriABI,
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155MetadataUriABI, TEventName>)
-}
+export const useWatchIerc1155MetadataUriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: ierc1155MetadataUriAbi })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `eventName` set to `"ApprovalForAll"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `eventName` set to `"ApprovalForAll"`
  */
-export function useIerc1155MetadataUriApprovalForAllEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155MetadataUriABI, 'ApprovalForAll'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155MetadataUriABI,
+export const useWatchIerc1155MetadataUriApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155MetadataUriAbi,
     eventName: 'ApprovalForAll',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155MetadataUriABI, 'ApprovalForAll'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `eventName` set to `"TransferBatch"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `eventName` set to `"TransferBatch"`
  */
-export function useIerc1155MetadataUriTransferBatchEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155MetadataUriABI, 'TransferBatch'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155MetadataUriABI,
+export const useWatchIerc1155MetadataUriTransferBatchEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155MetadataUriAbi,
     eventName: 'TransferBatch',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155MetadataUriABI, 'TransferBatch'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `eventName` set to `"TransferSingle"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `eventName` set to `"TransferSingle"`
  */
-export function useIerc1155MetadataUriTransferSingleEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155MetadataUriABI, 'TransferSingle'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155MetadataUriABI,
+export const useWatchIerc1155MetadataUriTransferSingleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155MetadataUriAbi,
     eventName: 'TransferSingle',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155MetadataUriABI, 'TransferSingle'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriABI}__ and `eventName` set to `"URI"`.
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ierc1155MetadataUriAbi}__ and `eventName` set to `"URI"`
  */
-export function useIerc1155MetadataUriUriEvent(
-  config: Omit<
-    UseContractEventConfig<typeof ierc1155MetadataUriABI, 'URI'>,
-    'abi' | 'eventName'
-  > = {} as any,
-) {
-  return useContractEvent({
-    abi: ierc1155MetadataUriABI,
+export const useWatchIerc1155MetadataUriUriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ierc1155MetadataUriAbi,
     eventName: 'URI',
-    ...config,
-  } as UseContractEventConfig<typeof ierc1155MetadataUriABI, 'URI'>)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ReceiverABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__
  */
-export function useIerc1155ReceiverRead<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof ierc1155ReceiverABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155ReceiverABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ReceiverABI,
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155ReceiverABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+export const useReadIerc1155Receiver = /*#__PURE__*/ createUseReadContract({
+  abi: ierc1155ReceiverAbi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc1155ReceiverABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useIerc1155ReceiverSupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof ierc1155ReceiverABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<
-      typeof ierc1155ReceiverABI,
-      TFunctionName,
-      TSelectData
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc1155ReceiverABI,
+export const useReadIerc1155ReceiverSupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155ReceiverAbi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<
-    typeof ierc1155ReceiverABI,
-    TFunctionName,
-    TSelectData
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ReceiverABI}__.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__
  */
-export function useIerc1155ReceiverWrite<
-  TFunctionName extends string,
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ReceiverABI,
-          string
-        >['request']['abi'],
-        TFunctionName,
-        TMode
-      >
-    : UseContractWriteConfig<
-        typeof ierc1155ReceiverABI,
-        TFunctionName,
-        TMode
-      > & {
-        abi?: never
-      } = {} as any,
-) {
-  return useContractWrite<typeof ierc1155ReceiverABI, TFunctionName, TMode>({
-    abi: ierc1155ReceiverABI,
-    ...config,
-  } as any)
-}
+export const useWriteIerc1155Receiver = /*#__PURE__*/ createUseWriteContract({
+  abi: ierc1155ReceiverAbi,
+})
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ReceiverABI}__ and `functionName` set to `"onERC1155BatchReceived"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155BatchReceived"`
  */
-export function useIerc1155ReceiverOnErc1155BatchReceived<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ReceiverABI,
-          'onERC1155BatchReceived'
-        >['request']['abi'],
-        'onERC1155BatchReceived',
-        TMode
-      > & { functionName?: 'onERC1155BatchReceived' }
-    : UseContractWriteConfig<
-        typeof ierc1155ReceiverABI,
-        'onERC1155BatchReceived',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'onERC1155BatchReceived'
-      } = {} as any,
-) {
-  return useContractWrite<
-    typeof ierc1155ReceiverABI,
-    'onERC1155BatchReceived',
-    TMode
-  >({
-    abi: ierc1155ReceiverABI,
+export const useWriteIerc1155ReceiverOnErc1155BatchReceived =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155ReceiverAbi,
     functionName: 'onERC1155BatchReceived',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link ierc1155ReceiverABI}__ and `functionName` set to `"onERC1155Received"`.
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155Received"`
  */
-export function useIerc1155ReceiverOnErc1155Received<
-  TMode extends WriteContractMode = undefined,
->(
-  config: TMode extends 'prepared'
-    ? UseContractWriteConfig<
-        PrepareWriteContractResult<
-          typeof ierc1155ReceiverABI,
-          'onERC1155Received'
-        >['request']['abi'],
-        'onERC1155Received',
-        TMode
-      > & { functionName?: 'onERC1155Received' }
-    : UseContractWriteConfig<
-        typeof ierc1155ReceiverABI,
-        'onERC1155Received',
-        TMode
-      > & {
-        abi?: never
-        functionName?: 'onERC1155Received'
-      } = {} as any,
-) {
-  return useContractWrite<
-    typeof ierc1155ReceiverABI,
-    'onERC1155Received',
-    TMode
-  >({
-    abi: ierc1155ReceiverABI,
+export const useWriteIerc1155ReceiverOnErc1155Received =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155ReceiverAbi,
     functionName: 'onERC1155Received',
-    ...config,
-  } as any)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ReceiverABI}__.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__
  */
-export function usePrepareIerc1155ReceiverWrite<TFunctionName extends string>(
-  config: Omit<
-    UsePrepareContractWriteConfig<typeof ierc1155ReceiverABI, TFunctionName>,
-    'abi'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ReceiverABI,
-    ...config,
-  } as UsePrepareContractWriteConfig<typeof ierc1155ReceiverABI, TFunctionName>)
-}
+export const useSimulateIerc1155Receiver =
+  /*#__PURE__*/ createUseSimulateContract({ abi: ierc1155ReceiverAbi })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ReceiverABI}__ and `functionName` set to `"onERC1155BatchReceived"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155BatchReceived"`
  */
-export function usePrepareIerc1155ReceiverOnErc1155BatchReceived(
-  config: Omit<
-    UsePrepareContractWriteConfig<
-      typeof ierc1155ReceiverABI,
-      'onERC1155BatchReceived'
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ReceiverABI,
+export const useSimulateIerc1155ReceiverOnErc1155BatchReceived =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155ReceiverAbi,
     functionName: 'onERC1155BatchReceived',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155ReceiverABI,
-    'onERC1155BatchReceived'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link ierc1155ReceiverABI}__ and `functionName` set to `"onERC1155Received"`.
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155Received"`
  */
-export function usePrepareIerc1155ReceiverOnErc1155Received(
-  config: Omit<
-    UsePrepareContractWriteConfig<
-      typeof ierc1155ReceiverABI,
-      'onERC1155Received'
-    >,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return usePrepareContractWrite({
-    abi: ierc1155ReceiverABI,
+export const useSimulateIerc1155ReceiverOnErc1155Received =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155ReceiverAbi,
     functionName: 'onERC1155Received',
-    ...config,
-  } as UsePrepareContractWriteConfig<
-    typeof ierc1155ReceiverABI,
-    'onERC1155Received'
-  >)
-}
+  })
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc165ABI}__.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc165Abi}__
  */
-export function useIerc165Read<
-  TFunctionName extends string,
-  TSelectData = ReadContractResult<typeof ierc165ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc165ABI, TFunctionName, TSelectData>,
-    'abi'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc165ABI,
-    ...config,
-  } as UseContractReadConfig<typeof ierc165ABI, TFunctionName, TSelectData>)
-}
+export const useReadIerc165 = /*#__PURE__*/ createUseReadContract({
+  abi: ierc165Abi,
+})
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link ierc165ABI}__ and `functionName` set to `"supportsInterface"`.
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc165Abi}__ and `functionName` set to `"supportsInterface"`
  */
-export function useIerc165SupportsInterface<
-  TFunctionName extends 'supportsInterface',
-  TSelectData = ReadContractResult<typeof ierc165ABI, TFunctionName>,
->(
-  config: Omit<
-    UseContractReadConfig<typeof ierc165ABI, TFunctionName, TSelectData>,
-    'abi' | 'functionName'
-  > = {} as any,
-) {
-  return useContractRead({
-    abi: ierc165ABI,
+export const useReadIerc165SupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc165Abi,
     functionName: 'supportsInterface',
-    ...config,
-  } as UseContractReadConfig<typeof ierc165ABI, TFunctionName, TSelectData>)
-}
+  })
