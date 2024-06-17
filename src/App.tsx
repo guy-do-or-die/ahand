@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { useAccount } from "wagmi";
 
 import { Link, Route } from "wouter";
 

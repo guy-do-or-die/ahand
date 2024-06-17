@@ -1,8 +1,10 @@
-import { useEffect } from "react"
+import { useEffect } from 'react'
 
-import { useAccount, useWaitForTransactionReceipt } from "wagmi"
+import { useClient, useWaitForTransactionReceipt } from 'wagmi'
 
-import { notify } from "./Notification"
+import { notify, hide } from './Notification'
+
+import { useAccount, chain } from '../wallet'
 
 
 export const parseError = (error) => {
@@ -16,7 +18,7 @@ export const parseError = (error) => {
     /(RPC Error)/,
   ]
 
-  let msg = ""
+  let msg = ''
 
   if (error) {
     templates.forEach(template => {
@@ -35,9 +37,8 @@ export const parseError = (error) => {
 export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
 
   const account = useAccount()
-  const chain = account.chain;
 
-  const txLink = (hash, text) => <a href={`${chain?.blockExplorers?.default.url}/tx/${hash}`} className="font-bold underline" target="_blank">{text}</a>
+  const txLink = (hash, text) => <a href={`${chain.blockExplorers?.default.url}/tx/${hash}`} className="font-bold underline" target="_blank">{text}</a>
 
   const {
     data: simulateData,
@@ -47,7 +48,7 @@ export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
     error: simulateError,
   } = simulateHook({
     query: {
-      enabled: params.enabled
+      enabled: account.connected && params.enabled
     },
     ...params
   })
@@ -62,7 +63,7 @@ export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
     isSuccess: isWriteSuccess,
   } = writeHook({
     query: {
-      enabled: params.enabled
+      enabled: account.connected && params.enabled && isSimulateSuccess
     },
     ...params
   })
@@ -71,36 +72,44 @@ export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
     data: confirmationData,
     error: confirmationError,
     isError: isConfirmationError,
-    isPending: isConfirmationPending,
+    isLoading: isConfirmationLoading,
     isSuccess: isConfirmationSuccess,
   } = useWaitForTransactionReceipt({
     confirmations: 1,
     hash: writeData,
     query: {
-      enabled: params.enabled
+      enabled: account.connected && params.enabled && writeData
     },
     ...params,
   })
 
   useEffect(() => {
-    isSimulateError && (params.onSimulateError?.(simulateError) || notify(parseError(simulateError), "error"))
-    isSimulateSuccess && (params.onSimulateSuccess?.(simulateData) || notify(simulateData?.result, "success"))
+    params.enabled && isSimulatePending ? notify('Loading', 'loading', {id: 'simulating'}) : hide('simulating')
+  })
+
+  useEffect(() => {
+    isSimulateError && (params.onSimulateError?.(simulateError) || notify(parseError(simulateError), 'error'))
+    isSimulateSuccess && (params.onSimulateSuccess?.(simulateData) || notify(simulateData?.result, 'success'))
   }, [isSimulateError, isSimulateSuccess])
 
   useEffect(() => {
-    isWriteError && (params.onWriteError?.(writeError) || notify(parseError(writeError), "error"))
-    isWriteSuccess && (params.onWriteSuccess?.(writeData) || notify(<span>{txLink(writeData, "Transaction")} sent</span>, "success"))
+    isWriteError && (params.onWriteError?.(writeError) || notify(parseError(writeError), 'error'))
+    isWriteSuccess && (params.onWriteSuccess?.(writeData) || notify(<span>{txLink(writeData, 'Transaction')} sent</span>, 'success'), {id: writeData})
   }, [isWriteError, isWriteSuccess])
 
   useEffect(() => {
-    isConfirmationError && (params.onConfirmationError?.(confirmationError) || notify(parseError(confirmationError), "error"))
-    isConfirmationSuccess && (params.onConfirmationSuccess?.(confirmationData) || notify(<span>{txLink(confirmationData?.transactionHash, "Transaction")} confirmed</span>, "success"))
+    params.enabled && writeData && isConfirmationLoading ? notify(<span>Confirming {txLink(writeData, 'Transaction')}</span>, 'loading', {id: 'confirming'}) : hide('confirming')
+  }, [isConfirmationLoading])
+
+  useEffect(() => {
+    isConfirmationError && (params.onConfirmationError?.(confirmationError) || notify(parseError(confirmationError), 'error'))
+    isConfirmationSuccess && (params.onConfirmationSuccess?.(confirmationData) || notify(<span>{txLink(confirmationData?.transactionHash, 'Transaction')} confirmed</span>, 'success'))
   }, [isConfirmationError, isConfirmationSuccess])
 
   return <div>
     <button className="btn btn-ghost w-32"
-            disabled={!params?.enabled || !Boolean(simulateData?.request)}
-            onClick={() => writeContract(simulateData!.request)}>
+            disabled={!account?.connected || !params?.enabled || !Boolean(simulateData?.request)}
+            onClick={() => writeContract({...simulateData!.request, account: undefined})}>
       {
         isWritePending ? 
           <span className="loading loading-spinner"></span>

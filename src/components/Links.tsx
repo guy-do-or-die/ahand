@@ -1,6 +1,5 @@
-import { useAccount } from 'wagmi'
-
 import { aHandBaseAddress } from '../contracts'
+import { chain } from '../wallet'
 
 import xUrl from '../../assets/x.png'
 import telegramUrl from '../../assets/telegram.png'
@@ -21,11 +20,8 @@ const Link = ({href, icon, title}) => {
 
 
 export const Links = () => {
-  const { chain } = useAccount()
-
-
-  const explorer = chain?.blockExplorers?.default.url
-  const contractAddress = aHandBaseAddress[chain?.id]
+  const explorer = chain.blockExplorers?.default.url
+  const contractAddress = aHandBaseAddress[chain.id]
 
   return <div className="links flex justify-center items-start"> 
     <div className="flex space-x-4 filter grayscale">

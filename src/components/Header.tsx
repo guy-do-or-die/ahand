@@ -1,15 +1,11 @@
 import { useState } from "react"
 
-import { useAccount, useBalance } from "wagmi"
+import { useBalance } from "wagmi"
 import { useSwitchChain } from 'wagmi'
-
-import { base, baseSepolia } from '@wagmi/core/chains'
 
 import { formatEther } from 'viem'
 
 import { CopyToClipboard } from 'react-copy-to-clipboard'
-
-import { usePrivy } from "@privy-io/react-auth"
 
 import { Link } from "wouter"
 
@@ -18,9 +14,10 @@ import { CurrencyToggle } from "./Currency"
 
 import { Address } from "./Utils"
 
-import { notify } from "./Notification"
+import { notify, hide } from "./Notification"
 
 import { aHandBaseAddress } from '../contracts'
+import { useAccount, chain } from '../wallet'
 
 
 const Logo = () => {
@@ -34,36 +31,40 @@ const Logo = () => {
 }
 
 
-const SwitchChain = ({callback}) => {
+const SwitchChain = ({onSuccess, onError}) => {
 
   const { chains, switchChain } = useSwitchChain()
 
   const doSwitch = () => switchChain({
-    chainId: baseSepolia.id,
-    onSuccess: ({data}) => {
-      notify(`Succesfully switched: ${error}`, 'success')
-      callback()
+      chainId: chain.id,
+    }, {
+    onSuccess: data => {
+      notify(`Succesfully switched to ${data.name}`, 'success')
+      onSuccess?.()
     },
-    onError: ({error}) => {
+    onError: error => {
       notify(`Can't switch: ${error}`, 'error')
+      onError?.()
     }
   })
 
   return <div>
-    Please, <a href="#" onClick={doSwitch} className="font-bold underline">switch</a> to Base
+    {`Please, `}
+    <a href="#" onClick={doSwitch} className="font-bold underline">switch</a>
+    {` to ${chain.name}`}
   </div>
 }
 
 
 export const Header = () => {
  
-  const { ready, authenticated, login, logout } = usePrivy()
-
-  const { address, chainId } = useAccount()
+  const { address, connected, login, logout } = useAccount()
   const { data: balanceData } = useBalance({ address })
 
-  if (ready && authenticated && !aHandBaseAddress[chainId]) {
-    notify(<SwitchChain callback={() => {}} />, 'error', {id: 'wrong-chain', duration: Infinity})
+  if (connected && !aHandBaseAddress[chain.id]) {
+    const notificationId = 'wrong-chain';
+
+    notify(<SwitchChain onSuccess={() => hide(notificationId)} />, 'error', {id: notificationId, duration: Infinity})
   }
 
   return <div className="flex flex-col items-center justify-start w-full sm:flex-row sm:justify-between p-2">
@@ -74,7 +75,7 @@ export const Header = () => {
     <div className="flex items-center order-1 m-4 sm:m-0 sm:order-2 sm:absolute sm:top-5 sm:right-6">
       <ThemeToggle /> 
       {
-        ready && authenticated
+        connected 
           ?
         <div className="dropdown dropdown-end dropdown-hover">
           <div className="join">
