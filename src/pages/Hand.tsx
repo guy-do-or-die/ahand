@@ -1,15 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react"
 
 import { useSpring, animated } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 
-import { useAccount, useBalance } from "wagmi";
-import { formatEther } from "viem";
+import { useBalance } from "wagmi"
+import { formatEther } from "viem"
 
-import { useLocation } from "wouter";
+import { useLocation } from "wouter"
 
-import { Button, ShareForm, ShareMeta } from "../components";
-import { genRef } from "../utils";
+import { Button, ShareForm, ShareMeta } from "../components"
+import { useAccount } from "../wallet"
+import { genRef } from "../utils"
 
 import {
   useReadAHandProblem,
@@ -23,7 +24,7 @@ import {
   useWriteAHandBaseShake,
   useWriteAHandBaseGive,
   useWriteAHandBaseThank,
-} from "../contracts";
+} from "../contracts"
 
 
 const Problem = ({params: {hand, ref}, action}) => {
@@ -36,7 +37,7 @@ const Problem = ({params: {hand, ref}, action}) => {
     address: hand,
   })
 
-  const reward = parseInt(rewardData?.value) || 0;
+  const reward = parseInt(rewardData?.value) || 0
 
   return <div className="mb-8">
     <ShareMeta title={problem} reward={reward} />
@@ -53,8 +54,8 @@ const Shake = ({children, classes = 'badge-neutral'}) => {
     <div className={`badge badge-lg h-8 ${classes}`}>
       {children}
     </div>
-  );
-};
+  )
+}
 
 
 const Shakes = ({hand, shakeRef, reward, action}) => {
@@ -65,37 +66,37 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
     address: hand,
     enabled: shakeRef,
     args: [shakeRef],
-  });
+  })
 
-  const shakes = shakesData || [];
+  const shakes = shakesData || []
 
   const [baseReward, ...rewards] = shakes.reduce((acc, _, i) => {
-    const amount = (i === 0 ? reward : acc[i - 1]) / 2;
-    acc.push(amount);
-    return acc;
-  }, []);
+    const amount = (i === 0 ? reward : acc[i - 1]) / 2
+    acc.push(amount)
+    return acc
+  }, [])
 
-  const potentialReward = (baseReward || reward) + (rewards.at(-1) || 0);
+  const potentialReward = (baseReward || reward) + (rewards.at(-1) || 0)
 
   const lastIcon = {
     "given": "🙌",
     "thanked": "🙏",
   }[action] || "🫵"
 
-  const shakesRef = useRef(null);
+  const shakesRef = useRef(null)
 
-  const [{ x, y }, set] = useSpring(() => ({ x: 0, y: 0 }));
+  const [{ x, y }, set] = useSpring(() => ({ x: 0, y: 0 }))
   const drag = useDrag(({ offset: [dx] }) => {
     if (shakesRef.current) {
-      shakesRef.current.scrollLeft = -dx;
+      shakesRef.current.scrollLeft = -dx
     }
-  });
+  })
 
   useEffect(() => {
     if (shakesRef.current) {
-      shakesRef.current.scrollLeft = shakesRef.current.scrollWidth;
+      shakesRef.current.scrollLeft = shakesRef.current.scrollWidth
     }
-  }, []);
+  }, [])
 
   return <>
     <div className="flex justify-center mb-4 shakes">
@@ -119,20 +120,20 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 const SolutionInput = ({setValue}) => {
 
   return <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Provide your comment, solution or contacts">
-    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" placeholder="Comment or Solution" onChange={event => setValue(event.target.value)} />
+    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution" onChange={event => setValue(event.target.value)} />
   </div>
 }
 
 
 const ShakeButton = ({params: {hand, ref}, newRef}) => {
 
-  const [location, setLocation] = useLocation();
+  const [location, setLocation] = useLocation()
 
   const shakeParams = {
     args: [hand, ref, newRef],
     enabled: true,
     onConfirmationSuccess: data => {
-      setLocation(`/hand/${hand}/${newRef}/share`);
+      setLocation(`/hand/${hand}/${newRef}/share`)
     }
   }
 
@@ -145,13 +146,13 @@ const ShakeButton = ({params: {hand, ref}, newRef}) => {
 
 const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
 
-  const [location, setLocation] = useLocation();
+  const [location, setLocation] = useLocation()
 
   const giveParams = {
     args: [hand, ref, newRef, solution],
     enabled: solution?.length > 0,
     onConfirmationSuccess: data => {
-      setLocation(`/hand/${hand}/${ref}/given`);
+      setLocation(`/hand/${hand}/${ref}/given`)
     }
   }
 
@@ -164,13 +165,13 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
 
 const ThankButton = ({hand, solutionId, giverRef}) => {
 
-  const [location, setLocation] = useLocation();
+  const [location, setLocation] = useLocation()
 
   const thankParams = {
     args: [hand, solutionId],
     enabled: true,
     onConfirmationSuccess: data => {
-      setLocation(`/hand/${hand}/${giverRef}/thanked`);
+      setLocation(`/hand/${hand}/${giverRef}/thanked`)
     }
   }
 
@@ -188,12 +189,12 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
     args: [id], 
   })
 
-  const [giver, solution] = data || [];
+  const [giver, solution] = data || []
 
   return <div key={id} className={`collapse collapse-arrow join-item border border-base-300 ${isOpen ? 'collapse-open' : ''} group`}>
     <input type="radio" name="solutions" checked={isOpen} onChange={() => onToggle(id)} />
     <div className="collapse-title text-xl font-medium relative">
-      {(solution || "").substring(0, 10)}
+      {(solution || "").substring(0, 10)}{(solution || "").length > 10 ? "…" : ""}
       <div className="absolute top-2 right-10 opacity-0 group-hover:opacity-100 z-10">
         <ThankButton hand={hand} solutionId={id} giverRef={giver} />
       </div>
@@ -207,7 +208,7 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
 
 const Solutions = ({hand}) => {
 
-  const [openAccordion, setOpenAccordion] = useState(null);
+  const [openAccordion, setOpenAccordion] = useState(null)
 
   const {data: solutionsNumber} = useReadAHandSolutionsNumber({
     address: hand,
@@ -226,8 +227,8 @@ const Solutions = ({hand}) => {
 
 const ShakeForm = ({params}) => {
 
-  const [newRef] = useState(genRef());
-  const [solution, setSolution] = useState();
+  const [newRef] = useState(genRef())
+  const [solution, setSolution] = useState()
 
   return <div>
     <SolutionInput setValue={setSolution}/>
@@ -246,24 +247,24 @@ const ShakeForm = ({params}) => {
 
 export const Hand = ({params}) => {
 
-  const [location, setLocation] = useLocation();
+  const [location, setLocation] = useLocation()
 
-  const url = `${window.location.origin}/hand/${params.hand}/${params.ref}`;
+  const url = `${window.location.origin}/hand/${params.hand}/${params.ref}`
   
   const {address} = useAccount()
   const {data: raiser } = useReadAHandRaiser({
     address: params.hand,
   })
 
-  address === raiser && !params.action && setLocation(`/hand/${params.hand}`)
+  raiser && address === raiser && !params.action && setLocation(`/hand/${params.hand}`)
 
-  const action = params.action || "other";
+  const action = params.action || "other"
 
   const msg = {
     "share": "Spread the hand!",
     "given": "Solution sent!",
     "thanked": "Thank you for thanking!",
-  }[action];
+  }[action]
 
   const el = {
     "share": <ShareForm url={url} />,

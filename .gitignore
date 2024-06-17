@@ -25,6 +25,7 @@ dist-ssr
 *.local
 artifacts
 *.swp
+*.swo
 nohup.out
 bin
 

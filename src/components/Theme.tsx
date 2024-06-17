@@ -17,6 +17,7 @@ export const ThemeToggle = () => {
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark'
     document.documentElement.setAttribute('data-theme', THEMES[newTheme])
+    document.documentElement.setAttribute('class', THEMES[newTheme])
     setConfig('theme', newTheme)
   }
 

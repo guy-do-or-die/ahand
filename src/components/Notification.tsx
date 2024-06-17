@@ -17,8 +17,15 @@ export const notify = (content, type, params) => {
 }
 
 
+export const hide = id => {
+  toast.dismiss(id)
+}
+
+
 export const Notification = ({}) => {
   return <>
-    <Toaster />
+    <Toaster toastOptions={{
+      className: 'light:!bg-white light:!text-black dark:!bg-black dark:!text-white',
+    }}/>
   </>
 }

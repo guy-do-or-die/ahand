@@ -26,7 +26,7 @@ contract AHandBase is ERC1155 {
 
     event Raised(address indexed hand, address indexed raiser);
 
-    constructor() ERC1155("AHAND") {}
+    constructor() ERC1155("aHand") {}
 
     function raise(string calldata problem, address ref) public payable {
         require(msg.value > 0, "Reward can't be 0");

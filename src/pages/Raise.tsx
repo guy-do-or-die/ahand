@@ -1,40 +1,42 @@
-import { useState, useEffect } from "react";
-import { parseEther } from "viem";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react"
+import { parseEther } from "viem"
+import { useLocation } from "wouter"
 
-import { useAccount, useBlockNumber } from "wagmi";
+import { useBlockNumber } from "wagmi"
 
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth"
 
-import { Button, notify } from "../components";
-import { genRef } from "../utils";
+import { Button, notify } from "../components"
+
+import { useAccount } from "../wallet"
+import { genRef } from "../utils"
 
 import {
   useSimulateAHandBaseRaise,
   useWriteAHandBaseRaise,
   useWatchAHandBaseRaisedEvent,
-} from "../contracts";
+} from "../contracts"
 
 
 export const Raise = () => {
 
-  const {ready, authenticated} = usePrivy();
+  const {ready, authenticated} = usePrivy()
 
-  const {address, chain} = useAccount();
+  const {address, chain} = useAccount()
 
-  const [location, setLocation] = useLocation();
+  const [location, setLocation] = useLocation()
 
-  const [block, setBlock] = useState(0);
+  const [block, setBlock] = useState(0)
 
-  const [problem, setProblem] = useState();
-  const [reward, setReward] = useState("");
+  const [problem, setProblem] = useState()
+  const [reward, setReward] = useState("")
 
   useEffect(() => {
-    !ready || !authenticated && setLocation("/");
+    !ready || !authenticated && setLocation("/")
   }, [ready, authenticated])
 
   const handleRewardChange = (event) => {
-    const value = event.target.value;
+    const value = event.target.value
 
     if (
       value === ''
@@ -42,17 +44,18 @@ export const Raise = () => {
       || value === '0.'
       || (/^\d*\.?\d+$/.test(value) && parseFloat(value) >= 0)
     ) {
-      setReward(value);
+      setReward(value)
     }
-  };
+  }
 
-  const [ref, setRef] = useState(genRef());
+  const [ref, setRef] = useState(genRef())
 
+  console.log(problem, ref)
   const raiseParams = {
     args: [problem, ref],
     value: parseEther(reward),
     enabled: problem?.length > 0 && parseFloat(reward) > 0,
-  };
+  }
 
   useWatchAHandBaseRaisedEvent({
     onError(error) {
@@ -60,19 +63,19 @@ export const Raise = () => {
     },
     onLogs(logs) {
       (logs || []).every(item => {
-        const {hand, raiser} = item.args;
+        const {hand, raiser} = item.args
 
         if (raiser === address) {
-          setLocation(`/hand/${hand}/${ref}/share`);
+          setLocation(`/hand/${hand}/${ref}/share`)
           return
         }
       })
     }
-  });
+  })
 
   return <div>
     <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Type or paste a link to your problem description">
-      <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
+      <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="problem" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
     </div>
     <div className="card-actions justify-center mt-2">
       <div className="lg:tooltip w-full max-w-xs" data-tip="Set fair reward for a solution participants">

@@ -1,14 +1,14 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom/client";
 
-import { WagmiWrapper } from "./wagmi";
+import { WalletProvider } from "./wallet";
 import { App } from "./App";
 
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <WagmiWrapper>
+    <WalletProvider>
       <App />
-    </WagmiWrapper>
+    </WalletProvider>
   </React.StrictMode>,
 );
