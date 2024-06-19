@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 
 import { createConfig, usePublicClient, useAccount as useWagmiAccount, useConnect, useDisconnect } from "wagmi"
-
 import * as chains from "wagmi/chains"
 
 import { http, toFunctionSelector } from "viem"
@@ -32,7 +31,7 @@ const supportedChains = {
 }
 
 export const chain = supportedChains[import.meta.env.VITE_CHAIN]
-export const RPC_URL = import.meta.env.RPC_URL
+export const RPC_URL = import.meta.env.VITE_RPC
 
 export const Privy = ({children}) => {
 
@@ -42,6 +41,7 @@ export const Privy = ({children}) => {
     defaultChain: chain,
     supportedChains: [chain],
     loginMethods: [
+      'email',
       'wallet',
       'farcaster',
       'google',
@@ -122,13 +122,14 @@ const Wallet = ({children}) => {
   const { setActiveWallet } = useSetActiveWallet()
   const { ready: walletsReady, wallets } = useWallets()
 
-  const embeddedWallet = wallets.find((wallet) => wallet.walletClientType === "privy")
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === "privy")
 
   const publicClient = usePublicClient()
 
+
   useEffect(() => {
     if (walletsReady) {
-      const wallet = wallets.find(wallet => wallet.address === user?.wallet.address)
+      const wallet = wallets.find(wallet => wallet.address === user?.wallet?.address)
 
       wallet && setActiveWallet(wallet)
     }
@@ -141,7 +142,7 @@ const Wallet = ({children}) => {
         const signer = await providerToSmartAccountSigner(provider)
 
         const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, entryPoint})
-        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, entryPoint}) 
+        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, entryPoint})
         const address = account.address
 
         const connector = await kernelSmartAccount({
@@ -174,7 +175,6 @@ const Wallet = ({children}) => {
             }
           }
         )
-        
       })()
     }
   }, [embeddedWallet])
@@ -188,12 +188,11 @@ const Wallet = ({children}) => {
 
 export const WalletProvider = ({children}) => {
 
+  const queryClient = new QueryClient()
   const wagmiConfig = createConfig({
     chains: [chain],
-    transports: {[chain.id]: http(RPC_URL)},
+    transports: {[chain.id]: http(RPC_URL)}
   })
-
-  const queryClient = new QueryClient()
 
   return <>
     <Privy>

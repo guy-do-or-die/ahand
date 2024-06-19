@@ -127,3 +127,26 @@ textarea::before {
 .no-scrollbar::-webkit-scrollbar {
     display: none;
 }
+
+
+.MuiTooltip-tooltip {
+    display: none;
+}
+
+[data-testid="url"] {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}

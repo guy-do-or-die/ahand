@@ -26,6 +26,8 @@ import {
   useWriteAHandBaseThank,
 } from "../contracts"
 
+import { useConfig } from '../Store'
+
 
 const Problem = ({params: {hand, ref}, action}) => {
 
@@ -103,11 +105,11 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
       <div ref={shakesRef} {...drag()} style={{ x, y, touchAction: 'none' }}
            className="flex overflow-x-scroll no-scrollbar select-none">
         <div className="flex-shrink-0 space-x-4 m-auto">
-          <Shake classes="badge-neutral !ml-4">✋</Shake>
+          <Shake classes="badge-neutral badge-lg !ml-4">✋</Shake>
           {rewards.reverse().map((reward, i) => (
             <Shake key={i}>🤝 {formatEther(reward)}</Shake>
           ))}
-          <Shake classes="badge-success !mr-4">
+          <Shake classes="badge-success badge-lg !mr-4">
             {lastIcon} {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}
           </Shake>
         </div>
@@ -119,8 +121,13 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 
 const SolutionInput = ({setValue}) => {
 
+  const {connected, login} = useAccount()
+
+  const onClick = () => !connected && login() 
+
   return <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Provide your comment, solution or contacts">
-    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution" onChange={event => setValue(event.target.value)} />
+    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution"
+              onChange={event => setValue(event.target.value)} onClick={onClick}/>
   </div>
 }
 
@@ -182,7 +189,27 @@ const ThankButton = ({hand, solutionId, giverRef}) => {
 }
 
 
+const Slider = ({ label, value, min, max, onChange }) => {
+  return (
+    <div className="flex items-center">
+      <label className="input input-sm flex items-center w-20">
+        <b>{label}:</b>
+      </label>
+      <div className="relative w-16">
+        <input type="number" min="0" max="100" value={value} className="pr-4 w-12 text-right"
+               onChange={(e) => onChange(Number(e.target.value))} />
+        <span className="absolute top-0 right-5 text-gray-500">%</span>
+      </div>
+      <input type="range" min="0" max="100" value={value} className="range range-xs flex-1 mr-3"
+             onChange={(e) => onChange(Number(e.target.value))} />
+    </div>
+  )
+}
+
+
 const Solution = ({hand, id, isOpen, onToggle}) => {
+
+  const {config} = useConfig()
 
   const {data} = useReadAHandSolutions({
     address: hand,
@@ -191,16 +218,34 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
 
   const [giver, solution] = data || []
 
-  return <div key={id} className={`collapse collapse-arrow join-item border border-base-300 ${isOpen ? 'collapse-open' : ''} group`}>
+  const [rewardPercent, setRewardPercent] = useState(100)
+
+  const [comment, setComment] = useState()
+  const [charityPercent, setCharityPercent] = useState(1)
+  const [maintenancePercent, setMaintenancePercent] = useState(1)
+
+  const titleColor = config.theme === "light" ? "bg-neutral-100" : "bg-neutral-900"
+
+  return <div key={id} className={`collapse collapse-arrow join-item border border-base-300 ${isOpen ? 'collapse-open' : 'collapse-close'} group`} style={{visibility: 'visible'}}>
     <input type="radio" name="solutions" checked={isOpen} onChange={() => onToggle(id)} />
-    <div className="collapse-title text-xl font-medium relative">
-      {(solution || "").substring(0, 10)}{(solution || "").length > 10 ? "…" : ""}
-      <div className="absolute top-2 right-10 opacity-0 group-hover:opacity-100 z-10">
+    <div className={`collapse-title text-xl font-medium cursor-pointer relative ${isOpen ? titleColor : "bg-inherit"}`}>
+      <div className="font-bold">{(solution || "").substring(0, 10)}{(solution || "").length > 10 ? "…" : ""}</div>
+    <div className="absolute top-1.5 right-10 opacity-0 group-hover:opacity-100 z-10"
+         data-tip="Distribute reward and get 👍">
         <ThankButton hand={hand} solutionId={id} giverRef={giver} />
       </div>
     </div>
-    <div className="collapse-content">
-      <div className="">{solution}</div>
+    <div className="collapse-content border-t-1 border-b-2">
+      <div className="p-2">{solution}</div>
+      <div className="divider font-bold">Thank Wisely</div>
+      <div data-tip="Provide feedback and get additional 👍">
+        <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-16 h-24 md:h-8"
+                  name="solution" placeholder="Comment" 
+                  onChange={event => setComment(event.target.value)} />
+      </div>
+      <Slider label="Reward" value={rewardPercent} onChange={setRewardPercent} />
+      <Slider label="Charity" value={charityPercent} onChange={setCharityPercent} />
+      <Slider label="Maint." value={maintenancePercent} onChange={setMaintenancePercent} />
     </div>
   </div>
 }
@@ -208,18 +253,23 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
 
 const Solutions = ({hand}) => {
 
-  const [openAccordion, setOpenAccordion] = useState(null)
+  const [active, setActive] = useState(null)
 
   const {data: solutionsNumber} = useReadAHandSolutionsNumber({
     address: hand,
   })
 
+  const solutions = [...Array(parseInt(solutionsNumber || 0)).keys()].slice().sort((a, b) => {
+    if (a === active) return -1;
+    if (b === active) return 1;
+    return 0;
+  })
+
   return <div className="join join-vertical w-full">
     { 
-      [...Array(parseInt(solutionsNumber || 0)).keys()].map(id => 
-        <Solution id={id} hand={hand} key={id}
-                  isOpen={openAccordion === id} 
-                  onToggle={id => setOpenAccordion(openAccordion === id ? null : id)} />)
+      solutions.map(id => 
+        <Solution id={id} hand={hand} key={id} isOpen={active === id} 
+                  onToggle={id => setActive(active === id ? null : id)} />)
     }
   </div>
 }

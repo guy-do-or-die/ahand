@@ -3075,6 +3075,13 @@
   dependencies:
     semver "^7.3.5"
 
+"@opengsn/contracts@^3.0.0-beta.6":
+  version "3.0.0-beta.6"
+  resolved "https://registry.yarnpkg.com/@opengsn/contracts/-/contracts-3.0.0-beta.6.tgz#3455b7c249922a087422721689239a7d539d1138"
+  integrity sha512-zqd7BG339Uq5bfx40CwKXr2waaJqLN9qBVllcWhKBGnkZPKR59wVIPh2zTNzvLorndMRWB3TnOQxAr6tZKjwGQ==
+  dependencies:
+    "@openzeppelin/contracts" "^4.2.0"
+
 "@opentelemetry/api@^1.6.0":
   version "1.8.0"
   resolved "https://registry.yarnpkg.com/@opentelemetry/api/-/api-1.8.0.tgz#5aa7abb48f23f693068ed2999ae627d2f7d902ec"
@@ -3084,6 +3091,11 @@
   version "1.21.0"
   resolved "https://registry.yarnpkg.com/@opentelemetry/semantic-conventions/-/semantic-conventions-1.21.0.tgz#83f7479c524ab523ac2df702ade30b9724476c72"
   integrity sha512-lkC8kZYntxVKr7b8xmjCVUgE0a8xgDakPyDo9uSWavXPyYqLgYYGdEd2j8NxihRyb6UwpX3G/hFUF4/9q2V+/g==
+
+"@openzeppelin/contracts@^4.2.0":
+  version "4.9.6"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.6.tgz#2a880a24eb19b4f8b25adc2a5095f2aa27f39677"
+  integrity sha512-xSmezSupL+y9VkHZJGDoCBpmnB2ogM13ccaYDWqJTfS3dbuHkgjuwDFUmaFauBCboQMGB/S5UqUl2y54X99BmA==
 
 "@openzeppelin/contracts@^5.0.2":
   version "5.0.2"

@@ -9,6 +9,6 @@ export { ShareMeta } from "./ShareMeta"
 
 export { Links } from "./Links"
 
-export { Notification, notify } from "./Notification"
+export { Notification, notify, parseError } from "./Notification"
 
 export { Address } from "./Utils"

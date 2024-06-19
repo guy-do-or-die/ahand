@@ -27,7 +27,7 @@ export const Links = () => {
     <div className="flex space-x-4 filter grayscale">
       <Link title="X" href="http://x.com/ahand_in" icon={xUrl} />
       <Link title="Telegram" href="https://t.me/ahand" icon={telegramUrl} />
-      <Link title="Discord" href="https://discord.gg/ahand" icon={discordUrl} />
+      <Link title="Discord" href="https://discord.gg/VkkCtT8Eeh" icon={discordUrl} />
       <Link title="Farcaster" href="https://warpcast.com/ahand" icon={farcasterUrl} />
       <Link title="Guild" href="https://guild.xyz/ahand" icon={guildUrl} />
       <Link title="Code" href="https://gitlab.com/the-gethering/ahand" icon={gitUrl} />

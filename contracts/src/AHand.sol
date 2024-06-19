@@ -100,7 +100,7 @@ contract AHand {
             uint transferAmount = amount > remainder ? remainder : amount;
 
             (bool thankSuccess, ) = payable(receiver).call{value: transferAmount}("");
-            require(thankSuccess, "Thank shaker failed");
+            require(thankSuccess, "Shaker thanking failed");
 
             emit Thanked(solutionIndex, thanker, receiver, transferAmount);
 
@@ -111,7 +111,7 @@ contract AHand {
         
         if (remainder > 0) {
             (bool thankSuccess, ) = payable(giver).call{value: remainder}("");
-            require(thankSuccess, "Thank giver failed");
+            require(thankSuccess, "Giver thanking failed");
         }
 
         solved = true;

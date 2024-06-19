@@ -6,7 +6,7 @@ import { useBlockNumber } from "wagmi"
 
 import { usePrivy } from "@privy-io/react-auth"
 
-import { Button, notify } from "../components"
+import { Button, notify, parseError } from "../components"
 
 import { useAccount } from "../wallet"
 import { genRef } from "../utils"
@@ -50,18 +50,21 @@ export const Raise = () => {
 
   const [ref, setRef] = useState(genRef())
 
-  console.log(problem, ref)
+  const [confirmed, setConfirmed] = useState(false)
+
   const raiseParams = {
     args: [problem, ref],
     value: parseEther(reward),
     enabled: problem?.length > 0 && parseFloat(reward) > 0,
+    writeCallback: ({data, error}) => setConfirmed(true),
   }
 
   useWatchAHandBaseRaisedEvent({
-    onError(error) {
-      console.log(error.message)
+    enabled: confirmed,
+    onError: error => {
+      notify(parseError(error), 'error') 
     },
-    onLogs(logs) {
+    onLogs: logs => {
       (logs || []).every(item => {
         const {hand, raiser} = item.args
 

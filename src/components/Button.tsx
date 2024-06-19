@@ -2,36 +2,9 @@ import { useEffect } from 'react'
 
 import { useClient, useWaitForTransactionReceipt } from 'wagmi'
 
-import { notify, hide } from './Notification'
+import { notify, hide, parseError } from './Notification'
 
 import { useAccount, chain } from '../wallet'
-
-
-export const parseError = (error) => {
-
-  const templates = [
-    /following reason:\n(.*?)\n/s,
-    /(The total cost (.+?) exceeds the balance of the account)/,
-    /(User rejected the request)/,
-    /(Execution reverted for an unknown reason)/,
-    /(Invalid UserOp signature or paymaster signature)/,
-    /(RPC Error)/,
-  ]
-
-  let msg = ''
-
-  if (error) {
-    templates.forEach(template => {
-      const matches = error.message.match(template)
-
-      if (matches && matches[1]) {
-        msg = matches[1].trim()
-      }
-    })
-  }
-
-  return msg
-}
 
 
 export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
@@ -90,11 +63,19 @@ export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
   useEffect(() => {
     isSimulateError && (params.onSimulateError?.(simulateError) || notify(parseError(simulateError), 'error'))
     isSimulateSuccess && (params.onSimulateSuccess?.(simulateData) || notify(simulateData?.result, 'success'))
+
+    if (isSimulateError || isSimulateSuccess) {
+      params.simulateCallback?.({data: simulateData, error: simulateError})
+    }
   }, [isSimulateError, isSimulateSuccess])
 
   useEffect(() => {
     isWriteError && (params.onWriteError?.(writeError) || notify(parseError(writeError), 'error'))
     isWriteSuccess && (params.onWriteSuccess?.(writeData) || notify(<span>{txLink(writeData, 'Transaction')} sent</span>, 'success'), {id: writeData})
+
+    if (isWriteError || isWriteSuccess) {
+      params.writeCallback?.({data: writeData, error: writeError})
+    }
   }, [isWriteError, isWriteSuccess])
 
   useEffect(() => {
@@ -104,6 +85,10 @@ export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
   useEffect(() => {
     isConfirmationError && (params.onConfirmationError?.(confirmationError) || notify(parseError(confirmationError), 'error'))
     isConfirmationSuccess && (params.onConfirmationSuccess?.(confirmationData) || notify(<span>{txLink(confirmationData?.transactionHash, 'Transaction')} confirmed</span>, 'success'))
+
+    if (isConfirmationError || isConfirmationSuccess) {
+      params.confirmationCallback?.({data: confirmationData, error: confirmationError})
+    }
   }, [isConfirmationError, isConfirmationSuccess])
 
   return <div>

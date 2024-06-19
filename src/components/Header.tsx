@@ -58,7 +58,7 @@ const SwitchChain = ({onSuccess, onError}) => {
 
 export const Header = () => {
  
-  const { address, connected, login, logout } = useAccount()
+  const { address, connected, login, logout, walletClientType } = useAccount()
   const { data: balanceData } = useBalance({ address })
 
   if (connected && !aHandBaseAddress[chain.id]) {
@@ -88,13 +88,21 @@ export const Header = () => {
                 <span><Address address={address} maxChars={12}/></span>
               </CopyToClipboard>
             </li>
-            <div className="divider m-0"></div>
-            <li>
-              <button>Deposit</button>
-            </li>
-            <li>
-              <button>Withdraw</button>
-            </li>
+            {
+              walletClientType === "privy"
+                ?
+              <>
+                <div className="divider m-0"></div>
+                <li>
+                  <button>Deposit</button>
+                </li>
+                <li>
+                  <button>Withdraw</button>
+                </li>
+              </>
+                :
+              ""
+            }
             <div className="divider m-0"></div>
             <li>
               <button onClick={logout}>Log Out</button>

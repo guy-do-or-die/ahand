@@ -14,6 +14,7 @@ verbosity = 4
 
 remappings = [
     '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
+    '@opengsn/contracts/=node_modules/@opengsn/contracts/',
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
