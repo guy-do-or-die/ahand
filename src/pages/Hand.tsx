@@ -119,15 +119,21 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 }
 
 
-const SolutionInput = ({setValue}) => {
+const SolutionInput = ({solution, setSolution, encrypted, setEncrypted}) => {
 
   const {connected, login} = useAccount()
 
   const onClick = () => !connected && login() 
 
-  return <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Provide your comment, solution or contacts">
+  return <div className="lg:tooltip w-full h-48 md:h-32 relative" data-tip="Provide your comment, solution or contacts">
     <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution"
-              onChange={event => setValue(event.target.value)} onClick={onClick}/>
+              value={solution} onChange={event => setSolution(event.target.value)} onClick={onClick}/>
+    <div className="absolute -top-4 right-3 bg-white">
+      <label class="label cursor-pointer p-1">
+        <input type="checkbox" class="checkbox checkbox-xs" checked={encrypted ? "checked" : ""} onChange={() => setEncrypted(!encrypted)}/>
+        <span class="label-text font-bold mt-1 ml-1">Private</span>
+      </label>
+    </div>
   </div>
 }
 
@@ -170,12 +176,12 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
 }
 
 
-const ThankButton = ({hand, solutionId, giverRef}) => {
+const ThankButton = ({hand, solutionId, giverRef, comment}) => {
 
   const [location, setLocation] = useLocation()
 
   const thankParams = {
-    args: [hand, solutionId],
+    args: [hand, solutionId, comment],
     enabled: true,
     onConfirmationSuccess: data => {
       setLocation(`/hand/${hand}/${giverRef}/thanked`)
@@ -229,10 +235,10 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
   return <div key={id} className={`collapse collapse-arrow join-item border border-base-300 ${isOpen ? 'collapse-open' : 'collapse-close'} group`} style={{visibility: 'visible'}}>
     <input type="radio" name="solutions" checked={isOpen} onChange={() => onToggle(id)} />
     <div className={`collapse-title text-xl font-medium cursor-pointer relative ${isOpen ? titleColor : "bg-inherit"}`}>
-      <div className="font-bold">{(solution || "").substring(0, 10)}{(solution || "").length > 10 ? "…" : ""}</div>
+      <div className="font-bold">{(solution || "").substring(0, 20)}{(solution || "").length > 20 ? "…" : ""}</div>
     <div className="absolute top-1.5 right-10 opacity-0 group-hover:opacity-100 z-10"
          data-tip="Distribute reward and get 👍">
-        <ThankButton hand={hand} solutionId={id} giverRef={giver} />
+        <ThankButton hand={hand} solutionId={id} giverRef={giver} comment={comment} />
       </div>
     </div>
     <div className="collapse-content border-t-1 border-b-2">
@@ -278,15 +284,17 @@ const Solutions = ({hand}) => {
 const ShakeForm = ({params}) => {
 
   const [newRef] = useState(genRef())
+
   const [solution, setSolution] = useState()
+  const [encrypted, setEncrypted] = useState(false)
 
   return <div>
-    <SolutionInput setValue={setSolution}/>
+    <SolutionInput solution={solution} setSolution={setSolution} encrypted={encrypted} setEncrypted={setEncrypted}/>
     <div className="card-actions justify-center mt-2 space-x-2">
       <div className="lg:tooltip" data-tip="Just share the problem to your peers and get rewarded if someone else provides a solution">
         <ShakeButton params={params} newRef={newRef} />
       </div>
-      <div className="lg:tooltip" data-tip="Deliver privately to the problem's raiser"> 
+      <div className="lg:tooltip" data-tip="Deliver to the problem's raiser"> 
         <GiveButton params={params} newRef={newRef} solution={solution} />
       </div>
     </div>
