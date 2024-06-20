@@ -121,6 +121,8 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 
 const SolutionInput = ({solution, setSolution, encrypted, setEncrypted}) => {
 
+  const {config} = useConfig()
+
   const {connected, login} = useAccount()
 
   const onClick = () => !connected && login() 
@@ -128,7 +130,7 @@ const SolutionInput = ({solution, setSolution, encrypted, setEncrypted}) => {
   return <div className="lg:tooltip w-full h-48 md:h-32 relative" data-tip="Provide your comment, solution or contacts">
     <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution"
               value={solution} onChange={event => setSolution(event.target.value)} onClick={onClick}/>
-    <div className="absolute -top-4 right-3 bg-white">
+    <div className={`absolute -top-4 right-3 ${config.theme === "light" ? "bg-white" : "bg-black"}`}>
       <label class="label cursor-pointer p-1">
         <input type="checkbox" class="checkbox checkbox-xs" checked={encrypted ? "checked" : ""} onChange={() => setEncrypted(!encrypted)}/>
         <span class="label-text font-bold mt-1 ml-1">Private</span>
