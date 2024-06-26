@@ -16,7 +16,7 @@ import { Address } from "./Utils"
 
 import { notify, hide } from "./Notification"
 
-import { aHandBaseAddress } from '../contracts'
+import { aHandBaseAddress, aHandBaseHandsNumber, aHandBaseDistributed } from '../contracts'
 import { useAccount, chain } from '../wallet'
 
 
@@ -28,6 +28,26 @@ const Logo = () => {
       <span className="text-6xl sm:text-5xl">and</span>
     </Link>
   </div>
+}
+
+
+export const Stat = () => {
+  const stats = [
+    { label: "Raised", value: 123 },
+    { label: "Solved", value: 45 },
+    { label: "Rewards", value: 100 },
+  ]
+
+  return (
+    <div className="flex items-center justify-center space-x-8 md:space-x-32 mt-2 mb-4 md:mb-0">
+      {stats.map((stat, index) => (
+        <div key={index} className="flex flex-col items-center text-center">
+          <span className="text-lg font-semibold">{stat.value}</span>
+          <span className="text-xs">{stat.label}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 
@@ -56,64 +76,78 @@ const SwitchChain = ({onSuccess, onError}) => {
 }
 
 
-export const Header = () => {
- 
+export const Connection = () => {
+
   const { address, connected, login, logout, walletClientType } = useAccount()
   const { data: balanceData } = useBalance({ address })
 
   if (connected && !aHandBaseAddress[chain.id]) {
-    const notificationId = 'wrong-chain';
+    const wrongChainNotificationId = 'wrong-chain';
 
-    notify(<SwitchChain onSuccess={() => hide(notificationId)} />, 'error', {id: notificationId, duration: Infinity})
+    notify(<SwitchChain onSuccess={() => hide(wrongChainNotificationId)} />, 'error', {id: wrongChainNotificationId, duration: Infinity})
   }
 
-  return <div className="flex flex-col items-center justify-start w-full sm:flex-row sm:justify-between p-2">
-    <div className="w-full text-center sm:text-left">
-      <Logo />
-    </div>
-
-    <div className="flex items-center order-1 m-4 sm:m-0 sm:order-2 sm:absolute sm:top-5 sm:right-6">
-      <ThemeToggle /> 
-      {
-        connected 
-          ?
-        <div className="dropdown dropdown-end dropdown-hover">
-          <div className="join">
-            <CurrencyToggle /> 
-            <div tabIndex="0" role="button" className="btn btn-outline btn-sm md:btn-md join-item w-32 md:text-lg">{balanceData?.formatted.slice(0, 7)}</div>
-          </div>
-          <ul tabIndex="0" className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full">
-            <li>
-              <CopyToClipboard text={address} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
-                <span><Address address={address} maxChars={12}/></span>
-              </CopyToClipboard>
-            </li>
-            {
-              walletClientType === "privy"
-                ?
-              <>
-                <div className="divider m-0"></div>
-                <li>
-                  <button>Deposit</button>
-                </li>
-                <li>
-                  <button>Withdraw</button>
-                </li>
-              </>
-                :
-              ""
-            }
-            <div className="divider m-0"></div>
-            <li>
-              <button onClick={logout}>Log Out</button>
-            </li>
-          </ul>
+  return <>
+    {
+      connected 
+        ?
+      <div className="dropdown dropdown-end dropdown-hover">
+        <div className="join">
+          <CurrencyToggle /> 
+          <div tabIndex="0" role="button" className="btn btn-outline btn-sm md:btn-md join-item w-32 md:text-lg">{balanceData?.formatted.slice(0, 7)}</div>
         </div>
-          :
-        <button className="btn btn-sm md:btn-md w-32" onClick={login}>
-          Log In
-        </button>
-       }
+        <ul tabIndex="0" className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full">
+          <li>
+            <CopyToClipboard text={address} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
+              <span><Address address={address} maxChars={12}/></span>
+            </CopyToClipboard>
+          </li>
+          {
+            walletClientType === "privy"
+              ?
+            <>
+              <div className="divider m-0"></div>
+              <li>
+                <button>Deposit</button>
+              </li>
+              <li>
+                <button>Withdraw</button>
+              </li>
+            </>
+              :
+            ""
+          }
+          <div className="divider m-0"></div>
+          <li>
+            <button onClick={logout}>Log Out</button>
+          </li>
+        </ul>
+      </div>
+        :
+      <button className="btn btn-sm md:btn-md w-32" onClick={login}>
+        Log In
+      </button>
+    }
+  </>
+}
+
+
+export const Header = () => {
+  return (
+    <div className="flex flex-col items-center justify-start w-full p-4 sm:flex-row sm:justify-between sm:p-2">
+      <div className="w-full text-center sm:text-left sm:w-auto sm:order-1">
+        <Logo />
+      </div>
+
+      <div className="w-full text-center justify-center sm:mt-0 sm:w-auto sm:flex-1 sm:order-2">
+        <Stat />
+      </div>
+
+      <div className="flex w-full justify-center space-x-4 sm:space-x-2 sm:justify-end sm:w-auto sm:order-3 mt-2 sm:mt-0">
+        <ThemeToggle />
+        <Connection />
+      </div>
+
     </div>
-  </div>
+  )
 }

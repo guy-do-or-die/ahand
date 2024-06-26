@@ -124,8 +124,14 @@ textarea::before {
 }
 
 
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none !important;
+}
+
+
 .no-scrollbar::-webkit-scrollbar {
-    display: none;
+    display: none !important;
 }
 
 

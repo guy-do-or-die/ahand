@@ -51,7 +51,7 @@ export const Privy = ({children}) => {
       'linkedin',
       'telegram',
       'instagram',
-      'facebook'
+      'facebook',
     ],
     appearance: {
       theme: config.theme || 'light',
@@ -59,7 +59,12 @@ export const Privy = ({children}) => {
     embeddedWallets: {
       createOnLogin: 'users-without-wallets',
       noPromptOnSignature: true,
-    }
+    },
+    externalWallets: {
+      coinbaseWallet: {
+        connectionOptions: 'smartWalletOnly',
+      },
+    },
   }
 
   return <>

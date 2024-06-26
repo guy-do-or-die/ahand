@@ -131,21 +131,21 @@ const SolutionInput = ({solution, setSolution, encrypted, setEncrypted}) => {
     <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution"
               value={solution} onChange={event => setSolution(event.target.value)} onClick={onClick}/>
     <div className={`absolute -top-4 right-3 ${config.theme === "light" ? "bg-white" : "bg-black"}`}>
-      <label class="label cursor-pointer p-1">
-        <input type="checkbox" class="checkbox checkbox-xs" checked={encrypted ? "checked" : ""} onChange={() => setEncrypted(!encrypted)}/>
-        <span class="label-text font-bold mt-1 ml-1">Private</span>
+      <label className="label cursor-pointer p-1">
+        <input className="checkbox checkbox-xs" type="checkbox" checked={encrypted ? "checked" : ""} onChange={() => setEncrypted(!encrypted)}/>
+        <span className="label-text font-bold mt-1 ml-1">Private</span>
       </label>
     </div>
   </div>
 }
 
 
-const ShakeButton = ({params: {hand, ref}, newRef}) => {
+const ShakeButton = ({params: {hand, ref}, newRef, comment}) => {
 
   const [location, setLocation] = useLocation()
 
   const shakeParams = {
-    args: [hand, ref, newRef],
+    args: [hand, ref, newRef, comment],
     enabled: true,
     onConfirmationSuccess: data => {
       setLocation(`/hand/${hand}/${newRef}/share`)
@@ -178,12 +178,12 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
 }
 
 
-const ThankButton = ({hand, solutionId, giverRef, comment}) => {
+const ThankButton = ({hand, solutionId, giverRef, charity, charityRate, maint, maintRate, comment}) => {
 
   const [location, setLocation] = useLocation()
 
   const thankParams = {
-    args: [hand, solutionId, comment],
+    args: [hand, solutionId, charity, charityRate, maint, maintRate, comment],
     enabled: true,
     onConfirmationSuccess: data => {
       setLocation(`/hand/${hand}/${giverRef}/thanked`)
@@ -197,19 +197,22 @@ const ThankButton = ({hand, solutionId, giverRef, comment}) => {
 }
 
 
-const Slider = ({ label, value, min, max, onChange }) => {
+const Slider = ({ label, value, min=0, max=100, onChange }) => {
+  
+  const onChangeLimited = value => onChange(Math.min(max, Math.max(min, value)));
+
   return (
     <div className="flex items-center">
       <label className="input input-sm flex items-center w-20">
-        <b>{label}:</b>
+        <label className="label-text font-bold">{label}:</label>
       </label>
       <div className="relative w-16">
-        <input type="number" min="0" max="100" value={value} className="pr-4 w-12 text-right"
-               onChange={(e) => onChange(Number(e.target.value))} />
+        <input type="number" min={min} max={max} value={value} className="pr-4 w-12 text-right"
+               onChange={(e) => onChangeLimited(Number(e.target.value))} />
         <span className="absolute top-0 right-5 text-gray-500">%</span>
       </div>
-      <input type="range" min="0" max="100" value={value} className="range range-xs flex-1 mr-3"
-             onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="range" min={min} max={max} value={value} className="range range-xs flex-1 mr-3"
+             onChange={(e) => onChangeLimited(Number(e.target.value))} />
     </div>
   )
 }
@@ -226,11 +229,22 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
 
   const [giver, solution] = data || []
 
-  const [rewardPercent, setRewardPercent] = useState(100)
+  const [thankRate, setThankRate] = useState(100)
+
+  const [charity, setCharity] = useState('0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434')
+  const [charityRate, setCharityRate] = useState(2)
+
+  const [maint, setMaint] = useState('0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434')
+  const [maintRate, setMaintRate] = useState(1)
 
   const [comment, setComment] = useState()
-  const [charityPercent, setCharityPercent] = useState(1)
-  const [maintenancePercent, setMaintenancePercent] = useState(1)
+
+  const charityOptions = [
+    { label: 'Shaoline', value: '0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434' },
+    { label: 'Ukraine', value: '0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434' },
+  ]
+
+  const charitySelector = "Charity" 
 
   const titleColor = config.theme === "light" ? "bg-neutral-100" : "bg-neutral-900"
 
@@ -238,9 +252,12 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
     <input type="radio" name="solutions" checked={isOpen} onChange={() => onToggle(id)} />
     <div className={`collapse-title text-xl font-medium cursor-pointer relative ${isOpen ? titleColor : "bg-inherit"}`}>
       <div className="font-bold">{(solution || "").substring(0, 20)}{(solution || "").length > 20 ? "…" : ""}</div>
-    <div className="absolute top-1.5 right-10 opacity-0 group-hover:opacity-100 z-10"
-         data-tip="Distribute reward and get 👍">
-        <ThankButton hand={hand} solutionId={id} giverRef={giver} comment={comment} />
+      <div className="absolute top-1.5 right-10 opacity-0 group-hover:opacity-100 z-10" data-tip="Distribute reward and get 👍">
+        <ThankButton hand={hand} solutionId={id}
+                     giverRef={giver} thankRate={thankRate}
+                     charity={charity} charityRate={charityRate}
+                     maint={maint} maintRate={maintRate}
+                     comment={comment} />
       </div>
     </div>
     <div className="collapse-content border-t-1 border-b-2">
@@ -251,9 +268,9 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
                   name="solution" placeholder="Comment" 
                   onChange={event => setComment(event.target.value)} />
       </div>
-      <Slider label="Reward" value={rewardPercent} onChange={setRewardPercent} />
-      <Slider label="Charity" value={charityPercent} onChange={setCharityPercent} />
-      <Slider label="Maint." value={maintenancePercent} onChange={setMaintenancePercent} />
+      <Slider label="Reward" value={thankRate} min={1} onChange={setThankRate} />
+      <Slider label={charitySelector} value={charityRate} min={1} onChange={setCharityRate} />
+      <Slider label="Maint." value={maintRate} onChange={setMaintRate} />
     </div>
   </div>
 }
@@ -294,7 +311,7 @@ const ShakeForm = ({params}) => {
     <SolutionInput solution={solution} setSolution={setSolution} encrypted={encrypted} setEncrypted={setEncrypted}/>
     <div className="card-actions justify-center mt-2 space-x-2">
       <div className="lg:tooltip" data-tip="Just share the problem to your peers and get rewarded if someone else provides a solution">
-        <ShakeButton params={params} newRef={newRef} />
+        <ShakeButton params={params} newRef={newRef} comment={solution} />
       </div>
       <div className="lg:tooltip" data-tip="Deliver to the problem's raiser"> 
         <GiveButton params={params} newRef={newRef} solution={solution} />

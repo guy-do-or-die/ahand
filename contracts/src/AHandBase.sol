@@ -15,9 +15,15 @@ import "@opengsn/contracts/src/ERC2771Recipient.sol";
 
 contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
+    string public name = "aHand";
+
     uint public handsNumber;
+    uint public distributed;
 
     mapping(uint => address) public hands;
+    mapping(address => int) public trust;
+
+    mapping(address => bool) public charities;
 
     uint private constant RAISE = 0;
     uint private constant SHAKE = 1;
@@ -25,23 +31,42 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
     uint private constant THANK = 3;
     uint private constant UP = 4;
     uint private constant DOWN = 5;
-    uint private constant PIC_SIZE = 1024;
+
+    uint private constant MINIMUM_REWARD = 0.00001 ether;
+
+    uint private constant PIC_SIZE = 256;
 
     event Raised(address indexed hand, address indexed raiser);
+    event Thanked(address indexed hand, uint solutionIndex, uint amount, string comment);
 
     event Up(address indexed from, address indexed to);
     event Down(address indexed from, address indexed to);
 
     constructor() ERC1155("aHand") {}
 
-    function raise(string calldata problem, address ref) public payable {
-        require(msg.value > 0);
+    function _mintWithTrust(address account, uint id, uint amount, bytes memory data) internal {
+        _mint(account, id, amount, data);
+
+        if (id == UP) {
+            uint balance = balanceOf(account, UP);
+
+            if (trust[account] > 0 && balance > uint(trust[account])) {
+                trust[account] = int(balance);
+            }
+        } else if (id == DOWN) {
+            trust[account] -= int(amount);
+        }
+    }
+
+    function raise(string calldata problem, string calldata link, address ref) public payable {
+        require(msg.value > MINIMUM_REWARD, "Reward is too low");
         
         address sender = _msgSender();
 
-        AHand handInstance = new AHand{value: msg.value}(sender, problem, ref);
+        AHand handInstance = new AHand{value: msg.value}(sender, problem, link, ref);
         hands[handsNumber++] = address(handInstance);
         _mint(sender, RAISE, 1, "");
+
         emit Raised(address(handInstance), sender);
     }
 
@@ -53,10 +78,10 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         getHand(hand).problem();
     }
 
-    function shake(address hand, address ref, address newRef) public {
+    function shake(address hand, address ref, address newRef, string calldata comment) public {
         address sender = _msgSender(); 
 
-        getHand(hand).shake(ref, newRef, sender);
+        getHand(hand).shake(ref, newRef, sender, comment);
         _mint(sender, SHAKE, 1, "");
     }
 
@@ -67,18 +92,24 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         _mint(sender, GIVE, 1, "");
     }
 
-    function thank(address hand, uint solutionIndex, string calldata comment) public {
+    function thank(address hand, uint solutionIndex, uint thankRate, address charity, uint charityRate, address maint, uint maintRate, string calldata comment) public {
+        require(charities[charity], "Charity is not valid");
+
         address sender = _msgSender();
 
         AHand handInstance = getHand(hand);
 
-        handInstance.thank(sender, solutionIndex);
+        uint thankAmount = handInstance.thank(sender, solutionIndex, thankRate, charity, charityRate, maint, maintRate);
         (address giver, ) = handInstance.solutions(solutionIndex);
 
         _mint(sender, THANK, 1, "");
 
-        _mint(sender, UP, bytes(comment).length > 100 ? 2 : 1, "");
-        _mint(giver, UP, 1, "");
+        _mintWithTrust(sender, UP, bytes(comment).length > 100 ? 2 : 1, "");
+        _mintWithTrust(giver, UP, 1, "");
+
+        emit Thanked(hand, solutionIndex, thankAmount, comment);
+
+        distributed += thankAmount;
     }
 
     function thumbsUp(address account) public {
@@ -87,7 +118,7 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         require(balanceOf(sender, UP) > 0);
 
         _burn(sender, UP, 1);
-        _mint(account, UP, 1, "");
+        _mintWithTrust(account, UP, 1, "");
 
         emit Up(sender, account);
     }
@@ -98,7 +129,7 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         require(balanceOf(sender, UP) > 0, "You need to have at least one UP token");
 
         _burn(sender, UP, 1);
-        _mint(account, DOWN, 1, "");
+        _mintWithTrust(account, DOWN, 1, "");
 
         if (balanceOf(sender, UP) > 0) _burn(account, UP, 1);
 
@@ -117,19 +148,19 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
         return abi.encodePacked(
             '<svg xmlns="http://www.w3.org/2000/svg" width="', Strings.toString(PIC_SIZE), '" height="', Strings.toString(PIC_SIZE), '">',
-            '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="128" font-family="EmojiFont, sans-serif">',
+            '<text x="50%" y="60%" text-anchor="middle" font-size="64" font-family="EmojiFont, sans-serif">',
             emoji, '</text></svg>'
         );
     }
 
     function uri(uint tokenId) public pure override returns (string memory) {
-        string memory name;
-        if (tokenId == RAISE) name = "Raised";
-        else if (tokenId == SHAKE) name = "Shaken";
-        else if (tokenId == GIVE) name = "Given";
-        else if (tokenId == THANK) name = "Thanked";
-        else if (tokenId == UP) name = "Thumb Up";
-        else if (tokenId == DOWN) name = "Thumb Down";
+        string memory title;
+        if (tokenId == RAISE) title = "Raised";
+        else if (tokenId == SHAKE) title = "Shaken";
+        else if (tokenId == GIVE) title = "Given";
+        else if (tokenId == THANK) title = "Thanked";
+        else if (tokenId == UP) title = "Thumb Up";
+        else if (tokenId == DOWN) title = "Thumb Down";
         else return "";
 
         return string(
@@ -137,13 +168,11 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
                 "data:application/json;base64,",
                 Base64.encode(
                     abi.encodePacked(
-                        abi.encodePacked(
-                            "{",
-                                '  "image": "', Base64.encode(getImage(tokenId)), '"',
-                                ', "name": "', name, '"',
-                                ', "description": "aHand move"',
-                            "}"
-                        )
+                        "{",
+                            '  "name": "', title, '"',
+                            ', "description": "http://ahand.in"',
+                            ', "image": "data:image/svg+xml;base64,', Base64.encode(getImage(tokenId)), '"',
+                        "}"
                     )
                 )
             )

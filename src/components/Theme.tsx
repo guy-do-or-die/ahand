@@ -22,7 +22,8 @@ export const ThemeToggle = () => {
   }
 
   return (
-    <button className="btn btn-ghost mr-2 text-lg w-8 md:w-12" title={theme === 'dark' ? 'Light Theme' : 'Dark Theme'} onClick={toggleTheme}>
+    <button className="btn btn-ghost btn-sm md:btn-md w-8 md:w-12 flex items-center justify-center text-lg"
+            title={theme === 'dark' ? 'Light Theme' : 'Dark Theme'} onClick={toggleTheme}>
       {theme === 'dark' ? '🌞' : '🌚'}
     </button>
   )
