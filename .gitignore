@@ -58,5 +58,4 @@ contracts/lib/*
 
 # wagmi
 
-src/contracts.ts
 *.mjs

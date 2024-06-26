@@ -8,7 +8,7 @@
     "wagmi": "wagmi generate",
     "dev": "npm run wagmi && vite",
     "dev:foundry": "npm run dev & wagmi generate --watch & npm run anvil",
-    "build": "npm run wagmi && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
