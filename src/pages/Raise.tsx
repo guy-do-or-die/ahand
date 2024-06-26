@@ -55,7 +55,7 @@ export const Raise = () => {
 
   const [ref, setRef] = useState(genRef())
 
-  const [confirmed, setConfirmed] = useState(false)
+  const [pending, setPending] = useState(false)
 
   const preparingNotificationId = 'preparing-notification'
 
@@ -63,8 +63,8 @@ export const Raise = () => {
     args: [problem, link, ref],
     value: parseEther(reward),
     enabled: problem?.length > 0 && parseFloat(reward) > 0,
-    writeCallback: ({data, error}) => {
-      setConfirmed(true)
+    pendingCallback: () => {
+      setPending(true)
     },
     confirmationCallback: ({data, error}) => {
       notify('Preparing for sharing...', 'loading', {id: preparingNotificationId, duration: Infinity})
@@ -72,7 +72,7 @@ export const Raise = () => {
   }
 
   useWatchAHandBaseRaisedEvent({
-    enabled: confirmed,
+    enabled: pending,
     onError: error => {
       notify(parseError(error), 'error') 
       hide(preparingNotificationId)

@@ -70,6 +70,10 @@ export const Button = ({simulateHook, writeHook, params, emoji, text}) => {
   }, [isSimulateError, isSimulateSuccess])
 
   useEffect(() => {
+    params.pendingCallback?.()
+  }, [isWritePending])
+
+  useEffect(() => {
     isWriteError && (params.onWriteError?.(writeError) || notify(parseError(writeError), 'error'))
     isWriteSuccess && (params.onWriteSuccess?.(writeData) || notify(<span>{txLink(writeData, 'Transaction')} sent</span>, 'success'), {id: writeData})
 

@@ -14,8 +14,10 @@ import { WagmiProvider, useSetActiveWallet } from "@privy-io/wagmi"
 
 import { createKernelAccount, createZeroDevPaymasterClient } from "@zerodev/sdk"
 import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator"
+import { KERNEL_V3_1 } from "@zerodev/sdk/constants"
 
 import { kernelSmartAccount } from './connectors/kernelSmartAccount'
+
 import { hide } from './components/Notification'
 import { useConfig } from './Store'
 
@@ -146,8 +148,8 @@ const Wallet = ({children}) => {
         const provider = await embeddedWallet.getEthereumProvider()
         const signer = await providerToSmartAccountSigner(provider)
 
-        const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, entryPoint})
-        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, entryPoint})
+        const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, entryPoint, kernelVersion: KERNEL_V3_1})
+        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, entryPoint, kernelVersion: KERNEL_V3_1})
         const address = account.address
 
         const connector = await kernelSmartAccount({

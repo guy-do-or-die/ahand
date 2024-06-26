@@ -130,7 +130,7 @@ const SolutionInput = ({solution, setSolution, encrypted, setEncrypted}) => {
   return <div className="lg:tooltip w-full h-48 md:h-32 relative" data-tip="Provide your comment, solution or contacts">
     <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="solution" placeholder="Comment or Solution"
               value={solution} onChange={event => setSolution(event.target.value)} onClick={onClick}/>
-    <div className={`absolute -top-4 right-3 ${config.theme === "light" ? "bg-white" : "bg-black"}`}>
+    <div className={`absolute -top-4 right-3 ${config.theme === "dark" ? "bg-black" : "bg-white"}`}>
       <label className="label cursor-pointer p-1">
         <input className="checkbox checkbox-xs" type="checkbox" checked={encrypted ? "checked" : ""} onChange={() => setEncrypted(!encrypted)}/>
         <span className="label-text font-bold mt-1 ml-1">Private</span>
@@ -246,7 +246,7 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
 
   const charitySelector = "Charity" 
 
-  const titleColor = config.theme === "light" ? "bg-neutral-100" : "bg-neutral-900"
+  const titleColor = config.theme === "dark" ? "bg-neutral-900" : "bg-neutral-100"
 
   return <div key={id} className={`collapse collapse-arrow join-item border border-base-300 ${isOpen ? 'collapse-open' : 'collapse-close'} group`} style={{visibility: 'visible'}}>
     <input type="radio" name="solutions" checked={isOpen} onChange={() => onToggle(id)} />

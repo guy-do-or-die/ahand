@@ -13,8 +13,8 @@ export const ShareForm = ({url}) => {
 
   const shareSocialRef = useRef(null)
 
-  const textColor = config.theme === 'light' ? 'black' : 'light'
-  const backgroundColor = config.theme === 'light' ? 'white' : 'black'
+  const textColor = config.theme === 'dark' ? 'light' : 'black'
+  const backgroundColor = config.theme === 'dark' ? 'black' : 'white'
 
   const style = {
     root: {

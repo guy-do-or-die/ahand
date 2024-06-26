@@ -16,16 +16,6 @@
     eventemitter3 "^5.0.1"
     viem "^1.5.3"
 
-"@alchemy/aa-core@^3.18.2":
-  version "3.18.2"
-  resolved "https://registry.yarnpkg.com/@alchemy/aa-core/-/aa-core-3.18.2.tgz#b11f189404e97132f5affab938b3d4040c99f475"
-  integrity sha512-uXVpPz5tpBiARC4QCj/MAK45J09Pt3pJQpmFDiHSj4ZEcQB7ZraP2z8Bi6jLMkMDyHPjUiTeJf+aRV3Gqyeunw==
-  dependencies:
-    abitype "^0.8.3"
-    eventemitter3 "^5.0.1"
-    viem "2.8.6"
-    zod "^3.22.4"
-
 "@alchemy/aa-ethers@0.1.0-alpha.23":
   version "0.1.0-alpha.23"
   resolved "https://registry.yarnpkg.com/@alchemy/aa-ethers/-/aa-ethers-0.1.0-alpha.23.tgz#31cb03ec97107c93b8b3e91340ccaab86d373452"
@@ -3513,7 +3503,7 @@
     csstype "^3.1.3"
     prop-types "^15.8.1"
 
-"@mui/styles@^5.15.19":
+"@mui/styles@^5.15.19", "@mui/styles@^5.15.20":
   version "5.15.20"
   resolved "https://registry.yarnpkg.com/@mui/styles/-/styles-5.15.20.tgz#895e930d527863cec5731ec3c775057f7237cade"
   integrity sha512-zpXYhNxQ9A4zxF3IRQRZRUg7fXYj6Wfa3nB+7yOLVecokhjCAr1zY2VC5Uznf5qs2cfgBRfmDkBYqvQjHWf2uA==
@@ -3883,10 +3873,10 @@
   dependencies:
     zod "^3.21.4"
 
-"@privy-io/js-sdk-core@0.23.1":
-  version "0.23.1"
-  resolved "https://registry.yarnpkg.com/@privy-io/js-sdk-core/-/js-sdk-core-0.23.1.tgz#812819ac31577175fd896088c68c20881a700378"
-  integrity sha512-NW6sbc+5Zvln4swt3zyeGhtPTtOEDltj9ORswHFv1wER0N+AG8OYC7Jgolgj8xguM78vq/LH0w/Ddr0cbJ/hzA==
+"@privy-io/js-sdk-core@0.23.2":
+  version "0.23.2"
+  resolved "https://registry.yarnpkg.com/@privy-io/js-sdk-core/-/js-sdk-core-0.23.2.tgz#31259ccf96a4c5c1a61e091867686505474d8335"
+  integrity sha512-LHADBZGrkoMs/0hg6fL+JTV/2y1VPIoKV+tH+aOjrlYSvWtqF5hOiBm8SlHNsKmjsU10B2DnfsvEasY4puM/KQ==
   dependencies:
     "@ethersproject/abstract-signer" "^5.7.0"
     "@ethersproject/bignumber" "^5.7.0"
@@ -3895,7 +3885,7 @@
     "@ethersproject/transactions" "^5.7.0"
     "@ethersproject/units" "^5.7.0"
     "@privy-io/api-base" "^1.2.0"
-    "@privy-io/public-api" "2.5.1"
+    "@privy-io/public-api" "2.6.0"
     eventemitter3 "^5.0.1"
     fetch-retry "^5.0.6"
     jose "^4.15.5"
@@ -3903,20 +3893,20 @@
     set-cookie-parser "^2.6.0"
     uuid ">=8 <10"
 
-"@privy-io/public-api@2.5.1":
-  version "2.5.1"
-  resolved "https://registry.yarnpkg.com/@privy-io/public-api/-/public-api-2.5.1.tgz#f0599d23d73d892c6879b595743d1712f55762ab"
-  integrity sha512-09aLU966Ys1ZXCm/FZngqubbWkXDS4XpwDBlF5hhrjVVgXTwzcHsX8mxFhFPZacZ+Ojg5inZvQ8ZKy+Y/MAcmA==
+"@privy-io/public-api@2.6.0":
+  version "2.6.0"
+  resolved "https://registry.yarnpkg.com/@privy-io/public-api/-/public-api-2.6.0.tgz#25de66fe10640aae24c1c0a2b0119da68ae6399b"
+  integrity sha512-c1zGyhoYN3jtwa6ETdzE/4yP+XUpgxbcQSzTlmG02HB7ESDhoe4VhuX+PihpL31RM8QF0nMbeL+YDeb6NnU+SA==
   dependencies:
     "@privy-io/api-base" "1.2.0"
     ethers "^5.7.2"
     libphonenumber-js "^1.10.31"
     zod "^3.22.4"
 
-"@privy-io/react-auth@^1.72.0":
-  version "1.72.0"
-  resolved "https://registry.yarnpkg.com/@privy-io/react-auth/-/react-auth-1.72.0.tgz#f04b48b0a0091f88d9ed423fc8f184178dbc7ae6"
-  integrity sha512-pDNiGb2zZgTZK/uFmm9Of7FQCjFtQjCWMOSCOqQIOOp9v6iOgSZSPwoIAoGoPSWNCioiwByaI0DcOFEM6fTWAA==
+"@privy-io/react-auth@^1.73.0":
+  version "1.73.0"
+  resolved "https://registry.yarnpkg.com/@privy-io/react-auth/-/react-auth-1.73.0.tgz#949ea03f617e71a94cb503512fdc54cb10d18772"
+  integrity sha512-KCnSXsYh+e7CgsIdy29OX5cbDloBtArcFlM7+m8iDXJHpy0Opwi6HJihvZNLRMxjd5ZaAmNTASfGGoj6t4EYLg==
   dependencies:
     "@coinbase/wallet-sdk" "4.0.3"
     "@ethersproject/abstract-signer" "^5.7.0"
@@ -3933,7 +3923,7 @@
     "@heroicons/react" "^2.1.1"
     "@marsidev/react-turnstile" "^0.4.1"
     "@metamask/eth-sig-util" "^6.0.0"
-    "@privy-io/js-sdk-core" "0.23.1"
+    "@privy-io/js-sdk-core" "0.23.2"
     "@simplewebauthn/browser" "^9.0.1"
     "@walletconnect/ethereum-provider" "^2.13.3"
     "@walletconnect/modal" "^2.6.2"
@@ -7686,10 +7676,10 @@ d@1, d@^1.0.1, d@^1.0.2:
     es5-ext "^0.10.64"
     type "^2.7.2"
 
-daisyui@^4.12.8:
-  version "4.12.8"
-  resolved "https://registry.yarnpkg.com/daisyui/-/daisyui-4.12.8.tgz#9d06631f1b461c157769de40229ad5c1f085b504"
-  integrity sha512-FDdh0z9BsWMI0VeUSwZy6rwp9frEuUgd83SCPOaCYV3iULPzcgTEQT3IlcAbMCrsriu2ziDYZfGOUwPYHkHrfw==
+daisyui@^4.12.10:
+  version "4.12.10"
+  resolved "https://registry.yarnpkg.com/daisyui/-/daisyui-4.12.10.tgz#fc26b6da72c5855f4677d2f100f02e06c8e8a70f"
+  integrity sha512-jp1RAuzbHhGdXmn957Z2XsTZStXGHzFfF0FgIOZj3Wv9sH7OZgLfXTRZNfKVYxltGUOBsG1kbWAdF5SrqjebvA==
   dependencies:
     css-selector-tokenizer "^0.8"
     culori "^3"
@@ -8896,10 +8886,10 @@ firebase-admin@^12.2.0:
     "@google-cloud/firestore" "^7.7.0"
     "@google-cloud/storage" "^7.7.0"
 
-firebase-tools@^13.11.4:
-  version "13.11.4"
-  resolved "https://registry.yarnpkg.com/firebase-tools/-/firebase-tools-13.11.4.tgz#d8683d3ad526a25a1f01e2a3679eda2cb1c9f25e"
-  integrity sha512-jjiJQKSInVIxMU2360/G+VMneM8AyUFV7CrWg5w2reT1RL5ateLrNofy+gjY5EIOjyc3k1m/Dr4pq4MQ0aLy7Q==
+firebase-tools@^13.12.0:
+  version "13.12.0"
+  resolved "https://registry.yarnpkg.com/firebase-tools/-/firebase-tools-13.12.0.tgz#7b1ae1925367d932617839bde71af916c20b35fb"
+  integrity sha512-hr3rqrWeeiNshVzmVSeQkCOSGUSKMxZs+ztairg4r6wteGUOVz56DrYsDMTUxjqH5zPxz5pxK9cvJi4M4ER13g==
   dependencies:
     "@google-cloud/cloud-sql-connector" "^1.2.3"
     "@google-cloud/pubsub" "^4.4.0"
@@ -9723,6 +9713,13 @@ i18next@22.5.1:
   integrity sha512-8TGPgM3pAD+VRsMtUMNknRz3kzqwp/gPALrWMsDnmC1mKqJwpWyooQRLMcbTwq8z8YwSmuj+ZYvc+xCuEpkssA==
   dependencies:
     "@babel/runtime" "^7.20.6"
+
+i18next@^23.11.5:
+  version "23.11.5"
+  resolved "https://registry.yarnpkg.com/i18next/-/i18next-23.11.5.tgz#d71eb717a7e65498d87d0594f2664237f9e361ef"
+  integrity sha512-41pvpVbW9rhZPk5xjCX2TPJi2861LEig/YRhUkY+1FQ2IQPS0bKUDYnEqY8XPPbB48h1uIwLnP9iiEfuSl20CA==
+  dependencies:
+    "@babel/runtime" "^7.23.2"
 
 i18next@^23.7.16:
   version "23.11.4"
@@ -13307,6 +13304,14 @@ react-i18next@^13.5.0:
     "@babel/runtime" "^7.22.5"
     html-parse-stringify "^3.0.1"
 
+react-i18next@^14.1.2:
+  version "14.1.2"
+  resolved "https://registry.yarnpkg.com/react-i18next/-/react-i18next-14.1.2.tgz#cd57a755f25a32a5fcc3dbe546cf3cc62b4f3ebd"
+  integrity sha512-FSIcJy6oauJbGEXfhUgVeLzvWBhIBIS+/9c6Lj4niwKZyGaGb4V4vUbATXSlsHJDXXB+ociNxqFNiFuV1gmoqg==
+  dependencies:
+    "@babel/runtime" "^7.23.9"
+    html-parse-stringify "^3.0.1"
+
 react-is@^16.13.1, react-is@^16.7.0:
   version "16.13.1"
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-16.13.1.tgz#789729a4dc36de2999dc156dd6c1d9c18cea56a4"
@@ -15223,20 +15228,6 @@ vary@^1, vary@~1.1.2:
   resolved "https://registry.yarnpkg.com/vary/-/vary-1.1.2.tgz#2299f02c6ded30d4a5961b0b9f74524a18f634fc"
   integrity sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==
 
-viem@2.8.6:
-  version "2.8.6"
-  resolved "https://registry.yarnpkg.com/viem/-/viem-2.8.6.tgz#7467a0f113b4b13dd53fde4797aec1e686672f03"
-  integrity sha512-LqxLOSFtXfbC3tsiZ8Km8jKR4ktTOLfigL2dR9IN28He2+QrNhYvvwGPz3P4hbfU12Wvuxo6mWGZ2L1lpNtvrA==
-  dependencies:
-    "@adraffy/ens-normalize" "1.10.0"
-    "@noble/curves" "1.2.0"
-    "@noble/hashes" "1.3.2"
-    "@scure/bip32" "1.3.2"
-    "@scure/bip39" "1.2.1"
-    abitype "1.0.0"
-    isows "1.0.3"
-    ws "8.13.0"
-
 viem@2.x:
   version "2.12.5"
   resolved "https://registry.yarnpkg.com/viem/-/viem-2.12.5.tgz#b30888367c193ca3ab1bc2864a9723ac3f10ba87"
@@ -15911,9 +15902,9 @@ zustand@4.4.1:
   dependencies:
     use-sync-external-store "1.2.0"
 
-zustand@^4.5.2:
-  version "4.5.2"
-  resolved "https://registry.yarnpkg.com/zustand/-/zustand-4.5.2.tgz#fddbe7cac1e71d45413b3682cdb47b48034c3848"
-  integrity sha512-2cN1tPkDVkwCy5ickKrI7vijSjPksFRfqS6237NzT0vqSsztTNnQdHw9mmN7uBdk3gceVXU0a+21jFzFzAc9+g==
+zustand@^4.5.4:
+  version "4.5.4"
+  resolved "https://registry.yarnpkg.com/zustand/-/zustand-4.5.4.tgz#63abdd81edfb190bc61e0bbae045cc4d52158a05"
+  integrity sha512-/BPMyLKJPtFEvVL0E9E9BTUM63MNyhPGlvxk1XjrfWTUlV+BR8jufjsovHzrtR6YNcBEcL7cMHovL1n9xHawEg==
   dependencies:
     use-sync-external-store "1.2.0"
