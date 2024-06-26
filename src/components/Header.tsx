@@ -1,7 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
-import { useBalance } from "wagmi"
-import { useSwitchChain } from 'wagmi'
+import { useBlockNumber, useReadContracts, useBalance, useSwitchChain } from "wagmi"
 
 import { formatEther } from 'viem'
 
@@ -16,7 +15,8 @@ import { Address } from "./Utils"
 
 import { notify, hide } from "./Notification"
 
-import { aHandBaseAddress, aHandBaseHandsNumber, aHandBaseDistributed } from '../contracts'
+import { aHandBaseAddress, aHandBaseAbi } from '../contracts'
+
 import { useAccount, chain } from '../wallet'
 
 
@@ -31,18 +31,55 @@ const Logo = () => {
 }
 
 
-export const Stat = () => {
-  const stats = [
-    { label: "Raised", value: 123 },
-    { label: "Solved", value: 45 },
-    { label: "Rewards", value: 100 },
+const Stat = () => {
+
+  const fields = [
+    { name: 'raisedHandsNumber', label: 'Raised' },
+    { name: 'solvedHandsNumber', label: 'Solved' },
+    { name: 'shakesNumber', label: 'Shakes' },
+    { name: 'givesNumber', label: 'Gives' },
+    { name: 'thanksNumber', label: 'Thanks' },
+    { name: 'rewardsDistributed', label: 'Rewards' },
   ]
 
+  const { data: blockNumber } = useBlockNumber({ watch: true })
+  const { data } = useReadContracts({
+    blockNumber,
+    contracts: fields.map(field => ({
+      functionName: field.name,
+      address: aHandBaseAddress[chain.id],
+      abi: aHandBaseAbi,
+    }))
+  })
+
+  const [stats, setStats] = useState([])
+  const [changedIndex, setChangedIndex] = useState(null)
+
+  useEffect(() => {
+    if (data) {
+      const newStats = fields.map((field, i) => ({
+        label: field.label,
+        value: Number(data?.[i]?.result || 0),
+      }))
+      setStats(prevStats => {
+        newStats.forEach((newStat, index) => {
+          if (prevStats[index] && prevStats[index].value !== newStat.value) {
+            setChangedIndex(index)
+            setTimeout(() => setChangedIndex(null), 1000)
+          }
+        })
+        return newStats
+      })
+    }
+  }, [data])
+
   return (
-    <div className="flex items-center justify-center space-x-8 md:space-x-32 mt-2 mb-4 md:mb-0">
+    <div className="flex items-center justify-center space-x-4 sm:space-x-8 md:space-x-16 mt-2 mb-4 md:mb-0">
       {stats.map((stat, index) => (
-        <div key={index} className="flex flex-col items-center text-center">
-          <span className="text-lg font-semibold">{stat.value}</span>
+        <div key={index} className={`flex flex-col items-center text-center ${changedIndex === index ? 'animate-pulse font-bold' : ''}`}>
+          <span className="text-lg font-semibold">
+            {stat.value}
+          </span>
           <span className="text-xs">{stat.label}</span>
         </div>
       ))}
@@ -82,7 +119,7 @@ export const Connection = () => {
   const { data: balanceData } = useBalance({ address })
 
   if (connected && !aHandBaseAddress[chain.id]) {
-    const wrongChainNotificationId = 'wrong-chain';
+    const wrongChainNotificationId = 'wrong-chain'
 
     notify(<SwitchChain onSuccess={() => hide(wrongChainNotificationId)} />, 'error', {id: wrongChainNotificationId, duration: Infinity})
   }
@@ -143,7 +180,7 @@ export const Header = () => {
         <Stat />
       </div>
 
-      <div className="flex w-full justify-center space-x-4 sm:space-x-2 sm:justify-end sm:w-auto sm:order-3 mt-2 sm:mt-0">
+      <div className="flex w-full justify-center sm:justify-end sm:w-auto sm:order-3 mt-2 sm:mt-0">
         <ThemeToggle />
         <Connection />
       </div>

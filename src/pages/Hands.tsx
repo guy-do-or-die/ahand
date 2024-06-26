@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 
 import {
-  useReadAHandBaseHandsNumber,
+  useReadAHandBaseRaisedHandsNumber,
   useReadAHandBaseHands,
 } from "../contracts";
 
@@ -20,7 +20,7 @@ export const HandsItem = ({id}) => {
 
 export const Hands = () => {
 
-  const { data: handsNumber } = useReadAHandBaseHandsNumber({
+  const { data: handsNumber } = useReadAHandBaseRaisedHandsNumber({
     watch: true,
   });
 

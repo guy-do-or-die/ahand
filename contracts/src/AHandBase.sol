@@ -17,8 +17,14 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
     string public name = "aHand";
 
-    uint public handsNumber;
-    uint public distributed;
+    uint public raisedHandsNumber;
+    uint public solvedHandsNumber;
+
+    uint public shakesNumber;
+    uint public givesNumber;
+    uint public thanksNumber;
+
+    uint public rewardsDistributed;
 
     mapping(uint => address) public hands;
     mapping(address => int) public trust;
@@ -64,10 +70,12 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         address sender = _msgSender();
 
         AHand handInstance = new AHand{value: msg.value}(sender, problem, link, ref);
-        hands[handsNumber++] = address(handInstance);
+        hands[raisedHandsNumber] = address(handInstance);
         _mint(sender, RAISE, 1, "");
 
         emit Raised(address(handInstance), sender);
+
+        raisedHandsNumber++;
     }
 
     function getHand(address contractAddress) internal pure returns (AHand handInstance) {
@@ -83,6 +91,8 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
         getHand(hand).shake(ref, newRef, sender, comment);
         _mint(sender, SHAKE, 1, "");
+
+        shakesNumber++;
     }
 
     function give(address hand, address ref, address newRef, string calldata solution) public {
@@ -90,6 +100,8 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
         getHand(hand).give(ref, newRef, sender, solution);
         _mint(sender, GIVE, 1, "");
+
+        givesNumber++;
     }
 
     function thank(address hand, uint solutionIndex, uint thankRate, address charity, uint charityRate, address maint, uint maintRate, string calldata comment) public {
@@ -109,7 +121,13 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
         emit Thanked(hand, solutionIndex, thankAmount, comment);
 
-        distributed += thankAmount;
+        rewardsDistributed += thankAmount;
+
+        if (address(hand).balance == 0) {
+            solvedHandsNumber += 1;
+        }
+
+        thanksNumber++;
     }
 
     function thumbsUp(address account) public {
