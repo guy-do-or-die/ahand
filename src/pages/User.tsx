@@ -3,10 +3,11 @@ import { formatEther } from "viem"
 import { useLocation } from "wouter"
 
 import { CopyToClipboard } from 'react-copy-to-clipboard'
+import { Name } from '@coinbase/onchainkit/identity'
 
 import { useAccount } from "../wallet"
 
-import { Button, UserStat, Address, notify } from "../components"
+import { Button, UserStat, notify } from "../components"
 
 import {
   useReadAHandBaseBalanceOf,
@@ -91,7 +92,7 @@ export const User = ({params}) => {
   return <div>
     <div className="card-title text-center mb-8 text-xl md:text-2xl lg:text-3xl justify-center cursor-pointer">
       <CopyToClipboard text={address} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
-        <span><Address address={address} maxChars={12}/></span>
+        <span><Name address={address} /></span>
       </CopyToClipboard>
     </div>
     <div className="mb-8">

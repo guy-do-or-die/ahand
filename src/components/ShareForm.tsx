@@ -5,6 +5,7 @@ import { ShareSocial } from "react-share-social"
 import { useConfig } from "../Store"
 
 import farcasterUrl from '../../assets/farcaster.png'
+import xUrl from '../../assets/x.png'
 
 
 export const ShareForm = ({url}) => {
@@ -44,10 +45,27 @@ export const ShareForm = ({url}) => {
 
   useEffect(() => {
     if (shareSocialRef.current) {
-      const button = shareSocialRef.current.querySelector('[aria-label="whatsapp"]')
+      const farcBtn = shareSocialRef.current.querySelector('[aria-label="whatsapp"]')
+      const xBtn = shareSocialRef.current.querySelector('[aria-label="twitter"]')
 
-      if (button) {
-        const svg = button.querySelector('svg')
+      if (xBtn) {
+        const svg = xBtn.querySelector('svg')
+
+        if (svg) {
+          const img = document.createElement('img')
+
+          img.src = xUrl
+          img.alt = 'X'
+
+          img.style.maxWidth = '40px' 
+          img.style.maxHeight = '40px' 
+
+          svg.parentNode.replaceChild(img, svg);
+        }
+      }
+
+      if (farcBtn) {
+        const svg = farcBtn.querySelector('svg')
 
         if (svg) {
           const img = document.createElement('img')
@@ -61,8 +79,8 @@ export const ShareForm = ({url}) => {
           svg.parentNode.replaceChild(img, svg);
         }
 
-        button.title = 'Farcaster'
-        button.onclick = () => {
+        farcBtn.title = 'Farcaster'
+        farcBtn.onclick = () => {
           window.open(`https://warpcast.com/~/compose?text=${url}`, '_blank')
         }
       }
@@ -70,6 +88,6 @@ export const ShareForm = ({url}) => {
   }, [])
   
   return <div className="w-full" ref={shareSocialRef}>
-    <ShareSocial url={url} style={style} socialTypes={["whatsapp", "telegram", "twitter", "reddit", "linkedin", "facebook", "email"]} />
+    <ShareSocial url={url} style={style} socialTypes={["whatsapp", "telegram", "twitter", "reddit", "linkedin", "facebook"]} />
   </div>
 }

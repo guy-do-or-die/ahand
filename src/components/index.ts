@@ -12,5 +12,3 @@ export { Links } from "./Links"
 export { Notification, notify, parseError } from "./Notification"
 
 export { UserStat, BaseStat } from "./Stat"
-
-export { Address } from "./Utils"

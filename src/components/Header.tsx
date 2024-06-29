@@ -11,7 +11,7 @@ import { Link } from "wouter"
 import { ThemeToggle } from "./Theme"
 import { CurrencyToggle } from "./Currency"
 
-import { Address } from "./Utils"
+import { Name } from '@coinbase/onchainkit/identity'
 
 import { BaseStat, UserStat } from "./Stat"
 import { notify, hide, notImplemented } from "./Notification"
@@ -62,6 +62,13 @@ export const Connection = () => {
   const { address, connected, login, logout, link,  walletClientType } = useAccount()
   const { data: balanceData } = useBalance({ address })
 
+  const [currentAddress, setCurrentAddress] = useState(address)
+
+  //useEffect(async () => {
+  //  setCurrentAddress(address)
+  //  //await logout()
+  //}, [address])
+
   if (connected && !aHandBaseAddress[chain.id]) {
     const wrongChainNotificationId = 'wrong-chain'
 
@@ -86,7 +93,7 @@ export const Connection = () => {
           <li className="w-full">
             <CopyToClipboard text={address} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
               <div className="w-full justify-center">
-                <Address address={address} maxChars={12}/>
+                <Name address={address} />
               </div>
             </CopyToClipboard>
           </li>
