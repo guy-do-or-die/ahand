@@ -8,7 +8,7 @@ import { Welcome, Raise, Hand, Hands, User } from "./pages";
 
 export function App() {
 
-  return <div className="flex flex-col items-center min-h-screen">
+  return <div className="flex flex-col items-center min-h-screen px-2">
     <Notification />
     <Header />
     <Body>

@@ -98,7 +98,7 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
     if (shakesRef.current) {
       shakesRef.current.scrollLeft = shakesRef.current.scrollWidth
     }
-  }, [])
+  }, [rewards])
 
   return <>
     <div className="flex justify-center mb-4 shakes">
