@@ -7,6 +7,7 @@ import discordUrl from '../../assets/discord.png'
 import farcasterUrl from '../../assets/farcaster.png'
 import guildUrl from '../../assets/guild.png'
 import gitUrl from '../../assets/git.png'
+import openseaUrl from '../../assets/opensea.png'
 import etherscanUrl from '../../assets/etherscan.png'
 import donateUrl from '../../assets/donate.png'
 
@@ -25,13 +26,14 @@ export const Links = () => {
 
   return <div className="links flex justify-center items-start"> 
     <div className="flex space-x-4 filter grayscale">
-      <Link title="X" href="http://x.com/ahand_in" icon={xUrl} />
-      <Link title="Telegram" href="https://t.me/ahand" icon={telegramUrl} />
+      <Link title="Farcaster" href="https://warpcast.com/~/channel/ahand" icon={farcasterUrl} />
+      <Link title="Telegram" href="https://t.me/ahand_in" icon={telegramUrl} />
       <Link title="Discord" href="https://discord.gg/VkkCtT8Eeh" icon={discordUrl} />
-      <Link title="Farcaster" href="https://warpcast.com/ahand" icon={farcasterUrl} />
       <Link title="Guild" href="https://guild.xyz/ahand" icon={guildUrl} />
-      <Link title="Code" href="https://gitlab.com/the-gethering/ahand" icon={gitUrl} />
+      <Link title="X" href="http://x.com/ahand_in" icon={xUrl} />
+      {chain ? <Link title="Opensea" href={`https://${chain.testnet ? 'testnets.' : ''}opensea.io/assets/${chain.network}/${contractAddress}`} icon={openseaUrl} /> : ""}
       {chain ? <Link title="Contract" href={`${explorer}/address/${contractAddress}#code`} icon={etherscanUrl} /> : ""}
+      <Link title="Code" href="https://gitlab.com/the-gethering/ahand" icon={gitUrl} />
       {false ? <Link title="Donate" href="" icon={donateUrl} /> : ""}
     </div>
   </div>

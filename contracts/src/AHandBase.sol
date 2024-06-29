@@ -168,10 +168,12 @@ contract AHandBase is ERC1155, Ownable {
         if (id == UP) {
             uint balance = balanceOf(account, UP);
 
-            if (trust[account] > 0 && balance > uint(trust[account])) {
+            if (balance > uint(trust[account])) {
                 trust[account] = int(balance);
             }
-        } else if (id == DOWN) {
+        }
+
+        if (id == DOWN) {
             trust[account] -= int(amount);
         }
     }

@@ -1,5 +1,7 @@
 import { Toaster, toast } from "react-hot-toast"
 
+import { CopyToClipboard } from 'react-copy-to-clipboard'
+
 
 export const parseError = (error) => {
 
@@ -33,7 +35,7 @@ export const parseError = (error) => {
 }
 
 
-export const notify = (content, type, params) => {
+export const notify = (content, typ, params) => {
   const defaultParams = {
     "error": {
       duration: 5000,
@@ -41,11 +43,22 @@ export const notify = (content, type, params) => {
     "success": {
       duration: 3000,
     }
-  }[type] || {}
+  }[typ] || {}
 
   if (content) {
-    return (toast[type] || toast)(content, {...defaultParams, ...params})
+    const contentEl = (typ === 'error' && typeof conent === 'string') ? (
+      <CopyToClipboard text={conent} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
+        conent
+      </CopyToClipboard>
+    ) : content
+
+    return (toast[typ] || toast)(contentEl, {...defaultParams, ...params})
   }
+}
+
+
+export const notImplemented = () => {
+  return notify('Feature is not ready just yet', 'info', {icon: '😬'})
 }
 
 

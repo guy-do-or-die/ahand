@@ -13,7 +13,8 @@ import { CurrencyToggle } from "./Currency"
 
 import { Address } from "./Utils"
 
-import { notify, hide } from "./Notification"
+import { BaseStat, UserStat } from "./Stat"
+import { notify, hide, notImplemented } from "./Notification"
 
 import { aHandBaseAddress, aHandBaseAbi } from '../contracts'
 
@@ -28,63 +29,6 @@ const Logo = () => {
       <span className="text-6xl sm:text-5xl">and</span>
     </Link>
   </div>
-}
-
-
-const Stat = () => {
-
-  const fields = [
-    { name: 'raisedHandsNumber', label: 'Raised' },
-    { name: 'solvedHandsNumber', label: 'Solved' },
-    { name: 'shakesNumber', label: 'Shakes' },
-    { name: 'givesNumber', label: 'Gives' },
-    { name: 'thanksNumber', label: 'Thanks' },
-    { name: 'rewardsDistributed', label: 'Rewards' },
-  ]
-
-  const { data: blockNumber } = useBlockNumber({ watch: true })
-  const { data } = useReadContracts({
-    blockNumber,
-    contracts: fields.map(field => ({
-      functionName: field.name,
-      address: aHandBaseAddress[chain.id],
-      abi: aHandBaseAbi,
-    }))
-  })
-
-  const [stats, setStats] = useState([])
-  const [changedIndex, setChangedIndex] = useState(null)
-
-  useEffect(() => {
-    if (data) {
-      const newStats = fields.map((field, i) => ({
-        label: field.label,
-        value: Number(data?.[i]?.result || 0),
-      }))
-      setStats(prevStats => {
-        newStats.forEach((newStat, index) => {
-          if (prevStats[index] && prevStats[index].value !== newStat.value) {
-            setChangedIndex(index)
-            setTimeout(() => setChangedIndex(null), 1000)
-          }
-        })
-        return newStats
-      })
-    }
-  }, [data])
-
-  return (
-    <div className="flex items-center justify-center space-x-4 sm:space-x-4 md:space-x-16 mt-2 mb-4 md:mb-0">
-      {stats.map((stat, index) => (
-        <div key={index} className={`flex flex-col items-center text-center ${changedIndex === index ? 'animate-pulse font-bold' : ''}`}>
-          <span className="text-lg font-semibold">
-            {stat.label === 'Rewards' ? formatEther(stat.value) : stat.value}
-          </span>
-          <span className="text-xs">{stat.label}</span>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 
@@ -115,7 +59,7 @@ const SwitchChain = ({onSuccess, onError}) => {
 
 export const Connection = () => {
 
-  const { address, connected, login, logout, walletClientType } = useAccount()
+  const { address, connected, login, logout, link,  walletClientType } = useAccount()
   const { data: balanceData } = useBalance({ address })
 
   if (connected && !aHandBaseAddress[chain.id]) {
@@ -126,17 +70,24 @@ export const Connection = () => {
 
   return <>
     {
-      connected 
+      connected
         ?
       <div className="dropdown dropdown-end dropdown-hover">
         <div className="join">
-          <CurrencyToggle /> 
+          <CurrencyToggle />
           <div tabIndex="0" role="button" className="btn btn-outline btn-sm md:btn-md join-item w-32 md:text-lg">{balanceData?.formatted.slice(0, 7)}</div>
         </div>
-        <ul tabIndex="0" className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full">
-          <li>
+        <ul tabIndex="0" className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full flex flex-col items-stretch">
+          <li className="w-full">
+            <Link href={`/user/${address}`} className="w-full justify-center">
+              <UserStat address={address} full={false} />
+            </Link>
+          </li>
+          <li className="w-full">
             <CopyToClipboard text={address} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
-              <span><Address address={address} maxChars={12}/></span>
+              <div className="w-full justify-center">
+                <Address address={address} maxChars={12}/>
+              </div>
             </CopyToClipboard>
           </li>
           {
@@ -144,19 +95,22 @@ export const Connection = () => {
               ?
             <>
               <div className="divider m-0"></div>
-              <li>
-                <button>Deposit</button>
+              <li className="w-full">
+                <button className="w-full justify-center" onClick={notImplemented}>Deposit</button>
               </li>
-              <li>
-                <button>Withdraw</button>
+              <li className="w-full">
+                <button className="w-full justify-center" onClick={notImplemented}>Withdraw</button>
+              </li>
+              <li className="w-full">
+                <button className="w-full justify-center" onClick={notImplemented}>Link</button>
               </li>
             </>
               :
             ""
           }
           <div className="divider m-0"></div>
-          <li>
-            <button onClick={logout}>Log Out</button>
+          <li className="w-full">
+            <button className="w-full justify-center" onClick={logout}>Log Out</button>
           </li>
         </ul>
       </div>
@@ -182,7 +136,7 @@ export const Header = () => {
       </div>
 
       <div className="w-full text-center justify-center mt-4 md:mt-0 md:w-auto md:flex-1 md:order-2">
-        <Stat />
+        <BaseStat />
       </div>
     </div>
   )

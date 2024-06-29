@@ -14,7 +14,7 @@ export const Address = ({ address, maxChars = 10 }) => {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full text-center">
       {shrink(address, maxChars)}
     </div>
   )

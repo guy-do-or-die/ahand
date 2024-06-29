@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 
-import { useSpring, animated } from '@react-spring/web'
+import { useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 
 import { useBalance } from "wagmi"
@@ -9,6 +9,9 @@ import { formatEther } from "viem"
 import { useLocation } from "wouter"
 
 import { Button, ShareForm, ShareMeta } from "../components"
+
+import { notImplemented } from "../components/Notification"
+
 import { useAccount } from "../wallet"
 import { genRef } from "../utils"
 
@@ -133,7 +136,7 @@ const SolutionInput = ({solution, setSolution, encrypted, setEncrypted}) => {
     <div className={`absolute -top-4 right-3 ${config.theme === "dark" ? "bg-black" : "bg-white"}`}>
       <label className="label cursor-pointer p-1">
         <input className="checkbox checkbox-xs" type="checkbox" checked={encrypted ? "checked" : ""} onChange={() => setEncrypted(!encrypted)}/>
-        <span className="label-text font-bold mt-1 ml-1">Private</span>
+        <span className="label-text font-bold mt-1 ml-1" onClick={notImplemented}>Private</span>
       </label>
     </div>
   </div>
