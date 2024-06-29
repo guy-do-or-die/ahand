@@ -10,8 +10,8 @@ contract AHand {
         string solution;
     }
 
-    address public origin;
-    address public raiser;
+    address public immutable origin;
+    address public immutable raiser;
 
     string public problem;
     string public link;
@@ -21,6 +21,9 @@ contract AHand {
 
     uint constant MAX_SHAKES_CHAIN_LEN = 10;
     uint constant MIN_CHARITY_RATE = 100;
+    uint constant MAX_CHARITY_RATE = 2000;
+    uint constant MAX_MAINT_RATE = 1000;
+    uint constant MAX_RATE = 10000;
 
     mapping(address => address) public refs;
     mapping(address => address) public shakes;
@@ -59,15 +62,14 @@ contract AHand {
         require(shaker != raiser, "Raiser can't solve own problem");
         require(refAddress != address(0) && refAddress != shaker, "Invalid ref");
         require(refAddress == raiser || shakes[refAddress] != address(0), "Invalid ref");
-        require(shakesChainLen(refAddress) < MAX_SHAKES_CHAIN_LEN, "Shakes chain too long");
 
         shakes[shaker] = refAddress;
     }
 
     function shake(address ref, address newRef, address shaker, string calldata comment) external onlyBase {
-
         address refAddress = deRef(ref);
         require(refAddress != address(0), "No such ref");
+        require(shakesChainLen(refAddress) < MAX_SHAKES_CHAIN_LEN, "Shakes chain too long");
 
         _shake(refAddress, shaker);
         refs[newRef] = shaker;
@@ -97,6 +99,9 @@ contract AHand {
     function thank(address thanker, uint solutionIndex, uint thankRate, address charity, uint charityRate, address maint, uint maintRate) external onlyBase returns (uint thankAmount) {
         require(!solved, "Already solved");
         require(thanker == raiser, "Only raiser can thank");
+        require(thankRate <= MAX_RATE, "Invalid thank rate");
+        require(charityRate <= MAX_CHARITY_RATE, "Invalid charity rate");
+        require(maintRate <= MAX_MAINT_RATE, "Invalid maintenance rate");
 
         address giver = solutions[solutionIndex].giver;
         require(giver != address(0), "Solution doesn't exist");
@@ -122,11 +127,13 @@ contract AHand {
             transfer(giver, remainder);
         }
 
-        solved = true;
+        if (address(this).balance == 0) {
+            solved = true;
+        }
     }
 
     function handleCharity(address target, uint rate, uint amount) internal returns (uint fee) {
-        fee = amount * (rate > MIN_CHARITY_RATE ? rate : MIN_CHARITY_RATE) / 10000;
+        fee = amount * (rate > MIN_CHARITY_RATE ? rate : MIN_CHARITY_RATE) / MAX_RATE;
         transfer(target, fee);
     }
 
@@ -134,14 +141,14 @@ contract AHand {
         fee = 0;
 
         if (target != address(0) && rate > 0) {
-            fee = amount * rate / 10000;
+            fee = amount * rate / MAX_RATE;
             transfer(target, fee);
         }
     }
 
     function transfer(address target, uint amount) internal {
         (bool success, ) = payable(target).call{value: amount}("");
-        require(success, "Trasnfering failed");
+        require(success, "Transferring failed");
     }
 
     function shakesChainLen(address ref) public view returns (uint length) {
@@ -166,7 +173,7 @@ contract AHand {
         
         uint counter = 0;
         
-        while(refAddress != address(0) && counter < MAX_SHAKES_CHAIN_LEN) {
+        while(refAddress != address(0) && counter <= MAX_SHAKES_CHAIN_LEN) {
             chain[counter] = refAddress;
             refAddress = shakes[refAddress];
             counter++;

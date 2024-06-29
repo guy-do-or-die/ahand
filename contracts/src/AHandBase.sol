@@ -2,18 +2,15 @@
 
 pragma solidity >=0.8.20;
 
-import "./AHand.sol";
-
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-
-import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-import "@opengsn/contracts/src/ERC2771Recipient.sol";
+import "./AHand.sol";
 
 
-contract AHandBase is Context, ERC2771Recipient, ERC1155 {
+contract AHandBase is ERC1155, Ownable {
 
     string public name = "aHand";
 
@@ -28,7 +25,6 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
     mapping(uint => address) public hands;
     mapping(address => int) public trust;
-
     mapping(address => bool) public charities;
 
     uint private constant RAISE = 0;
@@ -39,7 +35,6 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
     uint private constant DOWN = 5;
 
     uint private constant MINIMUM_REWARD = 0.00001 ether;
-
     uint private constant PIC_SIZE = 256;
 
     event Raised(address indexed hand, address indexed raiser);
@@ -48,7 +43,10 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
     event Up(address indexed from, address indexed to);
     event Down(address indexed from, address indexed to);
 
-    constructor() ERC1155("aHand") {}
+    event SuccessStory(address indexed hand, uint solutionIndex, string story);
+
+
+    constructor() ERC1155("") Ownable(msg.sender) {}
 
     function _mintWithTrust(address account, uint id, uint amount, bytes memory data) internal {
         _mint(account, id, amount, data);
@@ -66,14 +64,12 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
 
     function raise(string calldata problem, string calldata link, address ref) public payable {
         require(msg.value > MINIMUM_REWARD, "Reward is too low");
-        
-        address sender = _msgSender();
 
-        AHand handInstance = new AHand{value: msg.value}(sender, problem, link, ref);
+        AHand handInstance = new AHand{value: msg.value}(msg.sender, problem, link, ref);
         hands[raisedHandsNumber] = address(handInstance);
-        _mint(sender, RAISE, 1, "");
+        _mint(msg.sender, RAISE, 1, "");
 
-        emit Raised(address(handInstance), sender);
+        emit Raised(address(handInstance), msg.sender);
 
         raisedHandsNumber++;
     }
@@ -82,24 +78,16 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         handInstance = AHand(payable(contractAddress));
     }
 
-    function getProblem(address hand) public view {
-        getHand(hand).problem();
-    }
-
     function shake(address hand, address ref, address newRef, string calldata comment) public {
-        address sender = _msgSender(); 
-
-        getHand(hand).shake(ref, newRef, sender, comment);
-        _mint(sender, SHAKE, 1, "");
+        getHand(hand).shake(ref, newRef, msg.sender, comment);
+        _mint(msg.sender, SHAKE, 1, "");
 
         shakesNumber++;
     }
 
     function give(address hand, address ref, address newRef, string calldata solution) public {
-        address sender = _msgSender();
-
-        getHand(hand).give(ref, newRef, sender, solution);
-        _mint(sender, GIVE, 1, "");
+        getHand(hand).give(ref, newRef, msg.sender, solution);
+        _mint(msg.sender, GIVE, 1, "");
 
         givesNumber++;
     }
@@ -107,19 +95,29 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
     function thank(address hand, uint solutionIndex, uint thankRate, address charity, uint charityRate, address maint, uint maintRate, string calldata comment) public {
         require(charities[charity], "Charity is not valid");
 
-        address sender = _msgSender();
-
         AHand handInstance = getHand(hand);
 
-        uint thankAmount = handInstance.thank(sender, solutionIndex, thankRate, charity, charityRate, maint, maintRate);
+        uint thankAmount = handInstance.thank(msg.sender, solutionIndex, thankRate, charity, charityRate, maint, maintRate);
         (address giver, ) = handInstance.solutions(solutionIndex);
 
-        _mint(sender, THANK, 1, "");
+        _mint(msg.sender, THANK, 1, "");
 
-        _mintWithTrust(sender, UP, bytes(comment).length > 100 ? 2 : 1, "");
+        uint ups = 1;
+        bool withSuccessStory = false;
+
+        if (bytes(comment).length > 100) {
+            ups = 2;
+            withSuccessStory = true;
+        }
+
+        _mintWithTrust(msg.sender, UP,  ups, "");
         _mintWithTrust(giver, UP, 1, "");
 
         emit Thanked(hand, solutionIndex, thankAmount, comment);
+
+        if (withSuccessStory) {
+            emit SuccessStory(hand, solutionIndex, comment);
+        }
 
         rewardsDistributed += thankAmount;
 
@@ -130,28 +128,24 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         thanksNumber++;
     }
 
-    function thumbsUp(address account) public {
-        address sender = _msgSender();
+    function thumbUp(address account) public {
+        require(balanceOf(msg.sender, UP) > 0, "Insufficient UP token");
 
-        require(balanceOf(sender, UP) > 0);
-
-        _burn(sender, UP, 1);
+        _burn(msg.sender, UP, 1);
         _mintWithTrust(account, UP, 1, "");
 
-        emit Up(sender, account);
+        emit Up(msg.sender, account);
     }
 
-    function thumbsDown(address account) public {
-        address sender = _msgSender();
+    function thumbDown(address account) public {
+        require(balanceOf(msg.sender, UP) > 0, "Insufficient UP token");
 
-        require(balanceOf(sender, UP) > 0, "You need to have at least one UP token");
-
-        _burn(sender, UP, 1);
+        _burn(msg.sender, UP, 1);
         _mintWithTrust(account, DOWN, 1, "");
 
-        if (balanceOf(sender, UP) > 0) _burn(account, UP, 1);
+        if (balanceOf(account, UP) > 0) _burn(account, UP, 1);
 
-        emit Down(sender, account);
+        emit Down(msg.sender, account);
     }
 
     function getImage(uint tokenId) internal pure returns (bytes memory) {
@@ -197,34 +191,22 @@ contract AHandBase is Context, ERC2771Recipient, ERC1155 {
         );
     }
 
-    function _msgSender() internal view virtual override(Context, ERC2771Recipient) returns (address sender) {
-        return ERC2771Recipient._msgSender();
-    }
-
-    function _msgData() internal view virtual override(Context, ERC2771Recipient) returns (bytes calldata) {
-        return ERC2771Recipient._msgData();
-    }
-
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 id,
-        uint256 amount,
-        bytes memory data
-    ) public virtual override {
+    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes memory data) public virtual override {
         require(from == address(0) || to == address(0), "Non-transferable token");
         super.safeTransferFrom(from, to, id, amount, data);
     }
 
-    function safeBatchTransferFrom(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        bytes memory data
-    ) public virtual override {
+    function safeBatchTransferFrom(address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public virtual override {
         require(from == address(0) || to == address(0), "Non-transferable token");
         super.safeBatchTransferFrom(from, to, ids, amounts, data);
+    }
+
+    function addCharity(address charityAddress) public onlyOwner {
+        charities[charityAddress] = true;
+    }
+
+    function removeCharity(address charityAddress) public onlyOwner {
+        delete charities[charityAddress];
     }
 
 }

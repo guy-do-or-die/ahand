@@ -8,18 +8,23 @@ export const parseError = (error) => {
     /(The total cost (.+?) exceeds the balance of the account)/,
     /(User rejected the request)/,
     /(Execution reverted for an unknown reason)/,
+    /(The contract function (.+?) reverted)/,
     /(Invalid UserOp signature or paymaster signature)/,
     /(RPC Error)/,
   ]
 
-  let msg = ''
+  let msg
 
   if (error) {
-    templates.forEach(template => {
-      const matches = error.message.match(template)
+    msg = error.message
+    console.log(msg)
+
+    templates.some(template => {
+      const matches = msg.match(template)
 
       if (matches && matches[1]) {
         msg = matches[1].trim()
+        return true 
       }
     })
   }
@@ -31,10 +36,10 @@ export const parseError = (error) => {
 export const notify = (content, type, params) => {
   const defaultParams = {
     "error": {
-
+      duration: 5000,
     },
     "success": {
-      duration: 5000,
+      duration: 3000,
     }
   }[type] || {}
 

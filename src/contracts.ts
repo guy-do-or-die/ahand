@@ -205,10 +205,19 @@ export const aHandAbi = [
 /**
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const aHandBaseAbi = [
   { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'charityAddress', internalType: 'address', type: 'address' },
+    ],
+    name: 'addCharity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
   {
     type: 'function',
     inputs: [
@@ -234,20 +243,6 @@ export const aHandBaseAbi = [
     inputs: [{ name: '', internalType: 'address', type: 'address' }],
     name: 'charities',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: 'hand', internalType: 'address', type: 'address' }],
-    name: 'getProblem',
-    outputs: [],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'getTrustedForwarder',
-    outputs: [{ name: 'forwarder', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -288,16 +283,16 @@ export const aHandBaseAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'forwarder', internalType: 'address', type: 'address' }],
-    name: 'isTrustedForwarder',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    inputs: [],
+    name: 'name',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
     inputs: [],
-    name: 'name',
-    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -317,6 +312,22 @@ export const aHandBaseAbi = [
     name: 'raisedHandsNumber',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'charityAddress', internalType: 'address', type: 'address' },
+    ],
+    name: 'removeCharity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -420,14 +431,21 @@ export const aHandBaseAbi = [
   {
     type: 'function',
     inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
-    name: 'thumbsDown',
+    name: 'thumbDown',
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
     inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
-    name: 'thumbsUp',
+    name: 'thumbUp',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -478,6 +496,25 @@ export const aHandBaseAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      {
+        name: 'previousOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       { name: 'hand', internalType: 'address', type: 'address', indexed: true },
       {
         name: 'raiser',
@@ -487,6 +524,21 @@ export const aHandBaseAbi = [
       },
     ],
     name: 'Raised',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'hand', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'solutionIndex',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      { name: 'story', internalType: 'string', type: 'string', indexed: false },
+    ],
+    name: 'SuccessStory',
   },
   {
     type: 'event',
@@ -627,23 +679,33 @@ export const aHandBaseAbi = [
     ],
     name: 'ERC1155MissingApprovalForAll',
   },
+  {
+    type: 'error',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'OwnableInvalidOwner',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'OwnableUnauthorizedAccount',
+  },
 ] as const
 
 /**
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const aHandBaseAddress = {
   8453: '0x5253BDB502be3D85c3932292AcCAf16233058e7F',
   31337: '0xb609D06B30481d9c8f220e3051d3BA41f48DDb2A',
-  84532: '0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d',
+  84532: '0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a',
 } as const
 
 /**
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const aHandBaseConfig = {
   address: aHandBaseAddress,
@@ -870,27 +932,6 @@ export const erc165Abi = [
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-    stateMutability: 'view',
-  },
-] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ERC2771Recipient
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const erc2771RecipientAbi = [
-  {
-    type: 'function',
-    inputs: [],
-    name: 'getTrustedForwarder',
-    outputs: [{ name: 'forwarder', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: 'forwarder', internalType: 'address', type: 'address' }],
-    name: 'isTrustedForwarder',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
@@ -1372,20 +1413,6 @@ export const ierc20ErrorsAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// IERC2771Recipient
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const ierc2771RecipientAbi = [
-  {
-    type: 'function',
-    inputs: [{ name: 'forwarder', internalType: 'address', type: 'address' }],
-    name: 'isTrustedForwarder',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-    stateMutability: 'view',
-  },
-] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IERC721Errors
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1445,6 +1472,63 @@ export const ierc721ErrorsAbi = [
 
 export const mathAbi = [
   { type: 'error', inputs: [], name: 'MathOverflowedMulDiv' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Ownable
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ownableAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'previousOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'OwnableInvalidOwner',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'OwnableUnauthorizedAccount',
+  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1662,7 +1746,7 @@ export const useWatchAHandShakenEvent =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBase = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1674,7 +1758,7 @@ export const useReadAHandBase = /*#__PURE__*/ createUseReadContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseBalanceOf = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1687,7 +1771,7 @@ export const useReadAHandBaseBalanceOf = /*#__PURE__*/ createUseReadContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseBalanceOfBatch =
   /*#__PURE__*/ createUseReadContract({
@@ -1701,7 +1785,7 @@ export const useReadAHandBaseBalanceOfBatch =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseCharities = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1710,38 +1794,11 @@ export const useReadAHandBaseCharities = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"getProblem"`
- *
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
- * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
- */
-export const useReadAHandBaseGetProblem = /*#__PURE__*/ createUseReadContract({
-  abi: aHandBaseAbi,
-  address: aHandBaseAddress,
-  functionName: 'getProblem',
-})
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"getTrustedForwarder"`
- *
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
- * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
- */
-export const useReadAHandBaseGetTrustedForwarder =
-  /*#__PURE__*/ createUseReadContract({
-    abi: aHandBaseAbi,
-    address: aHandBaseAddress,
-    functionName: 'getTrustedForwarder',
-  })
-
-/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"givesNumber"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseGivesNumber = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1754,7 +1811,7 @@ export const useReadAHandBaseGivesNumber = /*#__PURE__*/ createUseReadContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseHands = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1767,7 +1824,7 @@ export const useReadAHandBaseHands = /*#__PURE__*/ createUseReadContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseIsApprovedForAll =
   /*#__PURE__*/ createUseReadContract({
@@ -1777,25 +1834,11 @@ export const useReadAHandBaseIsApprovedForAll =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"isTrustedForwarder"`
- *
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
- * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
- */
-export const useReadAHandBaseIsTrustedForwarder =
-  /*#__PURE__*/ createUseReadContract({
-    abi: aHandBaseAbi,
-    address: aHandBaseAddress,
-    functionName: 'isTrustedForwarder',
-  })
-
-/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"name"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseName = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1804,11 +1847,24 @@ export const useReadAHandBaseName = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"owner"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useReadAHandBaseOwner = /*#__PURE__*/ createUseReadContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'owner',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"raisedHandsNumber"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseRaisedHandsNumber =
   /*#__PURE__*/ createUseReadContract({
@@ -1822,7 +1878,7 @@ export const useReadAHandBaseRaisedHandsNumber =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseRewardsDistributed =
   /*#__PURE__*/ createUseReadContract({
@@ -1836,7 +1892,7 @@ export const useReadAHandBaseRewardsDistributed =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseShakesNumber = /*#__PURE__*/ createUseReadContract(
   {
@@ -1851,7 +1907,7 @@ export const useReadAHandBaseShakesNumber = /*#__PURE__*/ createUseReadContract(
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseSolvedHandsNumber =
   /*#__PURE__*/ createUseReadContract({
@@ -1865,7 +1921,7 @@ export const useReadAHandBaseSolvedHandsNumber =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseSupportsInterface =
   /*#__PURE__*/ createUseReadContract({
@@ -1879,7 +1935,7 @@ export const useReadAHandBaseSupportsInterface =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseThanksNumber = /*#__PURE__*/ createUseReadContract(
   {
@@ -1894,7 +1950,7 @@ export const useReadAHandBaseThanksNumber = /*#__PURE__*/ createUseReadContract(
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseTrust = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1907,7 +1963,7 @@ export const useReadAHandBaseTrust = /*#__PURE__*/ createUseReadContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useReadAHandBaseUri = /*#__PURE__*/ createUseReadContract({
   abi: aHandBaseAbi,
@@ -1920,7 +1976,7 @@ export const useReadAHandBaseUri = /*#__PURE__*/ createUseReadContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBase = /*#__PURE__*/ createUseWriteContract({
   abi: aHandBaseAbi,
@@ -1928,11 +1984,22 @@ export const useWriteAHandBase = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"addCharity"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWriteAHandBaseAddCharity = /*#__PURE__*/ createUseWriteContract(
+  { abi: aHandBaseAbi, address: aHandBaseAddress, functionName: 'addCharity' },
+)
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"give"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseGive = /*#__PURE__*/ createUseWriteContract({
   abi: aHandBaseAbi,
@@ -1945,7 +2012,7 @@ export const useWriteAHandBaseGive = /*#__PURE__*/ createUseWriteContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseRaise = /*#__PURE__*/ createUseWriteContract({
   abi: aHandBaseAbi,
@@ -1954,11 +2021,39 @@ export const useWriteAHandBaseRaise = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"removeCharity"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWriteAHandBaseRemoveCharity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'removeCharity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"renounceOwnership"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWriteAHandBaseRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'renounceOwnership',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseSafeBatchTransferFrom =
   /*#__PURE__*/ createUseWriteContract({
@@ -1972,7 +2067,7 @@ export const useWriteAHandBaseSafeBatchTransferFrom =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseSafeTransferFrom =
   /*#__PURE__*/ createUseWriteContract({
@@ -1986,7 +2081,7 @@ export const useWriteAHandBaseSafeTransferFrom =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseSetApprovalForAll =
   /*#__PURE__*/ createUseWriteContract({
@@ -2000,7 +2095,7 @@ export const useWriteAHandBaseSetApprovalForAll =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseShake = /*#__PURE__*/ createUseWriteContract({
   abi: aHandBaseAbi,
@@ -2013,7 +2108,7 @@ export const useWriteAHandBaseShake = /*#__PURE__*/ createUseWriteContract({
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWriteAHandBaseThank = /*#__PURE__*/ createUseWriteContract({
   abi: aHandBaseAbi,
@@ -2022,35 +2117,51 @@ export const useWriteAHandBaseThank = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbsDown"`
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbDown"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
-export const useWriteAHandBaseThumbsDown = /*#__PURE__*/ createUseWriteContract(
-  { abi: aHandBaseAbi, address: aHandBaseAddress, functionName: 'thumbsDown' },
-)
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbsUp"`
- *
- * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
- * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
- */
-export const useWriteAHandBaseThumbsUp = /*#__PURE__*/ createUseWriteContract({
+export const useWriteAHandBaseThumbDown = /*#__PURE__*/ createUseWriteContract({
   abi: aHandBaseAbi,
   address: aHandBaseAddress,
-  functionName: 'thumbsUp',
+  functionName: 'thumbDown',
 })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbUp"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWriteAHandBaseThumbUp = /*#__PURE__*/ createUseWriteContract({
+  abi: aHandBaseAbi,
+  address: aHandBaseAddress,
+  functionName: 'thumbUp',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"transferOwnership"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWriteAHandBaseTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'transferOwnership',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBase = /*#__PURE__*/ createUseSimulateContract({
   abi: aHandBaseAbi,
@@ -2058,11 +2169,25 @@ export const useSimulateAHandBase = /*#__PURE__*/ createUseSimulateContract({
 })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"addCharity"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useSimulateAHandBaseAddCharity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'addCharity',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"give"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseGive = /*#__PURE__*/ createUseSimulateContract(
   { abi: aHandBaseAbi, address: aHandBaseAddress, functionName: 'give' },
@@ -2073,7 +2198,7 @@ export const useSimulateAHandBaseGive = /*#__PURE__*/ createUseSimulateContract(
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseRaise =
   /*#__PURE__*/ createUseSimulateContract({
@@ -2083,11 +2208,39 @@ export const useSimulateAHandBaseRaise =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"removeCharity"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useSimulateAHandBaseRemoveCharity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'removeCharity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"renounceOwnership"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useSimulateAHandBaseRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'renounceOwnership',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseSafeBatchTransferFrom =
   /*#__PURE__*/ createUseSimulateContract({
@@ -2101,7 +2254,7 @@ export const useSimulateAHandBaseSafeBatchTransferFrom =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseSafeTransferFrom =
   /*#__PURE__*/ createUseSimulateContract({
@@ -2115,7 +2268,7 @@ export const useSimulateAHandBaseSafeTransferFrom =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseSetApprovalForAll =
   /*#__PURE__*/ createUseSimulateContract({
@@ -2129,7 +2282,7 @@ export const useSimulateAHandBaseSetApprovalForAll =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseShake =
   /*#__PURE__*/ createUseSimulateContract({
@@ -2143,7 +2296,7 @@ export const useSimulateAHandBaseShake =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useSimulateAHandBaseThank =
   /*#__PURE__*/ createUseSimulateContract({
@@ -2153,31 +2306,45 @@ export const useSimulateAHandBaseThank =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbsDown"`
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbDown"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
-export const useSimulateAHandBaseThumbsDown =
+export const useSimulateAHandBaseThumbDown =
   /*#__PURE__*/ createUseSimulateContract({
     abi: aHandBaseAbi,
     address: aHandBaseAddress,
-    functionName: 'thumbsDown',
+    functionName: 'thumbDown',
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbsUp"`
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"thumbUp"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
-export const useSimulateAHandBaseThumbsUp =
+export const useSimulateAHandBaseThumbUp =
   /*#__PURE__*/ createUseSimulateContract({
     abi: aHandBaseAbi,
     address: aHandBaseAddress,
-    functionName: 'thumbsUp',
+    functionName: 'thumbUp',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link aHandBaseAbi}__ and `functionName` set to `"transferOwnership"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useSimulateAHandBaseTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    functionName: 'transferOwnership',
   })
 
 /**
@@ -2185,7 +2352,7 @@ export const useSimulateAHandBaseThumbsUp =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseEvent = /*#__PURE__*/ createUseWatchContractEvent(
   { abi: aHandBaseAbi, address: aHandBaseAddress },
@@ -2196,7 +2363,7 @@ export const useWatchAHandBaseEvent = /*#__PURE__*/ createUseWatchContractEvent(
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseApprovalForAllEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2210,7 +2377,7 @@ export const useWatchAHandBaseApprovalForAllEvent =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseDownEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2220,11 +2387,25 @@ export const useWatchAHandBaseDownEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWatchAHandBaseOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"Raised"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseRaisedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2234,11 +2415,25 @@ export const useWatchAHandBaseRaisedEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"SuccessStory"`
+ *
+ * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
+ * -
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
+ */
+export const useWatchAHandBaseSuccessStoryEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: aHandBaseAbi,
+    address: aHandBaseAddress,
+    eventName: 'SuccessStory',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link aHandBaseAbi}__ and `eventName` set to `"Thanked"`
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseThankedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2252,7 +2447,7 @@ export const useWatchAHandBaseThankedEvent =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseTransferBatchEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2266,7 +2461,7 @@ export const useWatchAHandBaseTransferBatchEvent =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseTransferSingleEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2280,7 +2475,7 @@ export const useWatchAHandBaseTransferSingleEvent =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseUriEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2294,7 +2489,7 @@ export const useWatchAHandBaseUriEvent =
  *
  * - [__View Contract on Base Basescan__](https://basescan.org/address/0x5253BDB502be3D85c3932292AcCAf16233058e7F)
  * -
- * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0xf65282F52566f3f63d2FDd0dC7c6a2253C67B22d)
+ * - [__View Contract on Base Sepolia Basescan__](https://sepolia.basescan.org/address/0x189b37DB197E23830d5B3c6b2a1fa0FaC4AC5C4a)
  */
 export const useWatchAHandBaseUpEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
@@ -2476,31 +2671,6 @@ export const useReadErc165SupportsInterface =
   /*#__PURE__*/ createUseReadContract({
     abi: erc165Abi,
     functionName: 'supportsInterface',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc2771RecipientAbi}__
- */
-export const useReadErc2771Recipient = /*#__PURE__*/ createUseReadContract({
-  abi: erc2771RecipientAbi,
-})
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc2771RecipientAbi}__ and `functionName` set to `"getTrustedForwarder"`
- */
-export const useReadErc2771RecipientGetTrustedForwarder =
-  /*#__PURE__*/ createUseReadContract({
-    abi: erc2771RecipientAbi,
-    functionName: 'getTrustedForwarder',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc2771RecipientAbi}__ and `functionName` set to `"isTrustedForwarder"`
- */
-export const useReadErc2771RecipientIsTrustedForwarder =
-  /*#__PURE__*/ createUseReadContract({
-    abi: erc2771RecipientAbi,
-    functionName: 'isTrustedForwarder',
   })
 
 /**
@@ -2899,17 +3069,82 @@ export const useReadIerc165SupportsInterface =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc2771RecipientAbi}__
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ownableAbi}__
  */
-export const useReadIerc2771Recipient = /*#__PURE__*/ createUseReadContract({
-  abi: ierc2771RecipientAbi,
+export const useReadOwnable = /*#__PURE__*/ createUseReadContract({
+  abi: ownableAbi,
 })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc2771RecipientAbi}__ and `functionName` set to `"isTrustedForwarder"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ownableAbi}__ and `functionName` set to `"owner"`
  */
-export const useReadIerc2771RecipientIsTrustedForwarder =
-  /*#__PURE__*/ createUseReadContract({
-    abi: ierc2771RecipientAbi,
-    functionName: 'isTrustedForwarder',
+export const useReadOwnableOwner = /*#__PURE__*/ createUseReadContract({
+  abi: ownableAbi,
+  functionName: 'owner',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ownableAbi}__
+ */
+export const useWriteOwnable = /*#__PURE__*/ createUseWriteContract({
+  abi: ownableAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ownableAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteOwnableRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ownableAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ownableAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteOwnableTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ownableAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ownableAbi}__
+ */
+export const useSimulateOwnable = /*#__PURE__*/ createUseSimulateContract({
+  abi: ownableAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ownableAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateOwnableRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ownableAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ownableAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateOwnableTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ownableAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ownableAbi}__
+ */
+export const useWatchOwnableEvent = /*#__PURE__*/ createUseWatchContractEvent({
+  abi: ownableAbi,
+})
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link ownableAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchOwnableOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: ownableAbi,
+    eventName: 'OwnershipTransferred',
   })

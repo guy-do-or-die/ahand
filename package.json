@@ -26,15 +26,16 @@
     "@babel/preset-env": "^7.24.7",
     "@babel/runtime": "^7.24.7",
     "@builder.io/react": "^3.2.8",
+    "@coinbase/onchainkit": "^0.23.4",
     "@ethersproject/providers": "^5.7.2",
     "@ethersproject/wallet": "^5.7.0",
     "@mui/styles": "^5.15.20",
     "@openzeppelin/contracts": "^5.0.2",
+    "@permissionless/wagmi": "^0.0.4",
     "@phntms/react-share": "^1.0.2-rc1",
     "@privy-io/react-auth": "^1.73.0",
     "@privy-io/wagmi": "^0.2.10",
     "@react-spring/web": "^9.7.3",
-    "@solana/web3.js": "^1.93.2",
     "@tanstack/react-query": "^5.48.0",
     "@use-gesture/react": "^10.3.1",
     "@wagmi/cli": "^2.1.11",
@@ -44,10 +45,10 @@
     "@walletconnect/sign-client": "^2.13.3",
     "@walletconnect/types": "^2.13.3",
     "@walletconnect/utils": "^2.13.3",
+    "@xmtp/frames-validator": "^0.6.1",
     "@zerodev/ecdsa-validator": "^5.3.0",
     "@zerodev/privy": "^1.6.0",
     "@zerodev/sdk": "^5.3.1",
-    "@zerodev/wagmi": "^4.6.4",
     "@zerodev/weighted-ecdsa-validator": "^5.3.0",
     "autoprefixer": "^10.4.19",
     "buffer": "^6.0.3",
@@ -73,8 +74,8 @@
     "typescript": "^5.5.2",
     "use-draggable-scroll": "^0.1.0",
     "util": "^0.12.4",
-    "viem": "^2.16.2",
-    "wagmi": "^2.10.7",
+    "viem": "^2.16.3",
+    "wagmi": "^2.10.8",
     "wouter": "^3.3.0",
     "zustand": "^4.5.4"
   },
@@ -85,6 +86,6 @@
     "@vitejs/plugin-react": "^4.3.1",
     "prettier": "^3.3.2",
     "process": "^0.11.10",
-    "vite": "^5.3.1"
+    "vite": "^5.3.2"
   }
 }

@@ -178,12 +178,12 @@ const GiveButton = ({params: {hand, ref}, newRef, solution}) => {
 }
 
 
-const ThankButton = ({hand, solutionId, giverRef, charity, charityRate, maint, maintRate, comment}) => {
+const ThankButton = ({hand, giverRef, solutionId, thankRate, charity, charityRate, maint, maintRate, comment}) => {
 
   const [location, setLocation] = useLocation()
 
   const thankParams = {
-    args: [hand, solutionId, charity, charityRate, maint, maintRate, comment],
+    args: [hand, solutionId, thankRate * 100, charity, charityRate * 100, maint, maintRate * 100, comment],
     enabled: true,
     onConfirmationSuccess: data => {
       setLocation(`/hand/${hand}/${giverRef}/thanked`)
@@ -237,7 +237,7 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
   const [maint, setMaint] = useState('0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434')
   const [maintRate, setMaintRate] = useState(1)
 
-  const [comment, setComment] = useState()
+  const [comment, setComment] = useState("")
 
   const charityOptions = [
     { label: 'Shaoline', value: '0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434' },
@@ -269,8 +269,8 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
                   onChange={event => setComment(event.target.value)} />
       </div>
       <Slider label="Reward" value={thankRate} min={1} onChange={setThankRate} />
-      <Slider label={charitySelector} value={charityRate} min={1} onChange={setCharityRate} />
-      <Slider label="Maint." value={maintRate} onChange={setMaintRate} />
+      <Slider label={charitySelector} value={charityRate} min={1} max={20} onChange={setCharityRate} />
+      <Slider label="Maint." value={maintRate} max={10} onChange={setMaintRate} />
     </div>
   </div>
 }

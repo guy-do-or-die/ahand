@@ -1,30 +1,27 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-import { createConfig, usePublicClient, useAccount as useWagmiAccount, useConnect, useDisconnect } from "wagmi"
-import * as chains from "wagmi/chains"
+import { createConfig, usePublicClient, useAccount as useWagmiAccount, useWalletClient, useConnectorClient, useConnections, useConnect, useDisconnect } from 'wagmi'
+import * as chains from 'wagmi/chains'
 
-import { http, toFunctionSelector } from "viem"
-
-import { providerToSmartAccountSigner, ENTRYPOINT_ADDRESS_V06 } from "permissionless"
+import { http, createPublicClient, zeroAddress } from 'viem'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth"
-import { WagmiProvider, useSetActiveWallet } from "@privy-io/wagmi"
+import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth'
+import { WagmiProvider, useSetActiveWallet } from '@privy-io/wagmi'
 
-import { createKernelAccount, createZeroDevPaymasterClient } from "@zerodev/sdk"
-import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator"
-import { KERNEL_V3_1 } from "@zerodev/sdk/constants"
+import { createKernelAccount, createKernelAccountClient, createZeroDevPaymasterClient } from '@zerodev/sdk'
+import { signerToEcdsaValidator } from '@zerodev/ecdsa-validator'
+import { KERNEL_V3_1 } from '@zerodev/sdk/constants'
 
-import { kernelSmartAccount } from './connectors/kernelSmartAccount'
+import { providerToSmartAccountSigner, ENTRYPOINT_ADDRESS_V07 } from 'permissionless'
+import { createPimlicoPaymasterClient } from 'permissionless/clients/pimlico'
+import { walletClientToSmartAccountSigner } from 'permissionless/utils'
+import { smartAccount } from '@permissionless/wagmi'
 
 import { hide } from './components/Notification'
 import { useConfig } from './Store'
 
-
-const ZERODEV_PROJECT_ID = import.meta.env.VITE_ZERODEV_PROJECT_ID_BASE_SEPOLIA
-const ZERODEV_RPC = import.meta.env.VITE_ZERODEV_RPC
-const entryPoint = ENTRYPOINT_ADDRESS_V06
 
 const supportedChains = {
   'main': chains.base,
@@ -34,6 +31,28 @@ const supportedChains = {
 
 export const chain = supportedChains[import.meta.env.VITE_CHAIN]
 export const RPC_URL = import.meta.env.VITE_RPC
+
+const ZERODEV_PROJECT_ID = {
+  'base': import.meta.env.VITE_ZERODEV_PROJECT_ID_BASE,
+  'base-sepolia': import.meta.env.VITE_ZERODEV_PROJECT_ID_BASE_SEPOLIA,
+}[chain.network]
+
+const ZERODEV_RPC = import.meta.env.VITE_ZERODEV_RPC
+const ZERODEV_PAYMASTER_ENTRYPOINT = ENTRYPOINT_ADDRESS_V07 
+const ZERODEV_BUNDLER_ENTRYPOINT = ENTRYPOINT_ADDRESS_V07
+const ZERODEV_PAYMASTER_RPC = `${ZERODEV_RPC}/paymaster/${ZERODEV_PROJECT_ID}`
+const ZERODEV_BUNDLER_RPC = `${ZERODEV_RPC}/bundler/${ZERODEV_PROJECT_ID}`
+
+const COINBASE_PAYMASTER_ENTRYPOINT = import.meta.env.VITE_PAYMASTER_ENTRYPOINT
+const COINBASE_BUNDLER_ENTRYPOINT = COINBASE_PAYMASTER_ENTRYPOINT
+
+const COINBASE_PAYMASTER_RPC = import.meta.env.VITE_PAYMASTER_RPC.replace('{chain}', chain.network)
+const COINBASE_BUNDLER_RPC = COINBASE_PAYMASTER_RPC
+
+const kernel = {
+  entryPoint: ENTRYPOINT_ADDRESS_V07,
+  kernelVersion: KERNEL_V3_1,
+}
 
 export const Privy = ({children}) => {
 
@@ -88,24 +107,28 @@ export const useAccount = () => {
     ...props
   } = usePrivy()
 
-  //const { setActiveWallet } = useSetActiveWallet()
-  //const { ready: walletsReady, wallets } = useWallets()
-  //const { data: walletClient } = useWalletClient()
+  const { config } = useConfig()
 
-  //const account = useWagmiAccount()
+  const account = useWagmiAccount()
+  const connections = useConnections()
+  const connectorClient = useConnectorClient()
+  const walletClient = useWalletClient()
 
-  //const [smartAccountClient, setSmartAccountClient] = useState()
-  //const [address, setAddress] = useState()
-  //
+  const { ready: walletsReady, wallets } = useWallets()
+  
+  const { disconnectAsync } = useDisconnect()
+
   //const wallet = wallets.find((wallet) => wallet.address === user?.wallet.address)
 
-  const connected = ready && authenticated && !!user?.wallet?.address
+  const address = user?.wallet?.connectorType === 'embedded' && config.smartAccount || user?.wallet?.address
+  const connected = ready && authenticated && !!address 
 
   const login = async () => {
     await privyLogin()
   }
 
   const logout = async () => {
+    await disconnectAsync()
     await privyLogout()
     hide()
   }
@@ -116,6 +139,7 @@ export const useAccount = () => {
     logout,
     ...props,
     ...user?.wallet,
+    address,
   }
 }
 
@@ -124,15 +148,14 @@ const Wallet = ({children}) => {
 
   const { user } = usePrivy()
 
-  const { connectAsync } = useConnect()
+  const { config, setConfig } = useConfig()
 
   const { setActiveWallet } = useSetActiveWallet()
   const { ready: walletsReady, wallets } = useWallets()
 
+  const { connectAsync } = useConnect()
+
   const embeddedWallet = wallets.find(wallet => wallet.walletClientType === "privy")
-
-  const publicClient = usePublicClient()
-
 
   useEffect(() => {
     if (walletsReady) {
@@ -145,43 +168,68 @@ const Wallet = ({children}) => {
   useEffect(() => {
     if (embeddedWallet) {
       (async () => {
+        const publicClient = createPublicClient({transport: http(RPC_URL)})
+
         const provider = await embeddedWallet.getEthereumProvider()
         const signer = await providerToSmartAccountSigner(provider)
 
-        const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, entryPoint, kernelVersion: KERNEL_V3_1})
-        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, entryPoint, kernelVersion: KERNEL_V3_1})
-        const address = account.address
+        const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, ...kernel})
+        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, ...kernel})
 
-        const connector = await kernelSmartAccount({
-          bundlerTransport: http(`${ZERODEV_RPC}/bundler/${ZERODEV_PROJECT_ID}`),
-          publicClient,
-          entryPoint,
-          address,
-          signer,
-          sponsorUserOperation: async ({ userOperation }) => {
-            const zeroDevPaymaster = createZeroDevPaymasterClient({
-              transport: http(`${ZERODEV_RPC}/paymaster/${ZERODEV_PROJECT_ID}`),
-              entryPoint,
-              chain,
-            })
+        const smartAccountClient = await createKernelAccountClient({
+          bundlerTransport: http(ZERODEV_BUNDLER_RPC),
+          entryPoint: ZERODEV_BUNDLER_ENTRYPOINT,
+          middleware: {
+            sponsorUserOperation: async ({userOperation}) => {
+              const entryPoint = ZERODEV_PAYMASTER_ENTRYPOINT
 
-            return zeroDevPaymaster.sponsorUserOperation({
-              userOperation,
-              entryPoint,
-            })
+              const paymaster = createZeroDevPaymasterClient({
+                transport: http(ZERODEV_PAYMASTER_RPC),
+                entryPoint,
+                chain,
+              })
+
+              return paymaster.sponsorUserOperation({
+                userOperation,
+                entryPoint
+              })
+            },
           },
+          publicClient,
+          account,
+          signer,
+          chain,
         })
 
-        await connectAsync(
-          {
-            connector
-          },
-          {
-            onSuccess: data => {
-              console.log(data)
-            }
-          }
-        )
+        //const smartAccountClient = await createKernelAccountClient({
+        //  bundlerTransport: http(COINBASE_BUNDLER_RPC),
+        //  entryPoint: COINBASE_BUNDLER_ENTRYPOINT,
+        //  middleware: {
+        //    sponsorUserOperation: async ({userOperation}) => {
+        //      const entryPoint = COINBASE_PAYMASTER_ENTRYPOINT
+
+        //      const paymaster = createPimlicoPaymasterClient({
+        //        transport: http(COINBASE_PAYMASTER_RPC),
+        //        entryPoint,
+        //        chain,
+        //      })
+
+        //      return paymaster.sponsorUserOperation({
+        //        userOperation,
+        //        entryPoint
+        //      })
+        //    },
+        //  },
+        //  publicClient,
+        //  account,
+        //  signer,
+        //  chain,
+        //})
+
+        const connector = smartAccount({smartAccountClient})
+        await connectAsync({connector}, {onSuccess: data => console.log(data)})
+
+        setConfig("smartAccount", account.address)
       })()
     }
   }, [embeddedWallet])

@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { Link, Route } from "wouter";
 
 import { Notification, Header, Body, Footer } from "./components";
-import { Welcome, Hand, Hands, Raise, Solution } from "./pages";
+import { Welcome, Raise, Hand, Hands, User } from "./pages";
 
 
 export function App() {
@@ -18,6 +18,7 @@ export function App() {
       <Route path="/hand/:hand" component={Hand} />
       <Route path="/hand/:hand/:ref" component={Hand} />
       <Route path="/hand/:hand/:ref/:action" component={Hand} />
+      <Route path="/user/:address" component={User} />
     </Body>
     <Footer />
   </div>

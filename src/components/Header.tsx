@@ -21,7 +21,7 @@ import { useAccount, chain } from '../wallet'
 
 
 const Logo = () => {
-  return <div className="mx-5 mt-1 mb-4 cursor-pointer" title="Raise, shake, give and get rewarded!">
+  return <div className="mx-2 mt-1 mb-4 text-nowrap cursor-pointer" title="Raise, shake, give and get rewarded!">
     <Link href="/">
       <span className="text-6xl sm:text-5xl">a</span>
       <span className="text-7xl sm:text-6xl mr-1">🙌</span>
@@ -78,7 +78,7 @@ const Stat = () => {
       {stats.map((stat, index) => (
         <div key={index} className={`flex flex-col items-center text-center ${changedIndex === index ? 'animate-pulse font-bold' : ''}`}>
           <span className="text-lg font-semibold">
-            {stat.value}
+            {stat.label === 'Rewards' ? formatEther(stat.value) : stat.value}
           </span>
           <span className="text-xs">{stat.label}</span>
         </div>
@@ -176,15 +176,14 @@ export const Header = () => {
         <Logo />
       </div>
 
-      <div className="w-full text-center justify-center sm:mt-0 sm:w-auto sm:flex-1 sm:order-2">
-        <Stat />
-      </div>
-
-      <div className="flex w-full justify-center sm:justify-end sm:w-auto sm:order-3 mt-2 sm:mt-0">
+      <div className="flex w-full justify-center sm:justify-end sm:w-auto sm:order-3 space-x-1 mr-2 mt-2 sm:mt-0">
         <ThemeToggle />
         <Connection />
       </div>
 
+      <div className="w-full text-center justify-center mt-4 sm:mt-0 sm:w-auto sm:flex-1 sm:order-2">
+        <Stat />
+      </div>
     </div>
   )
 }
