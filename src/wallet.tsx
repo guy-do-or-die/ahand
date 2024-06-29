@@ -49,10 +49,6 @@ const COINBASE_BUNDLER_ENTRYPOINT = COINBASE_PAYMASTER_ENTRYPOINT
 const COINBASE_PAYMASTER_RPC = import.meta.env.VITE_PAYMASTER_RPC.replace('{chain}', chain.network)
 const COINBASE_BUNDLER_RPC = COINBASE_PAYMASTER_RPC
 
-const kernel = {
-  entryPoint: ENTRYPOINT_ADDRESS_V07,
-  kernelVersion: KERNEL_V3_1,
-}
 
 export const Privy = ({children}) => {
 
@@ -107,20 +103,16 @@ export const useAccount = () => {
     ...props
   } = usePrivy()
 
-  const { config } = useConfig()
-
-  const account = useWagmiAccount()
-  const connections = useConnections()
-  const connectorClient = useConnectorClient()
-  const walletClient = useWalletClient()
+  const { config, setConfig } = useConfig()
 
   const { ready: walletsReady, wallets } = useWallets()
   
   const { disconnectAsync } = useDisconnect()
 
-  //const wallet = wallets.find((wallet) => wallet.address === user?.wallet.address)
+  const wallet = wallets.find((wallet) => wallet.address === user?.wallet?.address)
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === "privy")
 
-  const address = user?.wallet?.connectorType === 'embedded' && config.smartAccount || user?.wallet?.address
+  const address = (config?.smartAccount || embeddedWallet) ? config?.smartAccount?.address : user?.wallet?.address
   const connected = ready && authenticated && !!address 
 
   const login = async () => {
@@ -128,6 +120,7 @@ export const useAccount = () => {
   }
 
   const logout = async () => {
+    setConfig("smartAccount", null)
     await disconnectAsync()
     await privyLogout()
     hide()
@@ -169,12 +162,12 @@ const Wallet = ({children}) => {
     if (embeddedWallet) {
       (async () => {
         const publicClient = createPublicClient({transport: http(RPC_URL)})
-
         const provider = await embeddedWallet.getEthereumProvider()
         const signer = await providerToSmartAccountSigner(provider)
 
-        const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, ...kernel})
-        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, ...kernel})
+        const kernelSettings = {entryPoint: ENTRYPOINT_ADDRESS_V07, kernelVersion: KERNEL_V3_1}
+        const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, ...kernelSettings})
+        const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, ...kernelSettings})
 
         const smartAccountClient = await createKernelAccountClient({
           bundlerTransport: http(ZERODEV_BUNDLER_RPC),
@@ -229,7 +222,7 @@ const Wallet = ({children}) => {
         const connector = smartAccount({smartAccountClient})
         await connectAsync({connector}, {onSuccess: data => console.log(data)})
 
-        setConfig("smartAccount", account.address)
+        setConfig("smartAccount", account)
       })()
     }
   }, [embeddedWallet])

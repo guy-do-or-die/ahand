@@ -144,9 +144,11 @@ const ShakeButton = ({params: {hand, ref}, newRef, comment}) => {
 
   const [location, setLocation] = useLocation()
 
+  const {connected} = useAccount()
+
   const shakeParams = {
     args: [hand, ref, newRef, comment],
-    enabled: true,
+    enabled: connected,
     onConfirmationSuccess: data => {
       setLocation(`/hand/${hand}/${newRef}/share`)
     }
@@ -269,8 +271,8 @@ const Solution = ({hand, id, isOpen, onToggle}) => {
                   onChange={event => setComment(event.target.value)} />
       </div>
       <Slider label="Reward" value={thankRate} min={1} onChange={setThankRate} />
-      <Slider label={charitySelector} value={charityRate} min={1} max={20} onChange={setCharityRate} />
-      <Slider label="Maint." value={maintRate} max={10} onChange={setMaintRate} />
+      <Slider label={charitySelector} value={charityRate} min={1} max={33} onChange={setCharityRate} />
+      <Slider label="Maint." value={maintRate} max={33} onChange={setMaintRate} />
     </div>
   </div>
 }

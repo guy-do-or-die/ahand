@@ -16,8 +16,8 @@ export const parseError = (error) => {
   let msg
 
   if (error) {
+    console.log(error)
     msg = error.message
-    console.log(msg)
 
     templates.some(template => {
       const matches = msg.match(template)

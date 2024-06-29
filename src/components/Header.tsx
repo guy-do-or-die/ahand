@@ -74,7 +74,7 @@ const Stat = () => {
   }, [data])
 
   return (
-    <div className="flex items-center justify-center space-x-4 sm:space-x-8 md:space-x-16 mt-2 mb-4 md:mb-0">
+    <div className="flex items-center justify-center space-x-4 sm:space-x-4 md:space-x-16 mt-2 mb-4 md:mb-0">
       {stats.map((stat, index) => (
         <div key={index} className={`flex flex-col items-center text-center ${changedIndex === index ? 'animate-pulse font-bold' : ''}`}>
           <span className="text-lg font-semibold">
@@ -171,17 +171,17 @@ export const Connection = () => {
 
 export const Header = () => {
   return (
-    <div className="flex flex-col items-center justify-start w-full p-4 sm:flex-row sm:justify-between sm:p-2">
-      <div className="w-full text-center sm:text-left sm:w-auto sm:order-1">
+    <div className="flex flex-col items-center justify-start w-full p-4 md:flex-row md:justify-between md:p-2">
+      <div className="w-full text-center md:text-left md:w-auto md:order-1">
         <Logo />
       </div>
 
-      <div className="flex w-full justify-center sm:justify-end sm:w-auto sm:order-3 space-x-1 mr-2 mt-2 sm:mt-0">
+      <div className="flex w-full justify-center md:justify-end md:w-auto md:order-3 space-x-1 mr-2 mt-2 md:mt-0">
         <ThemeToggle />
         <Connection />
       </div>
 
-      <div className="w-full text-center justify-center mt-4 sm:mt-0 sm:w-auto sm:flex-1 sm:order-2">
+      <div className="w-full text-center justify-center mt-4 md:mt-0 md:w-auto md:flex-1 md:order-2">
         <Stat />
       </div>
     </div>

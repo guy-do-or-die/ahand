@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react"
-import { parseEther } from "viem"
+import { useState, useEffect, useRef } from "react"
+import { parseEther, formatEther } from "viem"
 import { useLocation } from "wouter"
 
 import { useBlockNumber } from "wagmi"
@@ -14,6 +14,7 @@ import { useAccount } from "../wallet"
 import { genRef } from "../utils"
 
 import {
+  useReadAHandBaseMinimumReward,
   useSimulateAHandBaseRaise,
   useWriteAHandBaseRaise,
   useWatchAHandBaseRaisedEvent,
@@ -29,6 +30,8 @@ export const Raise = () => {
 
   !authenticated && setLocation('/')
 
+  const {data: minReward} = useReadAHandBaseMinimumReward()
+
   const [block, setBlock] = useState(0)
 
   const [problem, setProblem] = useState()
@@ -39,19 +42,6 @@ export const Raise = () => {
   useEffect(() => {
     !ready || !authenticated && setLocation("/")
   }, [ready, authenticated])
-
-  const handleRewardChange = (event) => {
-    const value = event.target.value
-
-    if (
-      value === ''
-      || value === '.'
-      || value === '0.'
-      || (/^\d*\.?\d+$/.test(value) && parseFloat(value) >= 0)
-    ) {
-      setReward(value)
-    }
-  }
 
   const [ref, setRef] = useState(genRef())
 
@@ -91,14 +81,42 @@ export const Raise = () => {
     }
   })
 
+  const problemRef = useRef(null);
+
+  useEffect(() => {
+    problemRef.current.focus();
+  }, []);
+
+  const handleRewardFocus = (event) => {
+    if (reward === '') {
+      setReward(formatEther(minReward))
+    }
+  }
+
+  const handleRewardChange = (event) => {
+    const value = event.target.value
+
+    if (
+      value === ''
+      || value === '.'
+      || value === '0.'
+      || (/^\d*\.?\d+$/.test(value) && parseFloat(value) >= 0)
+    ) {
+      setReward(value)
+    }
+  }
+
+  const rewardPattern = "^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$"
+
   return <div>
     <div className="lg:tooltip w-full h-48 md:h-32" data-tip="Type or paste a link to your problem description">
-      <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32" name="problem" placeholder="Problem" onChange={event => setProblem(event.target.value)} />
+    <textarea className="textarea textarea-bordered w-full resize-none lg:resize-y min-h-32 h-48 md:h-32"
+              name="problem" placeholder="Problem" ref={problemRef} onChange={event => setProblem(event.target.value)} />
     </div>
-    <div className="card-actions justify-center mt-2">
-      <div className="lg:tooltip w-full max-w-xs" data-tip="Set a fair reward for solution chain participants">
-        <input type="text" placeholder="Reward" className="input input-bordered w-full"
-               pattern="^(0*?[1-9]\d*(\.\d+)?|0*\.\d*[1-9]\d*)$" value={reward} onChange={handleRewardChange} />
+    <div className="card-actions flex justify-center mt-2">
+      <div className="lg:tooltip" data-tip="Set a fair reward for solution chain participants">
+      <input type="text" placeholder="Reward" className="input input-bordered w-32 sm:w-full text-center"
+             value={reward} onFocus={handleRewardFocus} onChange={handleRewardChange} pattern={rewardPattern} />
       </div>
 
       <div className="lg:tooltip" data-tip="Publish your problem">
