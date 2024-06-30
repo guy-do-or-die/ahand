@@ -15,3 +15,10 @@ export const useConfig = create(
     }
   )
 )
+
+
+export const useHistory = create((set) => ({
+  history: [],
+  addHistory: (path) => set((state) => ({ history: [...state.history, path] })),
+  removeLastHistory: () => set((state) => ({ history: state.history.slice(0, -1) })),
+}));

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 
 import { useBlockNumber, useReadContracts } from "wagmi"
-import { formatEther } from "viem"
+
+import { EthValue } from "./Currency"
 
 import { chain } from "../wallet"
 
@@ -63,7 +64,7 @@ export const BaseStat = () => {
       {stats.map((stat, index) => (
         <div key={index} className={`flex flex-col items-center text-center ${changedIndex === index ? 'animate-pulse font-bold' : ''}`}>
           <span className="text-lg font-semibold">
-            {stat.label === 'Rewards' ? formatEther(stat.value) : stat.value}
+            {stat.label === 'Rewards' ? <EthValue value={stat.value} /> : stat.value}
           </span>
           <span className="text-xs">{stat.label}</span>
         </div>

@@ -24,7 +24,7 @@ export const Hands = () => {
     watch: true,
   });
 
-  return <div>
+  return <div className="text-center">
     { [...Array(parseInt(handsNumber || 0)).keys()].map(id => <HandsItem id={id} />) }  
   </div>
 }

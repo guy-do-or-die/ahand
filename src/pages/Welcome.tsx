@@ -1,22 +1,22 @@
-import { useEffect } from "react";
+import { useEffect } from "react"
 
-import { usePrivy } from "@privy-io/react-auth";
+import { useLocation } from "wouter"
 
-import { useLocation } from "wouter";
+import { useAccount } from "../wallet"
 
 
 export const Welcome = () => {
 
-  const {ready, authenticated, login} = usePrivy();
+  const [, setLocation] = useLocation()
 
-  const [location, setLocation] = useLocation();
+  const {connected, login} = useAccount()
 
   useEffect(() => {
-    ready && authenticated && setLocation("/raise");
-  }, [ready, authenticated])
+    connected && setLocation("/raise");
+  }, [connected])
 
   return <div className="items-center justify-center">
-    <div className="text-center space-y-4 mb-10">
+    <div className="text-center space-y-2 mb-10">
       <div className="text-xl">
         <span className="text-2xl font-bold">✋ Raise</span> to find a solution for any problem via few handshakes
       </div>
@@ -30,7 +30,7 @@ export const Welcome = () => {
     <div className="text-center">
       <div className="text-3xl">A hand is near,</div>
         <div className="text-5xl font-bold transform transition hover:animate-handshake">
-        <a href="#" onClick={login}>shake it!</a>
+        <a href="#" onClick={connected ? () => setLocation('/raise') : login}>shake it!</a>
       </div>
     </div>
   </div>

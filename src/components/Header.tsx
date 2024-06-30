@@ -2,19 +2,18 @@ import { useState, useEffect } from "react"
 
 import { useBlockNumber, useReadContracts, useBalance, useSwitchChain } from "wagmi"
 
-import { formatEther } from 'viem'
-
 import { CopyToClipboard } from 'react-copy-to-clipboard'
 
 import { Link } from "wouter"
 
 import { ThemeToggle } from "./Theme"
-import { CurrencyToggle } from "./Currency"
+import { CurrencyToggle, CurrencyFetch } from "./Currency"
 
 import { Name } from '@coinbase/onchainkit/identity'
 
 import { BaseStat, UserStat } from "./Stat"
 import { notify, hide, notImplemented } from "./Notification"
+import { EthValue } from "./Currency"
 
 import { aHandBaseAddress, aHandBaseAbi } from '../contracts'
 
@@ -64,11 +63,6 @@ export const Connection = () => {
 
   const [currentAddress, setCurrentAddress] = useState(address)
 
-  //useEffect(async () => {
-  //  setCurrentAddress(address)
-  //  //await logout()
-  //}, [address])
-
   if (connected && !aHandBaseAddress[chain.id]) {
     const wrongChainNotificationId = 'wrong-chain'
 
@@ -76,13 +70,16 @@ export const Connection = () => {
   }
 
   return <>
+    <CurrencyFetch />
     {
       connected
         ?
       <div className="dropdown dropdown-end dropdown-hover">
         <div className="join">
           <CurrencyToggle />
-          <div tabIndex="0" role="button" className="btn btn-outline btn-sm md:btn-md join-item w-32 md:text-lg">{balanceData?.formatted.slice(0, 7)}</div>
+          <div tabIndex="0" role="button" className="btn btn-outline btn-sm md:btn-md join-item w-32 md:text-lg">
+            <EthValue value={balanceData?.value} />
+          </div>
         </div>
         <ul tabIndex="0" className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full flex flex-col items-stretch">
           <li className="w-full">

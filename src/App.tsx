@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { Link, Route } from "wouter";
 
-import { Notification, Header, Body, Footer } from "./components";
+import { Notification, Header, BackButton, Body, Footer } from "./components";
 import { Welcome, Raise, Hand, Hands, User } from "./pages";
 
 

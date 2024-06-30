@@ -1,5 +1,3 @@
-import { formatEther } from "viem"
-
 import { useLocation } from "wouter"
 
 import { CopyToClipboard } from 'react-copy-to-clipboard'

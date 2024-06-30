@@ -4,13 +4,10 @@ import { useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 
 import { useBalance } from "wagmi"
-import { formatEther } from "viem"
 
-import { useLocation } from "wouter"
+import { useLocation, Link } from "wouter"
 
-import { Button, ShareForm, ShareMeta } from "../components"
-
-import { notImplemented } from "../components/Notification"
+import { Button, ShareForm, ShareMeta, EthValue, notImplemented } from "../components"
 
 import { useAccount } from "../wallet"
 import { genRef } from "../utils"
@@ -32,7 +29,7 @@ import {
 import { useConfig } from '../Store'
 
 
-const Problem = ({params: {hand, ref}, action}) => {
+const Problem = ({params: {hand, ref}, raiser, action}) => {
 
   const {data: problem} = useReadAHandProblem({
     address: hand,
@@ -49,7 +46,7 @@ const Problem = ({params: {hand, ref}, action}) => {
     <div className="card-title text-center mb-8 text-xl md:text-2xl lg:text-3xl justify-center">
       {problem}
     </div>
-    <Shakes hand={hand} shakeRef={ref} reward={reward} action={action} />
+    <Shakes hand={hand} shakeRef={ref} reward={reward} raiser={raiser} action={action} />
   </div>
 }
 
@@ -63,7 +60,7 @@ const Shake = ({children, classes = 'badge-neutral'}) => {
 }
 
 
-const Shakes = ({hand, shakeRef, reward, action}) => {
+const Shakes = ({hand, shakeRef, raiser, reward, action}) => {
 
   const { chain } = useAccount()
 
@@ -74,6 +71,7 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
   })
 
   const shakes = shakesData || []
+  const [, ...addresses] = shakes.reverse()
 
   const [baseReward, ...rewards] = shakes.reduce((acc, _, i) => {
     const amount = (i === 0 ? reward : acc[i - 1]) / 2
@@ -105,15 +103,24 @@ const Shakes = ({hand, shakeRef, reward, action}) => {
 
   return <>
     <div className="flex justify-center mb-4 shakes">
+
       <div ref={shakesRef} {...drag()} style={{ x, y, touchAction: 'none' }}
            className="flex overflow-x-scroll no-scrollbar select-none">
         <div className="flex-shrink-0 space-x-4 m-auto">
-          <Shake classes="badge-neutral badge-lg !ml-4">✋</Shake>
-          {rewards.reverse().map((reward, i) => (
-            <Shake key={i}>🤝 {formatEther(reward)}</Shake>
-          ))}
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-500 -translate-y-1/2"></div>
+          <Link href={`/user/${raiser}`}>
+            <Shake classes="badge-neutral badge-lg !ml-4">✋</Shake>
+          </Link>
+          {
+            rewards.reverse().map(
+              (reward, i) => <>
+                <Link key={i} href={`/user/${addresses[i]}`}>
+                  <Shake >🤝 <EthValue value={reward} /></Shake>
+                </Link>
+              </>)
+          }
           <Shake classes="badge-success badge-lg !mr-4">
-            {lastIcon} {formatEther(potentialReward)} {chain?.nativeCurrency.symbol}
+            {lastIcon} <EthValue value={potentialReward} /> {chain?.nativeCurrency.symbol}
           </Shake>
         </div>
       </div>
@@ -296,10 +303,17 @@ const Solutions = ({hand}) => {
   })
 
   return <div className="join join-vertical w-full">
-    { 
+    {
+      solutions.length > 0
+        ?
       solutions.map(id => 
         <Solution id={id} hand={hand} key={id} isOpen={active === id} 
                   onToggle={id => setActive(active === id ? null : id)} />)
+        :
+      <div className="text-center text-lg">
+        <p>No solutions provided yet</p>
+        <p>¯\_(ツ)_/¯</p>
+      </div>
     }
   </div>
 }
@@ -354,7 +368,7 @@ export const Hand = ({params}) => {
   }[action]
 
   return <div>
-    <Problem params={params} action={action} />
+    <Problem params={params} raiser={raiser} action={action} />
     <p className="text-2xl text-gray-700 text-center">{msg}</p>
     { params.ref ? <div>{el}</div> : <Solutions hand={params.hand} /> }
   </div>
