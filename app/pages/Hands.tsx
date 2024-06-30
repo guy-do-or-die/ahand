@@ -25,6 +25,6 @@ export const Hands = () => {
   });
 
   return <div className="text-center">
-    { [...Array(parseInt(handsNumber || 0)).keys()].map(id => <HandsItem id={id} />) }  
+    { [...Array(parseInt(handsNumber || 0)).keys()].map(id => <HandsItem key={id} id={id} />) }  
   </div>
 }

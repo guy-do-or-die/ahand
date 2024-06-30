@@ -169,7 +169,7 @@ const Wallet = ({children}) => {
         const ecdsaValidator = await signerToEcdsaValidator(publicClient, {signer, ...kernelSettings})
         const account = await createKernelAccount(publicClient, {plugins: {sudo: ecdsaValidator}, ...kernelSettings})
 
-        const smartAccountClient = await createKernelAccountClient({
+        const zerodevAccountClient = await createKernelAccountClient({
           bundlerTransport: http(ZERODEV_BUNDLER_RPC),
           entryPoint: ZERODEV_BUNDLER_ENTRYPOINT,
           middleware: {
@@ -194,7 +194,9 @@ const Wallet = ({children}) => {
           chain,
         })
 
-        //const smartAccountClient = await createKernelAccountClient({
+        let smartAccountClient = zerodevAccountClient
+
+        //const coinbaseAccountClient = await createKernelAccountClient({
         //  bundlerTransport: http(COINBASE_BUNDLER_RPC),
         //  entryPoint: COINBASE_BUNDLER_ENTRYPOINT,
         //  middleware: {
@@ -218,6 +220,12 @@ const Wallet = ({children}) => {
         //  signer,
         //  chain,
         //})
+        //
+        //const addressCode = await publicClient.getCode({address: account.address})
+        //
+        //if (addressCode && addressCode != '0x') {
+        //  smartAccountClient = coinbaseAccountClient
+        //}
 
         const connector = smartAccount({smartAccountClient})
         await connectAsync({connector}, {onSuccess: data => console.log(data)})

@@ -8,7 +8,7 @@ import * as chains from "wagmi/chains";
 config();
 
 export default defineConfig({
-  out: "src/contracts.ts",
+  out: "app/contracts.ts",
   plugins: [
     foundry({
       deployments: {

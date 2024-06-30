@@ -46,9 +46,9 @@ export const notify = (content, typ, params) => {
   }[typ] || {}
 
   if (content) {
-    const contentEl = (typ === 'error' && typeof conent === 'string') ? (
-      <CopyToClipboard text={conent} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
-        conent
+    const contentEl = (typ === 'error' && typeof content === 'string') ? (
+      <CopyToClipboard text={content} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
+        <div>{content}</div>
       </CopyToClipboard>
     ) : content
 

@@ -6,7 +6,7 @@
 //   By: egusev <egusev@student.42yerevan.am>       +#+  +:+       +#+        //
 //                                                +#+#+#+#+#+   +#+           //
 //   Created: 2024/05/11 19:49:20 by egusev            #+#    #+#             //
-//   Updated: 2024/05/30 16:24:30 by egusev           ###   ########.fr       //
+//   Updated: 2024/06/30 07:40:17 by egusev           ###   ########.fr       //
 //                                                                            //
 // ************************************************************************** //
 
@@ -18,7 +18,7 @@ export default {
   mode: 'jit',
   content: [
     "./index.html",
-    "./src/**/*.{html,js,jsx,ts,tsx,vue}",
+    "./app/**/*.{html,js,jsx,ts,tsx,vue}",
   ],
   darkMode: ['selector', '[data-theme="dark"]'],
   important: '#app',
