@@ -9,7 +9,7 @@ export { ShareMeta } from "./ShareMeta"
 
 export { Links } from "./Links"
 
-export { Notification, notify, parseError, notImplemented } from "./Notification"
+export { Notification, notify, hide, parseError, notImplemented, saveRef } from "./Notification"
 export { BackButton, Breadcrumbs } from "./Navigation"
 
 export { UserStat, BaseStat } from "./Stat"
