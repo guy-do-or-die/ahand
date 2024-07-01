@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-import { frame } from '@coinbase/onchainkit'
+import { getFrameHtmlResponse } from '@coinbase/onchainkit/frame'
 
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
 
   return response.send(
-    frame.getFrameHtmlResponse({
+    getFrameHtmlResponse({
       buttons: [
         {
           label: `Test`,
