@@ -1,16 +1,4 @@
-// ************************************************************************** //
-//                                                                            //
-//                                                        :::      ::::::::   //
-//   tailwind.config.js                                 :+:      :+:    :+:   //
-//                                                    +:+ +:+         +:+     //
-//   By: egusev <egusev@student.42yerevan.am>       +#+  +:+       +#+        //
-//                                                +#+#+#+#+#+   +#+           //
-//   Created: 2024/05/11 19:49:20 by egusev            #+#    #+#             //
-//   Updated: 2024/06/30 07:40:17 by egusev           ###   ########.fr       //
-//                                                                            //
-// ************************************************************************** //
-
-const defaultTheme = require('tailwindcss/defaultTheme');
+const defaultTheme = require('tailwindcss/defaultTheme')
 
 
 /** @type {import('tailwindcss').Config} */

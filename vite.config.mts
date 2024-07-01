@@ -43,8 +43,21 @@ export default defineConfig(({ command }) => ({
     })(),
   },
   plugins: [
-    react(),
     vercel(),
+    react(),
     customResolverPlugin(),
   ],
-}));
+  server: (() => {
+    if (command !== "dev") {
+        return {
+            proxy: {
+              "/api": {
+                target: "http://localhost:3000",
+                changeOrigin: true,
+                secure: false,
+              },
+            }
+        }
+    }
+  })
+}))
