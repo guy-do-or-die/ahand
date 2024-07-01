@@ -14,7 +14,12 @@
     "skipLibCheck": true,
     "strict": false,
     "target": "ESNext",
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["app/*"],
+      "@api/*": ["_api/*"]
+    }
   },
-  "include": ["./app"]
+  "include": ["app/**/*.ts", "_api/**/*.ts"]
 }

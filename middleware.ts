@@ -9,7 +9,7 @@ export default function middleware(request: Request, ) {
   const shouldRedirect = url.pathname.startsWith('/hand/')
   const isFromFrame = request.headers.get('user-agent') === FC_USER_AGENT 
 
-  if (shouldRedirect) {
+  if (shouldRedirect && isFromFrame) {
     return rewrite(new URL(`/api/frame?path=${url.pathname}`, request.url))
   }
 
