@@ -2,6 +2,8 @@ import react from "@vitejs/plugin-react"
 
 import { defineConfig } from "vite"
 
+import vercel from 'vite-plugin-vercel'
+
 
 function customResolverPlugin() {
   return {
@@ -42,42 +44,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     react(),
+    vercel(),
     customResolverPlugin(),
   ],
-  server: {
-    middlewares: [
-      {
-        name: 'handle-api-requests',
-        configureServer(server) {
-          server.middlewares.use((req, res, next) => {
-            if (req.url?.startsWith('/api/')) {
-              if (req.method === 'GET' && req.url === '/api/hello') {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Hello, World!' }));
-                return;
-              }
-              
-              if (req.method === 'POST' && req.url === '/api/echo') {
-                let body = '';
-                req.on('data', chunk => {
-                  body += chunk.toString();
-                });
-                req.on('end', () => {
-                  res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(body);
-                });
-                return;
-              }
-              
-              res.writeHead(404, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Not Found' }));
-              return;
-            }
-
-            next();
-          });
-        },
-      },
-    ],
-  },
 }));

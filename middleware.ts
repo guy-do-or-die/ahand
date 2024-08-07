@@ -1,18 +1,11 @@
-import { MiddlewareRequest, MiddlewareResponse } from "vite-vercel/server"
+import { rewrite } from '@vercel/edge';
 
 
-export default (req: MiddlewareRequest) => {
-  const url = new URL(req.url)
+export default function middleware(request: Request) {
+  const url = new URL(request.url);
 
-  if (url.pathname === "/from-middleware") {
-    return new Response("from middleware")
+  if (url.pathname.startsWith('/check')) {
+    return rewrite(new URL('/check-check', request.url));
   }
 
-  if (url.pathname === "/todo") {
-    return MiddlewareResponse.rewrite(
-      "https://jsonplaceholder.typicode.com/todos/1",
-    )
-  }
-
-  return MiddlewareResponse.next()
 }
