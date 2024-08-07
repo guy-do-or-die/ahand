@@ -8,7 +8,7 @@ import { usePrivy } from "@privy-io/react-auth"
 
 import { Button, parseError } from "../components"
 
-import { notify, hide } from "../components/Notification"
+import { notify, hide, saveRef } from "../components"
 
 import { useAccount } from "../wallet"
 import { genRef } from "../utils"
@@ -26,7 +26,7 @@ export const Raise = () => {
   const [location, setLocation] = useLocation()
 
   const {ready, authenticated} = usePrivy()
-  const {address, chain} = useAccount()
+  const {connected, address, chain} = useAccount()
 
   !authenticated && setLocation('/')
 
@@ -44,6 +44,11 @@ export const Raise = () => {
   }, [ready, authenticated])
 
   const [ref, setRef] = useState(genRef())
+
+  useEffect(() => {
+    connected && saveRef(ref)
+    console.log(ref)
+  }, [ref])
 
   const [pending, setPending] = useState(false)
 

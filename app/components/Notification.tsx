@@ -3,6 +3,21 @@ import { Toaster, toast } from "react-hot-toast"
 import { CopyToClipboard } from 'react-copy-to-clipboard'
 
 
+export const Copy = ({content, toCopy, onCopy: onCopyCallback}) => {
+
+  const onCopy = () => {
+    notify(`Copied to clipboard`, 'success', {duration: 1000})
+    onCopyCallback()
+  }
+
+  return (
+    <CopyToClipboard text={toCopy || content} onCopy={onCopy}>
+      <div className="cursor-pointer">{content}</div>
+    </CopyToClipboard>
+  )
+}
+
+
 export const parseError = (error) => {
 
   const templates = [
@@ -46,11 +61,7 @@ export const notify = (content, typ, params) => {
   }[typ] || {}
 
   if (content) {
-    const contentEl = (typ === 'error' && typeof content === 'string') ? (
-      <CopyToClipboard text={content} onCopy={() => notify(`Copied to Clipboard`, 'success', {duration: 1000})}>
-        <div>{content}</div>
-      </CopyToClipboard>
-    ) : content
+    const contentEl = typ === 'error' ? <Copy content={content} /> : content
 
     return (toast[typ] || toast)(contentEl, {...defaultParams, ...params})
   }
@@ -59,6 +70,18 @@ export const notify = (content, typ, params) => {
 
 export const notImplemented = () => {
   return notify('Feature is not ready just yet', 'info', {icon: '😬'})
+}
+
+
+export const saveRef = (ref) => {
+  const notificationId = "id-ref"
+
+  const text = "Click to save your referral code as it's not being stored"
+
+  return notify(
+    <Copy content={text} toCopy={ref} onCopy={() => hide(notificationId)} />, 'info',
+    {id: notificationId, icon: '❗', minWidth: '300px', duration: Infinity}
+  )
 }
 
 
