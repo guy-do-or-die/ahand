@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { Link, useLocation } from 'wouter'
 
@@ -7,25 +7,31 @@ import { useHistory } from '../Store'
 
 export const BackButton = ({className = '', children = '←'}) => {
 
-  const [, setLocation] = useLocation()
+  const [localtion, setLocation] = useLocation()
 
   const addHistory = useHistory((state) => state.addHistory)
   const removeLastHistory = useHistory((state) => state.removeLastHistory)
   const history = useHistory((state) => state.history)
 
+  const locationRef = useRef(location)
+
   useEffect(() => {
-    addHistory(location.pathname);
-  }, [location.pathname]);
+    if (locationRef.current.pathname !== location.pathname) {
+      addHistory(location);
+    }
+
+    locationRef.current = location
+  }, [location, addHistory])
 
   const handleBack = () => {
-    const previousPath = history[history.length - 2] || '/';
+    const previousPath = history.length > 1 ? history[history.length - 2] : '/'; 
 
     removeLastHistory()
     setLocation(previousPath)
   }
 
   return (
-    history.length > 0 && !['/', '/raise'].includes(location.pathname)
+    history.length > 0 && !['/', '/raise', '/hands'].includes(location.pathname)
       ?
         <button className={`btn btn-xs btn-ghost rounded-b-none ${className}`} title="Back" onClick={handleBack}>
           {children}

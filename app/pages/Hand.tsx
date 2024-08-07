@@ -31,9 +31,13 @@ import { useConfig } from '../Store'
 
 const Problem = ({params: {hand, ref}, raiser, action}) => {
 
-  const {data: problem} = useReadAHandProblem({
+  const [location, setLocation] = useLocation()
+
+  const {data: problem, isFetched: problemFetched} = useReadAHandProblem({
     address: hand,
   })
+
+  problemFetched && !problem && setLocation('/404')
 
   const {data: rewardData} = useBalance({
     address: hand,

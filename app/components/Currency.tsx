@@ -57,7 +57,7 @@ export const CurrencyFetch = () => {
         const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
         setConfig('price', response?.data?.ethereum?.usd)
       } catch (error) {
-        norify('Failed to fetch price', 'error')
+        notify('Failed to fetch price', 'error')
         console.error('Error fetching ETH price:', error)
       } finally {
         hide(fetchPriceId)
