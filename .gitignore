@@ -59,3 +59,8 @@ contracts/lib/*
 # wagmi
 
 *.mjs
+
+
+# api symlink
+api/*
+api
