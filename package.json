@@ -2,6 +2,9 @@
   "name": "ahand",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "test": "echo 'testing'",
     "anvil": "bash -c '. .env.anvil && anvil --fork-url $ANVIL_FORK_URL --chain-id $ANVIL_CHAIN_ID -a 30 -b 2'",
