@@ -25,16 +25,6 @@ contract AHandCore {
     mapping(address => bool) public charityWhitelist;                 // reserved for timelock gating
     mapping(address => mapping(address => uint96)) public pending;   // [owner][token]
 
-    /*//////////////////// Reentrancy Guard ////////////////////*/
-    uint8 private _unlocked = 1;
-
-    modifier nonReentrant() {
-        require(_unlocked == 1, "REENTRANCY");
-        _unlocked = 0;
-        _;
-        _unlocked = 1;
-    }
-
     constructor(address[] memory charities, address maintainer_) {
         DOMAIN_SEPARATOR = AHandSig.domainSeparator(address(this));
         maintainer = maintainer_;
@@ -76,7 +66,7 @@ contract AHandCore {
         hands[handId] = Hand({
             raiser: msg.sender,
             token: token,
-            remainingReward: credited,
+            remainingReward: credited,          // I-12: balance is never read again
             expiry: expiry,
             charityFeeBps: charityFeeBps,
             maintFeeBps: maintFeeBps,
@@ -89,7 +79,16 @@ contract AHandCore {
         emit HandRaised(handId, msg.sender, token, credited, expiry, metadataHash);
     }
 
-    /*//////////////////// Verification Helpers ////////////////////*/
+    /*//////////////////// Reentrancy and Helpers ////////////////////*/
+    uint8 private _unlocked = 1;
+
+    modifier nonReentrant() {
+        require(_unlocked == 1, "REENTRANCY");
+        _unlocked = 0;
+        _;
+        _unlocked = 1;
+    }
+
     function _recover(bytes32 digest, bytes memory sig) internal pure returns (address) {
         if (sig.length != 65) return address(0);
         bytes32 r;
@@ -150,37 +149,45 @@ contract AHandCore {
 
             payees[i] = s.payout;
             margins[i] = s.parentClaimBps - s.childClaimBps;
-
             prevCap = s.childCapability;
             prevClaim = s.childClaimBps;
         }
 
-        if (give.handId != handId) revert WrongHand();
-        bytes32 giveHash = AHandSig.hashGive(give);
-        bytes32 giveDigest = AHandSig.digest(ds, giveHash);
+        bytes32 giveStructHash = AHandSig.hashGive(give);
+        bytes32 giveDigest = AHandSig.digest(ds, giveStructHash);
 
         if (!_isValidSignature(prevCap, giveDigest, giveSig)) revert CapabilityProof();
+        if (give.handId != handId) revert WrongHand();
         if (prevClaim < h.minSolverClaimBps) revert SolverClaimTooSmall();
 
         return (payees, margins, give.solver, prevClaim);
     }
 
-    /*//////////////////// Low-level transfers ////////////////////*/
-    function _payout(address token, address to, uint96 amount) internal {
-        if (amount == 0) return;
-        bytes memory data = abi.encodeWithSignature("transfer(address,uint256)", to, amount);
-        (bool success, bytes memory returnData) = token.call{gas: PUSH_GAS_STIPEND}(data);
-        bool sent = success && (returnData.length == 0 || abi.decode(returnData, (bool)));
-        if (sent) {
-            emit PayoutPushed(token, to, amount);
+    function _payout(address token, address to, uint96 amt) internal {
+        (bool success, bytes memory data) = token.call{gas: PUSH_GAS_STIPEND}(
+            abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, amt)
+        );
+        bool ok = false;
+        if (success) {
+            if (data.length == 0) {
+                ok = true;
+            } else if (data.length >= 32) {
+                ok = abi.decode(data, (bool));
+            }
+        }
+        if (ok) {
+            emit PayoutPushed(token, to, amt);
         } else {
-            pending[to][token] += amount;
-            emit PayoutDeferred(token, to, amount);
+            pending[to][token] += amt;
+            emit PayoutDeferred(token, to, amt);
         }
     }
 
     /*//////////////////////////////////////////////////////////
         thank — §5/§6/§7.
+        Must: verifyRoute (capability chain, telescopic margins, floor),
+        CEI (pool = remaining+topUp; remaining=0; status=Settled; THEN payouts),
+        Shaken events for each hop, Settled; _payout with fallback to pending.
     //////////////////////////////////////////////////////////*/
     function thank(
         uint256 handId,
@@ -232,15 +239,35 @@ contract AHandCore {
         }
     }
 
-    /// finalize — §5. RED.
-    function finalize(uint256 handId) external {
-        handId;
-        revert NotImplemented();
+    /// finalize — §5. Anyone after expiry; CEI; refund - charityFee; I-11, I-14.
+    function finalize(uint256 handId) external nonReentrant {
+        Hand storage h = hands[handId];
+        if (h.status != HandStatus.Active) revert NotActive();
+        if (block.timestamp < h.expiry) revert NotExpired();
+
+        uint96 pool = h.remainingReward;
+        h.remainingReward = 0;
+        h.status = HandStatus.Reclaimed;
+
+        uint256 charityFee = (uint256(pool) * h.charityFeeBps) / 10000;
+        uint256 refund = pool - charityFee;
+
+        _payout(h.token, h.raiser, uint96(refund));
+        _payout(h.token, h.charity, uint96(charityFee));
+
+        emit Reclaimed(handId);
     }
 
-    /// withdrawTo — §5. RED.
-    function withdrawTo(address token, address recipient) external {
-        token; recipient;
-        revert NotImplemented();
+    /// withdrawTo — §5. Only owner of pending; recipient can be any address (blacklist rescue).
+    function withdrawTo(address token, address recipient) external nonReentrant {
+        uint96 amt = pending[msg.sender][token];
+        if (amt == 0) revert ZeroAmount();
+
+        pending[msg.sender][token] = 0;
+
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSelector(IERC20Minimal.transfer.selector, recipient, amt)
+        );
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "transfer failed");
     }
 }
