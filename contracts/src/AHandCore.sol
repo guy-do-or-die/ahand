@@ -66,7 +66,7 @@ contract AHandCore {
         hands[handId] = Hand({
             raiser: msg.sender,
             token: token,
-            remainingReward: credited,          // I-12: balance is never read again
+            remainingReward: credited,
             expiry: expiry,
             charityFeeBps: charityFeeBps,
             maintFeeBps: maintFeeBps,
@@ -79,11 +79,84 @@ contract AHandCore {
         emit HandRaised(handId, msg.sender, token, credited, expiry, metadataHash);
     }
 
+    /*//////////////////// Verification Helpers ////////////////////*/
+    function _recover(bytes32 digest, bytes memory sig) internal pure returns (address) {
+        if (sig.length != 65) return address(0);
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := mload(add(sig, 32))
+            s := mload(add(sig, 64))
+            v := byte(0, mload(add(sig, 96)))
+        }
+        return ecrecover(digest, v, r, s);
+    }
+
+    function _isValidSignature(address signer, bytes32 digest, bytes memory sig) internal view returns (bool) {
+        address recovered = _recover(digest, sig);
+        if (recovered != address(0) && recovered == signer) {
+            return true;
+        }
+        if (signer.code.length > 0) {
+            bytes memory data = abi.encodeWithSignature("isValidSignature(bytes32,bytes)", digest, sig);
+            (bool success, bytes memory returnData) = signer.staticcall{gas: 10000}(data);
+            if (success && returnData.length >= 32) {
+                return abi.decode(returnData, (bytes4)) == 0x1626ba7e;
+            }
+        }
+        return false;
+    }
+
+    function _verifyRoute(
+        uint256 handId,
+        Shake[] calldata shakes,
+        bytes[] calldata sigs,
+        Give calldata give,
+        bytes calldata giveSig
+    ) internal view returns (address[] memory payees, uint16[] memory margins, address solver, uint16 solverClaim) {
+        Hand memory h = hands[handId];
+        address prevCap = h.rootCapability;
+        uint16 prevClaim = 10000;
+
+        uint256 len = shakes.length;
+        if (len > MAX_ROUTE_LEN) revert RouteTooLong();
+
+        payees = new address[](len);
+        margins = new uint16[](len);
+
+        bytes32 ds = DOMAIN_SEPARATOR;
+        for (uint256 i = 0; i < len; ++i) {
+            Shake calldata s = shakes[i];
+            if (s.handId != handId) revert WrongHand();
+
+            bytes32 structHash = AHandSig.hashShake(s);
+            bytes32 digest = AHandSig.digest(ds, structHash);
+
+            if (_recover(digest, sigs[i]) != prevCap) revert CapabilityProof();
+            if (s.parentClaimBps != prevClaim) revert ClaimMismatch();
+            if (s.childClaimBps > s.parentClaimBps) revert ClaimMustNotGrow();
+            if (block.timestamp > s.deadline) revert TicketExpired();
+
+            payees[i] = s.payout;
+            margins[i] = s.parentClaimBps - s.childClaimBps;
+
+            prevCap = s.childCapability;
+            prevClaim = s.childClaimBps;
+        }
+
+        if (give.handId != handId) revert WrongHand();
+        bytes32 giveHash = AHandSig.hashGive(give);
+        bytes32 giveDigest = AHandSig.digest(ds, giveHash);
+
+        if (!_isValidSignature(prevCap, giveDigest, giveSig)) revert CapabilityProof();
+        if (prevClaim < h.minSolverClaimBps) revert SolverClaimTooSmall();
+
+        return (payees, margins, give.solver, prevClaim);
+    }
+
     /*//////////////////////////////////////////////////////////
         thank — §5/§6/§7. RED.
-        Should: verifyRoute (capability chain, telescopic margins, floor),
-        CEI (pool = remaining+topUp; remaining=0; status=Settled; THEN payouts),
-        Shaken events for each hop, Settled; _payout with fallback to pending.
     //////////////////////////////////////////////////////////*/
     function thank(
         uint256 handId,
@@ -97,13 +170,13 @@ contract AHandCore {
         revert NotImplemented();
     }
 
-    /// finalize — §5. RED. Anyone after expiry; CEI; refund - charityFee; I-11, I-14.
+    /// finalize — §5. RED.
     function finalize(uint256 handId) external {
         handId;
         revert NotImplemented();
     }
 
-    /// withdrawTo — §5. RED. Only owner of pending; recipient any address (blacklist rescue).
+    /// withdrawTo — §5. RED.
     function withdrawTo(address token, address recipient) external {
         token; recipient;
         revert NotImplemented();
