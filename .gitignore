@@ -14,3 +14,5 @@ contracts/lib/
 
 # Local development metadata
 local/
+.vercel
+.env*

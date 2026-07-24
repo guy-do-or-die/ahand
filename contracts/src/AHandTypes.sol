@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.35;
 
 /*//////////////////////////////////////////////////////////////
                     aHand v1 — Types (spec §3)
@@ -41,7 +41,16 @@ struct Hand {
 /*//////////////////////////////////////////////////////////////
                         Errors (§6, §9)
 //////////////////////////////////////////////////////////////*/
-error NotImplemented();        // TDD red phase
+error OnlyOwner();
+error Reentrancy();
+error ZeroAddress();
+error OnlyCore();
+error InsufficientBalance();
+error InsufficientEarned();
+error LengthMismatch();
+error Soulbound();
+error NotPendingOwner();
+
 error WrongHand();
 error CapabilityProof();       // I-7 / I-15: signature not from the expected capability
 error ClaimMismatch();         // parentClaim != childClaim of the previous hop
@@ -55,6 +64,7 @@ error NotExpired();
 error CharityNotWhitelisted();
 error ZeroAmount();
 error BoundsViolated();        // parameters outside of the constitutional boundaries
+
 
 /*//////////////////////////////////////////////////////////////
                         Events (§5, §7)
@@ -108,4 +118,18 @@ interface IERC20Minimal {
     function transfer(address to, uint256 amt) external returns (bool);
     function transferFrom(address from, address to, uint256 amt) external returns (bool);
     function balanceOf(address a) external view returns (uint256);
+}
+
+interface IAHandSignals {
+    function mintRaise(address raiser, uint256 handId) external;
+    function mintSettlement(
+        uint256 handId,
+        address raiser,
+        address solver,
+        address[] calldata payees,
+        uint16[] calldata margins,
+        address token,
+        uint96 charityFee
+    ) external;
+    function onFinalize(uint256 handId, address raiser) external;
 }

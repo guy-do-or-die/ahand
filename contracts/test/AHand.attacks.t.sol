@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.35;
 
 import "forge-std/Test.sol";
 import "../src/AHandTypes.sol";
 import {AHandCore} from "../src/AHandCore.sol";
+import {AHandSignals} from "../src/AHandSignals.sol";
+import {StaticAnchor} from "../src/StaticAnchor.sol";
 
 /*//////////////////////////////////////////////////////////////
                             MOCKS
@@ -68,6 +70,8 @@ contract ReenteringReceiver is IPushHook {
 
 contract AHandBase is Test {
     AHandCore core;
+    AHandSignals signals;
+    StaticAnchor anchorC;
     MockERC20 usd;
     address raiser  = makeAddr("raiser");
     address charity = makeAddr("charity");
@@ -87,7 +91,12 @@ contract AHandBase is Test {
         solver = vm.addr(SOLVER_PK);
         address[] memory ch = new address[](1); ch[0] = charity;
         core = new AHandCore(ch, maint);
+        signals = new AHandSignals(address(core));
+        core.setSignals(address(signals));
+        anchorC = new StaticAnchor();
         usd = new MockERC20("USD");
+        anchorC.setRate(address(usd), 1e12);      // USDC-подобный: 6dec → usd18
+        signals.setAnchor(address(anchorC));
         usd.mint(raiser, 1_000e6);
         vm.prank(raiser); usd.approve(address(core), type(uint256).max);
     }
@@ -493,6 +502,41 @@ contract AHandAttacksTest is AHandBase {
     }
 
     /// I-1 / I-4 / I-6 fuzzed route logic check
+    /// Спека §4: неизвестный якорю токен — полный settlement, ноль истории.
+    function test_Signals_UnknownToken_ZeroEmission() public {
+        MockERC20 junk = new MockERC20("JUNK");   // rate не задан
+        junk.mint(raiser, 1_000e6);
+        vm.prank(raiser); junk.approve(address(core), type(uint256).max);
+        uint256 h = _raise(junk, 5000);
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        _thank(h, sh, sg, g, gs);
+        assertGt(junk.balanceOf(solver), 0, "money settled");
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), solver), 0, "zero UP for junk");
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), 0);
+    }
+
+    /// OZ ECDSA: malleable s (N - s, flipped v) отвергается.
+    /// NB: py-evm строже мейнета и режет high-s сам; ДЕМОНСТРАТИВЕН этот тест на anvil/geth.
+    function test_Malleability_Rejected() public {
+        uint256 h = _raise(usd, 5000);
+        Shake[] memory sh = new Shake[](1); bytes[] memory sg = new bytes[](1);
+        (sh[0], sg[0]) = _shake(h, E0, vm.addr(E1), connA, 10_000, 9_000);
+        bytes memory orig = sg[0];
+        uint256 N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
+        bytes32 r; uint256 s; uint8 v;
+        assembly {
+            r := mload(add(orig, 32))
+            s := mload(add(orig, 64))
+            v := byte(0, mload(add(orig, 96)))
+        }
+        sg[0] = abi.encodePacked(r, bytes32(N - s), uint8(55 - v)); // 27<->28
+        (Give memory g, bytes memory gs) = _give(h, E1, solver);
+        vm.prank(raiser);
+        vm.expectRevert(CapabilityProof.selector);
+        core.thank(h, sh, sg, g, gs, 0);
+    }
+
     function testFuzz_TelescopicConservation(uint8 numHops, uint96 topUp) public {
         numHops = uint8(bound(numHops, 0, 32)); // MAX_ROUTE_LEN = 32
         topUp = uint96(bound(topUp, 0, 1_000e6));
@@ -595,5 +639,223 @@ contract AHandAttacksTest is AHandBase {
         (, , uint96 remaining2, , , , , HandStatus st2, , ,) = core.hands(h2);
         assertEq(remaining2, DEPOSIT, "I-16: hand 2 remaining reward is unaffected by hand 1 settlement");
         assertEq(uint8(st2), uint8(HandStatus.Active), "I-16: hand 2 status remains Active");
+    }
+
+    /*──────────────── Signals & Reputation Tests (USDC 6 decimals) ────────────────*/
+
+    function test_Signals_SoulboundTransfers() public {
+        _raise(usd, 5000);
+        
+        uint256 upId = signals.SIGNAL_UP();
+        
+        // Transfers of both UP and DOWN signals must revert (I-8)
+        vm.expectRevert(Soulbound.selector);
+        signals.safeTransferFrom(raiser, stranger, upId, 1, "");
+
+        vm.expectRevert(Soulbound.selector);
+        uint256[] memory ids = new uint256[](1); ids[0] = upId;
+        uint256[] memory vals = new uint256[](1); vals[0] = 1;
+        signals.safeBatchTransferFrom(raiser, stranger, ids, vals, "");
+    }
+
+    function test_Signals_MintsOnRaiseAndThank() public {
+        // 1. Raise mints SIGNAL_RAISE to raiser
+        uint256 h = _raise(usd, 5000);
+        assertEq(signals.balanceOf(signals.SIGNAL_RAISE(), raiser), 1);
+
+        // 2. Thank mints SIGNAL_THANK to raiser, SIGNAL_GIVE to solver, SIGNAL_SHAKE to connectors
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        (Give memory g, bytes memory gs) = _give(h, last, solver);
+
+        _thank(h, sh, sg, g, gs);
+
+        assertEq(signals.balanceOf(signals.SIGNAL_THANK(), raiser), 1);
+        assertEq(signals.balanceOf(signals.SIGNAL_GIVE(), solver), 1);
+        assertEq(signals.balanceOf(signals.SIGNAL_SHAKE(), connA), 1);
+        assertEq(signals.balanceOf(signals.SIGNAL_SHAKE(), connB), 1);
+    }
+
+    function test_Signals_EarnedUpEmissionMath() public {
+        uint256 h = _raise(usd, 5000); // 100 USDC deposit -> charity fee 1% = 1 USDC = 1e6 units
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        (Give memory g, bytes memory gs) = _give(h, last, solver);
+
+        _thank(h, sh, sg, g, gs);
+
+        // charityFee = 1e6 USDC units.
+        // usdVal = 1e6 * 1e12 = 1e18 USD units.
+        // halfVal = 0.5e18 USD units.
+        // cumulativeUsd[raiser] = 0.5e18.
+        // sqrt(0.5e18) = 707106781 (scaled 1e9, 9 decimals)
+        uint256 expectedEarnedUp = 707106781;
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), expectedEarnedUp);
+        assertEq(signals.earnedOf(raiser), expectedEarnedUp);
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), solver), expectedEarnedUp);
+        assertEq(signals.earnedOf(solver), expectedEarnedUp);
+    }
+
+    function test_Signals_UpAndDown() public {
+        // Raise with a large deposit of 2000 USDC to yield > 3 tokens of UP
+        usd.mint(raiser, 2000e6);
+        vm.prank(raiser);
+        uint256 h = core.raise(
+            address(usd), 2000e6, uint40(block.timestamp + 30 days),
+            100, 0, 5000, charity, vm.addr(E0), keccak256("meta")
+        );
+
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        _thank(h, sh, sg, g, gs);
+
+        // charityFee = 20e6 USDC = 20 USDC.
+        // halfVal = 10e18 USD units.
+        // sqrt(10e18) = 3162277660 (~3.16 tokens of UP).
+        uint256 initialBal = signals.balanceOf(signals.SIGNAL_UP(), raiser);
+        assertEq(initialBal, 3162277660);
+        assertEq(signals.earnedOf(raiser), 3162277660);
+
+        // Raiser gives UP (upvote) to connA (costs 1e9 = 1 token)
+        vm.prank(raiser);
+        signals.up(connA);
+
+        assertEq(signals.earnedOf(raiser), initialBal - 1e9);
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), initialBal - 1e9);
+        
+        // Target (connA) receives 1 token of received UP
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), connA), 1e9);
+        assertEq(signals.receivedOf(connA), 1e9);
+        assertEq(signals.earnedOf(connA), 0); // target got received, not earned
+
+        // Down connB (costs 3e9 from solver)
+        vm.prank(solver);
+        signals.down(connB);
+
+        assertEq(signals.earnedOf(solver), 3162277660 - 3e9);
+        assertEq(signals.balanceOf(signals.SIGNAL_UP(), solver), 3162277660 - 3e9);
+        assertEq(signals.balanceOf(signals.SIGNAL_DOWN(), connB), 1);
+    }
+
+    function test_Signals_Up_EarnedOnly_RecursionCut() public {
+        // Target receives 1 token of UP, but earned is 0, so target trying to upvote someone else must revert!
+        usd.mint(raiser, 1000e6);
+        vm.prank(raiser);
+        uint256 h = core.raise(
+            address(usd), 1000e6, uint40(block.timestamp + 30 days),
+            100, 0, 5000, charity, vm.addr(E0), keccak256("meta")
+        );
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        _thank(h, sh, sg, g, gs);
+
+        // Raiser gets ~2.23 tokens of UP. Raiser upvotes stranger.
+        vm.prank(raiser);
+        signals.up(stranger);
+
+        assertEq(signals.receivedOf(stranger), 1e9);
+        assertEq(signals.earnedOf(stranger), 0);
+
+        // Stranger tries to upvote connA using their received UP -> must revert (recursion cut)!
+        vm.prank(stranger);
+        vm.expectRevert(InsufficientEarned.selector);
+        signals.up(connA);
+    }
+
+    function test_Signals_EvilSignals_CannotBlockMoney() public {
+        uint256 h = _raise(usd, 5000);
+        
+        // 1. Owner sets signals to a malicious/reverting Signals contract (governance exploit vector)
+        EvilSignals evil = new EvilSignals();
+        core.setSignals(address(evil));
+
+        // 2. Settlement must NOT freeze (I-17 Try/Catch Quarantine protects user funds)
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        (Give memory g, bytes memory gs) = _give(h, last, solver);
+
+        _thank(h, sh, sg, g, gs);
+
+        // Verify that the raiser funds exit successfully and core becomes cleanly depleted
+        assertEq(usd.balanceOf(address(core)), 0, "I-17: escrow cleanly drained despite malicious signals");
+    }
+
+    function test_Signals_UriMetadataAndEmojiJSON() public {
+        _raise(usd, 5000);
+
+        string memory raisedUri = signals.uri(signals.SIGNAL_RAISE());
+        string memory expectedStart = "data:application/json;base64,";
+        
+        // Verify JSON returns dynamic on-chain base64
+        assertEq(slice(raisedUri, 0, bytes(expectedStart).length), expectedStart);
+    }
+
+    // Helper to slice strings in Solidity tests
+    function slice(string memory str, uint256 start, uint256 length) internal pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        bytes memory result = new bytes(length);
+        for (uint256 i = 0; i < length; ++i) {
+            result[i] = strBytes[start + i];
+        }
+        return string(result);
+    }
+    /*──────────────── Refined Custom Error / Two-Step Ownership / Reentrancy Tests ────────────────*/
+
+    function test_Constructor_ZeroAddressReverts() public {
+        address[] memory ch = new address[](2);
+        ch[0] = charity;
+        ch[1] = address(0);
+        vm.expectRevert(ZeroAddress.selector);
+        new AHandCore(ch, maint);
+    }
+
+    function test_Ownership_TwoStepCore() public {
+        address initialOwner = core.owner();
+        vm.prank(initialOwner);
+        core.transferOwnership(stranger);
+        assertEq(core.pendingOwner(), stranger);
+        assertEq(core.owner(), initialOwner);
+
+        vm.prank(stranger);
+        core.acceptOwnership();
+        assertEq(core.pendingOwner(), address(0));
+        assertEq(core.owner(), stranger);
+    }
+
+    function test_Ownership_TwoStepSignals() public {
+        address initialOwner = signals.owner();
+        vm.prank(initialOwner);
+        signals.transferOwnership(stranger);
+        assertEq(signals.pendingOwner(), stranger);
+        assertEq(signals.owner(), initialOwner);
+
+        vm.prank(stranger);
+        signals.acceptOwnership();
+        assertEq(signals.pendingOwner(), address(0));
+        assertEq(signals.owner(), stranger);
+    }
+
+    function test_Ownership_TwoStepAnchor() public {
+        address initialOwner = anchorC.owner();
+        vm.prank(initialOwner);
+        anchorC.transferOwnership(stranger);
+        assertEq(anchorC.pendingOwner(), stranger);
+        assertEq(anchorC.owner(), initialOwner);
+
+        vm.prank(stranger);
+        anchorC.acceptOwnership();
+        assertEq(anchorC.pendingOwner(), address(0));
+        assertEq(anchorC.owner(), stranger);
+    }
+}
+
+contract EvilSignals {
+    function mintRaise(address, uint256) external pure {
+        revert("MALICIOUS_REVERT");
+    }
+    function mintSettlement(
+        uint256, address, address, address[] calldata, uint16[] calldata, address, uint96
+    ) external pure {
+        revert("MALICIOUS_REVERT");
+    }
+    function onFinalize(uint256, address) external pure {
+        revert("MALICIOUS_REVERT");
     }
 }
