@@ -1,0 +1,16 @@
+# Compiler outputs
+contracts/out/
+contracts/cache/
+out/
+cache/
+
+# Dependencies
+contracts/lib/
+.deps/
+
+# IDE files
+.vscode/
+.gemini/
+
+# Local development metadata
+local/
