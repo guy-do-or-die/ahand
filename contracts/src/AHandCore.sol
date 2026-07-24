@@ -25,6 +25,16 @@ contract AHandCore {
     mapping(address => bool) public charityWhitelist;                 // reserved for timelock gating
     mapping(address => mapping(address => uint96)) public pending;   // [owner][token]
 
+    /*//////////////////// Reentrancy Guard ////////////////////*/
+    uint8 private _unlocked = 1;
+
+    modifier nonReentrant() {
+        require(_unlocked == 1, "REENTRANCY");
+        _unlocked = 0;
+        _;
+        _unlocked = 1;
+    }
+
     constructor(address[] memory charities, address maintainer_) {
         DOMAIN_SEPARATOR = AHandSig.domainSeparator(address(this));
         maintainer = maintainer_;
@@ -155,8 +165,22 @@ contract AHandCore {
         return (payees, margins, give.solver, prevClaim);
     }
 
+    /*//////////////////// Low-level transfers ////////////////////*/
+    function _payout(address token, address to, uint96 amount) internal {
+        if (amount == 0) return;
+        bytes memory data = abi.encodeWithSignature("transfer(address,uint256)", to, amount);
+        (bool success, bytes memory returnData) = token.call{gas: PUSH_GAS_STIPEND}(data);
+        bool sent = success && (returnData.length == 0 || abi.decode(returnData, (bool)));
+        if (sent) {
+            emit PayoutPushed(token, to, amount);
+        } else {
+            pending[to][token] += amount;
+            emit PayoutDeferred(token, to, amount);
+        }
+    }
+
     /*//////////////////////////////////////////////////////////
-        thank — §5/§6/§7. RED.
+        thank — §5/§6/§7.
     //////////////////////////////////////////////////////////*/
     function thank(
         uint256 handId,
@@ -165,9 +189,47 @@ contract AHandCore {
         Give calldata give,
         bytes calldata giveSig,
         uint96 topUp
-    ) external {
-        handId; shakes; sigs; give; giveSig; topUp;
-        revert NotImplemented();
+    ) external nonReentrant {
+        Hand storage h = hands[handId];
+        if (h.status != HandStatus.Active) revert NotActive();
+        if (msg.sender != h.raiser) revert NotRaiser();
+
+        (address[] memory payees, uint16[] memory margins, address solver, ) = 
+            _verifyRoute(handId, shakes, sigs, give, giveSig);
+
+        uint96 pool = h.remainingReward;
+        if (topUp > 0) {
+            uint256 balBefore = IERC20Minimal(h.token).balanceOf(address(this));
+            require(IERC20Minimal(h.token).transferFrom(msg.sender, address(this), topUp), "transferFrom");
+            uint96 credited = uint96(IERC20Minimal(h.token).balanceOf(address(this)) - balBefore);
+            pool += credited;
+        }
+
+        h.remainingReward = 0;
+        h.status = HandStatus.Settled;
+
+        uint256 charityFee = (uint256(pool) * h.charityFeeBps) / 10000;
+        uint256 maintFee = (uint256(pool) * h.maintFeeBps) / 10000;
+        uint256 fees = charityFee + maintFee;
+        uint256 net = pool - fees;
+
+        uint256 totalDistributed = charityFee + maintFee;
+
+        for (uint256 i = 0; i < shakes.length; ++i) {
+            uint256 gross = (net * margins[i]) / 10000;
+            _payout(h.token, payees[i], uint96(gross));
+            totalDistributed += gross;
+            emit Shaken(handId, payees[i], margins[i]);
+        }
+
+        uint256 solverShare = pool - totalDistributed;
+        _payout(h.token, solver, uint96(solverShare));
+        emit Settled(handId, solver, give.solutionHash);
+
+        _payout(h.token, h.charity, uint96(charityFee));
+        if (maintFee > 0) {
+            _payout(h.token, maintainer, uint96(maintFee));
+        }
     }
 
     /// finalize — §5. RED.
