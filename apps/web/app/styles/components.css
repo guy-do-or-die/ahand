@@ -636,6 +636,10 @@
     border-radius: var(--r-card-lg);
     padding: 28px 28px 24px;
   }
+  /* Chat-style sheets: fixed height so the conversation scrolls inside. */
+  .ah-sheet__panel--tall {
+    height: min(78vh, 780px);
+  }
 }
 
 /* ── Page column inside the app shell: fills the space between the global
@@ -768,3 +772,40 @@ header .ah-logo-lockup {
   }
 }
 
+
+/* ── Thread (talk it over): thin themed scroll + pill composer ──────── */
+.ah-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-a20) transparent;
+}
+.ah-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.ah-scroll::-webkit-scrollbar-thumb {
+  background: var(--ink-a20);
+  border-radius: 999px;
+}
+.ah-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ah-chatline {
+  display: block;
+  width: 100%;
+  border: var(--bw-emph) solid var(--ink-a15);
+  border-radius: 23px;
+  padding: 11px 18px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-md);
+  line-height: 1.5;
+  color: var(--ink);
+  resize: none;
+  overflow-y: hidden;
+  outline: none;
+}
+.ah-chatline::placeholder {
+  color: var(--ink-a45);
+}
+.ah-chatline:focus {
+  border-color: var(--ink-a45);
+}

@@ -2,9 +2,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatUnits } from "viem";
 import { useThankFlow } from "../hooks/useThankFlow";
+import { useGiveNote } from "../hooks/useGiveNote";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
 import { ThankReceipt } from "../components/ThankReceipt";
+import { ThreadSheet } from "../components/ThreadSheet";
 import { Emoji } from "../components/Emoji";
 import { formatUsd, formatUsdCents } from "../lib/format";
 import { t } from "../i18n";
@@ -17,6 +19,10 @@ function ThankComponent() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const flow = useThankFlow(id);
+  // The link carries only the sealed proof; the giver's words arrive over
+  // XMTP — when this device has them, show them (verified against the seal).
+  const giveNote = useGiveNote(flow.thankData?.give?.solutionHash);
+  const [talking, setTalking] = useState(false);
 
   if (flow.parseError) {
     return (
@@ -110,9 +116,25 @@ function ThankComponent() {
               </span>
             </span>
           </div>
-          <p className="mt-3 ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "var(--track-mono-sm)", color: "var(--ink-a55)" }}>
-            {t("their reply · {hash}", { hash: `${give.solutionHash.slice(0, 10)}…${give.solutionHash.slice(-6)}` })}
-          </p>
+          {giveNote ? (
+            <>
+              <p className="mt-3" style={{ fontSize: 14.5, lineHeight: 1.5, overflowWrap: "anywhere" }}>
+                {giveNote.note}
+              </p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "var(--track-mono-sm)", color: "var(--ink-a55)" }}>
+                  {giveNote.verified ? t("their words, sealed into the give ✓") : t("their words, as sent")}
+                </p>
+                <QuietButton compact onClick={() => setTalking(true)}>
+                  {t("talk it over")}
+                </QuietButton>
+              </div>
+            </>
+          ) : (
+            <p className="mt-3 ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "var(--track-mono-sm)", color: "var(--ink-a55)" }}>
+              {t("their reply · {hash}", { hash: `${give.solutionHash.slice(0, 10)}…${give.solutionHash.slice(-6)}` })}
+            </p>
+          )}
         </div>
 
         {handRaw ? (
@@ -163,6 +185,13 @@ function ThankComponent() {
           </QuietButton>
         </div>
       </div>
+      {talking && giveNote && (
+        <ThreadSheet
+          conversationId={giveNote.conversationId}
+          title={t("about your hand #{id}", { id })}
+          onClose={() => setTalking(false)}
+        />
+      )}
     </div>
   );
 }

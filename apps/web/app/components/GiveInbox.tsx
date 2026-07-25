@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Emoji } from "./Emoji";
+import { ThreadSheet } from "./ThreadSheet";
 import { FLAGS } from "../config/flags";
 import { useGiveInbox } from "../hooks/useGiveInbox";
 import { thankPathFor } from "../lib/giveLink";
@@ -13,15 +15,18 @@ function preview(text: string, max = 64): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
 
+type OpenThread = { conversationId: string; title: string };
+
 /**
  * What the pocket heard over XMTP: incoming gives (each row deep-links
  * into the existing thank flow on the current origin — plain anchor so the
  * proof fragment is there before the page reads it) and the word that came
- * back on threads this pocket started. Renders nothing when there's
- * nothing to show.
+ * back on threads this pocket started. Every row can open its conversation
+ * to talk it over. Renders nothing when there's nothing to show.
  */
 export function GiveInbox({ className = "" }: { className?: string }) {
   const { status, inbox, loading, refresh } = useGiveInbox();
+  const [thread, setThread] = useState<OpenThread | null>(null);
 
   if (!FLAGS.xmtpDelivery || status !== "ready") return null;
   if (inbox === null) {
@@ -45,31 +50,57 @@ export function GiveInbox({ className = "" }: { className?: string }) {
       </div>
       <div className="mt-2" style={{ borderTop: "var(--bw-emph) solid var(--ink)" }}>
         {inbox.gives.map((item: InboxGive) => (
-          <a
+          <div
             key={item.messageId}
-            href={thankPathFor(item)}
-            className="flex items-center justify-between py-[13px] no-underline text-inherit"
+            className="flex items-center justify-between gap-3 py-[13px]"
             style={{ borderBottom: "var(--bw-hair) solid var(--ink-a10)" }}
           >
-            <div className="min-w-0">
+            <a href={thankPathFor(item)} className="min-w-0 flex-1 no-underline text-inherit">
               <p className="font-bold" style={{ fontSize: 14.5 }}>
                 <Emoji>🙌</Emoji> {t("A reply to your hand #{id}", { id: item.handId })}
               </p>
               <p className="ah-label ah-label--dim mt-[3px] truncate" style={{ fontSize: 12 }}>
                 <span className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)" }}>
-                  {dateFmt.format(item.sentAt)}
+                  {dateFmt.format(item.latestWord?.sentAt ?? item.sentAt)}
                 </span>
-                {item.note ? ` · ${preview(item.note)}` : ` · ${t("no note — just the give")}`}
+                {item.latestWord
+                  ? ` · ${item.latestWord.mine ? `${t("you")}: ` : ""}${preview(item.latestWord.text, 48)}`
+                  : item.note
+                    ? ` · ${preview(item.note)}`
+                    : ` · ${t("no note — just the give")}`}
               </p>
-            </div>
-            <span className="ah-linkrow__action shrink-0 pl-3">{t("open")}</span>
-          </a>
+            </a>
+            <button
+              type="button"
+              className="ah-linkrow__action shrink-0 bg-transparent border-0 p-0 cursor-pointer"
+              onClick={() =>
+                setThread({
+                  conversationId: item.conversationId,
+                  title: t("about your hand #{id}", { id: item.handId }),
+                })
+              }
+            >
+              {t("talk")}
+            </button>
+            <a href={thankPathFor(item)} className="ah-linkrow__action shrink-0 no-underline">
+              {t("open")}
+            </a>
+          </div>
         ))}
         {inbox.replies.map((item: InboxReply) => (
-          <div
+          <button
             key={item.messageId}
-            className="flex items-center justify-between py-[13px]"
+            type="button"
+            className="w-full text-left flex items-center justify-between gap-3 py-[13px] cursor-pointer bg-transparent border-0 px-0"
             style={{ borderBottom: "var(--bw-hair) solid var(--ink-a10)" }}
+            onClick={() =>
+              setThread({
+                conversationId: item.conversationId,
+                title: item.peerAddress
+                  ? t("with {who}", { who: truncateMiddle(item.peerAddress, 6, 4) })
+                  : t("talk it over"),
+              })
+            }
           >
             <div className="min-w-0">
               <p className="font-bold" style={{ fontSize: 14.5 }}>
@@ -85,9 +116,17 @@ export function GiveInbox({ className = "" }: { className?: string }) {
                   : t("word back")}
               </p>
             </div>
-          </div>
+            <span className="ah-linkrow__action shrink-0">{t("talk")}</span>
+          </button>
         ))}
       </div>
+      {thread && (
+        <ThreadSheet
+          conversationId={thread.conversationId}
+          title={thread.title}
+          onClose={() => setThread(null)}
+        />
+      )}
     </div>
   );
 }

@@ -341,12 +341,16 @@ export async function sendDmText(client: XmtpClient, peerAddress: string, text: 
 
 export type InboxGive = GiveMessage & {
   messageId: string;
+  conversationId: string;
   senderInboxId: string;
   sentAt: Date;
+  /** Newest plain word in the same thread — the row's live preview. */
+  latestWord: { text: string; mine: boolean; sentAt: Date } | null;
 };
 
 export type InboxReply = {
   messageId: string;
+  conversationId: string;
   /** The other side's address, when resolvable — for a "who said it" chip. */
   peerAddress: string | null;
   sentAt: Date;
@@ -390,35 +394,49 @@ export async function listInbox(client: XmtpClient): Promise<Inbox> {
     const replies: InboxReply[] = [];
     for (const dm of dms) {
       const messages = await dm.messages({ limit: 100n, direction: SortDirection.Descending });
-      let latestReply: (typeof messages)[number] | null = null;
+      let latestPeerReply: (typeof messages)[number] | null = null;
+      let latestWord: InboxGive["latestWord"] = null;
       let ownVoice = false;
+      let dmHasGive = false;
       for (const message of messages) {
-        if (message.senderInboxId === client.inboxId) {
-          ownVoice = true;
-          continue;
-        }
-        const give = parseGiveMessage(message.content);
+        const mine = message.senderInboxId === client.inboxId;
+        if (mine) ownVoice = true;
+        if (typeof message.content !== "string" || !(message.content as string).trim()) continue;
+        const raw = (message.content as string).trim();
+        const give = mine ? null : parseGiveMessage(raw);
         if (give) {
+          dmHasGive = true;
           const existing = byFragment.get(give.fragment);
           if (existing && existing.sentAt >= message.sentAt) continue;
           byFragment.set(give.fragment, {
             ...give,
             messageId: message.id,
+            conversationId: message.conversationId,
             senderInboxId: message.senderInboxId,
             sentAt: message.sentAt,
+            latestWord: null, // attached after the scan
           });
           continue;
         }
-        if (!latestReply && typeof message.content === "string" && message.content.trim()) {
-          latestReply = message;
-        }
+        if (parseGiveMessage(raw)) continue; // own give-sends aren't chat
+        if (!latestWord) latestWord = { text: raw, mine, sentAt: message.sentAt };
+        if (!mine && !latestPeerReply) latestPeerReply = message;
       }
-      if (latestReply && ownVoice) {
+      if (dmHasGive) {
+        // The give row IS this conversation — feed it the freshest word
+        // instead of duplicating the thread as a second "word back" row.
+        for (const entry of byFragment.values()) {
+          if (entry.conversationId === dm.id && latestWord && latestWord.sentAt > entry.sentAt) {
+            entry.latestWord = latestWord;
+          }
+        }
+      } else if (latestPeerReply && ownVoice) {
         replies.push({
-          messageId: latestReply.id,
+          messageId: latestPeerReply.id,
+          conversationId: latestPeerReply.conversationId,
           peerAddress: await peerAddressOf(dm, client),
-          sentAt: latestReply.sentAt,
-          text: (latestReply.content as string).trim(),
+          sentAt: latestPeerReply.sentAt,
+          text: (latestPeerReply.content as string).trim(),
         });
       }
     }
@@ -426,6 +444,57 @@ export async function listInbox(client: XmtpClient): Promise<Inbox> {
       gives: [...byFragment.values()].sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime()),
       replies: replies.sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime()),
     };
+  } catch (err) {
+    throw toXmtpError(err);
+  }
+}
+
+export type ThreadMessage = {
+  id: string;
+  mine: boolean;
+  text: string;
+  /** This message carried a give — text is just its note, link stripped. */
+  isGive: boolean;
+  sentAt: Date;
+};
+
+/**
+ * One conversation's recent plain words, oldest first for display.
+ * Syncs just this conversation — cheaper than a full inbox pass.
+ */
+export async function loadThread(client: XmtpClient, conversationId: string): Promise<ThreadMessage[]> {
+  assertBrowser();
+  try {
+    const { SortDirection } = await sdk();
+    const convo = await client.conversations.getConversationById(conversationId);
+    if (!convo) return [];
+    await convo.sync();
+    const messages = await convo.messages({ limit: 80n, direction: SortDirection.Descending });
+    return messages
+      .filter((m) => typeof m.content === "string" && (m.content as string).trim())
+      .map((m) => {
+        const raw = (m.content as string).trim();
+        const give = parseGiveMessage(raw);
+        return {
+          id: m.id,
+          mine: m.senderInboxId === client.inboxId,
+          text: give ? give.note || "🙌" : raw,
+          isGive: Boolean(give),
+          sentAt: m.sentAt,
+        };
+      })
+      .reverse();
+  } catch (err) {
+    throw toXmtpError(err);
+  }
+}
+
+export async function sendToThread(client: XmtpClient, conversationId: string, text: string): Promise<void> {
+  assertBrowser();
+  try {
+    const convo = await client.conversations.getConversationById(conversationId);
+    if (!convo) throw new Error("conversation not found");
+    await convo.sendText(text);
   } catch (err) {
     throw toXmtpError(err);
   }
