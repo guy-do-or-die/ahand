@@ -4,4 +4,6 @@
  */
 export const FLAGS = {
   openHandsBoard: false,
+  /** Direct give delivery over XMTP (reachability-gated, copy-link fallback). */
+  xmtpDelivery: true,
 } as const;

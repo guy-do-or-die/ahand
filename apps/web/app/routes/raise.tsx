@@ -5,6 +5,7 @@ import { useRaiseFlow, type Visibility } from "../hooks/useRaiseFlow";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
 import { ChipRow } from "../components/ChipRow";
+import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
 import { Emoji } from "../components/Emoji";
 import { MetaLine } from "../components/MetaLine";
 import { formatUsd, formatDateHuman, truncateMiddle } from "../lib/format";
@@ -406,6 +407,8 @@ function RaiseSuccess({ shareUrl, hops }: { shareUrl: string; hops?: number }) {
         <span className="ah-linkrow__value">{truncateMiddle(shareUrl, 28, 10)}</span>
         <span className="ah-linkrow__action">{rowCopied ? t("copied") : t("copy")}</span>
       </button>
+
+      <DirectDeliveryCard className="mt-4" />
 
       <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
       <div className="flex flex-col gap-3.5 pt-8">

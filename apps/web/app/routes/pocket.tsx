@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePocket, type PocketReceipt } from "../hooks/usePocket";
+import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
+import { GiveInbox } from "../components/GiveInbox";
 import { OnboardingSheet } from "../components/OnboardingSheet";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
@@ -139,6 +141,8 @@ function PocketComponent() {
 
           {/* Receipts — a paper receipt is narrow */}
           <div className="mt-5 lg:mt-0 flex flex-col flex-1 lg:max-w-[600px]">
+            <DirectDeliveryCard className="mb-5" />
+            <GiveInbox className="mb-5" />
             <div style={{ borderTop: "var(--bw-emph) solid var(--ink)" }}>
               {pocket.receipts === null ? (
                 <p className="ah-label py-4">{t("reading your receipts…")}</p>

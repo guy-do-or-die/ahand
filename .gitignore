@@ -20,12 +20,10 @@ artifacts/
 # JS/Node
 node_modules/
 dist/
-.turbo/
-.env
-.env.local
-.DS_Store
-.output/
-.vinxi/
+.*
+
+# Secrets & deploy metadata
+.env*
 .vercel/
 
 # Local development metadata

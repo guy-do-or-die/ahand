@@ -5,12 +5,19 @@ import { t } from "../i18n";
  * Returns the house-voice headline plus the technical detail for a dim
  * mono sub-line.
  */
-export function humanizeChainError(err: any): { message: string; detail?: string } {
+/** The person dismissed the confirm sheet — never an error state. */
+export function isUserRejection(err: any): boolean {
   const raw: string = err?.shortMessage || err?.message || "";
   const lower = raw.toLowerCase();
-  if (lower.includes("user rejected") || lower.includes("user denied") || err?.code === 4001) {
+  return lower.includes("user rejected") || lower.includes("user denied") || err?.code === 4001;
+}
+
+export function humanizeChainError(err: any): { message: string; detail?: string } {
+  const raw: string = err?.shortMessage || err?.message || "";
+  if (isUserRejection(err)) {
     return { message: t("You closed the confirm — no harm done, nothing left your pocket.") };
   }
+  const lower = raw.toLowerCase();
   if (lower.includes("exceeds 1000 bytes")) {
     return { message: t("Too long for one link — trim it a little.") };
   }

@@ -9,8 +9,10 @@ import { Envelope, b64urlDecode, sha256hex } from "../lib/metadata";
 import { useHandView } from "../hooks/useHandView";
 import { usePassOnFlow } from "../hooks/usePassOnFlow";
 import { useSolveFlow } from "../hooks/useSolveFlow";
+import { useGiveDelivery } from "../hooks/useGiveDelivery";
 import { Sheet } from "../components/Sheet";
 import { ChipRow } from "../components/ChipRow";
+import { QuietButton } from "../components/QuietButton";
 import { SwipeButton } from "../components/SwipeButton";
 import { Logo } from "../components/Logo";
 import { Emoji } from "../components/Emoji";
@@ -306,6 +308,7 @@ function HandComponent() {
           tampered={tampered}
           railNodes={railNodes}
           solverMinLabel={formatUsd(solverMin)}
+          raiser={raiser}
           onClose={() => setShowSolve(false)}
         />
       )}
@@ -608,6 +611,7 @@ function HelpSheet(props: {
   tampered: boolean;
   railNodes: string[];
   solverMinLabel: string;
+  raiser: string;
   onClose: () => void;
 }) {
   const { address } = useAccount();
@@ -618,9 +622,16 @@ function HelpSheet(props: {
     payload: props.payload,
     tampered: props.tampered,
   });
+  const delivery = useGiveDelivery({
+    raiser: props.raiser,
+    solveUrl: flow.solveUrl,
+    solutionText: flow.solutionText,
+  });
   const [copied, setCopied] = useState(false);
   const [ctaCopied, setCtaCopied] = useState(false);
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  /* The raiser takes replies directly — the swipe delivers, the link stays as a spare. */
+  const direct = Boolean(address) && delivery.canSendDirect;
 
   // Prefill with the connected address (PoC behavior), still editable.
   useEffect(() => {
@@ -712,8 +723,21 @@ function HelpSheet(props: {
             <span className="ah-linkrow__action">{copied ? t("copied") : t("copy")}</span>
           </button>
           <p className="ah-label ah-label--dim mt-2">
-            {t("Send your reply back to whoever asked — they'll say thanks if it helps.")}
+            {delivery.phase === "sent"
+              ? t("Delivered. The link above is your copy, just in case.")
+              : delivery.phase === "failed"
+                ? delivery.failure === "busy"
+                  ? t("your messages are open in another tab — close it there first")
+                  : t("Couldn't reach them directly — send the link yourself.")
+                : direct
+                  ? t("They take replies right in their pocket — swipe below and it's there.")
+                  : t("Send your reply back to whoever asked — they'll say thanks if it helps.")}
           </p>
+          {direct && delivery.phase !== "sent" && delivery.phase !== "sending" && (
+            <QuietButton compact className="mt-2.5 self-start" onClick={send}>
+              {ctaCopied ? t("Copied") : t("or send the link yourself")}
+            </QuietButton>
+          )}
         </>
       )}
 
@@ -726,25 +750,41 @@ function HelpSheet(props: {
           text={
             !address
               ? t("your pocket is where thanks lands — connect it to reply")
-              : flow.solveUrl
-                ? t("if accepted, you keep at least {amount}", { amount: props.solverMinLabel })
-                : t("Write what you can do, and it goes straight back to them.")
+              : delivery.phase === "sent"
+                ? t("delivered · they'll say thanks if it helps")
+                : flow.solveUrl
+                  ? t("if accepted, you keep at least {amount}", { amount: props.solverMinLabel })
+                  : t("Write what you can do, and it goes straight back to them.")
           }
         />
         <SwipeButton
           gesture="cheer"
           variant="amber"
-          disabled={address ? !flow.solveUrl : false}
-          onClick={address ? send : () => login()}
+          disabled={address ? !flow.solveUrl || delivery.phase === "sending" : false}
+          onClick={
+            !address
+              ? () => login()
+              : direct
+                ? delivery.phase === "sent"
+                  ? props.onClose
+                  : () => void delivery.sendDirect()
+                : send
+          }
           className="order-1 md:order-2 md:min-w-[240px] whitespace-nowrap"
         >
           {!address
             ? t("Connect a pocket & reply")
-            : ctaCopied
-              ? t("Copied")
-              : canShare
-                ? t("Tell them I'm on it")
-                : t("Copy the link")}
+            : direct
+              ? delivery.phase === "sending"
+                ? t("sending…")
+                : delivery.phase === "sent"
+                  ? t("Done")
+                  : t("Send it straight to them")
+              : ctaCopied
+                ? t("Copied")
+                : canShare
+                  ? t("Tell them I'm on it")
+                  : t("Copy the link")}
         </SwipeButton>
       </div>
     </Sheet>
