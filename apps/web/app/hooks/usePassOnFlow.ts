@@ -1,30 +1,55 @@
-import { useEffect, useState } from "react";
-import { isAddress } from "viem";
-import { encodePayload, signShake, newCapability, type Shake, type SignedShake } from "@ahand/sdk";
+import { useCallback, useEffect, useState } from "react";
+import { useConnection, useWalletClient } from "wagmi";
+import {
+  buildLiveRoute,
+  newCapability,
+  PayloadCodecError,
+  shakeStructHash,
+  signShake,
+  signShakerAcceptance,
+  ZERO_ADDRESS,
+  ZERO_BYTES32,
+  BPS_DENOMINATOR,
+  type Shake,
+  type SignedShake,
+  type TypedSigner,
+} from "@ahand/sdk";
+import type { AttributionMode } from "../components/AttributionChoice";
 import { assembleLink } from "../lib/metadata";
+import { bearerCapability, packLinkMetadata } from "../lib/link";
+import type { Hand } from "../lib/hand";
+import type { HandRoute } from "./useHandView";
 import { t } from "../i18n";
 
 /**
- * Pass-on flow — signs a Shake with the payload's latest capability and
- * assembles the next link (parent key stripped by construction: the new
- * payload carries only the fresh child key). Logic follows the PoC with one
- * task-mandated change (§0.2): the payout address is always collected and
- * placed in the shake — the SHAKE receipt lands there even at 0% margin —
- * and the link only assembles once the address passes isAddress.
+ * Pass-on flow — signs a Shake with the route's bearer capability and
+ * assembles the next link (parent key stripped by construction: the codec
+ * carries only the fresh child key).
+ *
+ * Attribution is a mode, not an address field:
+ *   anonymous  — shaker = 0, zero margin only; the link builds silently.
+ *   attributed — required whenever margin > 0; the connected wallet is the
+ *     shaker and must co-sign a ShakerAcceptance over the exact shakeHash,
+ *     so building the link is an explicit prepare() step (one wallet prompt),
+ *     never a side effect of a slider drag.
+ *
+ * Deadline is not chosen — every Shake deadline IS the Hand expiry.
  */
 export function usePassOnFlow(args: {
   active: boolean;
   id: string;
-  payload: any;
+  route: HandRoute | null;
+  hand: Hand | null;
   tampered: boolean;
-  handRaw: unknown;
-  searchE?: string;
 }) {
-  const { active, id, payload, tampered, handRaw, searchE } = args;
+  const { active, id, route, hand, tampered } = args;
+  const { address } = useConnection();
+  const { data: walletClient } = useWalletClient();
 
-  const [marginPct, setMarginPct] = useState(0); // 0 = gift
-  const [payoutAddr, setPayoutAddr] = useState("");
+  const [marginPct, setMarginPct] = useState(0); // 0 = pass it all on
+  const [mode, setMode] = useState<AttributionMode>("anonymous");
   const [newShareUrl, setNewShareUrl] = useState("");
+  const [signing, setSigning] = useState(false);
   const [error, setError] = useState("");
   const [childCap, setChildCap] = useState<{ privateKey: `0x${string}`; address: `0x${string}` } | null>(null);
 
@@ -34,92 +59,138 @@ export function usePassOnFlow(args: {
     }
   }, [active, childCap]);
 
-  const payoutValid = isAddress(payoutAddr);
+  const parentClaim =
+    !route || route.payload.shakes.length === 0
+      ? BPS_DENOMINATOR
+      : route.payload.shakes[route.payload.shakes.length - 1]!.shake.childClaimBps;
+  const minGiverClaimBps = hand?.minGiverClaimBps ?? 0;
+  /** The slider ceiling: the child claim can never dip below the giver floor. */
+  const maxMarginPct = Math.max(0, Math.floor((parentClaim - minGiverClaimBps) / 100));
 
-  useEffect(() => {
-    if (!active || !payload || !childCap || tampered) {
-      setNewShareUrl("");
-      return;
-    }
+  // The protocol gate both ways: margin > 0 cannot stay anonymous, and
+  // attribution without a margin has nothing to attribute.
+  const chooseMargin = useCallback((pct: number) => {
+    setMarginPct(pct);
+    setMode(pct > 0 ? "attributed" : "anonymous");
+  }, []);
+  const chooseMode = useCallback((next: AttributionMode) => {
+    setMode(next);
+    if (next === "anonymous") setMarginPct(0);
+  }, []);
 
-    async function generate() {
+  const marginBps = marginPct * 100;
+  const attributed = mode === "attributed" && marginBps > 0;
+  /** Attribution needs a wallet on this device to sign the acceptance. */
+  const needsWallet = attributed && !address;
+
+  const build = useCallback(
+    async (opts: { interactive: boolean }) => {
+      if (!route || !hand || !childCap) return;
       setError("");
-      setNewShareUrl("");
 
-      if (!isAddress(payoutAddr)) {
-        // Shout only at a committed wrong value, never mid-typing —
-        // a full-length address that still doesn't parse.
-        if (payoutAddr.length >= 42) setError(t("That address doesn't look right (0x…)."));
+      if (route.payload.capability.mode !== "bearer") {
+        setError(t("This link is addressed to a specific pocket — it can't be passed on from here."));
+        return;
+      }
+      const childClaim = parentClaim - marginBps;
+      if (childClaim < minGiverClaimBps) {
+        setError(t("That share is more than what's left to pass."));
+        return;
+      }
+      if (attributed && (!address || !walletClient)) {
+        // Not an error mid-flow — the sheet gates the CTA on connection.
         return;
       }
 
       try {
-        const latestPriv = payload.latestPrivateKey;
-        const chainId = payload.chainId;
-        const core = payload.core;
-
-        const currentParentClaim = payload.shakes.length === 0
-          ? 10000
-          : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
-
-        const chosenMargin = marginPct * 100;
-        const childClaim = currentParentClaim - chosenMargin;
-
-        if (childClaim < 0) {
-          setError(t("That share is more than what's left to pass."));
-          return;
-        }
-
+        const { handRef, expiry } = route.ctx;
         const shake: Shake = {
-          handId: BigInt(id),
+          handId: handRef.handId,
           childCapability: childCap.address,
-          // §0.2: receipt destination always set, even for a 0% gift pass
-          payout: payoutAddr as `0x${string}`,
-          parentClaimBps: currentParentClaim,
+          shaker: attributed ? (address as `0x${string}`) : ZERO_ADDRESS,
+          parentClaimBps: parentClaim,
           childClaimBps: childClaim,
-          deadline: BigInt((handRaw as any[])[3]),
+          hopDataHash: ZERO_BYTES32,
+          deadline: expiry, // never chosen — always the Hand expiry
         };
 
-        const signature = await signShake(shake, latestPriv, chainId, core);
-        const newSignedShake: SignedShake = { shake, signature };
+        const signature = await signShake(
+          shake,
+          route.payload.capability.secret,
+          handRef.chainId,
+          handRef.core as `0x${string}`,
+        );
 
-        // Visibility doesn't change on pass-on, but we need it for assembleLink
-        const visibility = searchE ? (payload.metadata.envelopeB64 ? "dark" : "public") : "public";
+        let acceptanceSig: `0x${string}` | undefined;
+        if (attributed) {
+          if (!opts.interactive) return; // wallet prompts only on explicit ask
+          setSigning(true);
+          acceptanceSig = await signShakerAcceptance(
+            shakeStructHash(shake),
+            walletClient as unknown as TypedSigner,
+            handRef.chainId,
+            handRef.core as `0x${string}`,
+          );
+        }
+
+        const newSignedShake: SignedShake = { shake, signature, acceptanceSig };
 
         const url = assembleLink(
           window.location.origin,
           id,
-          {
-            envelopeB64: searchE || payload.metadata.envelopeB64,
-            bodyB64: payload.metadata.bodyB64
-          },
-          (meta) => encodePayload({
-            handId: BigInt(id),
-            chainId,
-            core,
-            shakes: [...payload.shakes, newSignedShake],
-            latestPrivateKey: childCap.privateKey,
-            metadata: meta,
-          }),
-          visibility as any
+          route.metaParts,
+          (meta) =>
+            buildLiveRoute({
+              handRef,
+              expiry,
+              rootCapability: route.ctx.rootCapability,
+              shakes: [...route.payload.shakes, newSignedShake],
+              capability: bearerCapability(childCap.privateKey),
+              metadata: packLinkMetadata(meta),
+            }),
+          hand.visibility,
         );
 
         setNewShareUrl(url);
       } catch (err: any) {
-        setError(t("Couldn't build the new link: {reason}", { reason: err.shortMessage || err.message }));
+        if (err instanceof PayloadCodecError && err.code === "link-too-long") {
+          setError(t("The route is full — this link can't stretch any further."));
+        } else {
+          setError(t("Couldn't build the new link: {reason}", { reason: err.shortMessage || err.message }));
+        }
+      } finally {
+        setSigning(false);
       }
-    }
+    },
+    [route, hand, childCap, parentClaim, marginBps, minGiverClaimBps, attributed, address, walletClient, id],
+  );
 
-    generate();
-  }, [active, payload, tampered, marginPct, payoutAddr, childCap, id, handRaw, searchE]);
+  // Anonymous links build silently — no wallet is involved, only the
+  // bearer capability key signs. Attributed links wait for prepare().
+  useEffect(() => {
+    setNewShareUrl("");
+    if (!active || !route || !childCap || tampered) return;
+    if (attributed) return;
+    void build({ interactive: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, route, tampered, marginBps, attributed, childCap]);
+
+  /** Explicit signing step for attributed passes — one wallet prompt. */
+  const prepare = useCallback(async () => {
+    await build({ interactive: true });
+  }, [build]);
 
   return {
     marginPct,
-    setMarginPct,
-    payoutAddr,
-    setPayoutAddr,
-    payoutValid,
+    setMarginPct: chooseMargin,
+    maxMarginPct,
+    mode,
+    setMode: chooseMode,
+    attributed,
+    needsWallet,
+    signing,
     newShareUrl,
+    prepare,
     error,
   };
 }

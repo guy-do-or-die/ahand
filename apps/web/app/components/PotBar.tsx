@@ -5,7 +5,7 @@ export interface PotBarProps {
   progress: number;
   /** Mock sizes: lg 12px (mobile hand view), md 10px (desktop card), sm 8px. */
   size?: "sm" | "md" | "lg";
-  /** Accessible description, e.g. "148 in the pot, solver keeps at least 105". */
+  /** Accessible description, e.g. "148 in the pot, giver keeps at least 105". */
   label?: string;
   className?: string;
 }

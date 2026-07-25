@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { parseUnits } from "viem";
 import { ThankReceipt } from "../components/ThankReceipt";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
@@ -46,23 +45,18 @@ function GalleryComponent() {
 }
 
 /** Mock-08 sample data through the real ThankReceipt composition — the live
- * one only renders after a wallet-signed settlement. */
+ * one renders rows decoded from the settlement's PayoutAllocated events. */
 function ThankReceiptSample() {
-  const shake = (payout: string, parent: number, child: number) => ({
-    shake: { payout, childCapability: payout, parentClaimBps: parent, childClaimBps: child },
-  });
   return (
     <ThankReceipt
-      pool={parseUnits("148", 6)}
-      charityFeeBps={100}
-      maintFeeBps={0}
-      shakes={[
-        shake("0xBE95000000000000000000000000000000000001", 10000, 9200),
-        shake("0xA7A7000000000000000000000000000000000002", 9200, 8250),
-        shake("0x9190000000000000000000000000000000000003", 8250, 7150),
+      rows={[
+        { key: "giver", label: "the person who helped · accepted it", amount: usdCents.format(104.76), highlight: true },
+        { key: "hop-2", label: "a friend · passed it", amount: usdCents.format(16.11) },
+        { key: "hop-1", label: "a friend · passed it", amount: usdCents.format(13.92) },
+        { key: "hop-0", label: "a friend · passed it", amount: usdCents.format(11.73) },
+        { key: "charity", label: "charity · 1%", amount: usdCents.format(1.48) },
       ]}
-      give={{ finalClaimBps: 7150 }}
-      solverLabel="0xDA4A…0004"
+      total={{ label: "5 people better off", amount: usdCents.format(148) }}
       onRaise={() => {}}
     />
   );

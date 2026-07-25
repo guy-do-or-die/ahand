@@ -20,7 +20,7 @@ export interface ReceiptTableProps {
 }
 
 /** Settlement receipt (Thank / Pocket): 1.5px ink open rule, hairline rows,
- *  amber chip on the solver amount, 1.5px rule before the total. */
+ *  amber chip on the giver amount, 1.5px rule before the total. */
 export function ReceiptTable({ rows, total, caption, className }: ReceiptTableProps) {
   return (
     <table className={clsx("ah-receipt", className)}>

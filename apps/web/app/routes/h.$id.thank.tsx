@@ -1,28 +1,94 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useConnection } from "wagmi";
 import { formatUnits } from "viem";
-import { useThankFlow } from "../hooks/useThankFlow";
+import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
+import { useThankFlow, type ThankAllocation } from "../hooks/useThankFlow";
 import { useGiveNote } from "../hooks/useGiveNote";
+import { useSender } from "../hooks/useSender";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
 import { ThankReceipt } from "../components/ThankReceipt";
+import { ReclaimButton } from "../components/ReclaimButton";
 import { ThreadSheet } from "../components/ThreadSheet";
 import { Emoji } from "../components/Emoji";
+import type { ReceiptRow } from "../components/ReceiptTable";
 import { formatUsd, formatUsdCents } from "../lib/format";
+import { humanizeChainError } from "../lib/errors";
 import { t } from "../i18n";
 
 export const Route = createFileRoute("/h/$id/thank")({
   component: ThankComponent,
 });
 
+const asUsd = (raw: bigint) => Number(formatUnits(raw, 6));
+
+/** PayoutAllocated lines → receipt rows: giver first, hops nearest the giver
+ *  next, charity last — the same order the old deterministic preview used. */
+function allocationRows(allocations: ThankAllocation[], charityBps: number): ReceiptRow[] {
+  const giver = allocations.filter((a) => a.kind === "giverResidual");
+  const hops = allocations
+    .filter((a) => a.kind === "shakerMargin")
+    .sort((a, b) => b.routePosition - a.routePosition);
+  const charity = allocations.filter((a) => a.kind === "charity");
+  const rows: ReceiptRow[] = [];
+  for (const a of giver) {
+    rows.push({
+      key: `giver-${a.routePosition}`,
+      label: `${t("the person who helped")} · ${t("accepted it")}`,
+      amount: formatUsdCents(asUsd(a.amount)),
+      highlight: true,
+    });
+  }
+  for (const a of hops) {
+    rows.push({
+      key: `hop-${a.routePosition}`,
+      label: `${t("a friend")} · ${t("passed it")}`,
+      amount: formatUsdCents(asUsd(a.amount)),
+    });
+  }
+  for (const a of charity) {
+    rows.push({
+      key: "charity",
+      label: t("charity · {pct}%", { pct: (charityBps / 100).toFixed(0) }),
+      amount: formatUsdCents(asUsd(a.amount)),
+    });
+  }
+  return rows;
+}
+
 function ThankComponent() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const { address } = useConnection();
   const flow = useThankFlow(id);
   // The link carries only the sealed proof; the giver's words arrive over
   // XMTP — when this device has them, show them (verified against the seal).
-  const giveNote = useGiveNote(flow.thankData?.give?.solutionHash);
+  const giveNote = useGiveNote(flow.proof?.give.give.solutionHash);
   const [talking, setTalking] = useState(false);
+
+  // Pre-commit split preview: the same floor math the contract runs, from
+  // the credited pool — surfaced BEFORE release so the raiser consents to a
+  // number they can see. Display only; the chain does the real settlement.
+  const split = useMemo(() => {
+    if (!flow.hand || !flow.proof) return null;
+    const pool = flow.hand.creditedReward;
+    const charity = (pool * BigInt(flow.hand.charityBps)) / 10000n;
+    const distributable = pool - charity;
+    let hopsTotal = 0n;
+    for (const s of flow.proof.shakes) {
+      const delta = BigInt(s.shake.parentClaimBps - s.shake.childClaimBps);
+      hopsTotal += (distributable * delta) / 10000n;
+    }
+    // The giver takes the residual — dust lands with the one who gave.
+    const giver = distributable - hopsTotal;
+    return {
+      pool: asUsd(pool),
+      charity: asUsd(charity),
+      hops: asUsd(hopsTotal),
+      giver: asUsd(giver),
+    };
+  }, [flow.hand, flow.proof]);
 
   if (flow.parseError) {
     return (
@@ -37,7 +103,7 @@ function ThankComponent() {
       </div>
     );
   }
-  if (!flow.thankData) {
+  if (!flow.proof || !flow.hand) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="ah-label">{t("reading the proof…")}</p>
@@ -45,40 +111,28 @@ function ThankComponent() {
     );
   }
 
-  const handRaw = flow.handRaw as any[] | undefined;
-  const status = handRaw?.[7];
-  const charityFeeBps = Number(handRaw?.[4] ?? 0);
-  const maintFeeBps = Number(handRaw?.[5] ?? 0);
-  const settled = flow.success || status === 2;
-
-  const shakes: any[] = flow.thankData.shakes ?? [];
-  const give = flow.thankData.give;
-  const solverLabel = t("the person who helped");
-
-  // Pre-commit split preview (#9): the same deterministic §5 math the receipt
-  // shows afterward, surfaced BEFORE release so the raiser consents to a
-  // number they can see. Display only — the chain does the real settlement.
-  const pool =
-    Number(formatUnits((handRaw?.[2] as bigint) ?? 0n, 6)) + (Number(flow.topUp) || 0);
-  const charity = (pool * charityFeeBps) / 10000;
-  const maint = (pool * maintFeeBps) / 10000;
-  const net = pool - charity - maint;
-  const solverAmount = (net * Number(give.finalClaimBps)) / 10000;
-  const hopsAmount = net - solverAmount;
+  const hand = flow.hand;
+  const settled = flow.success || hand.status === "settled";
+  const shakes = flow.proof.shakes;
+  const give = flow.proof.give.give;
+  const giverLabel = t("the person who helped");
 
   if (settled) {
-    return (
-      <ThankReceipt
-        pool={flow.settledPot}
-        charityFeeBps={charityFeeBps}
-        maintFeeBps={maintFeeBps}
-        shakes={shakes}
-        give={give}
-        solverLabel={solverLabel}
-        onRaise={() => navigate({ to: "/raise" })}
-      />
-    );
+    const rows = flow.allocations ? allocationRows(flow.allocations, hand.charityBps) : null;
+    const total =
+      flow.allocations && flow.allocations.length > 0
+        ? {
+            label: t("{n} people better off", {
+              n: new Set(flow.allocations.map((a) => a.beneficiary.toLowerCase())).size,
+            }),
+            amount: formatUsdCents(asUsd(flow.allocations.reduce((s, a) => s + a.amount, 0n))),
+          }
+        : null;
+    return <ThankReceipt rows={rows} total={total} onRaise={() => navigate({ to: "/raise" })} />;
   }
+
+  const verifyBlocked = !!flow.verifyError;
+  const expired = flow.expired && hand.status === "active";
 
   return (
     <div className="ah-page">
@@ -94,8 +148,24 @@ function ThankComponent() {
           {t("Did this accept it?")}
         </h1>
 
-        {/* Solver card (mock 07). The solution text never travels in the
-            payload — only its hash — so the proof is shown instead. */}
+        {/* The proof failed the same checks the chain would run — fail
+            closed, and say exactly which byte betrayed the route. */}
+        {verifyBlocked && (
+          <div className="ah-alert mt-5" role="alert">
+            <p className="ah-alert__label">
+              <Emoji>⚠️</Emoji> {t("doesn't add up")}
+            </p>
+            <p className="ah-alert__text">
+              {t("This proof wouldn't settle: {reason}", { reason: flow.verifyError })}
+            </p>
+            <p className="ah-alert__text" style={{ color: "var(--paper-a75)" }}>
+              {t("Saying thanks is switched off for this link.")}
+            </p>
+          </div>
+        )}
+
+        {/* Giver card. The solution text never travels in the payload —
+            only its hash — so the proof is shown instead. */}
         <div className="ah-card mt-5 p-[18px]">
           <div className="flex items-center gap-2.5">
             <span
@@ -103,11 +173,11 @@ function ThankComponent() {
               style={{ background: "var(--amber-a30)", fontFamily: "var(--font-meta)", fontSize: 13 }}
               aria-hidden="true"
             >
-              {give.solver.slice(2, 4).toUpperCase()}
+              {give.giver.slice(2, 4).toUpperCase()}
             </span>
             <span>
               <span className="block font-bold" style={{ fontSize: 15.5, fontFamily: "var(--font-meta)" }}>
-                {solverLabel}
+                {giverLabel}
               </span>
               <span className="ah-label ah-label--dim block mt-0.5" style={{ fontSize: 12.5 }}>
                 {shakes.length > 0
@@ -137,34 +207,29 @@ function ThankComponent() {
           )}
         </div>
 
-        {handRaw ? (
+        {split && (
           <div className="ah-card mt-4 p-[18px]">
             <div className="flex items-baseline justify-between">
               <span className="ah-label">{t("When you say yes")}</span>
               <span className="font-extrabold" style={{ fontSize: 22, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>
-                {formatUsd(pool)}
+                {formatUsd(split.pool)}
               </span>
             </div>
             <div className="mt-3 flex flex-col gap-2">
-              <SplitRow label={t("{name} keeps", { name: solverLabel })} amount={formatUsdCents(solverAmount)} strong />
-              {shakes.length > 0 && (
-                <SplitRow label={t("the {n} hands that passed it share", { n: shakes.length })} amount={formatUsdCents(hopsAmount)} />
+              <SplitRow label={t("{name} keeps", { name: giverLabel })} amount={formatUsdCents(split.giver)} strong />
+              {shakes.length > 0 && split.hops > 0 && (
+                <SplitRow label={t("the {n} hands that passed it share", { n: shakes.length })} amount={formatUsdCents(split.hops)} />
               )}
-              {charityFeeBps > 0 && (
-                <SplitRow label={t("{pct}% to charity", { pct: (charityFeeBps / 100).toFixed(0) })} amount={formatUsdCents(charity)} />
-              )}
+              <SplitRow label={t("{pct}% to charity", { pct: (hand.charityBps / 100).toFixed(0) })} amount={formatUsdCents(split.charity)} />
             </div>
             <p className="ah-label ah-label--dim mt-3.5" style={{ fontSize: 12.5 }}>
               {t("Nothing moves until you tap yes — and it can't be undone.")}
             </p>
+            <p className="ah-label ah-label--dim mt-1.5" style={{ fontSize: 12.5 }}>
+              {t("everyone's share is set aside on-chain — they take it out from their own pocket")}
+            </p>
           </div>
-        ) : (
-          <p className="mt-3.5 text-[13.5px] leading-[1.5] text-ink/55">
-            {t("Saying yes releases the thanks to {name} and every hand between you.", { name: solverLabel })}
-          </p>
         )}
-
-        <TopUp topUp={flow.topUp} setTopUp={flow.setTopUp} />
 
         {flow.errorMsg && (
           <div className="ah-alert mt-4" role="alert">
@@ -177,12 +242,30 @@ function ThankComponent() {
 
         <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
         <div className="pt-6 flex flex-col gap-2.5">
-          <SwipeButton gesture="bow" variant="amber" disabled={flow.loading} aria-busy={flow.loading} onClick={flow.handleThank}>
-            {flow.loading ? t("Thanking…") : t("Yes — accept")}
-          </SwipeButton>
-          <QuietButton onClick={() => navigate({ to: "/" })}>
-            {t("Not quite — keep it open")}
-          </QuietButton>
+          {expired ? (
+            /* Strictly pre-expiry: at or past expiry the thanks window is
+               closed — the pot goes back through the reclaim path instead. */
+            <ThankReclaim
+              id={id}
+              isRaiser={!!address && address.toLowerCase() === hand.raiser.toLowerCase()}
+              refundAmount={formatUsd(asUsd(hand.creditedReward))}
+            />
+          ) : (
+            <>
+              <SwipeButton
+                gesture="bow"
+                variant="amber"
+                disabled={flow.loading || verifyBlocked}
+                aria-busy={flow.loading}
+                onClick={flow.handleThank}
+              >
+                {flow.loading ? t("Thanking…") : t("Yes — accept")}
+              </SwipeButton>
+              <QuietButton onClick={() => navigate({ to: "/" })}>
+                {t("Not quite — keep it open")}
+              </QuietButton>
+            </>
+          )}
         </div>
       </div>
       {talking && giveNote && (
@@ -212,24 +295,62 @@ function SplitRow({ label, amount, strong }: { label: string; amount: string; st
   );
 }
 
-function TopUp({ topUp, setTopUp }: { topUp: string; setTopUp: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
+/** The thanks window has closed — permissionless reclaim takes over. */
+function ThankReclaim({
+  id,
+  isRaiser,
+  refundAmount,
+}: {
+  id: string;
+  isRaiser: boolean;
+  refundAmount: string;
+}) {
+  const { send } = useSender();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const reclaim = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await send([
+        {
+          address: DeployedAddresses.AHandCore,
+          abi: AHandCoreAbi,
+          functionName: "reclaim",
+          args: [BigInt(id)],
+        },
+      ]);
+      setDone(true);
+    } catch (err: any) {
+      console.error(err);
+      setError(humanizeChainError(err).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <p className="ah-label text-center">{t("the pot went back to whoever raised it")}</p>
+        <QuietButton onClick={() => navigate({ to: "/pocket" })}>{t("See your pocket")}</QuietButton>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-4">
-      <button type="button" className="ah-disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? "▾" : "▸"} {t("add to the pot")}
-      </button>
-      {open && (
-        <label className="mt-2 flex items-center justify-between gap-4 max-w-[340px]">
-          <span className="ah-label">{t("extra thanks")}</span>
-          <input
-            type="number"
-            min="0"
-            className="ah-chip w-28 text-center"
-            value={topUp}
-            onChange={(e) => setTopUp(e.target.value)}
-          />
-        </label>
+    <div className="flex flex-col gap-2.5">
+      <p className="ah-label ah-label--dim text-center">
+        {t("this hand has expired — saying thanks closed with it")}
+      </p>
+      <ReclaimButton isRaiser={isRaiser} refundAmount={refundAmount} loading={loading} onReclaim={reclaim} />
+      {error && (
+        <div className="ah-alert" role="alert">
+          <p className="ah-alert__text">{error}</p>
+        </div>
       )}
     </div>
   );

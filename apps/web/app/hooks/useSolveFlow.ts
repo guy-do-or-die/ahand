@@ -1,92 +1,131 @@
-import { useEffect, useState } from "react";
-import { isAddress, keccak256, toBytes } from "viem";
-import { signGive } from "@ahand/sdk";
+import { useCallback, useEffect, useState } from "react";
+import { keccak256, toBytes } from "viem";
+import { useConnection, useWalletClient } from "wagmi";
+import {
+  buildTerminalProof,
+  giveHash,
+  routeHashOf,
+  signGive,
+  signGiverAcceptance,
+  BPS_DENOMINATOR,
+  type Give,
+  type TypedSigner,
+} from "@ahand/sdk";
+import type { HandRoute } from "./useHandView";
 import { t } from "../i18n";
 
 /**
- * Help/Solve flow — unchanged PoC logic: hash the solution text, sign a Give
- * with the payload's latest capability, and serialize the thank payload into
- * a /h/:id/thank#… proof link for the raiser. No network calls.
+ * Help/Give flow — the giver IS the connected wallet. Two signatures seal
+ * the give: the terminal bearer capability signs the Give (invisible, key
+ * work), and the wallet signs a GiverAcceptance over the exact giveHash —
+ * consent to attribution and the residual payout. Both land in a compact
+ * terminal proof (`/h/:id/thank#…`) that holds no capability secret at all.
+ *
+ * Give binds the full route (routeHash), the terminal claim, and a deadline
+ * equal to the Hand expiry. Building the proof is an explicit prepare() step
+ * (one wallet prompt), never a keystroke side effect.
  */
 export function useSolveFlow(args: {
   active: boolean;
   id: string;
-  payload: any;
+  route: HandRoute | null;
   tampered: boolean;
 }) {
-  const { active, id, payload, tampered } = args;
+  const { active, id, route, tampered } = args;
+  const { address } = useConnection();
+  const { data: walletClient } = useWalletClient();
 
-  const [solverAddr, setSolverAddr] = useState("");
   const [solutionText, setSolutionText] = useState("");
   const [solveUrl, setSolveUrl] = useState("");
+  const [signing, setSigning] = useState(false);
   const [error, setError] = useState("");
 
-  const solverValid = isAddress(solverAddr);
-
+  // Every edit voids the previous proof — the words are sealed by hash.
   useEffect(() => {
-    if (!active || !payload || !solutionText.trim() || tampered) {
-      setSolveUrl("");
-      return;
+    setSolveUrl("");
+    setError("");
+  }, [solutionText, active, route, tampered]);
+
+  const canPrepare =
+    active &&
+    !tampered &&
+    !!route &&
+    route.payload.capability.mode === "bearer" &&
+    !!solutionText.trim() &&
+    !!address &&
+    !!walletClient;
+
+  /** Sign the Give + GiverAcceptance and mint the terminal-proof link. */
+  const prepare = useCallback(async (): Promise<string | null> => {
+    if (!route || !solutionText.trim() || tampered) return null;
+    setError("");
+
+    if (route.payload.capability.mode !== "bearer") {
+      setError(t("This link is addressed to a specific pocket — it can't give from here."));
+      return null;
     }
+    if (!address || !walletClient) return null;
 
-    async function generateSolve() {
-      setError("");
-      try {
-        if (!isAddress(solverAddr)) {
-          // Shout only at a committed wrong value, never mid-typing.
-          if (solverAddr.length >= 42) setError(t("That address doesn't look right (0x…)."));
-          return;
-        }
+    setSigning(true);
+    try {
+      const { handRef, expiry } = route.ctx;
+      const shakes = route.payload.shakes;
+      const finalClaimBps =
+        shakes.length === 0
+          ? BPS_DENOMINATOR
+          : shakes[shakes.length - 1]!.shake.childClaimBps;
 
-        const latestPriv = payload.latestPrivateKey;
-        const chainId = payload.chainId;
-        const core = payload.core;
+      const give: Give = {
+        handId: handRef.handId,
+        routeHash: routeHashOf(handRef, shakes.map((s) => s.shake)),
+        giver: address as `0x${string}`,
+        solutionHash: keccak256(toBytes(solutionText)),
+        finalClaimBps,
+        deadline: expiry, // never chosen — always the Hand expiry
+      };
 
-        const currentParentClaim = payload.shakes.length === 0
-          ? 10000
-          : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
+      // Bearer key work — invisible to the user.
+      const giveSig = await signGive(
+        give,
+        route.payload.capability.secret,
+        handRef.chainId,
+        handRef.core as `0x${string}`,
+      );
+      // Wallet consent — the one visible signature.
+      const giverAcceptanceSig = await signGiverAcceptance(
+        giveHash(give),
+        walletClient as unknown as TypedSigner,
+        handRef.chainId,
+        handRef.core as `0x${string}`,
+      );
 
-        const solutionHash = keccak256(toBytes(solutionText));
+      const fragment = buildTerminalProof({
+        handRef,
+        expiry,
+        rootCapability: route.ctx.rootCapability,
+        shakes,
+        give: { give, signature: giveSig },
+        giverAcceptanceSig,
+      });
 
-        const give = {
-          handId: BigInt(id),
-          solver: solverAddr as `0x${string}`,
-          solutionHash,
-          finalClaimBps: currentParentClaim,
-        };
-
-        const giveSig = await signGive(give, latestPriv, chainId, core);
-
-        const thankPayloadObj = {
-          give,
-          giveSig,
-          shakes: payload.shakes,
-        };
-
-        const serialized = btoa(JSON.stringify(thankPayloadObj, (key, value) =>
-          typeof value === 'bigint' ? value.toString() : value
-        ))
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
-
-        const url = `${window.location.origin}/h/${id}/thank#${serialized}`;
-        setSolveUrl(url);
-      } catch (err: any) {
-        setError(t("Couldn't build the proof: {reason}", { reason: err.shortMessage || err.message }));
-      }
+      const url = `${window.location.origin}/h/${id}/thank#${fragment}`;
+      setSolveUrl(url);
+      return url;
+    } catch (err: any) {
+      setError(t("Couldn't build the proof: {reason}", { reason: err.shortMessage || err.message }));
+      return null;
+    } finally {
+      setSigning(false);
     }
-
-    generateSolve();
-  }, [active, payload, solutionText, solverAddr, tampered, id]);
+  }, [route, solutionText, tampered, address, walletClient, id]);
 
   return {
-    solverAddr,
-    setSolverAddr,
-    solverValid,
     solutionText,
     setSolutionText,
     solveUrl,
+    canPrepare,
+    prepare,
+    signing,
     error,
   };
 }

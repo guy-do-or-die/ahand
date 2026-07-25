@@ -5,12 +5,22 @@ export const AHandCoreAbi = [
     "type": "constructor",
     "inputs": [
       {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "usdScale_",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
         "name": "charities",
         "type": "address[]",
         "internalType": "address[]"
       },
       {
-        "name": "maintainer_",
+        "name": "policyAdmin_",
         "type": "address",
         "internalType": "address"
       }
@@ -45,6 +55,45 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
+    "name": "ERC1271_GAS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_CHARITY_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_DISCOVERY_REF",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_EXPIRY",
     "inputs": [],
     "outputs": [
@@ -58,20 +107,7 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_MAINT_FEE_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_ROUTE_LEN",
+    "name": "MAX_PUBLIC_TAGS",
     "inputs": [],
     "outputs": [
       {
@@ -84,20 +120,20 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_SOLVER_FLOOR_BPS",
+    "name": "MAX_SHAKES",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "MIN_CHARITY_FEE_BPS",
+    "name": "MIN_CHARITY_BPS",
     "inputs": [],
     "outputs": [
       {
@@ -123,53 +159,14 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "MIN_SOLVER_FLOOR_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PUSH_GAS_STIPEND",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "SIGNALS_GAS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "acceptOwnership",
+    "name": "acceptPolicyAdmin",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "charityWhitelist",
+    "name": "charityAllowed",
     "inputs": [
       {
         "name": "",
@@ -188,7 +185,31 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "finalize",
+    "name": "claims",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getHand",
     "inputs": [
       {
         "name": "handId",
@@ -196,74 +217,83 @@ export const AHandCoreAbi = [
         "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "hands",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
     "outputs": [
       {
-        "name": "raiser",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "remainingReward",
-        "type": "uint96",
-        "internalType": "uint96"
-      },
-      {
-        "name": "expiry",
-        "type": "uint40",
-        "internalType": "uint40"
-      },
-      {
-        "name": "charityFeeBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "maintFeeBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "minSolverClaimBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "status",
-        "type": "uint8",
-        "internalType": "enum Status"
-      },
-      {
-        "name": "charity",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "rootCapability",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "metadataHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct Hand",
+        "components": [
+          {
+            "name": "raiser",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "expiry",
+            "type": "uint40",
+            "internalType": "uint40"
+          },
+          {
+            "name": "charityBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "minGiverClaimBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "visibility",
+            "type": "uint8",
+            "internalType": "enum Visibility"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum Status"
+          },
+          {
+            "name": "rewardToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "creditedReward",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "charityRecipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "usdScaleAtRaise",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "rootCapability",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "metadataCommitment",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "discoveryCommitment",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "thankSignalSourceHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -283,7 +313,7 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "maintainer",
+    "name": "pendingPolicyAdmin",
     "inputs": [],
     "outputs": [
       {
@@ -296,7 +326,7 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "owner",
+    "name": "policyAdmin",
     "inputs": [],
     "outputs": [
       {
@@ -309,37 +339,13 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "pending",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint96",
-        "internalType": "uint96"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingOwner",
+    "name": "policyRevision",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"
@@ -349,49 +355,71 @@ export const AHandCoreAbi = [
     "name": "raise",
     "inputs": [
       {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
+        "name": "p",
+        "type": "tuple",
+        "internalType": "struct RaiseParams",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "expiry",
+            "type": "uint40",
+            "internalType": "uint40"
+          },
+          {
+            "name": "charityRecipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "charityBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "minGiverClaimBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "rootCapability",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "visibility",
+            "type": "uint8",
+            "internalType": "enum Visibility"
+          },
+          {
+            "name": "metadataCommitment",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "discoveryCommitment",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
       },
       {
-        "name": "amount",
-        "type": "uint96",
-        "internalType": "uint96"
+        "name": "discoveryRef",
+        "type": "bytes",
+        "internalType": "bytes"
       },
       {
-        "name": "expiry",
-        "type": "uint40",
-        "internalType": "uint40"
-      },
-      {
-        "name": "charityFeeBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "maintFeeBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "minSolverClaimBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "charity",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "rootCapability",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "metadataHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "publicTags",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
       }
     ],
     "outputs": [
@@ -405,17 +433,12 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "setCharityWhitelist",
+    "name": "reclaim",
     "inputs": [
       {
-        "name": "charity",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "status",
-        "type": "bool",
-        "internalType": "bool"
+        "name": "handId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -423,20 +446,7 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "setSignals",
-    "inputs": [
-      {
-        "name": "signals_",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "signals",
+    "name": "rewardToken",
     "inputs": [],
     "outputs": [
       {
@@ -446,6 +456,37 @@ export const AHandCoreAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setCharityAllowed",
+    "inputs": [
+      {
+        "name": "charity",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTokenEnabled",
+    "inputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -472,7 +513,7 @@ export const AHandCoreAbi = [
             "internalType": "address"
           },
           {
-            "name": "payout",
+            "name": "shaker",
             "type": "address",
             "internalType": "address"
           },
@@ -487,6 +528,11 @@ export const AHandCoreAbi = [
             "internalType": "uint16"
           },
           {
+            "name": "hopDataHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
             "name": "deadline",
             "type": "uint40",
             "internalType": "uint40"
@@ -494,7 +540,12 @@ export const AHandCoreAbi = [
         ]
       },
       {
-        "name": "sigs",
+        "name": "shakeSigs",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      },
+      {
+        "name": "shakerAcceptances",
         "type": "bytes[]",
         "internalType": "bytes[]"
       },
@@ -509,7 +560,12 @@ export const AHandCoreAbi = [
             "internalType": "uint256"
           },
           {
-            "name": "solver",
+            "name": "routeHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "giver",
             "type": "address",
             "internalType": "address"
           },
@@ -522,6 +578,11 @@ export const AHandCoreAbi = [
             "name": "finalClaimBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "deadline",
+            "type": "uint40",
+            "internalType": "uint40"
           }
         ]
       },
@@ -531,9 +592,9 @@ export const AHandCoreAbi = [
         "internalType": "bytes"
       },
       {
-        "name": "topUp",
-        "type": "uint96",
-        "internalType": "uint96"
+        "name": "giverAcceptanceSig",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -541,10 +602,23 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "transferOwnership",
+    "name": "tokenEnabled",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferPolicyAdmin",
     "inputs": [
       {
-        "name": "newOwner",
+        "name": "newAdmin",
         "type": "address",
         "internalType": "address"
       }
@@ -554,7 +628,20 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
-    "name": "withdrawTo",
+    "name": "usdScale",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
     "inputs": [
       {
         "name": "token",
@@ -562,7 +649,7 @@ export const AHandCoreAbi = [
         "internalType": "address"
       },
       {
-        "name": "recipient",
+        "name": "beneficiary",
         "type": "address",
         "internalType": "address"
       }
@@ -572,7 +659,7 @@ export const AHandCoreAbi = [
   },
   {
     "type": "event",
-    "name": "CharityWhitelistUpdated",
+    "name": "CharityPolicyUpdated",
     "inputs": [
       {
         "name": "charity",
@@ -581,56 +668,55 @@ export const AHandCoreAbi = [
         "internalType": "address"
       },
       {
-        "name": "status",
+        "name": "allowed",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      },
+      {
+        "name": "policyRevision",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "OwnershipTransferStarted",
+    "name": "HandTagged",
     "inputs": [
       {
-        "name": "previousOwner",
+        "name": "handId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "raiser",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "name": "tagIds",
+        "type": "bytes32[]",
+        "indexed": false,
+        "internalType": "bytes32[]"
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "OwnershipTransferred",
+    "name": "PayoutAllocated",
     "inputs": [
       {
-        "name": "previousOwner",
-        "type": "address",
+        "name": "handId",
+        "type": "uint256",
         "indexed": true,
-        "internalType": "address"
+        "internalType": "uint256"
       },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PayoutDeferred",
-    "inputs": [
       {
         "name": "token",
         "type": "address",
@@ -638,10 +724,22 @@ export const AHandCoreAbi = [
         "internalType": "address"
       },
       {
-        "name": "to",
+        "name": "beneficiary",
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "kind",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum AllocationKind"
+      },
+      {
+        "name": "routePosition",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
       },
       {
         "name": "amount",
@@ -654,7 +752,7 @@ export const AHandCoreAbi = [
   },
   {
     "type": "event",
-    "name": "PayoutPushed",
+    "name": "PayoutWithdrawn",
     "inputs": [
       {
         "name": "token",
@@ -663,16 +761,54 @@ export const AHandCoreAbi = [
         "internalType": "address"
       },
       {
-        "name": "to",
+        "name": "beneficiary",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
         "name": "amount",
-        "type": "uint96",
+        "type": "uint256",
         "indexed": false,
-        "internalType": "uint96"
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyAdminTransferStarted",
+    "inputs": [
+      {
+        "name": "previousAdmin",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyAdminTransferred",
+    "inputs": [
+      {
+        "name": "previousAdmin",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -696,14 +832,26 @@ export const AHandCoreAbi = [
       {
         "name": "token",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "credited",
         "type": "uint96",
         "indexed": false,
         "internalType": "uint96"
+      },
+      {
+        "name": "usdScaleAtRaise",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "policyRevision",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
       },
       {
         "name": "expiry",
@@ -712,10 +860,52 @@ export const AHandCoreAbi = [
         "internalType": "uint40"
       },
       {
-        "name": "metadataHash",
+        "name": "rootCapability",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "visibility",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum Visibility"
+      },
+      {
+        "name": "metadataCommitment",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
+      },
+      {
+        "name": "discoveryCommitment",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "discoveryRef",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "minGiverClaimBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "charityRecipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "charityBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
       }
     ],
     "anonymous": false
@@ -729,6 +919,97 @@ export const AHandCoreAbi = [
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
+      },
+      {
+        "name": "raiser",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "refund",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RouteHopSettled",
+    "inputs": [
+      {
+        "name": "handId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "routeHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "position",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "parentCapability",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "childCapability",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "parentClaimBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "childClaimBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "shaker",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "shakeHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "hopDataHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "marginAllocation",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
       }
     ],
     "anonymous": false
@@ -744,7 +1025,7 @@ export const AHandCoreAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "solver",
+        "name": "giver",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -754,47 +1035,99 @@ export const AHandCoreAbi = [
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "Shaken",
-    "inputs": [
-      {
-        "name": "handId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
       },
       {
-        "name": "payout",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "marginBps",
-        "type": "uint16",
+        "name": "routeHash",
+        "type": "bytes32",
         "indexed": false,
-        "internalType": "uint16"
+        "internalType": "bytes32"
+      },
+      {
+        "name": "giveHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "creditedPool",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "distributablePool",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "giverAllocation",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "charityRecipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "charityAllocation",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "usdScale",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "charityUsd",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "SignalsSet",
+    "name": "TokenPolicyUpdated",
     "inputs": [
       {
-        "name": "signals",
+        "name": "token",
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "policyRevision",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AnonymousShakerWithMargin",
+    "inputs": []
   },
   {
     "type": "error",
@@ -813,12 +1146,52 @@ export const AHandCoreAbi = [
   },
   {
     "type": "error",
+    "name": "ClaimBelowFloor",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ClaimMismatch",
     "inputs": []
   },
   {
     "type": "error",
     "name": "ClaimMustNotGrow",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "DeadlineExceedsExpiry",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Expired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "GiverAcceptanceInvalid",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InexactDeposit",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidVisibilityData",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LengthMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MarginRoundsToZero",
     "inputs": []
   },
   {
@@ -843,12 +1216,17 @@ export const AHandCoreAbi = [
   },
   {
     "type": "error",
-    "name": "OnlyOwner",
+    "name": "OnlyPolicyAdmin",
     "inputs": []
   },
   {
     "type": "error",
     "name": "Reentrancy",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RouteHashMismatch",
     "inputs": []
   },
   {
@@ -869,12 +1247,32 @@ export const AHandCoreAbi = [
   },
   {
     "type": "error",
-    "name": "SolverClaimTooSmall",
+    "name": "ShakerAcceptanceInvalid",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TagsInvalid",
     "inputs": []
   },
   {
     "type": "error",
     "name": "TicketExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TokenMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TokenNotEnabled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnexpectedAcceptance",
     "inputs": []
   },
   {
@@ -894,7 +1292,17 @@ export const AHandCoreAbi = [
   },
   {
     "type": "error",
-    "name": "ZeroPayee",
+    "name": "ZeroCharityAllocation",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroClaim",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroDistributable",
     "inputs": []
   }
 ] as const;
@@ -904,12 +1312,25 @@ export const AHandSignalsAbi = [
     "type": "constructor",
     "inputs": [
       {
-        "name": "core_",
+        "name": "sourceCore_",
         "type": "address",
         "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "DOWN_COST",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -920,6 +1341,45 @@ export const AHandSignalsAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "RAISED_SOURCE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ROLE_GIVER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ROLE_RAISER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "stateMutability": "view"
@@ -939,7 +1399,7 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "SIGNAL_GIVE",
+    "name": "SIGNAL_GIVEN",
     "inputs": [],
     "outputs": [
       {
@@ -952,7 +1412,7 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "SIGNAL_RAISE",
+    "name": "SIGNAL_RAISED",
     "inputs": [],
     "outputs": [
       {
@@ -965,7 +1425,7 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "SIGNAL_SHAKE",
+    "name": "SIGNAL_SHAKEN",
     "inputs": [],
     "outputs": [
       {
@@ -978,7 +1438,7 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "SIGNAL_THANK",
+    "name": "SIGNAL_THANKED",
     "inputs": [],
     "outputs": [
       {
@@ -1004,20 +1464,13 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "acceptOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "anchor",
+    "name": "THANK_SOURCE",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "contract IValueAnchor"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -1051,7 +1504,7 @@ export const AHandSignalsAbi = [
     "name": "balanceOfBatch",
     "inputs": [
       {
-        "name": "owners",
+        "name": "accounts",
         "type": "address[]",
         "internalType": "address[]"
       },
@@ -1066,19 +1519,6 @@ export const AHandSignalsAbi = [
         "name": "out",
         "type": "uint256[]",
         "internalType": "uint256[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "core",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -1104,12 +1544,50 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "down",
+    "name": "downCount",
     "inputs": [
       {
-        "name": "target",
+        "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "earnedUp",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "materializeRaised",
+    "inputs": [
+      {
+        "name": "handId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -1117,49 +1595,59 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "earnedOf",
+    "name": "materializeThank",
     "inputs": [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
+        "name": "handId",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "emissionCapUsd",
-    "inputs": [],
-    "outputs": [
+      },
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isApprovedForAll",
-    "inputs": [
-      {
-        "name": "",
+        "name": "giver",
         "type": "address",
         "internalType": "address"
       },
       {
+        "name": "occShakers",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "occClaimDeltas",
+        "type": "uint16[]",
+        "internalType": "uint16[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "prevSqrt",
+    "inputs": [
+      {
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "processedSource",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -1169,128 +1657,23 @@ export const AHandSignalsAbi = [
         "internalType": "bool"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "mintRaise",
-    "inputs": [
-      {
-        "name": "raiser",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "mintSettlement",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "raiser",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "solver",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "payees",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "margins",
-        "type": "uint16[]",
-        "internalType": "uint16[]"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "charityFee",
-        "type": "uint96",
-        "internalType": "uint96"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "onFinalize",
+    "name": "raisedSourceKey",
     "inputs": [
       {
         "name": "handId",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "raiser",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "owner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingOwner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "prevIsqrt",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -1316,113 +1699,16 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "safeBatchTransferFrom",
-    "inputs": [
+    "name": "sourceCore",
+    "inputs": [],
+    "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "safeTransferFrom",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "setAnchor",
-    "inputs": [
-      {
-        "name": "anchor_",
         "type": "address",
         "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setApprovalForAll",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "setConfig",
-    "inputs": [
-      {
-        "name": "emissionCapUsd_",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1445,6 +1731,25 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
+    "name": "thankSourceKey",
+    "inputs": [
+      {
+        "name": "handId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "totalSupply",
     "inputs": [
       {
@@ -1464,25 +1769,39 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "up",
     "inputs": [
       {
         "name": "target",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "wholeUpCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "ctx",
+        "type": "tuple",
+        "internalType": "struct UpContext",
+        "components": [
+          {
+            "name": "handId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "reasonTag",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "evidenceHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -1509,48 +1828,46 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "event",
-    "name": "AnchorSet",
+    "name": "EarnedUpMaterialized",
     "inputs": [
       {
-        "name": "anchor",
-        "type": "address",
+        "name": "sourceKey",
+        "type": "bytes32",
         "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ApprovalForAll",
-    "inputs": [
+        "internalType": "bytes32"
+      },
       {
-        "name": "account",
+        "name": "actor",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "operator",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "approved",
-        "type": "bool",
+        "name": "roleMask",
+        "type": "uint8",
         "indexed": false,
-        "internalType": "bool"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ConfigUpdated",
-    "inputs": [
+        "internalType": "uint8"
+      },
       {
-        "name": "emissionCapUsd",
+        "name": "credit",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cumulativeBefore",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cumulativeAfter",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "delta",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1560,94 +1877,49 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "event",
-    "name": "Downed",
+    "name": "ThankSignalsMaterialized",
     "inputs": [
       {
-        "name": "from",
-        "type": "address",
+        "name": "sourceKey",
+        "type": "bytes32",
         "indexed": true,
-        "internalType": "address"
+        "internalType": "bytes32"
       },
       {
-        "name": "target",
-        "type": "address",
+        "name": "handId",
+        "type": "uint256",
         "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferStarted",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "internalType": "uint256"
       },
       {
-        "name": "newOwner",
+        "name": "raiser",
         "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TransferBatch",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "from",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "to",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "ids",
-        "type": "uint256[]",
         "indexed": false,
-        "internalType": "uint256[]"
+        "internalType": "address"
       },
       {
-        "name": "values",
-        "type": "uint256[]",
+        "name": "giver",
+        "type": "address",
         "indexed": false,
-        "internalType": "uint256[]"
+        "internalType": "address"
+      },
+      {
+        "name": "charityTokenAmount",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "charityUsd",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "uniqueShakers",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1691,29 +1963,10 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "event",
-    "name": "URI",
-    "inputs": [
-      {
-        "name": "value",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "id",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Upped",
     "inputs": [
       {
-        "name": "from",
+        "name": "issuer",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1723,13 +1976,43 @@ export const AHandSignalsAbi = [
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "handId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "wholeUpCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reasonTag",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "evidenceHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false
   },
   {
     "type": "error",
-    "name": "BoundsViolated",
+    "name": "AlreadyMaterialized",
     "inputs": []
   },
   {
@@ -1749,27 +2032,37 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "error",
-    "name": "NotPendingOwner",
+    "name": "NotSettled",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "OnlyCore",
+    "name": "SelfTarget",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "OnlyOwner",
+    "name": "SourceCommitmentMismatch",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "Soulbound",
+    "name": "WrongHand",
     "inputs": []
   },
   {
     "type": "error",
     "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroContext",
     "inputs": []
   }
 ] as const;
@@ -1827,7 +2120,12 @@ export const AHandWitnessAbi = [
             "internalType": "uint256"
           },
           {
-            "name": "solver",
+            "name": "routeHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "giver",
             "type": "address",
             "internalType": "address"
           },
@@ -1840,6 +2138,11 @@ export const AHandWitnessAbi = [
             "name": "finalClaimBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "deadline",
+            "type": "uint40",
+            "internalType": "uint40"
           }
         ]
       },
@@ -1890,7 +2193,7 @@ export const AHandWitnessAbi = [
             "internalType": "address"
           },
           {
-            "name": "payout",
+            "name": "shaker",
             "type": "address",
             "internalType": "address"
           },
@@ -1903,6 +2206,11 @@ export const AHandWitnessAbi = [
             "name": "childClaimBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "hopDataHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "deadline",
@@ -1981,10 +2289,16 @@ export const AHandWitnessAbi = [
         "internalType": "address"
       },
       {
-        "name": "solver",
+        "name": "giver",
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "routeHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       },
       {
         "name": "solutionHash",
@@ -2024,7 +2338,7 @@ export const AHandWitnessAbi = [
         "internalType": "address"
       },
       {
-        "name": "payout",
+        "name": "shaker",
         "type": "address",
         "indexed": false,
         "internalType": "address"
@@ -2034,6 +2348,12 @@ export const AHandWitnessAbi = [
         "type": "uint16",
         "indexed": false,
         "internalType": "uint16"
+      },
+      {
+        "name": "hopDataHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       },
       {
         "name": "timestamp",
@@ -2086,205 +2406,7 @@ export const AHandWitnessAbi = [
   }
 ] as const;
 
-export const StaticAnchorAbi = [
-  {
-    "type": "constructor",
-    "inputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "acceptOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "owner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingOwner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "rate",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "setRate",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "rate_",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "usdValue",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferStarted",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RateSet",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "rate",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "error",
-    "name": "NotPendingOwner",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OnlyOwner",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroAddress",
-    "inputs": []
-  }
-] as const;
-
-export const MockERC20Abi = [
-  {
-    "type": "constructor",
-    "inputs": [
-      {
-        "name": "n",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
+export const MockUSDAbi = [
   {
     "type": "function",
     "name": "allowance",
@@ -2314,12 +2436,12 @@ export const MockERC20Abi = [
     "name": "approve",
     "inputs": [
       {
-        "name": "s",
+        "name": "spender",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "a",
+        "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -2375,7 +2497,7 @@ export const MockERC20Abi = [
         "internalType": "address"
       },
       {
-        "name": "a",
+        "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -2398,6 +2520,32 @@ export const MockERC20Abi = [
   },
   {
     "type": "function",
+    "name": "symbol",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalSupply",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "transfer",
     "inputs": [
       {
@@ -2406,7 +2554,7 @@ export const MockERC20Abi = [
         "internalType": "address"
       },
       {
-        "name": "a",
+        "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -2425,7 +2573,7 @@ export const MockERC20Abi = [
     "name": "transferFrom",
     "inputs": [
       {
-        "name": "f",
+        "name": "from",
         "type": "address",
         "internalType": "address"
       },
@@ -2435,7 +2583,7 @@ export const MockERC20Abi = [
         "internalType": "address"
       },
       {
-        "name": "a",
+        "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -2448,15 +2596,65 @@ export const MockERC20Abi = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Approval",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "spender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Transfer",
+    "inputs": [
+      {
+        "name": "from",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
   }
 ] as const;
 
 export const DeployedAddresses = {
-  "AHandCore": "0x2a810409872AfC346F9B5b26571Fd6eC42EA4849",
-  "AHandSignals": "0xb9bEECD1A582768711dE1EE7B0A1d582D9d72a6C",
-  "StaticAnchor": "0x40918Ba7f132E0aCba2CE4de4c4baF9BD2D7D849",
-  "AHandWitness": "0xd6e1afe5cA8D00A2EFC01B89997abE2De47fdfAf",
-  "mockUSD": "0x99dBE4AEa58E518C50a1c04aE9b48C9F6354612f",
-  "charity": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  "maintainer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+  "AHandCore": "0x55A009A3Ef2b219BDd1188BB3FdA1c4A6977646e",
+  "AHandSignals": "0x7774d0FA4a8063f5e578cd0F6eFbB49a93622C64",
+  "AHandWitness": "0xf3897B772BcFb73e33459Ce418648e2d2debC40E",
+  "mockUSD": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "charity": "0x2D9A5736E99eB8c180fDbD8B9F19a46F733B1351",
+  "policyAdmin": "0xa42E5d4447c133440406aAA685DE725Ad381A162",
+  "deployBlock": 44605134
 } as const;

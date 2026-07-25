@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MockERC20Abi, DeployedAddresses } from "@ahand/abi";
+import { MockUSDAbi, DeployedAddresses } from "@ahand/abi";
 import { useSender } from "../hooks/useSender";
 import { activeChain } from "../config/web3";
 import { QuietButton } from "./QuietButton";
@@ -26,7 +26,7 @@ export function DevFaucet() {
       await send([
         {
           address: DeployedAddresses.mockUSD,
-          abi: MockERC20Abi,
+          abi: MockUSDAbi,
           functionName: "mint",
           args: [address, 1_000_000_000n], // 1000 mockUSD (6 decimals)
         },

@@ -1,7 +1,15 @@
 /// <reference types="vite/client" />
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
-import { b64urlDecode, Envelope } from "../../lib/metadata";
+import { b64urlDecode, Discovery } from "../../lib/metadata";
+
+// All render assets are baked into the chunk: the SVG marks as ?raw imports,
+// the fonts as generated base64 (fonts.b64.ts) — runtime fs reads don't
+// survive serverless bundling, and the vinxi server build ignores both
+// ?inline and static new URL(..., import.meta.url) asset emission.
+import markLightSvg from "../../../public/ahand-mark-light.svg?raw";
+import markDarkSvg from "../../../public/ahand-mark-dark.svg?raw";
+import { SG400, SG700, NS400, NS700 } from "./fonts.b64";
 
 // All render assets are baked into the chunk: the SVG marks as ?raw imports,
 // the fonts as generated base64 (fonts.b64.ts) — runtime fs reads don't
@@ -13,8 +21,9 @@ import { SG400, SG700, NS400, NS700 } from "./fonts.b64";
 
 /**
  * OG card renderer — 1200×630 PNG for /api/og/$id.png. Everything comes
- * from the `e` envelope in the URL (same source as the og:* meta tags):
- * chain-free, deterministic per URL, so responses cache forever.
+ * from the `e` discovery doc in the URL (same source as the og:* meta
+ * tags): chain-free, deterministic per URL, so responses cache forever.
+ * Dark hands never carry ?e= and naturally get the generic card.
  * Fonts are vendored TTFs (OFL): Schibsted Grotesk + Noto Sans fallback
  * (broad script coverage — titles arrive in any language).
  */
@@ -151,9 +160,8 @@ function decodePreview(e: string | null): { title: string; teaser?: string } {
   const fallback = { title: "Someone needs a hand." };
   if (!e) return fallback;
   try {
-    const envelope = Envelope.parse(JSON.parse(new TextDecoder().decode(b64urlDecode(e))));
-    if (envelope.visibility === "dark" || !envelope.preview?.title) return fallback;
-    return { title: envelope.preview.title, teaser: envelope.preview.teaser };
+    const doc = Discovery.parse(JSON.parse(new TextDecoder().decode(b64urlDecode(e))));
+    return { title: doc.title, teaser: doc.teaser };
   } catch {
     return fallback;
   }

@@ -5,6 +5,7 @@ import { useRaiseFlow, type Visibility } from "../hooks/useRaiseFlow";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
 import { ChipRow } from "../components/ChipRow";
+import { CharityBpsPicker } from "../components/CharityBpsPicker";
 import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
 import { Emoji } from "../components/Emoji";
 import { MetaLine } from "../components/MetaLine";
@@ -83,14 +84,14 @@ function RaiseComponent() {
   const ogDesc =
     flow.visibility === "dark" || !flow.draft
       ? t("Paid when accepted · open until {date}", { date: humanExpiry })
-      : t("{solverKeep}+ to the final helper · successful Shakes share the rest · open until {date}", {
-          solverKeep: formatUsd(flow.solverKeepAmount),
+      : t("{giverKeep}+ to the final helper · successful Shakes share the rest · open until {date}", {
+          giverKeep: formatUsd(flow.giverKeepAmount),
           date: humanExpiry,
         });
 
   const visibilityCaption: Record<Visibility, string> = {
-    public: t("Listed in Open Hands. Anyone can open and share it."),
-    preview: t("Not listed. Anyone with the link can open and share it."),
+    public: t("Listed in Open Hands. Anyone can open and share it. The title goes out for good — indexers keep copies."),
+    preview: t("Not listed. Anyone with the link can open and share it. The title still travels publicly — indexers keep copies."),
     dark: t("Not listed. Link-only, no preview."),
   };
 
@@ -106,10 +107,10 @@ function RaiseComponent() {
       <p className="ah-label ah-label--dim">{t("what your people see when they get the link")}</p>
       <div className="ah-ogcard mt-2">
         {/* The REAL card image — same renderer scrapers hit, fed the draft
-            envelope. Dark mode naturally yields the generic card. */}
-        {flow.draft && (
+            discovery doc. Dark mode naturally yields the generic card. */}
+        {flow.draft && flow.visibility !== "dark" && (
           <img
-            src={`/api/og/draft.png?e=${encodeURIComponent(flow.draft.envelopeB64)}${darkTheme ? "&th=d" : ""}`}
+            src={`/api/og/draft.png?e=${encodeURIComponent(flow.draft.discoveryB64)}${darkTheme ? "&th=d" : ""}`}
             alt={t("link preview card")}
             width={1200}
             height={630}
@@ -237,7 +238,7 @@ function RaiseComponent() {
           <MetaLine
             dim
             className="order-2 lg:order-1 text-center lg:text-left"
-            text={t("${amount} secured · {refund} refundable · {charity} to charity", {
+            text={t("${amount} secured · all {refund} back if it expires · {charity} to charity when accepted", {
               amount: formatUsd(rewardDisplay),
               refund: formatUsd(flow.refundAmount),
               charity: formatUsd(flow.charityAmount),
@@ -289,7 +290,7 @@ function FineTune({
           <span className="ah-disclose__summary">
             {t("most goes to the final helper · open {days} days · {pct2}% to charity", {
               days: flow.expiryDays,
-              pct2: flow.charityFee,
+              pct2: flow.charityBps / 100,
             })}
           </span>
         )}
@@ -304,12 +305,12 @@ function FineTune({
                 className="font-extrabold"
                 style={{ fontSize: "var(--fs-title-m-sm)", lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}
               >
-                {formatUsd(flow.solverKeepAmount)}
+                {formatUsd(flow.giverKeepAmount)}
               </span>
               <span
                 style={{ fontFamily: "var(--font-meta)", fontSize: "var(--fs-mono-md)", color: "var(--ink-a55)", fontVariantNumeric: "tabular-nums" }}
               >
-                {flow.solverKeep}%
+                {flow.giverKeep}%
               </span>
             </div>
             <input
@@ -317,13 +318,13 @@ function FineTune({
               min={SLIDER_MIN}
               max={SLIDER_MAX}
               step={1}
-              value={flow.solverKeep}
-              onChange={(e) => flow.setSolverKeep(Number(e.target.value))}
+              value={flow.giverKeep}
+              onChange={(e) => flow.setGiverKeep(Number(e.target.value))}
               className="ah-slider mt-2"
               style={
                 {
                   "--slider-fill": `calc(${(
-                    (flow.solverKeep - SLIDER_MIN) /
+                    (flow.giverKeep - SLIDER_MIN) /
                     (SLIDER_MAX - SLIDER_MIN)
                   ).toFixed(4)} * (100% - 24px) + 12px)`,
                 } as React.CSSProperties
@@ -335,26 +336,22 @@ function FineTune({
             </p>
           </div>
 
-          {/* Charity + expiry — compact inline pair */}
-          <div className="flex flex-wrap gap-x-8 gap-y-4">
-            <label className="flex items-center gap-2.5">
-              <span className="ah-label">{t("give")}</span>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="ah-chip w-14 text-center"
-                value={flow.charityFee}
-                onChange={(e) => flow.setCharityFee(Number(e.target.value))}
+          {/* Charity share + expiry */}
+          <div className="flex flex-col gap-4">
+            <div>
+              <span className="ah-label">{t("share with charity")}</span>
+              <CharityBpsPicker
+                className="mt-2"
+                valueBps={flow.charityBps}
+                onChange={flow.setCharityBps}
               />
-              <span className="ah-label">{t("% to charity")}</span>
-            </label>
+            </div>
             <label className="flex items-center gap-2.5">
               <span className="ah-label">{t("keep it open for")}</span>
               <input
                 type="number"
                 min="1"
-                max="365"
+                max="180"
                 className="ah-chip w-14 text-center"
                 value={flow.expiryDays}
                 onChange={(e) => flow.setExpiryDays(Number(e.target.value))}
@@ -362,7 +359,7 @@ function FineTune({
               <span className="ah-label">{t("days")}</span>
             </label>
             <p className="ah-label ah-label--dim w-full" style={{ fontSize: "13.5px" }}>
-              {t("If no Give is accepted within {days} days, {refund} returns to you. {charity} goes to charity.", {
+              {t("If no Give is accepted within {days} days, the whole {refund} returns to you. Charity's {charity} moves only when it works out.", {
                 days: flow.expiryDays,
                 refund: formatUsd(flow.refundAmount),
                 charity: formatUsd(flow.charityAmount),

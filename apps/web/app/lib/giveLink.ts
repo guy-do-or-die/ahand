@@ -1,3 +1,6 @@
+import { decodeTerminalProof, ZERO_ADDRESS } from "@ahand/sdk";
+import { b64urlDecode } from "./metadata";
+
 /**
  * Give-message codec — pure helpers for delivering a Give over XMTP.
  *
@@ -45,7 +48,7 @@ export function parseGiveMessage(text: unknown): GiveMessage | null {
   for (const m of text.matchAll(THANK_LINK_RE)) match = m;
   if (!match) return null;
   const [link, handId, fragment] = match;
-  if (!isThankPayload(fragment)) return null;
+  if (!isThankPayload(fragment, handId)) return null;
   const note = text.replace(link, "").trim();
   return { handId, fragment, note };
 }
@@ -58,21 +61,35 @@ export function thankPathFor(msg: Pick<GiveMessage, "handId" | "fragment">): str
   return `/h/${msg.handId}/thank#${msg.fragment}`;
 }
 
+/** Header layout: magic(2) ver(1) kind(1) chainId(8) core(20) handId(32). */
+const HEADER_LENGTH = 64;
+
+function readBig(bytes: Uint8Array, start: number, len: number): bigint {
+  let v = 0n;
+  for (let i = start; i < start + len; i++) v = (v << 8n) | BigInt(bytes[i]);
+  return v;
+}
+
 /**
- * Mirror of useThankFlow's fragment parse (base64url → JSON): the payload
- * must carry give + giveSig + shakes or the thank page couldn't read it.
+ * Structural validation via the real terminal-proof codec. The HandRef
+ * context comes from the payload's own header (self-consistent decode) —
+ * chain facts like expiry are unknown at inbox time, so placeholders stand
+ * in for the reconstructed-only fields; the thank page re-decodes against
+ * the on-chain hand and verifies signatures before anything can settle.
  */
-function isThankPayload(fragment: string): boolean {
+function isThankPayload(fragment: string, handId: string): boolean {
   try {
-    const parsed = JSON.parse(atob(fragment.replace(/-/g, "+").replace(/_/g, "/")));
-    return Boolean(
-      parsed &&
-        typeof parsed === "object" &&
-        parsed.give &&
-        typeof parsed.give === "object" &&
-        typeof parsed.giveSig === "string" &&
-        Array.isArray(parsed.shakes),
-    );
+    const bytes = b64urlDecode(fragment);
+    if (bytes.length < HEADER_LENGTH) return false;
+    const headerHandId = readBig(bytes, 32, 32);
+    if (headerHandId !== BigInt(handId)) return false;
+    const core = `0x${Array.from(bytes.subarray(12, 32), (b) => b.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+    decodeTerminalProof(fragment, {
+      handRef: { chainId: readBig(bytes, 4, 8), core, handId: headerHandId },
+      expiry: 0n,
+      rootCapability: ZERO_ADDRESS,
+    });
+    return true;
   } catch {
     return false;
   }

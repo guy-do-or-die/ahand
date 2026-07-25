@@ -1,26 +1,52 @@
 import { describe, it, expect } from "vitest";
+import { keccak256, stringToHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import {
+  buildTerminalProof,
+  giveHash,
+  newCapability,
+  routeHashOf,
+  signGive,
+  signGiverAcceptance,
+  type Give,
+} from "@ahand/sdk";
 import { buildGiveMessage, parseGiveMessage, thankPathFor } from "./giveLink";
 
-/** Serialize a thank payload the way useSolveFlow does (base64url of JSON). */
-function encodeFragment(payload: unknown): string {
-  return btoa(JSON.stringify(payload))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+const CHAIN_ID = 31337n;
+const CORE = "0x5FbDB2315678afecb367f032d93F642f64180aa3" as `0x${string}`;
+const EXPIRY = 2_000_000_000n;
+
+/** A real zero-shake terminal proof, exactly as useSolveFlow mints one. */
+async function mintProof(handId: bigint): Promise<string> {
+  const root = newCapability();
+  const giver = newCapability();
+  const handRef = { chainId: CHAIN_ID, core: CORE, handId };
+  const give: Give = {
+    handId,
+    routeHash: routeHashOf(handRef, []),
+    giver: giver.address,
+    solutionHash: keccak256(stringToHex("I can sublet you my flat in July.")),
+    finalClaimBps: 10_000,
+    deadline: EXPIRY,
+  };
+  const giveSig = await signGive(give, root.privateKey, CHAIN_ID, CORE);
+  const giverAcceptanceSig = await signGiverAcceptance(
+    giveHash(give),
+    privateKeyToAccount(giver.privateKey),
+    CHAIN_ID,
+    CORE,
+  );
+  return buildTerminalProof({
+    handRef,
+    expiry: EXPIRY,
+    rootCapability: root.address,
+    shakes: [],
+    give: { give, signature: giveSig },
+    giverAcceptanceSig,
+  });
 }
 
-const validPayload = {
-  give: {
-    handId: "7",
-    solver: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    solutionHash: "0x" + "ab".repeat(32),
-    finalClaimBps: 10000,
-  },
-  giveSig: "0x" + "cd".repeat(65),
-  shakes: [],
-};
-
-const fragment = encodeFragment(validPayload);
+const fragment = await mintProof(7n);
 const solveUrl = `https://ahand.example/h/7/thank#${fragment}`;
 
 describe("give message codec", () => {
@@ -50,11 +76,12 @@ describe("give message codec", () => {
     expect(parsed!.note).not.toContain("/thank#");
   });
 
-  it("parses links minted on any origin and rebuilds a local path", () => {
-    const foreign = `https://abc123.ngrok-free.app/h/42/thank#${fragment}`;
+  it("parses links minted on any origin and rebuilds a local path", async () => {
+    const foreignFragment = await mintProof(42n);
+    const foreign = `https://abc123.ngrok-free.app/h/42/thank#${foreignFragment}`;
     const parsed = parseGiveMessage(foreign);
     expect(parsed).not.toBeNull();
-    expect(thankPathFor(parsed!)).toBe(`/h/42/thank#${fragment}`);
+    expect(thankPathFor(parsed!)).toBe(`/h/42/thank#${foreignFragment}`);
   });
 
   it("rejects plain chatter and foreign links", () => {
@@ -63,18 +90,26 @@ describe("give message codec", () => {
     expect(parseGiveMessage(`https://ahand.example/h/7#${fragment}`)).toBeNull();
   });
 
-  it("rejects a thank link whose fragment is not base64url JSON", () => {
+  it("rejects a thank link whose fragment is not a terminal proof", () => {
     expect(parseGiveMessage("https://ahand.example/h/7/thank#notbase64!!!")).toBeNull();
     expect(parseGiveMessage("https://ahand.example/h/7/thank#YWJjZGVm")).toBeNull(); // "abcdef"
+    // a structurally valid JSON blob from the previous protocol is refused
+    const legacy = btoa(JSON.stringify({ give: {}, giveSig: "0x", shakes: [] }))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    expect(parseGiveMessage(`https://ahand.example/h/7/thank#${legacy}`)).toBeNull();
   });
 
-  it("rejects payloads missing give, giveSig, or shakes", () => {
-    const noSig = encodeFragment({ give: validPayload.give, shakes: [] });
-    const noGive = encodeFragment({ giveSig: validPayload.giveSig, shakes: [] });
-    const noShakes = encodeFragment({ give: validPayload.give, giveSig: validPayload.giveSig });
-    for (const bad of [noSig, noGive, noShakes]) {
-      expect(parseGiveMessage(`https://ahand.example/h/7/thank#${bad}`)).toBeNull();
-    }
+  it("rejects a proof whose path hand does not match its header", () => {
+    // the same valid fragment presented under a different hand id
+    expect(parseGiveMessage(`https://ahand.example/h/8/thank#${fragment}`)).toBeNull();
+  });
+
+  it("rejects a truncated proof", () => {
+    expect(
+      parseGiveMessage(`https://ahand.example/h/7/thank#${fragment.slice(0, fragment.length - 8)}`),
+    ).toBeNull();
   });
 
   it("rejects non-string content (reactions, attachments, undefined)", () => {
@@ -84,8 +119,7 @@ describe("give message codec", () => {
   });
 
   it("takes the LAST thank-link, so a link quoted in the note can't shadow the proof", () => {
-    const decoy = encodeFragment({ give: { handId: "999" }, giveSig: "0xdead", shakes: [] });
-    const text = `like this one https://ahand.example/h/999/thank#${decoy}\n\n${solveUrl}`;
+    const text = `like this one https://ahand.example/h/999/thank#YWJjZGVm\n\n${solveUrl}`;
     const parsed = parseGiveMessage(text);
     expect(parsed).not.toBeNull();
     expect(parsed!.handId).toBe("7");

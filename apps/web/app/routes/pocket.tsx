@@ -1,15 +1,15 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useDisconnect } from "wagmi";
+import { formatUnits } from "viem";
 import { usePocket, type PocketReceipt } from "../hooks/usePocket";
 import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
 import { GiveInbox } from "../components/GiveInbox";
-import { OnboardingSheet } from "../components/OnboardingSheet";
 import { DevFaucet } from "../components/DevFaucet";
+import { ClaimsCard } from "../components/ClaimsCard";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
-import { Logo } from "../components/Logo";
 import { Emoji } from "../components/Emoji";
 import { POCKET_EMOJI } from "../styles/tokens";
 import { formatUsd, formatUsdCents } from "../lib/format";
@@ -20,37 +20,52 @@ export const Route = createFileRoute("/pocket")({
 });
 
 const KIND_EMOJI: Record<PocketReceipt["kind"], string> = {
-  solved: "🙌",
+  gave: "🙌",
   passed: "🤝",
+  charity: "💛",
+  refund: "🫳",
   raised: "✋",
   thanked: "🙏",
+  tookOut: "👜",
 };
 
 function kindLabel(r: PocketReceipt): string {
   switch (r.kind) {
-    case "solved":
-      return t("Accepted hand #{id}", { id: r.handId });
+    case "gave":
+      return t("Gave on hand #{id}", { id: r.handId });
     case "passed":
-      return t("Shaked hand #{id} on", { id: r.handId });
+      return t("Passed hand #{id} on", { id: r.handId });
+    case "charity":
+      return t("Charity share — hand #{id}", { id: r.handId });
+    case "refund":
+      return t("Pot came back — hand #{id}", { id: r.handId });
     case "raised":
       return t("Raised hand #{id}", { id: r.handId });
     case "thanked":
       return t("Thanked the chain — hand #{id}", { id: r.handId });
+    case "tookOut":
+      return t("Took thanks out");
   }
 }
 
-/** Held (an open raise, comes back if unsolved) vs paid out vs received —
- *  the minus sign is reserved for money that has truly left (#13). */
+/** Held (an open raise, comes back if unsolved) vs credited vs paid out —
+ *  the minus sign is reserved for money that has truly left. */
 function receiptNote(r: PocketReceipt): string {
   switch (r.kind) {
     case "raised":
       return t("held · returns if no Give is accepted");
     case "thanked":
       return t("paid out to everyone");
-    case "solved":
-      return t("your thanks for giving");
+    case "gave":
+      return t("your thanks for giving · claimable");
     case "passed":
-      return t("your thanks for shaking");
+      return t("your thanks for passing it on · claimable");
+    case "charity":
+      return t("set aside for charity · claimable");
+    case "refund":
+      return t("came back unsolved · claimable");
+    case "tookOut":
+      return t("moved into your pocket");
   }
 }
 
@@ -79,6 +94,9 @@ function PocketComponent() {
     setMounted(true);
   }, []);
 
+  const claimable = pocket.claims.claimable;
+  const claimableUsd = claimable !== null ? Number(formatUnits(claimable, 6)) : null;
+
   return (
     <div className="ah-page">
       {!mounted || !pocket.isConnected ? (
@@ -100,70 +118,115 @@ function PocketComponent() {
         </div>
       ) : (
         <div className="flex flex-col flex-1 w-full px-6 pt-6 pb-6 lg:grid lg:grid-cols-[400px_1fr] lg:gap-14 lg:items-start lg:px-10 lg:pt-11 lg:pb-16 lg:max-w-[1280px] lg:mx-auto">
-          {/* Balance card */}
-          <div className="ah-pocket-card">
-            <div className="flex justify-between items-baseline mb-3">
-              <p className="ah-label ah-label--dim">
-                {t("your pocket")}
+          {/* Balance + claims column */}
+          <div className="flex flex-col gap-5">
+            <div className="ah-pocket-card">
+              <div className="flex justify-between items-baseline mb-3">
+                <p className="ah-label ah-label--dim">
+                  {t("your pocket")}
+                </p>
+                <button
+                  type="button"
+                  className="text-[12px] font-bold text-ink/40 hover:text-ink cursor-pointer bg-transparent border-0 p-0"
+                  onClick={handleDisconnect}
+                >
+                  {t("Disconnect")}
+                </button>
+              </div>
+              <div className="flex items-end justify-between gap-3">
+                <span
+                  className="font-extrabold break-all"
+                  style={{ fontSize: "clamp(30px, 3.5vw, 44px)", lineHeight: 1, letterSpacing: "-0.035em", fontVariantNumeric: "tabular-nums" }}
+                >
+                  {pocket.balance !== null ? formatUsd(pocket.balance) : "—"}
+                </span>
+                <span
+                  className="flex items-center gap-1.5"
+                  style={{
+                    fontFamily: "var(--font-meta)",
+                    fontSize: "var(--fs-body-sm)",
+                    fontWeight: "var(--fw-medium)" as any,
+                    border: "var(--bw-emph) solid var(--ink)",
+                    background: "var(--card)",
+                    borderRadius: "var(--r-chip-lg)",
+                    padding: "6px 12px",
+                  }}
+                >
+                  <Emoji size={15}>👍</Emoji>
+                  {pocket.thanksCount}
+                </span>
+              </div>
+              <p className="ah-label ah-label--dim mt-2">
+                {t("yours to keep · {n} good turns so far", { n: pocket.thanksCount })}
               </p>
-              <button
-                type="button"
-                className="text-[12px] font-bold text-ink/40 hover:text-ink cursor-pointer bg-transparent border-0 p-0"
-                onClick={handleDisconnect}
-              >
-                {t("Disconnect")}
-              </button>
-            </div>
-            <div className="flex items-end justify-between gap-3">
-              <span
-                className="font-extrabold break-all"
-                style={{ fontSize: "clamp(30px, 3.5vw, 44px)", lineHeight: 1, letterSpacing: "-0.035em", fontVariantNumeric: "tabular-nums" }}
-              >
-                {pocket.balance !== null ? formatUsd(pocket.balance) : "—"}
-              </span>
-              <span
-                className="flex items-center gap-1.5"
-                style={{
-                  fontFamily: "var(--font-meta)",
-                  fontSize: "var(--fs-body-sm)",
-                  fontWeight: "var(--fw-medium)" as any,
-                  border: "var(--bw-emph) solid var(--ink)",
-                  background: "var(--card)",
-                  borderRadius: "var(--r-chip-lg)",
-                  padding: "6px 12px",
-                }}
-              >
-                <Emoji size={15}>👍</Emoji>
-                {pocket.thanksCount}
-              </span>
-            </div>
-            <p className="ah-label ah-label--dim mt-2">
-              {t("yours to keep · {n} good turns so far", { n: pocket.thanksCount })}
-            </p>
-            <DevFaucet />
+              <DevFaucet />
 
-            {/* CTA row (desktop keeps it in the card; mobile pins to bottom) */}
-            <div className="hidden lg:flex mt-6 gap-2.5 items-center">
-              <QuietButton disabled className="ah-quiet--soon">
-                {t("Take out")}
-                <span className="ah-soon__chip">{t("soon")}</span>
-              </QuietButton>
-              <SwipeButton
-                gesture="raise"
-                variant="ink"
-                className="flex-1 whitespace-nowrap"
-                style={{ padding: "0 80px 0 20px", fontSize: 15.5 }}
-                onClick={() => navigate({ to: "/raise" })}
-              >
-                {t("Raise a hand")}
-              </SwipeButton>
+              {/* CTA row (desktop keeps it in the card; mobile pins to bottom) */}
+              <div className="hidden lg:flex mt-6">
+                <SwipeButton
+                  gesture="raise"
+                  variant="ink"
+                  className="flex-1 whitespace-nowrap"
+                  style={{ padding: "0 80px 0 20px", fontSize: 15.5 }}
+                  onClick={() => navigate({ to: "/raise" })}
+                >
+                  {t("Raise a hand")}
+                </SwipeButton>
+              </div>
             </div>
+
+            {/* Claimable — what PayoutAllocated set aside for this pocket. */}
+            <ClaimsCard
+              amount={claimableUsd !== null ? formatUsdCents(claimableUsd) : "—"}
+              tokenSymbol="USDC"
+              empty={claimableUsd === null || claimableUsd === 0}
+              loading={pocket.claims.takingOut}
+              onTakeOut={() => void pocket.claims.takeOut()}
+            />
+            {pocket.claims.error && (
+              <div className="ah-alert" role="alert">
+                <p className="ah-alert__text">{pocket.claims.error}</p>
+              </div>
+            )}
           </div>
 
           {/* Receipts — a paper receipt is narrow */}
           <div className="mt-5 lg:mt-0 flex flex-col flex-1 lg:max-w-[600px]">
             <DirectDeliveryCard className="mb-5" />
             <GiveInbox className="mb-5" />
+
+            {/* Settled hands still owing their Signals receipts — anyone can
+                materialize them; this is the polite retry button. */}
+            {pocket.unreceipted.length > 0 && (
+              <div className="ah-card mb-5 p-4">
+                <p className="ah-label">{t("receipts pending")}</p>
+                <p className="ah-label ah-label--dim mt-1" style={{ fontSize: 12.5 }}>
+                  {t("these settled hands haven't minted their memory yet — one tap does it, for everyone")}
+                </p>
+                <div className="mt-2.5 flex flex-col gap-2">
+                  {pocket.unreceipted.map((hid) => (
+                    <div key={hid} className="flex items-center justify-between gap-3">
+                      <span className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)" }}>
+                        {t("aHand #{id}", { id: hid })}
+                      </span>
+                      <QuietButton
+                        compact
+                        disabled={pocket.materializing !== null}
+                        onClick={() => void pocket.materialize(hid)}
+                      >
+                        {pocket.materializing === hid ? t("minting…") : t("materialize receipts")}
+                      </QuietButton>
+                    </div>
+                  ))}
+                </div>
+                {pocket.materializeError && (
+                  <p className="ah-label ah-label--dim mt-2" style={{ fontSize: 12 }}>
+                    {pocket.materializeError}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div style={{ borderTop: "var(--bw-emph) solid var(--ink)" }}>
               {pocket.receipts === null ? (
                 <p className="ah-label py-4">{t("reading your receipts…")}</p>
@@ -194,14 +257,14 @@ function PocketComponent() {
                         fontSize: 15,
                         fontVariantNumeric: "tabular-nums",
                         color:
-                          r.kind === "raised"
+                          r.kind === "raised" || r.kind === "tookOut"
                             ? "var(--ink-a45)"
                             : r.kind === "thanked"
                               ? "var(--ink-a60)"
                               : "var(--ink)",
                       }}
                     >
-                      {r.kind === "raised" ? "" : r.kind === "thanked" ? "−" : "+"}
+                      {r.kind === "raised" || r.kind === "tookOut" ? "" : r.kind === "thanked" ? "−" : "+"}
                       {formatUsdCents(Math.abs(r.amount))}
                     </span>
                   </div>
@@ -211,11 +274,7 @@ function PocketComponent() {
 
             {/* Mobile CTA row */}
             <div aria-hidden="true" className="lg:hidden flex-1 min-h-5 max-h-24" />
-            <div className="lg:hidden pt-2 flex gap-2.5 items-center">
-              <QuietButton disabled className="ah-quiet--soon">
-                {t("Take out")}
-                <span className="ah-soon__chip">{t("soon")}</span>
-              </QuietButton>
+            <div className="lg:hidden pt-2 flex">
               <SwipeButton
                 gesture="raise"
                 variant="ink"
