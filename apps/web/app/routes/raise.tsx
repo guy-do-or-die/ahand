@@ -1,332 +1,422 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
-import { useAccount, useWriteContract, useReadContract, usePublicClient } from "wagmi";
-import { parseUnits, decodeEventLog } from "viem";
-import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
-import { encodePayload, newCapability } from "@ahand/sdk";
-import { activeChain } from "../config/web3";
-import { buildMetadata, assembleLink, CHARS_PER_HOP } from "../lib/metadata";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useRaiseFlow, type Visibility } from "../hooks/useRaiseFlow";
+import { SwipeButton } from "../components/SwipeButton";
+import { QuietButton } from "../components/QuietButton";
+import { ChipRow } from "../components/ChipRow";
+import { Emoji } from "../components/Emoji";
+import { MetaLine } from "../components/MetaLine";
+import { formatUsd, formatDateHuman, truncateMiddle } from "../lib/format";
+import { t } from "../i18n";
 
 export const Route = createFileRoute("/raise")({
   component: RaiseComponent,
 });
 
+const PRESETS = ["25", "50", "150"];
+const HOPS_WARNING_THRESHOLD = 8;
+const SLIDER_MIN = 20;
+const SLIDER_MAX = 90;
+
 function RaiseComponent() {
   const navigate = useNavigate();
-  const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const flow = useRaiseFlow();
+  const { login } = usePrivy();
+  const [customAmount, setCustomAmount] = useState(!PRESETS.includes(flow.reward));
+  const composeRef = useRef<HTMLTextAreaElement>(null);
 
-  // Form state
-  const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "preview" | "dark">("preview");
-  const [reward, setReward] = useState("150");
-  const [solverKeep, setSolverKeep] = useState(70); // in Bps = 7000
-  const [charityFee, setCharityFee] = useState(1);  // in Bps = 100
-  const [expiryDays, setExpiryDays] = useState(30);
-  const [fineTune, setFineTune] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [shareUrl, setShareUrl] = useState("");
+  // esc leaves only when there's nothing to lose: an untouched compose, and
+  // never from the success screen (that link is the hand).
+  const escSafe = !flow.description.trim() && !flow.shareUrl;
+  useEffect(() => {
+    if (!escSafe) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") navigate({ to: "/" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate, escSafe]);
 
-  const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: DeployedAddresses.mockUSD,
-    abi: MockERC20Abi,
-    functionName: "allowance",
-    args: address && DeployedAddresses.AHandCore ? [address, DeployedAddresses.AHandCore] : undefined,
-  });
-
-  // Derived logic
-  const splitTitle = useMemo(() => {
-    let cut = description.indexOf("\n");
-    if (cut === -1 || cut > 80) {
-      if (description.length <= 80) cut = description.length;
-      else {
-        cut = description.lastIndexOf(" ", 80);
-        if (cut === -1) cut = 80;
-      }
-    }
-    return description.slice(0, cut).trim() || "Raise a hand";
-  }, [description]);
-
-  const hops = useMemo(() => {
-    // base length + payload size ~400 + b64 length of text
-    const estimatedUrlLen = window.location.origin.length + 20 + 400 + (description.length * 1.5);
-    return Math.max(0, Math.floor((4096 - estimatedUrlLen) / CHARS_PER_HOP));
-  }, [description]);
-
-  const handleRaise = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isConnected || !address || !publicClient) {
-      setErrorMsg("Please connect your wallet first.");
-      return;
-    }
-    if (!description.trim()) {
-      setErrorMsg("Please enter a description.");
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg("");
-
-    try {
-      const parsedReward = parseUnits(reward, 6);
-
-      // 1. Build Metadata
-      const metadata = await buildMetadata({
-        text: description,
-        visibility
-      });
-
-      // 2. Allowance
-      if (!allowance || (allowance as bigint) < parsedReward) {
-        const txHash = await writeContractAsync({
-          address: DeployedAddresses.mockUSD,
-          abi: MockERC20Abi,
-          functionName: "approve",
-          args: [DeployedAddresses.AHandCore, parsedReward],
-        });
-        await publicClient.waitForTransactionReceipt({ hash: txHash });
-        await refetchAllowance();
-      }
-
-      // 3. Generate capability & Raise
-      const cap = newCapability();
-      const expiryTimestamp = BigInt(Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60);
-      
-      const raiseTx = await writeContractAsync({
-        address: DeployedAddresses.AHandCore,
-        abi: AHandCoreAbi,
-        functionName: "raise",
-        args: [
-          DeployedAddresses.mockUSD,
-          parsedReward,
-          Number(expiryTimestamp),
-          charityFee * 100,
-          0,
-          solverKeep * 100,
-          DeployedAddresses.charity,
-          cap.address,
-          metadata.metadataHash,
-        ],
-      });
-
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: raiseTx });
-      
-      const raiseEvent = receipt.logs.map(log => {
-        try {
-          return decodeEventLog({
-            abi: AHandCoreAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-        } catch { return null; }
-      }).find(e => e?.eventName === 'Raised');
-
-      if (!raiseEvent) throw new Error("Could not find Raised event in transaction");
-      const newHandId = (raiseEvent.args as any).handId as bigint;
-
-      // 4. Encode payload and assemble final link
-      const url = assembleLink(
-        window.location.origin, 
-        newHandId, 
-        { envelopeB64: metadata.envelopeB64, bodyB64: metadata.bodyB64 },
-        (meta) => encodePayload({
-          handId: newHandId,
-          chainId: activeChain.id,
-          core: DeployedAddresses.AHandCore,
-          shakes: [],
-          latestPrivateKey: cap.privateKey,
-          metadata: meta,
-        }),
-        visibility
-      );
-      
-      setShareUrl(url);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || "An error occurred during transaction execution.");
-    } finally {
-      setLoading(false);
-    }
+  // auto-grow the compose surface
+  const autoGrow = () => {
+    const el = composeRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
   };
+  useEffect(autoGrow, [flow.description]);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(shareUrl);
-    alert("Share link copied to clipboard!");
-  };
-
-  if (shareUrl) {
-    return (
-      <div className="py-8 px-4 text-center space-y-6 animate-fade-in">
-        <h1 className="text-3xl font-extrabold">🙌 Hand Raised!</h1>
-        <p className="text-ink/60 text-sm leading-relaxed">
-          Your link has been successfully generated. Share it securely with your network.
-        </p>
-
-        <div className="bg-ink/5 p-4 rounded-lg border border-ink/10 text-left font-mono text-xs break-all">
-          {shareUrl}
-        </div>
-
-        <div className="flex flex-col space-y-3 w-full">
-          <button
-            onClick={copyToClipboard}
-            className="w-full bg-ink text-paper py-3 rounded-lg font-bold hover:bg-ink/90 transition"
-          >
-            Copy link
-          </button>
-          <button
-            onClick={() => navigate({ to: "/" })}
-            className="w-full border border-ink/20 text-ink py-2 rounded-lg font-medium hover:bg-ink/5 transition text-sm"
-          >
-            Back to home
-          </button>
-        </div>
-      </div>
-    );
+  if (flow.shareUrl) {
+    return <RaiseSuccess shareUrl={flow.shareUrl} hops={flow.draft?.hops} />;
   }
 
-  const dateStr = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toLocaleDateString();
+  const rewardNum = Number(flow.reward);
+  const rewardDisplay = Number.isFinite(rewardNum) && rewardNum > 0 ? rewardNum : 0;
+  const humanExpiry = formatDateHuman(Date.now() + flow.expiryDays * 24 * 60 * 60 * 1000);
 
-  return (
-    <div className="py-6 px-4 space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight">Raise a hand 🙌</h1>
-        <p className="text-ink/60 text-sm leading-relaxed">
-          State your need and pledge a reward.
+  const ogMeta = t("aHand · {amount} secured", { amount: formatUsd(rewardDisplay) });
+
+  const ogTitle =
+    flow.visibility === "dark" || !flow.draft
+      ? t("What are you looking for?")
+      : flow.draft.title;
+
+  const ogDesc =
+    flow.visibility === "dark" || !flow.draft
+      ? t("Paid when accepted · open until {date}", { date: humanExpiry })
+      : t("{solverKeep}+ to the final helper · successful Shakes share the rest · open until {date}", {
+          solverKeep: formatUsd(flow.solverKeepAmount),
+          date: humanExpiry,
+        });
+
+  const visibilityCaption: Record<Visibility, string> = {
+    public: t("Listed in Open Hands. Anyone can open and share it."),
+    preview: t("Not listed. Anyone with the link can open and share it."),
+    dark: t("Not listed. Link-only, no preview."),
+  };
+
+  const hops = flow.draft?.hops;
+  const hopsWarning = hops !== undefined && hops < HOPS_WARNING_THRESHOLD;
+  const descriptionBytes = new TextEncoder().encode(flow.description).length;
+
+  // Lives inside fine-tune, next to the "who can see it" control. Framed in
+  // plain words + styled like a real chat unfurl. Link-length hint only when
+  // it matters.
+  const previewBlock = (
+    <div aria-live="polite">
+      <p className="ah-label ah-label--dim">{t("what your people see when they get the link")}</p>
+      <div className="ah-ogcard mt-2">
+        <p className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", color: "var(--ink-a45)" }}>
+          {ogMeta}
+        </p>
+        <p className="ah-ogcard__title mt-1">{ogTitle}</p>
+        {flow.visibility !== "dark" && flow.draft?.teaser && (
+          <p className="ah-ogcard__desc mt-1.5" style={{ color: "var(--ink-a75)" }}>
+            {flow.draft.teaser}
+          </p>
+        )}
+        <p className="ah-ogcard__desc mt-1" style={{ fontSize: "12.5px", color: "var(--ink-a45)" }}>
+          {ogDesc}
         </p>
       </div>
+      {(flow.draftOverflow || hopsWarning) && (
+        <p
+          className="mt-2 text-[13px] leading-[1.4]"
+          style={{ color: "var(--ink)", fontWeight: "var(--fw-semibold)" as any }}
+        >
+          <Emoji>⚠️</Emoji>{" "}
+          {flow.draftOverflow
+            ? t("too long for one link — trim it a little")
+            : t("the link's getting long — room for about {hops} more shares", { hops })}
+        </p>
+      )}
+    </div>
+  );
 
-      <form onSubmit={handleRaise} className="space-y-6">
-        <div className="flex flex-col space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-ink/60">
-            What do you need? (First line becomes the title)
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Looking for a sublet in Yerevan, June...\nNeed a 1-bedroom apartment under $800/mo."
-            className="w-full border border-ink/20 rounded-lg p-3 text-sm focus:border-ink focus:outline-none bg-transparent resize-none h-24"
-          />
-        </div>
+  return (
+    <div className="ah-page">
+      {/* Focus column */}
+      <form
+        className="flex flex-col flex-1 w-full px-6 pt-6 pb-6 lg:max-w-[640px] lg:mx-auto lg:pt-11 lg:pb-16"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!flow.isConnected && flow.description.trim()) {
+            login();
+            return;
+          }
+          flow.handleRaise();
+        }}
+      >
+        <span className="ah-label">{t("raise a hand")}</span>
 
-        <div className="flex flex-col space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-ink/60">
-            Visibility Mode
-          </label>
-          <select
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value as any)}
-            className="w-full border border-ink/20 rounded-lg p-3 text-sm focus:border-ink focus:outline-none bg-transparent"
-          >
-            <option value="preview">Preview (Rich card by link only)</option>
-            <option value="public">Public (Listed & Rich preview)</option>
-            <option value="dark">Dark (Generic card, nothing leaves the link)</option>
-          </select>
-        </div>
-
-        <div className="flex flex-col space-y-1">
-          <label className="text-xs font-bold uppercase tracking-wider text-ink/60">
-            Reward (mockUSD)
-          </label>
-          <input
-            type="number"
-            value={reward}
-            onChange={(e) => setReward(e.target.value)}
-            className="w-full border border-ink/20 rounded-lg p-3 text-sm focus:border-ink focus:outline-none bg-transparent"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-wider text-ink/60 flex justify-between">
-            <span>Link Survival</span>
-            <span className={hops < 8 ? "text-red-500" : "text-green-600"}>
-              ~{hops} hops in Telegram
-            </span>
-          </div>
-          {hops < 8 && (
-            <p className="text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
-              Warning: Link is getting very long. Consider shortening the description.
+        <textarea
+          ref={composeRef}
+          className="ah-compose mt-4"
+          rows={2}
+          value={flow.description}
+          onChange={(e) => flow.setDescription(e.target.value)}
+          placeholder={t("What are you looking for?")}
+          autoFocus
+        />
+        <div className="flex flex-col gap-1 mt-2">
+          {!flow.description && (
+            <p className="text-[13.5px] leading-relaxed text-ink/40 italic">
+              {t("e.g. A Portuguese-speaking Solidity reviewer in Lisbon…")}
             </p>
+          )}
+          {descriptionBytes > 800 ? (
+            <p
+              className="ah-meta"
+              style={
+                flow.draftOverflow
+                  ? { color: "var(--ink)", fontWeight: "var(--fw-bold)" as any }
+                  : { color: "var(--ink-a45)", letterSpacing: "var(--track-mono-sm)" }
+              }
+              aria-live="polite"
+            >
+              {t("{n} / 1000", { n: descriptionBytes })}
+            </p>
+          ) : (
+            <p className="ah-label ah-label--dim">{t("First line becomes the title. Add details below.")}</p>
           )}
         </div>
 
-        {/* Live OG Preview */}
-        <div className="bg-ink/5 border border-ink/10 rounded-lg overflow-hidden">
-          <div className="bg-ink/10 px-3 py-1 text-[10px] font-bold uppercase text-ink/50 border-b border-ink/10">
-            OpenGraph Preview ({visibility})
-          </div>
-          <div className="p-4 space-y-1">
-            <h3 className="font-bold text-sm truncate">
-              {visibility === "dark" 
-                ? "✋ Someone raised a hand"
-                : `✋ ${splitTitle}`}
-            </h3>
-            <p className="text-xs text-ink/60">
-              solver keeps ≥{solverKeep}% · escrow pays only on success · until {dateStr}
-            </p>
-          </div>
-        </div>
-
-        <div className="border-t border-ink/10 pt-4">
-          <button
-            type="button"
-            onClick={() => setFineTune(!fineTune)}
-            className="text-xs font-bold text-ink/60 hover:text-ink flex items-center focus:outline-none"
-          >
-            {fineTune ? "▾ Hide fine-tuning" : "▸ Fine-tune configuration"}
-          </button>
-
-          {fineTune && (
-            <div className="mt-4 space-y-3 bg-ink/5 p-4 rounded-lg border border-ink/10 text-xs animate-slide-down">
-              <div className="flex justify-between items-center">
-                <span>Solver keeps at least</span>
-                <input
-                  type="number"
-                  value={solverKeep}
-                  onChange={(e) => setSolverKeep(Number(e.target.value))}
-                  className="w-16 border border-ink/20 rounded p-1 text-center bg-transparent"
-                />
-                <span>%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Charity donation fee</span>
-                <input
-                  type="number"
-                  value={charityFee}
-                  onChange={(e) => setCharityFee(Number(e.target.value))}
-                  className="w-16 border border-ink/20 rounded p-1 text-center bg-transparent"
-                />
-                <span>%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Expiry duration</span>
-                <input
-                  type="number"
-                  value={expiryDays}
-                  onChange={(e) => setExpiryDays(Number(e.target.value))}
-                  className="w-16 border border-ink/20 rounded p-1 text-center bg-transparent"
-                />
-                <span>days</span>
-              </div>
-            </div>
+        {/* Pot amount */}
+        <p className="ah-label mt-6.5 lg:mt-9">{t("thanks in the pot")}</p>
+        <div className="flex gap-2 lg:gap-2.5 mt-2.5 lg:mt-3 items-center">
+          <ChipRow
+            options={PRESETS.map((p) => ({ key: p, label: formatUsd(Number(p)) }))}
+            selectedKey={customAmount ? undefined : flow.reward}
+            onSelect={(key) => {
+              setCustomAmount(false);
+              flow.setReward(key);
+            }}
+          />
+          {customAmount ? (
+            <label className="ah-chip ah-chip--selected ah-chip-field">
+              <span aria-hidden="true">$</span>
+              <input
+                type="number"
+                min="1"
+                inputMode="decimal"
+                autoFocus
+                onFocus={(e) => e.currentTarget.select()}
+                value={flow.reward}
+                onChange={(e) => flow.setReward(e.target.value)}
+                aria-label={t("your call")}
+              />
+            </label>
+          ) : (
+            <button type="button" className="ah-chip ah-chip--dashed" onClick={() => setCustomAmount(true)}>
+              {t("your call")}
+            </button>
           )}
         </div>
 
-        {errorMsg && (
-          <div className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">
-            {errorMsg}
+        {/* Fine-tune (holds solver share, timing, visibility + live preview) */}
+        <FineTune flow={flow} visibilityCaption={visibilityCaption} preview={previewBlock} />
+
+        {/* CTA */}
+        <div className="mt-8 lg:mt-11 flex flex-col gap-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
+          <MetaLine
+            dim
+            className="order-2 lg:order-1 text-center lg:text-left"
+            text={t("${amount} secured · {refund} refundable · {charity} to charity", {
+              amount: formatUsd(rewardDisplay),
+              refund: formatUsd(flow.refundAmount),
+              charity: formatUsd(flow.charityAmount),
+            })}
+          />
+          <SwipeButton
+            gesture="raise"
+            variant="ink"
+            type="submit"
+            disabled={flow.loading}
+            aria-busy={flow.loading}
+            className="order-1 lg:order-2 lg:min-w-[300px]"
+          >
+            {flow.loading ? t("Raising…") : t("Raise it")}
+          </SwipeButton>
+        </div>
+
+        {/* Errors below the CTA so the button never jumps mid-press */}
+        {flow.errorMsg && (
+          <div className="ah-alert mt-4" role="alert">
+            <p className="ah-alert__label">
+              <Emoji>⚠️</Emoji> {t("something to fix")}
+            </p>
+            <p className="ah-alert__text">{flow.errorMsg}</p>
           </div>
         )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-ink text-paper py-3 rounded-lg font-bold hover:bg-ink/90 transition disabled:opacity-50"
-        >
-          {loading ? "Confirming..." : "🙌 Raise it"}
-        </button>
       </form>
+    </div>
+  );
+}
+
+function FineTune({
+  flow,
+  visibilityCaption,
+  preview,
+}: {
+  flow: ReturnType<typeof useRaiseFlow>;
+  visibilityCaption: Record<Visibility, string>;
+  preview: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-5">
+      <button type="button" className="ah-disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="ah-disclose__toggle">
+          {open ? "▾" : "▸"} {t("fine-tune")}
+        </span>
+        {!open && (
+          <span className="ah-disclose__summary">
+            {t("most goes to the final helper · open {days} days · {pct2}% to charity", {
+              days: flow.expiryDays,
+              pct2: flow.charityFee,
+            })}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="ah-panel mt-3 flex flex-col gap-6">
+          {/* Solver share — the sum is primary (anchored left), % secondary (right) */}
+          <div>
+            <p className="ah-label">{t("the final helper keeps at least")}</p>
+            <div className="flex items-baseline justify-between gap-3 mt-1.5">
+              <span
+                className="font-extrabold"
+                style={{ fontSize: "var(--fs-title-m-sm)", lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}
+              >
+                {formatUsd(flow.solverKeepAmount)}
+              </span>
+              <span
+                style={{ fontFamily: "var(--font-meta)", fontSize: "var(--fs-mono-md)", color: "var(--ink-a55)", fontVariantNumeric: "tabular-nums" }}
+              >
+                {flow.solverKeep}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={SLIDER_MIN}
+              max={SLIDER_MAX}
+              step={1}
+              value={flow.solverKeep}
+              onChange={(e) => flow.setSolverKeep(Number(e.target.value))}
+              className="ah-slider mt-2"
+              style={
+                {
+                  "--slider-fill": `calc(${(
+                    (flow.solverKeep - SLIDER_MIN) /
+                    (SLIDER_MAX - SLIDER_MIN)
+                  ).toFixed(4)} * (100% - 24px) + 12px)`,
+                } as React.CSSProperties
+              }
+              aria-label={t("the final helper keeps at least")}
+            />
+            <p className="text-[13.5px] leading-[1.4] text-ink/50 mt-1.5">
+              {t("Up to {amount} can be shared across successful Shakes.", { amount: formatUsd(flow.pathShareAmount) })}
+            </p>
+          </div>
+
+          {/* Charity + expiry — compact inline pair */}
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
+            <label className="flex items-center gap-2.5">
+              <span className="ah-label">{t("give")}</span>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                className="ah-chip w-14 text-center"
+                value={flow.charityFee}
+                onChange={(e) => flow.setCharityFee(Number(e.target.value))}
+              />
+              <span className="ah-label">{t("% to charity")}</span>
+            </label>
+            <label className="flex items-center gap-2.5">
+              <span className="ah-label">{t("keep it open for")}</span>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                className="ah-chip w-14 text-center"
+                value={flow.expiryDays}
+                onChange={(e) => flow.setExpiryDays(Number(e.target.value))}
+              />
+              <span className="ah-label">{t("days")}</span>
+            </label>
+            <p className="ah-label ah-label--dim w-full" style={{ fontSize: "13.5px" }}>
+              {t("If no Give is accepted within {days} days, {refund} returns to you. {charity} goes to charity.", {
+                days: flow.expiryDays,
+                refund: formatUsd(flow.refundAmount),
+                charity: formatUsd(flow.charityAmount),
+              })}
+            </p>
+          </div>
+
+          {/* Visibility + its live preview, grouped */}
+          <div>
+            <span className="ah-label">{t("who can see it")}</span>
+            <ChipRow
+              className="mt-2"
+              options={[
+                { key: "public", label: t("public") },
+                { key: "preview", label: t("unlisted") },
+                { key: "dark", label: t("private") },
+              ]}
+              selectedKey={flow.visibility}
+              onSelect={(key) => flow.setVisibility(key as Visibility)}
+            />
+            <p className="text-[13.5px] leading-[1.4] text-ink/50 mt-1.5">
+              {visibilityCaption[flow.visibility]}
+            </p>
+            <div className="mt-4">{preview}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RaiseSuccess({ shareUrl, hops }: { shareUrl: string; hops?: number }) {
+  const navigate = useNavigate();
+  const [rowCopied, setRowCopied] = useState(false);
+  const [ctaCopied, setCtaCopied] = useState(false);
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  const copyTo = async (setter: (v: boolean) => void) => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setter(true);
+      setTimeout(() => setter(false), 2000);
+    } catch {
+      /* no false "copied" */
+    }
+  };
+
+  const send = async () => {
+    if (canShare) {
+      try {
+        await navigator.share({ url: shareUrl });
+      } catch {
+        /* dismissed */
+      }
+      return;
+    }
+    copyTo(setCtaCopied);
+  };
+
+  return (
+    <div className="ah-page px-6 pt-16 pb-6 lg:max-w-[640px] lg:mx-auto lg:pt-24 w-full">
+      <span className="ah-hero ah-hero--raise text-[64px]" aria-hidden="true">
+        ✋
+      </span>
+      <h1
+        className="mt-3 font-extrabold"
+        style={{ fontSize: "var(--fs-title-m)", lineHeight: 1.05, letterSpacing: "-0.03em" }}
+      >
+        {t("Your hand is up.")}
+      </h1>
+      <p className="mt-3 text-[15px] leading-[1.5] text-ink/65">
+        {t("Send this link to someone who'd know. Every Shake is remembered.")}
+      </p>
+
+      <button type="button" className="ah-linkrow mt-6" onClick={() => copyTo(setRowCopied)}>
+        <span className="ah-linkrow__value">{truncateMiddle(shareUrl, 28, 10)}</span>
+        <span className="ah-linkrow__action">{rowCopied ? t("copied") : t("copy")}</span>
+      </button>
+
+      <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
+      <div className="flex flex-col gap-3.5 pt-8">
+        <SwipeButton gesture="shake" variant="amber" onClick={send}>
+          {ctaCopied ? t("Copied") : canShare ? t("Send it on") : t("Copy the link")}
+        </SwipeButton>
+        <QuietButton onClick={() => navigate({ to: "/" })}>{t("Back home")}</QuietButton>
+      </div>
+      <p className="ah-label ah-label--dim mt-3.5 pb-4 text-center">
+        {t("good travels · it comes back around")}
+      </p>
     </div>
   );
 }

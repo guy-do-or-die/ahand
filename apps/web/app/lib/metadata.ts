@@ -95,6 +95,10 @@ export async function buildMetadata(input: {
 
   const title = input.text.slice(0, cut).trim();
   const description = input.text.slice(cut).trim();
+  const descriptionClean = description.replace(/\s+/g, " ").trim();
+  const teaser = descriptionClean
+    ? descriptionClean.slice(0, 137).trim() + (descriptionClean.length > 137 ? "..." : "")
+    : "";
 
   const bodyObj = {
     description,
@@ -112,7 +116,7 @@ export async function buildMetadata(input: {
     v: 1 as const,
     visibility: input.visibility,
     nonce: input.opts?.nonces?.envelope || newNonce(),
-    preview: { title },
+    preview: { title, ...(teaser ? { teaser } : {}) },
     bodyHash,
   };
 
@@ -193,7 +197,7 @@ export function parseLink(urlStr: string, decodePayloadFn: (s: string) => any): 
   decodedPayload: any;
 } {
   const url = new URL(urlStr, "http://localhost"); 
-  const handIdMatch = url.pathname.match(/\/h\/(\d+)$/);
+  const handIdMatch = url.pathname.match(/\/h\/(\d+)(?:\/|$)/);
   if (!handIdMatch) throw new Error("Invalid link path, missing handId");
   const handId = BigInt(handIdMatch[1]);
 

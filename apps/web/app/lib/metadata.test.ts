@@ -52,7 +52,7 @@ describe("metadata codec", () => {
     });
 
     // The metadataHash MUST be strictly equal across runs since nonces are fixed.
-    expect(res.metadataHash).toBe("0xf3f59c076a3385afbc07c432339148886ff6398514478284f7d11fac3f7e1b43");
+    expect(res.metadataHash).toBe("0xf665c5f359aeeb0602bb14ab30fd05506d2f4196f68fbed415459673bbd71126");
   });
 
   it("handles full lifecycle with assembleLink and parseLink (preview mode)", async () => {
@@ -72,6 +72,21 @@ describe("metadata codec", () => {
     expect(parsed.handId).toBe(1n);
     expect(parsed.envelopeB64).toBe(res.envelopeB64);
     expect(parsed.bodyB64).toBe(res.bodyB64);
+  });
+
+  it("handles parseLink with child routes (e.g., /thank)", async () => {
+    const res = await buildMetadata({ text: "Child route test", visibility: "preview" });
+    const mockEncode = (meta: any) => b64urlEncode(new TextEncoder().encode(JSON.stringify({ metadata: meta })));
+    const url = assembleLink("http://localhost", 1n, res, mockEncode, "preview");
+    
+    // Add child route to path
+    const thankUrl = url.replace("/h/1", "/h/1/thank");
+    
+    const decodeMock = (s: string) => JSON.parse(new TextDecoder().decode(b64urlDecode(s)));
+    const parsed = parseLink(thankUrl, decodeMock);
+    
+    expect(parsed.handId).toBe(1n);
+    expect(parsed.envelopeB64).toBe(res.envelopeB64);
   });
 
   it("handles full lifecycle with assembleLink and parseLink (dark mode)", async () => {

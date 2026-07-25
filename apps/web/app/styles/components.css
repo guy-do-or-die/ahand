@@ -1,0 +1,770 @@
+/*
+ * aHand — primitive component styles.
+ * Every value here is either a token (styles/tokens.css) or a mock-exact
+ * metric from local/redesign/aHand Standalone.html. No raw colors.
+ */
+
+/* ── Marker-swipe button (signature CTA) ────────────────────────────── */
+.ah-swipe {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 0 96px 0 22px;
+  font-family: var(--font-display);
+  font-size: var(--fs-btn);
+  font-weight: var(--fw-bold);
+  text-align: left;
+  cursor: pointer;
+  /* Fill fades to transparent so the emoji stands on the page background. */
+  background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 58%, color-mix(in srgb, var(--ink) 48%, transparent) 70%, color-mix(in srgb, var(--ink) 14%, transparent) 82%, transparent 94%);
+  color: var(--paper);
+  /* The emoji intentionally overflows the button top — never clip. */
+  overflow: visible;
+}
+
+.ah-swipe--amber {
+  background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 58%, color-mix(in srgb, var(--amber) 48%, transparent) 70%, color-mix(in srgb, var(--amber) 14%, transparent) 82%, transparent 94%);
+  color: var(--on-amber);
+}
+
+/* Dark theme: the ink variant inverts to a paper fill via the tokens —
+   amber stays the single accent, so paired CTAs keep their two voices. */
+
+.ah-swipe--compact {
+  height: 48px;
+  border-radius: var(--r-control-lg);
+  padding: 0 84px 0 18px;
+  font-size: var(--fs-body-md);
+  background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 52%, color-mix(in srgb, var(--ink) 48%, transparent) 65%, color-mix(in srgb, var(--ink) 14%, transparent) 78%, transparent 92%);
+}
+.ah-swipe--compact.ah-swipe--amber {
+  background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 52%, color-mix(in srgb, var(--amber) 48%, transparent) 65%, color-mix(in srgb, var(--amber) 14%, transparent) 78%, transparent 92%);
+}
+
+.ah-swipe:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ah-swipe__emoji {
+  position: absolute;
+  bottom: 6px;
+  line-height: 1;
+  font-family: var(--emoji);
+  transform-origin: 50% 85%;
+  transition: transform var(--dur-press) ease-out;
+}
+/* Per-gesture mock-exact size/offset/idle animation */
+.ah-swipe__emoji--raise {
+  right: 4px;
+  font-size: 66px;
+  animation: ah-raise var(--dur-idle-raise) ease-in-out infinite;
+}
+.ah-swipe__emoji--shake {
+  right: 10px;
+  font-size: 60px;
+  animation: ah-shake var(--dur-idle-shake) ease-in-out infinite;
+}
+.ah-swipe__emoji--cheer {
+  right: 0;
+  font-size: 68px;
+  animation: ah-cheer var(--dur-idle-cheer) ease-in-out infinite;
+}
+.ah-swipe__emoji--bow {
+  right: 6px;
+  font-size: 64px;
+  animation: ah-bow var(--dur-idle-bow) ease-in-out infinite;
+}
+.ah-swipe--compact .ah-swipe__emoji {
+  font-size: 54px;
+}
+
+/* Landing hero CTA (mock 01): bigger overhang */
+.ah-swipe--hero .ah-swipe__emoji {
+  font-size: 72px;
+  right: 8px;
+}
+/* Landing illustration card (mock 01): densest compact pair */
+.ah-swipe--card {
+  padding: 0 58px 0 16px;
+  font-size: var(--fs-body-xs);
+  white-space: nowrap;
+}
+.ah-swipe--card .ah-swipe__emoji--shake {
+  font-size: 48px;
+  right: 4px;
+  bottom: 5px;
+}
+.ah-swipe--card .ah-swipe__emoji--cheer {
+  font-size: 50px;
+  right: 0;
+  bottom: 5px;
+}
+
+/* Press feedback: emoji jumps. Idle animation yields for the press. */
+.ah-swipe:active:not(:disabled) .ah-swipe__emoji {
+  animation: none;
+  transform: translateY(-4px);
+}
+.ah-swipe:disabled .ah-swipe__emoji {
+  animation: none;
+}
+
+/* ── Quiet / secondary button (never gets an emoji) ─────────────────── */
+.ah-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  border: var(--bw-emph) solid var(--ink-a25);
+  border-radius: var(--r-btn);
+  padding: 0 18px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  color: var(--ink-a70);
+  cursor: pointer;
+}
+.ah-quiet--compact {
+  height: 48px;
+  border-radius: var(--r-control-lg);
+}
+.ah-quiet:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ah-quiet--soon:disabled {
+  opacity: 1;
+  cursor: default;
+  border-style: dashed;
+  border-color: var(--ink-a20);
+  color: var(--ink-a40);
+  gap: 8px;
+}
+
+/* ── Pot bar ────────────────────────────────────────────────────────── */
+.ah-pot {
+  height: 12px;
+  border-radius: var(--r-bar);
+  background: var(--ink-a08);
+  overflow: hidden;
+}
+.ah-pot--md {
+  height: 10px;
+}
+.ah-pot--sm {
+  height: 8px;
+}
+.ah-pot__fill {
+  height: 100%;
+  background: var(--amber);
+}
+
+/* ── Amount chips ───────────────────────────────────────────────────── */
+.ah-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  border: var(--bw-emph) solid var(--ink-a20);
+  border-radius: var(--r-control);
+  padding: 0 16px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ah-chip--selected {
+  background: var(--amber);
+  border-color: var(--ink);
+  font-weight: var(--fw-heavy);
+  color: var(--on-amber);
+}
+.ah-chip--dashed {
+  border: var(--bw-emph) dashed var(--ink-a30);
+  font-weight: var(--fw-semibold);
+  color: var(--ink-a50);
+}
+.ah-chip--desktop {
+  height: 48px;
+  border-radius: var(--r-control-lg);
+  font-size: var(--fs-body-lg);
+}
+
+/* ── Chain rail (provenance) ────────────────────────────────────────── */
+.ah-rail {
+  display: flex;
+  align-items: center;
+}
+.ah-rail__name {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  color: var(--ink-a55);
+  text-transform: uppercase;
+}
+.ah-rail__line {
+  flex: 1;
+  height: 2px;
+  background: var(--ink-a15);
+  margin: 0 5px;
+}
+.ah-rail__line--reaching {
+  background: var(--amber);
+}
+.ah-rail__you {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  font-weight: var(--fw-bold);
+  background: var(--amber);
+  color: var(--on-amber);
+  padding: 2px 6px;
+  border-radius: var(--r-bar);
+  text-transform: uppercase;
+}
+
+/* ── Receipt table (Thank / Pocket) ─────────────────────────────────── */
+.ah-receipt {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: var(--bw-emph) solid var(--ink);
+}
+.ah-receipt tr {
+  border-bottom: var(--bw-hair) solid var(--ink-a10);
+}
+.ah-receipt th {
+  height: 40px;
+  font-family: var(--font-meta);
+  font-size: 11.5px;
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-a70);
+  text-align: left;
+}
+.ah-receipt td {
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.ah-receipt tr.ah-receipt__row--highlight {
+  border-bottom: var(--bw-hair) solid var(--ink-a10);
+}
+.ah-receipt__row--highlight th {
+  height: 44px;
+  color: var(--ink);
+}
+.ah-receipt__row--highlight td {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-heavy);
+}
+.ah-receipt__amount--chip {
+  display: inline-block;
+  background: var(--amber);
+  color: var(--on-amber);
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+}
+.ah-receipt tr.ah-receipt__row--pretotal {
+  border-bottom: var(--bw-emph) solid var(--ink);
+}
+.ah-receipt tfoot tr {
+  border-bottom: 0;
+}
+.ah-receipt tfoot th {
+  height: 42px;
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+}
+.ah-receipt tfoot td {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-heavy);
+}
+
+/* ── Two-voice type system ──────────────────────────────────────────────
+   .ah-meta = MACHINE TRUTH only (addresses, hashes, ids, dates, byte
+   counts, URLs, the OG source stamp): tracked uppercase mono, so any mono
+   on screen reliably signals "exact, verified data".
+   .ah-label = every HUMAN word (section labels, prompts, captions): warm
+   sentence-case Schibsted, so the vocabulary reads as voice, not chrome. */
+.ah-meta {
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a55);
+}
+.ah-meta--dim {
+  letter-spacing: var(--track-mono-sm);
+  color: var(--ink-a50);
+}
+.ah-label {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: var(--fw-medium);
+  line-height: 1.35;
+  color: var(--ink-a55);
+}
+.ah-label--dim {
+  color: var(--ink-a45);
+}
+
+/* ── Text input / textarea ──────────────────────────────────────────── */
+.ah-input {
+  display: block;
+  width: 100%;
+  border: var(--bw-emph) solid var(--ink-a15);
+  border-radius: var(--r-btn);
+  padding: 16px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-lg);
+  line-height: 1.45;
+  color: var(--ink);
+  caret-color: var(--amber);
+  resize: none;
+}
+.ah-input::placeholder {
+  color: var(--ink-a45);
+}
+/* Bordered controls carry their own focus treatment: the offset ring would
+   draw a second, non-concentric rounded rect around the existing border
+   (owner-reported "crippled corners"). Focus = border snaps to full ink. */
+.ah-input,
+.ah-chip {
+  transition: border-color 140ms ease;
+}
+.ah-input:focus-visible,
+.ah-chip:focus-visible {
+  outline: none;
+  border-color: var(--ink);
+}
+.ah-chip--selected:focus-visible,
+.ah-chip--selected:focus-within {
+  box-shadow: inset 0 0 0 2px var(--paper);
+}
+
+/* Chip-shaped input with a money/unit adornment ($ 150 · 5 %) */
+.ah-chip-field {
+  gap: 2px;
+  cursor: text;
+}
+.ah-chip-field input {
+  border: 0;
+  background: none;
+  padding: 0;
+  width: 4.5ch;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  outline: none;
+  caret-color: var(--on-amber);
+}
+
+/* ── Card ───────────────────────────────────────────────────────────── */
+.ah-card {
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card-sm);
+  background: var(--card);
+  background-clip: padding-box;
+}
+.ah-card--lg {
+  border-radius: var(--r-card-lg);
+}
+
+/* ── Hero gesture emoji (screen-level, mock 4s cycle) ───────────────── */
+.ah-hero {
+  display: inline-block;
+  line-height: 1;
+  font-family: var(--emoji);
+  transform-origin: 50% 90%;
+}
+.ah-hero--raise {
+  animation: ah-raise var(--dur-idle-raise-hero) ease-in-out infinite;
+}
+.ah-hero--shake {
+  animation: ah-shake var(--dur-idle-shake) ease-in-out infinite;
+}
+.ah-hero--cheer {
+  animation: ah-cheer 3.6s ease-in-out infinite;
+}
+.ah-hero--bow {
+  animation: ah-bow var(--dur-idle-bow) ease-in-out infinite;
+}
+
+/* ── Compose surface (Raise) — borderless poster textarea ───────────── */
+.ah-compose {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0 0 8px 0;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-title-m-sm);
+  line-height: 1.12;
+  font-weight: var(--fw-heavy);
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  caret-color: var(--amber);
+  resize: none;
+  overflow: hidden;
+  box-shadow: 0 1.5px 0 0 var(--ink-a15);
+  transition: box-shadow 0.15s ease;
+}
+.ah-compose:hover {
+  box-shadow: 0 1.5px 0 0 var(--ink-a35);
+}
+.ah-compose::placeholder {
+  color: var(--ink-a55);
+}
+/* The poster compose surface is borderless by design (mock 03/13); the
+   focus ring would box it. Alternative visible indicator: 2px ink underline
+   + the amber caret. Logged in DEVIATIONS.md (a11y). */
+.ah-compose:focus-visible {
+  outline: none;
+  box-shadow: 0 2.5px 0 0 var(--ink);
+}
+@media (min-width: 1024px) {
+  .ah-compose {
+    font-size: var(--fs-title);
+    letter-spacing: -0.028em;
+  }
+}
+
+/* ── Slider (solver share) — 4px track, ink fill, ringed thumb ──────── */
+.ah-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 44px; /* a11y hit target; the 4px track centers inside */
+  background: transparent;
+  cursor: pointer;
+}
+.ah-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    90deg,
+    var(--ink) 0 var(--slider-fill, 50%),
+    var(--ink-a12) var(--slider-fill, 50%) 100%
+  );
+}
+.ah-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  margin-top: -10px;
+}
+.ah-slider:focus-visible {
+  outline: none;
+}
+.ah-slider:focus-visible::-webkit-slider-thumb {
+  border-width: 4px;
+}
+.ah-slider:focus-visible::-moz-range-thumb {
+  border-width: 4px;
+}
+.ah-slider::-moz-range-track {
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--ink-a12);
+}
+.ah-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+}
+.ah-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-sizing: border-box;
+}
+
+/* ── Alert (errors / verification failure) — no error color exists in
+      the tokens, so unmissable = inverted ink card. Flagged for designer. */
+.ah-alert {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--r-btn);
+  padding: 14px 18px;
+}
+.ah-alert__label {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--paper-a75);
+}
+.ah-alert__text {
+  margin-top: 4px;
+  font-size: var(--fs-body-sm);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+}
+
+/* ── Copy-link row (dashed affordance, mock 05) ─────────────────────── */
+.ah-linkrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 48px;
+  border: var(--bw-emph) solid var(--ink-a25);
+  border-radius: var(--r-control);
+  padding: 0 16px;
+  background: none;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-md);
+  color: var(--ink-a65);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+.ah-linkrow__value {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ah-linkrow__action {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.ah-linkrow:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Grouped settings panel (fine-tune) — a quiet cluster that reads as
+      secondary to the main flow. Flat tint, hairline, no shadow. ── */
+.ah-panel {
+  border: var(--bw-hair) solid var(--ink-a10);
+  border-radius: var(--r-btn);
+  background: var(--ink-a035);
+  padding: 18px 16px;
+}
+
+/* ── OG-card preview (Raise) — what the scraper will show ───────────── */
+.ah-ogcard {
+  position: relative;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card-sm);
+  background: var(--card);
+  background-clip: padding-box;
+  padding: 14px 16px 14px 27px;
+  overflow: hidden;
+}
+/* messenger-unfurl cue: the one amber accent on this card */
+.ah-ogcard::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 15px;
+  bottom: 15px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--amber);
+}
+.ah-ogcard__foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: var(--bw-hair) solid var(--ink-a08);
+}
+.ah-ogcard__title {
+  font-size: var(--fs-card-title-sm);
+  font-weight: var(--fw-heavy);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ah-ogcard__desc {
+  margin-top: 5px;
+  font-size: var(--fs-body-xs);
+  line-height: var(--lh-body);
+  color: var(--ink-a60);
+}
+
+/* ── Sheet: phone full-screen page · ≥768px 560px modal (mock 14/15) ──
+   The full-screen variant caps its height so the bottom-pinned CTA never
+   drifts a whole viewport away from the content on tall windows. */
+.ah-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--paper);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.ah-sheet__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: min(100%, 820px);
+  padding: 20px 24px;
+}
+@media (min-width: 768px) {
+  .ah-sheet {
+    background: var(--scrim);
+    display: grid;
+    place-items: center;
+    padding: 56px 24px;
+  }
+  .ah-sheet__panel {
+    min-height: 0;
+    width: 560px;
+    background: var(--paper);
+    background-clip: padding-box;
+    border: var(--bw-emph) solid var(--ink);
+    border-radius: var(--r-card-lg);
+    padding: 28px 28px 24px;
+  }
+}
+
+/* ── Page column inside the app shell: fills the space between the global
+      header and footer. Bottom-pinned CTAs use capped spacers (max-h-24),
+      so they never chasm on tall viewports. ── */
+.ah-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Disclosure toggle (fine-tune / add to the pot) ─────────────────── */
+.ah-disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 8px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-meta);
+  font-size: 10.5px;
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a60);
+  transition: color 140ms ease;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.ah-disclose__toggle {
+  text-decoration: underline dashed var(--ink-a30);
+  text-underline-offset: 4px;
+  white-space: nowrap;
+}
+.ah-disclose__summary {
+  color: var(--ink-a40);
+  white-space: nowrap;
+}
+
+/* ── Quiet flat hovers (pointer devices only) ───────────────────────── */
+@media (hover: hover) {
+  .ah-chip:not(.ah-chip--selected):not(:disabled):hover {
+    border-color: var(--ink-a45);
+  }
+  .ah-quiet:not(:disabled):hover {
+    border-color: var(--ink-a45);
+    color: var(--ink);
+  }
+  .ah-linkrow:not(:disabled):hover {
+    border-color: var(--ink-a50);
+    color: var(--ink);
+  }
+  .ah-disclose:hover {
+    color: var(--ink);
+  }
+}
+
+/* Disabled "soon" block (scope-fenced mock features, e.g. pass-on note) */
+.ah-soon {
+  border: var(--bw-emph) dashed var(--ink-a15);
+  border-radius: var(--r-btn);
+  padding: 16px;
+  font-size: var(--fs-body-lg);
+  line-height: 1.45;
+  color: var(--ink-a45);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ah-soon__chip {
+  font-family: var(--font-meta);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  border: var(--bw-emph) dashed var(--ink-a25);
+  border-radius: var(--r-chip-sm);
+  padding: 3px 7px;
+  color: var(--ink-a50);
+  flex-shrink: 0;
+}
+
+/* ── Pocket balance card: plain on mobile, elevated card on desktop ──── */
+@media (min-width: 1024px) {
+  .ah-pocket-card {
+    border: var(--bw-emph) solid var(--ink);
+    border-radius: var(--r-card-lg);
+    background: var(--card);
+    padding: 26px;
+  }
+}
+
+/* ── Logo lockup theme-switching ─────────────────────────────────────── */
+.ah-logo-dark-theme {
+  display: none;
+}
+.ah-logo-light-theme {
+  display: inline-block;
+}
+
+[data-theme="dark"] .ah-logo-dark-theme {
+  display: inline-block;
+}
+[data-theme="dark"] .ah-logo-light-theme {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ah-logo-dark-theme {
+    display: inline-block;
+  }
+  :root:not([data-theme="light"]) .ah-logo-light-theme {
+    display: none;
+  }
+}
+
+/* ── Responsive Header Logo Size & Vertical Alignment ────────────────── */
+header .ah-logo-lockup {
+  --logo-height: calc(26px * 2.05) !important;
+  transform: translateY(-3px);
+}
+@media (min-width: 1024px) {
+  header .ah-logo-lockup {
+    --logo-height: calc(32px * 2.05) !important;
+    transform: translateY(-4px);
+  }
+}
+

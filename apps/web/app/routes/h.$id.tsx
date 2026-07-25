@@ -1,11 +1,25 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { useAccount, useReadContract } from "wagmi";
-import { formatUnits, keccak256, toBytes, createPublicClient, http, isAddress } from "viem";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useState, useEffect, useMemo } from "react";
+import { useAccount } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
+import { formatUnits, createPublicClient, http } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
-import { decodePayload, encodePayload, signShake, signGive, newCapability, type Shake, type SignedShake } from "@ahand/sdk";
 import { activeChain } from "../config/web3";
-import { Envelope, b64urlDecode, sha256hex, parseLink, verifyMetadata, assembleLink } from "../lib/metadata";
+import { Envelope, b64urlDecode, sha256hex } from "../lib/metadata";
+import { useHandView } from "../hooks/useHandView";
+import { usePassOnFlow } from "../hooks/usePassOnFlow";
+import { useSolveFlow } from "../hooks/useSolveFlow";
+import { Sheet } from "../components/Sheet";
+import { ChipRow } from "../components/ChipRow";
+import { SwipeButton } from "../components/SwipeButton";
+import { Logo } from "../components/Logo";
+import { Emoji } from "../components/Emoji";
+import { PotBar } from "../components/PotBar";
+import { ChainRail } from "../components/ChainRail";
+import { MetaLine } from "../components/MetaLine";
+import { formatUsd, truncateMiddle } from "../lib/format";
+import { POCKET_EMOJI } from "../styles/tokens";
+import { t } from "../i18n";
 
 const publicClientLoader = createPublicClient({ chain: activeChain, transport: http() });
 
@@ -37,12 +51,13 @@ export const Route = createFileRoute("/h/$id")({
     const date = new Date(Number(expiry) * 1000);
     const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
     
-    // Generic meta defaults
-    let title = `✋ aHand #${params.id} — ${amount} USDC`;
-    let desc = `solver keeps ≥${(Number(minSolverClaimBps)/100).toFixed(0)}% · escrow pays only on success · until ${dateStr}`;
-    
-    if (status === 2) desc = "Status: Settled 🙏";
-    if (status === 3) desc = "Status: Reclaimed 👎";
+    // Generic meta defaults — plain words, no crypto terms (owner-approved
+    // copy change; loader logic unchanged). See DEVIATIONS.md.
+    let title = `aHand #${params.id} · $${amount} secured`;
+    let desc = `paid when accepted · open till ${dateStr}`;
+
+    if (status === 2) desc = "Accepted — thanks went out 🙏";
+    if (status === 3) desc = "Reclaimed — closed unsolved 👎";
 
     // Stateless SSR Verification!
     if (e && metadataHash !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
@@ -54,6 +69,9 @@ export const Route = createFileRoute("/h/$id")({
           const env = Envelope.parse(JSON.parse(envStr));
           if (env.visibility !== "dark") {
             title = `✋ ${env.preview.title}`;
+            if (env.preview.teaser) {
+              desc = `${env.preview.teaser} · ${desc}`;
+            }
           }
         }
       } catch (err) {
@@ -66,9 +84,10 @@ export const Route = createFileRoute("/h/$id")({
   meta: ({ loaderData }) => {
     if (!loaderData) return [];
     
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://welcome-primate-specially.ngrok-free.app";
     const ogImageUrl = loaderData.e 
-       ? `/api/og/${loaderData.id}.png?e=${loaderData.e}` 
-       : `/api/og/${loaderData.id}.png`;
+       ? `${origin}/api/og/${loaderData.id}.png?e=${loaderData.e}` 
+       : `${origin}/api/og/${loaderData.id}.png`;
 
     return [
       { title: loaderData.title },
@@ -80,479 +99,654 @@ export const Route = createFileRoute("/h/$id")({
   component: HandComponent,
 });
 
+
 function HandComponent() {
   const { id } = Route.useParams();
   const search = Route.useSearch();
-  const loaderData = Route.useLoaderData();
   const { address } = useAccount();
 
-  const ogImageUrl = loaderData.e 
-    ? `/api/og/${loaderData.id}.png?e=${loaderData.e}` 
-    : `/api/og/${loaderData.id}.png`;
-
-  const [payload, setPayload] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [tampered, setTampered] = useState(false);
-  const [fullMetadata, setFullMetadata] = useState<{ title: string, description: string } | null>(null);
-  
-  // UI states
-  const [showPassOn, setShowPassOn] = useState(false);
-  const [showSolve, setShowSolve] = useState(false);
-  const [payoutAddr, setPayoutAddr] = useState("");
-  const [marginBps, setMarginBps] = useState("0");
-  const [payoutOption, setPayoutOption] = useState("gift"); // gift or keep
-  const [newShareUrl, setNewShareUrl] = useState("");
-  
-  // Solve state
-  const [solverAddr, setSolverAddr] = useState("");
-  const [solutionText, setSolutionText] = useState("");
-  const [solveUrl, setSolveUrl] = useState("");
-  const [isSolving, setIsSolving] = useState(false);
-
-  // Read hand state from chain
-  const { data: handRaw, isError, isLoading } = useReadContract({
-    address: DeployedAddresses.AHandCore,
-    abi: AHandCoreAbi,
-    functionName: "hands",
-    args: [BigInt(id)],
+  // /h/$id/thank is a generated child of this route; hand over to it.
+  // (Pre-existing PoC bug: no Outlet meant the thank page never rendered —
+  // see DEVIATIONS.md.)
+  const isChildRoute = useRouterState({
+    select: (s) => s.matches.some((m) => m.routeId === "/h/$id/thank"),
   });
 
-  const [childCap, setChildCap] = useState<{ privateKey: `0x${string}`; address: `0x${string}` } | null>(null);
+  const { handRaw, isError, isLoading, payload, tampered, errorMsg, fullMetadata, hasFragment } =
+    useHandView(id, { disabled: isChildRoute });
 
-  useEffect(() => {
-    if (showPassOn && !childCap) {
-      setChildCap(newCapability());
-    }
-  }, [showPassOn, childCap]);
+  const [showPassOn, setShowPassOn] = useState(false);
+  const [showSolve, setShowSolve] = useState(false);
 
-  useEffect(() => {
-    if (!showPassOn || !payload || !childCap || tampered) {
-      setNewShareUrl("");
-      return;
-    }
+  if (isChildRoute) return <Outlet />;
 
-    async function generate() {
-      setErrorMsg("");
-      setNewShareUrl("");
+  // ── Render ──
 
-      if (payoutOption === "keep" && !payoutAddr) {
-        setErrorMsg("Please provide a payout address");
-        return;
-      }
-      if (payoutOption === "keep" && !/^0x[a-fA-F0-9]{40}$/.test(payoutAddr)) {
-        setErrorMsg("Please provide a valid Ethereum address (0x...)");
-        return;
-      }
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="ah-label">{t("finding the hand…")}</p>
+      </div>
+    );
+  }
+  if (isError || !handRaw) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+        <h1 className="font-extrabold" style={{ fontSize: "var(--fs-title-m-sm)", letterSpacing: "-0.025em" }}>
+          {t("No hand here.")}
+        </h1>
+        <p className="text-[15px] text-ink/60">{t("Check the link — it doesn't point to a raised hand.")}</p>
+      </div>
+    );
+  }
 
-      try {
-        const latestPriv = payload.latestPrivateKey;
-        const chainId = payload.chainId;
-        const core = payload.core;
+  const [raiser, , remainingReward, , charityFeeBps, , minSolverClaimBps, status] = handRaw as any[];
 
-        const currentParentClaim = payload.shakes.length === 0 
-          ? 10000 
-          : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
-
-        const chosenMargin = payoutOption === "gift" ? 0 : Number(marginBps) * 100;
-        const childClaim = currentParentClaim - chosenMargin;
-
-        if (childClaim < 0) {
-          setErrorMsg("Margin exceeds available claim amount.");
-          return;
-        }
-
-        const shake: Shake = {
-          handId: BigInt(id),
-          childCapability: childCap.address,
-          payout: (payoutOption === "gift" || !payoutAddr) ? "0x0000000000000000000000000000000000000000" : (payoutAddr as `0x${string}`),
-          parentClaimBps: currentParentClaim,
-          childClaimBps: childClaim,
-          deadline: BigInt((handRaw as any[])[3]),
-        };
-
-        const signature = await signShake(shake, latestPriv, chainId, core);
-        const newSignedShake: SignedShake = { shake, signature };
-
-        // Visibility doesn't change on pass-on, but we need it for assembleLink
-        const visibility = (search as any).e ? (payload.metadata.envelopeB64 ? "dark" : "public") : "public"; 
-
-        const url = assembleLink(
-          window.location.origin, 
-          id, 
-          { 
-            envelopeB64: (search as any).e || payload.metadata.envelopeB64, 
-            bodyB64: payload.metadata.bodyB64 
-          },
-          (meta) => encodePayload({
-            handId: BigInt(id),
-            chainId,
-            core,
-            shakes: [...payload.shakes, newSignedShake],
-            latestPrivateKey: childCap.privateKey,
-            metadata: meta,
-          }),
-          visibility as any
-        );
-        
-        setNewShareUrl(url);
-      } catch (err: any) {
-        setErrorMsg(`Error generating link: ${err.shortMessage || err.message}`);
-      }
-    }
-    
-    generate();
-  }, [showPassOn, payload, tampered, payoutOption, payoutAddr, marginBps, childCap, id, handRaw, (search as any).e]);
-
-  useEffect(() => {
-    if (address && !payoutAddr) setPayoutAddr(address);
-    if (address && !solverAddr) setSolverAddr(address);
-  }, [address]);
-
-  // Client-side payload and hash validation
-  useEffect(() => {
-    async function load() {
-      if (!handRaw) return; // Wait for on-chain anchor
-      
-      const onchainHash = (handRaw as any[])[10];
-
-      try {
-        const parsed = parseLink(window.location.href, decodePayload);
-        setPayload(parsed.decodedPayload);
-        
-        const verify = await verifyMetadata(parsed.envelopeB64, parsed.bodyB64, onchainHash);
-        
-        if (!verify.ok) {
-          setTampered(true);
-          setErrorMsg(`Content doesn't match on-chain anchor: ${verify.reason}`);
-          setFullMetadata(null); // Hide text
-        } else {
-          setTampered(false);
-          setErrorMsg("");
-          setFullMetadata({
-            title: verify.envelope.preview.title,
-            description: verify.body.description
-          });
-        }
-      } catch (err: any) {
-        console.error(err);
-        if (err.message.includes("Missing payload in URL fragment")) {
-          setTampered(false);
-          setErrorMsg("");
-          setFullMetadata(null);
-        } else {
-          setTampered(true);
-          setErrorMsg("Failed to decode payload fragment: " + err.message);
-        }
-      }
-    }
-    load();
-  }, [handRaw]);
-
-  useEffect(() => {
-    if (!showSolve || !payload || !solutionText.trim() || tampered) {
-      setSolveUrl("");
-      return;
-    }
-
-    async function generateSolve() {
-      setErrorMsg("");
-      setIsSolving(true);
-      try {
-        if (!isAddress(solverAddr)) {
-          setErrorMsg("Please provide a valid Ethereum address for the solver.");
-          setIsSolving(false);
-          return;
-        }
-
-        const latestPriv = payload.latestPrivateKey;
-        const chainId = payload.chainId;
-        const core = payload.core;
-
-        const currentParentClaim = payload.shakes.length === 0 
-          ? 10000 
-          : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
-
-        const solutionHash = keccak256(toBytes(solutionText));
-
-        const give = {
-          handId: BigInt(id),
-          solver: solverAddr as `0x${string}`,
-          solutionHash,
-          finalClaimBps: currentParentClaim,
-        };
-
-        const giveSig = await signGive(give, latestPriv, chainId, core);
-
-        const thankPayloadObj = {
-          give,
-          giveSig,
-          shakes: payload.shakes,
-        };
-        
-        const serialized = btoa(JSON.stringify(thankPayloadObj, (key, value) =>
-          typeof value === 'bigint' ? value.toString() : value
-        ))
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
-
-        const url = `${window.location.origin}/h/${id}/thank#${serialized}`;
-        setSolveUrl(url);
-      } catch (err: any) {
-        setErrorMsg(`Error generating solution proof: ${err.shortMessage || err.message}`);
-      } finally {
-        setIsSolving(false);
-      }
-    }
-
-    generateSolve();
-  }, [showSolve, payload, solutionText, solverAddr, tampered, id]);
-
-  if (isLoading) return <div className="py-12 text-center text-ink/60">Loading hand details...</div>;
-  if (isError || !handRaw) return <div className="py-12 text-center text-red-600">Hand not found on chain.</div>;
-
-  const [
-    raiser,
-    , // token
-    remainingReward,
-    expiry,
-    , // charityFeeBps
-    , // maintFeeBps
-    minSolverClaimBps,
-    status,
-  ] = handRaw as any[];
-
-  // Convert status to readable text
-  const statusTexts = ["None", "Active 🙌", "Settled 🙏", "Reclaimed 👎"];
   const isHandActive = status === 1;
+  const potAmount = Number(formatUnits(remainingReward, 6));
+  const charityAmount = (potAmount * Number(charityFeeBps)) / 10000;
+  const netAmount = potAmount - charityAmount;
+  const solverMin = (netAmount * Number(minSolverClaimBps)) / 10000;
+  const charityPct = (Number(charityFeeBps) / 100).toFixed(0);
+  const hops: any[] = payload?.shakes ?? [];
+  // Word of mouth, not hex: people show as warm roles, never 0x… addresses.
+  // No name field travels in the protocol (see DEVIATIONS.md), so the honest
+  // warm label is the relationship. The real payout targets still live in
+  // payload.shakes and drive every flow — this is display only.
+  const railNodes = [
+    t("who asked"),
+    ...hops.map(() => t("a friend")),
+  ];
+  const actionsDisabled = tampered || !payload;
+  const statusLabel = status === 2 ? t("accepted") : status === 3 ? t("reclaimed") : null;
+  const statusEmoji = status === 2 ? "🙏" : status === 3 ? "👎" : null;
 
+  const metaLine = (
+    <p className="ah-label">
+      {hops.length === 0
+        ? t("straight from whoever raised it")
+        : t("passed through {n} hands to reach you", { n: hops.length })}
+    </p>
+  );
 
+  const failureBanner = tampered && (
+    <div className="ah-alert" role="alert">
+      <p className="ah-alert__label">
+        <Emoji>⚠️</Emoji> {t("doesn't add up")}
+      </p>
+      <p className="ah-alert__text">{errorMsg}</p>
+      <p className="ah-alert__text" style={{ color: "var(--paper-a75)" }}>
+        {t("Passing on and helping are switched off for this link.")}
+      </p>
+    </div>
+  );
 
+  const lockedCard = !tampered && !fullMetadata && hasFragment === false && (
+    <div className="ah-card p-5">
+      <p className="font-extrabold flex items-center gap-2" style={{ fontSize: "var(--fs-card-title-sm)", letterSpacing: "-0.015em" }}>
+        <Emoji size={20}>🔒</Emoji> {t("This link is missing its key.")}
+      </p>
+      <p className="mt-2 text-[13.5px] leading-[1.45] text-ink/60">
+        {t("Ask for the full link — the part after # — to see the hand and I can ask.")}
+      </p>
+    </div>
+  );
 
+  const potBlock = (
+    <>
+      <div className="flex items-end justify-between">
+        <span
+          className="font-extrabold"
+          style={{ fontSize: 46, lineHeight: 1, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}
+        >
+          {formatUsd(potAmount)}
+        </span>
+        <span
+          className="ah-label text-right"
+          style={{ fontSize: 13, lineHeight: 1.45, color: "var(--ink-a60)" }}
+        >
+          {t("in the pot")}
+          <br />
+          {t("final helper keeps at least {amount}", { amount: formatUsd(solverMin) })}
+        </span>
+      </div>
+      <PotBar
+        className="mt-3"
+        progress={Number(minSolverClaimBps) / 10000}
+        label={`${formatUsd(potAmount)} ${t("in the pot")}`}
+      />
+    </>
+  );
 
-  const copyUrl = (url: string) => {
-    navigator.clipboard.writeText(url);
-  };
+  const actions = isHandActive && !showPassOn && !showSolve && (
+    <div className="flex flex-col gap-3.5">
+      <SwipeButton gesture="shake" variant="ink" disabled={actionsDisabled} onClick={() => setShowPassOn(true)}>
+        {t("I can ask")}
+      </SwipeButton>
+      <SwipeButton gesture="cheer" variant="amber" disabled={actionsDisabled} onClick={() => setShowSolve(true)}>
+        {t("I can help")}
+      </SwipeButton>
+    </div>
+  );
+
+  const statusChip = statusLabel && (
+    <span
+      className="ah-meta inline-flex items-center gap-1.5 self-start"
+      style={{
+        border: "var(--bw-emph) solid var(--ink)",
+        borderRadius: "var(--r-chip-lg)",
+        padding: "5px 10px",
+        color: "var(--ink)",
+        fontWeight: "var(--fw-bold)" as any,
+      }}
+    >
+      {statusEmoji && <Emoji size={13}>{statusEmoji}</Emoji>}
+      {statusLabel}
+    </span>
+  );
+
+  const footerMeta = (
+    <MetaLine
+      dim
+      className="text-center"
+      text={t("held safe · paid when accepted · {pct}% to charity", { pct: charityPct })}
+    />
+  );
 
   return (
-    <div className="py-6 px-4 space-y-6">
-      {errorMsg && (
-        <div className="text-sm font-bold text-red-600 bg-red-50 border-2 border-red-200 p-4 rounded-lg shadow-sm">
-          🚨 {errorMsg}
-        </div>
-      )}
+    <div className="ah-page">
+      {/* Mobile: single column · Desktop: 1fr/400px grid (mock 12) */}
+      <div className="flex flex-col flex-1 px-6 pt-6 pb-6 lg:grid lg:grid-cols-[1fr_400px] lg:gap-14 lg:items-start lg:px-10 lg:pt-11 lg:pb-13 lg:max-w-[1280px] lg:mx-auto lg:w-full">
+        {/* Content column */}
+        <div className="flex flex-col">
+          {failureBanner}
+          {statusChip && <div className="mb-4">{statusChip}</div>}
+          {!tampered && fullMetadata && (
+            <>
+              <h1
+                className="mt-1 font-extrabold lg:mt-4"
+                style={{ fontSize: "clamp(29px, 4vw, 44px)", lineHeight: 1.08, letterSpacing: "-0.025em", textWrap: "balance", maxWidth: "18ch" }}
+              >
+                {fullMetadata.title}
+              </h1>
+              {fullMetadata.description && (
+                <p className="mt-3 lg:mt-4 text-[15px] lg:text-[16.5px] leading-[1.55] text-ink/70 whitespace-pre-wrap max-w-[52ch]">
+                  {fullMetadata.description}
+                </p>
+              )}
+            </>
+          )}
+          {lockedCard}
+          <div className="mt-5 lg:mt-6">{metaLine}</div>
 
-      {/* Main Hand Info Card */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider text-ink/40">
-          <span>Hand #{id}</span>
-          <span className="bg-ink/5 py-1 px-2.5 rounded-full">{statusTexts[status]}</span>
-        </div>
-
-        <h1 className="text-2xl font-bold tracking-tight">
-          {fullMetadata ? `🙌 ${fullMetadata.title}` : (window.location.hash.length > 2 ? "Loading secured text..." : "🔒 Secured Hand")}
-        </h1>
-        {fullMetadata?.description ? (
-          <p className="text-ink/80 text-sm whitespace-pre-wrap">
-            {fullMetadata.description}
-          </p>
-        ) : (
-          (!window.location.hash || window.location.hash.length < 2) && (
-            <p className="text-ink/60 text-sm italic">
-              This hand is encrypted. You need the full link (with the # fragment) to decrypt and view its contents.
-            </p>
-          )
-        )}
-
-        <div className="space-y-2">
-          <div className="w-full bg-ink/10 h-3.5 rounded-full overflow-hidden">
-            <div className="bg-gold h-full w-[100%]" />
-          </div>
-          <div className="flex justify-between text-xs font-medium">
-            <span>{formatUnits(remainingReward, 6)} USDC pledged</span>
-            <span>solver keeps ≥ {solverKeepPercent(minSolverClaimBps)}%</span>
+          {/* Mobile-only: pot + actions inline */}
+          <div className="lg:hidden mt-5 flex flex-col flex-1">
+            {potBlock}
+            <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
+            <div className="pt-4">{actions}</div>
+            <div className="mt-3.5 pb-1">{footerMeta}</div>
           </div>
         </div>
 
-        <div className="text-xs text-ink/60 space-y-1">
-          <p>Raised by: <span className="font-mono">{raiser.slice(0, 8)}...{raiser.slice(-8)}</span></p>
-          <p>Hops traversed: <span className="font-bold">{payload?.shakes?.length || 0} 🤝</span></p>
-        </div>
+        {/* Desktop action card (mock 12) */}
+        <aside className="hidden lg:block ah-card ah-card--lg p-[26px] pb-[22px]">
+          {potBlock}
+          <div className="mt-5">{actions}</div>
+          {payload && railNodes.length > 0 && (
+            <ChainRail className="mt-4.5" nodes={railNodes} youLabel={t("you")} />
+          )}
+          <div className="mt-4 pt-3.5 border-t border-(--ink-a08)">{footerMeta}</div>
+        </aside>
       </div>
 
-      {isHandActive && !tampered && (
-        <div className="flex flex-col space-y-4 border-t border-ink/10 pt-6">
-          {!showPassOn && !showSolve && (
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setShowPassOn(true)}
-                className="bg-ink text-paper py-3 rounded-lg font-bold hover:bg-ink/90 transition text-center cursor-pointer"
-              >
-                🤝 Pass it on
-              </button>
-              <button
-                onClick={() => setShowSolve(true)}
-                className="border border-ink text-ink py-3 rounded-lg font-bold hover:bg-ink/5 transition text-center cursor-pointer"
-              >
-                🙌 I can help
-              </button>
-            </div>
-          )}
-
-          {/* Pass On Panel */}
-          {showPassOn && (
-            <div className="space-y-4 bg-ink/5 p-4 rounded-lg border border-ink/10 animate-slide-down">
-              <h3 className="text-sm font-bold">Pass it on 🤝</h3>
-
-              <div className="flex flex-col space-y-2">
-                <span className="text-xs font-semibold text-ink/60">Select margin option:</span>
-                <div className="flex items-center space-x-4 text-xs">
-                  <label className="flex items-center space-x-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="payout"
-                      checked={payoutOption === "gift"}
-                      onChange={() => setPayoutOption("gift")}
-                    />
-                    <span>Gift (0% share)</span>
-                  </label>
-                  <label className="flex items-center space-x-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="payout"
-                      checked={payoutOption === "keep"}
-                      onChange={() => setPayoutOption("keep")}
-                    />
-                    <span>Keep a share</span>
-                  </label>
-                </div>
-              </div>
-
-              {payoutOption === "keep" && (
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span>Keep share (in %)</span>
-                    <input
-                      type="number"
-                      value={marginBps}
-                      onChange={(e) => setMarginBps(e.target.value as unknown as number)}
-                      className="w-16 border border-ink/20 rounded p-1 text-center bg-transparent"
-                    />
-                  </div>
-                  <div className="flex flex-col space-y-1">
-                    <label className="font-semibold text-ink/60">Payout Address</label>
-                    <input
-                      type="text"
-                      value={payoutAddr}
-                      onChange={(e) => setPayoutAddr(e.target.value)}
-                      className="w-full border border-ink/20 rounded p-2 bg-transparent"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 space-y-2">
-                <div className="bg-paper p-3 rounded border border-ink/10 font-mono text-[10px] truncate text-ink/70">
-                  {newShareUrl || "Waiting for valid parameters..."}
-                </div>
-                <button
-                  type="button"
-                  disabled={!newShareUrl}
-                  onClick={() => newShareUrl && copyUrl(newShareUrl)}
-                  className={`w-full py-2 rounded font-bold text-xs transition-colors ${
-                    newShareUrl 
-                      ? "bg-ink text-paper hover:bg-ink/80" 
-                      : "bg-ink/10 text-ink/30 cursor-not-allowed"
-                  }`}
-                >
-                  Copy new link
-                </button>
-              </div>
-
-              <div className="flex space-x-2 pt-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPassOn(false);
-                    setNewShareUrl("");
-                  }}
-                  className="flex-1 border border-ink/20 py-2 rounded font-medium text-center"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Solve Panel */}
-          {showSolve && (
-            <div className="space-y-4 bg-ink/5 p-4 rounded-lg border border-ink/10 animate-slide-down">
-              <h3 className="text-sm font-bold">Provide Help 🙌</h3>
-
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-ink/60">Solution Description</label>
-                <textarea
-                  value={solutionText}
-                  onChange={(e) => setSolutionText(e.target.value)}
-                  className="w-full border border-ink/20 rounded p-2 text-xs bg-transparent min-h-[60px]"
-                  placeholder="Describe your solution or link to PR/results..."
-                />
-              </div>
-
-              <div className="flex flex-col space-y-1 mt-2">
-                <label className="text-xs font-semibold text-ink/60">Your Payout Address (Solver)</label>
-                <input
-                  type="text"
-                  value={solverAddr}
-                  onChange={(e) => setSolverAddr(e.target.value)}
-                  className="w-full border border-ink/20 rounded p-2 text-xs bg-transparent"
-                />
-              </div>
-
-              <p className="text-[10px] text-ink/50 leading-relaxed italic">
-                Send this Solve proof URL back to the raiser. They will execute the Thank settlement.
-              </p>
-
-              <div className="mt-4 space-y-2">
-                <div className="bg-paper p-3 rounded border border-ink/10 font-mono text-[10px] truncate text-ink/70">
-                  {solveUrl || "Waiting for valid parameters..."}
-                </div>
-                <button
-                  type="button"
-                  disabled={!solveUrl}
-                  onClick={() => solveUrl && copyUrl(solveUrl)}
-                  className={`w-full py-2 rounded font-bold text-xs transition-colors ${
-                    solveUrl 
-                      ? "bg-ink text-paper hover:bg-ink/80" 
-                      : "bg-ink/10 text-ink/30 cursor-not-allowed"
-                  }`}
-                >
-                  Copy Solve link
-                </button>
-              </div>
-
-              <div className="flex space-x-2 pt-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSolve(false);
-                    setSolveUrl("");
-                    setSolutionText("");
-                  }}
-                  className="flex-1 border border-ink/20 py-2 rounded font-medium text-center"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+      {showSolve && (
+        <HelpSheet
+          id={id}
+          payload={payload}
+          tampered={tampered}
+          railNodes={railNodes}
+          solverMinLabel={formatUsd(solverMin)}
+          onClose={() => setShowSolve(false)}
+        />
+      )}
+      {showPassOn && (
+        <PassOnSheet
+          id={id}
+          payload={payload}
+          tampered={tampered}
+          handRaw={handRaw}
+          searchE={(search as any).e}
+          title={fullMetadata?.title ?? t("aHand #{id}", { id })}
+          potLabel={formatUsd(potAmount)}
+          meta={metaLine}
+          onClose={() => setShowPassOn(false)}
+        />
       )}
     </div>
   );
 }
 
-// Helpers
-function solverKeepPercent(minBps: number) {
-  return (minBps / 100).toFixed(0);
+/** Share choice (#8): passing it all on is the default, and the whole cut is
+ *  tucked behind a soft optional line — the kind act leads, economics follow. */
+function ShareChoice({
+  marginPct,
+  setMarginPct,
+  maxAvailablePct,
+  rewardAmount,
+}: {
+  marginPct: number;
+  setMarginPct: (n: number) => void;
+  maxAvailablePct: number;
+  rewardAmount: number;
+}) {
+  const [open, setOpen] = useState(marginPct > 0);
+  const marginAmount = (rewardAmount * marginPct) / 100;
+  
+  return (
+    <div className="mt-5">
+      {open ? (
+        <div className="ah-panel flex flex-col gap-2">
+          <div>
+            <p className="ah-label">{t("keep a thank-you of")}</p>
+            <div className="flex items-baseline justify-between gap-3 mt-1.5">
+              <span
+                className="font-extrabold"
+                style={{ fontSize: "var(--fs-title-m-sm)", lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}
+              >
+                {formatUsd(marginAmount)}
+              </span>
+              <span
+                style={{ fontFamily: "var(--font-meta)", fontSize: "var(--fs-mono-md)", color: "var(--ink-a55)", fontVariantNumeric: "tabular-nums" }}
+              >
+                {marginPct}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={maxAvailablePct}
+              step={1}
+              value={marginPct}
+              onChange={(e) => setMarginPct(Number(e.target.value))}
+              className="ah-slider mt-2"
+              style={
+                {
+                  "--slider-fill": `calc(${(
+                    marginPct / (maxAvailablePct || 1)
+                  ).toFixed(4)} * (100% - 24px) + 12px)`,
+                } as React.CSSProperties
+              }
+              aria-label={t("keep a thank-you for yourself")}
+            />
+            <p className="text-[13px] leading-[1.4] text-ink/50 mt-1.5">
+              {t("If it's accepted through you, you can keep a small thank-you — or shake it all on.")}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="ah-disclose mt-1.5" aria-expanded={false} onClick={() => setOpen(true)}>
+          ▸ {t("keep a thank-you for yourself?")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PayoutField({ value, valid, onChange }: { value: string; valid: boolean; onChange: (v: string) => void }) {
+  const [edit, setEdit] = useState(false);
+  if (!edit) {
+    return (
+      <div
+        className="ah-card mt-2 flex items-center justify-between gap-3"
+        style={{ borderRadius: "var(--r-btn)", padding: "12px 14px" }}
+      >
+        <span className="ah-label flex items-center gap-2">
+          <Emoji size={15}>{POCKET_EMOJI}</Emoji> {t("lands in your pocket")}
+        </span>
+        <button
+          type="button"
+          className="ah-label ah-label--dim underline underline-offset-2"
+          onClick={() => setEdit(true)}
+        >
+          {t("change")}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <input
+      type="text"
+      className="ah-input mt-2"
+      style={{ fontFamily: "var(--font-meta)", fontSize: 14, padding: "13px 14px" }}
+      value={value}
+      onChange={(e) => onChange(e.target.value.trim())}
+      placeholder="0x…"
+      aria-label={t("where your thanks lands")}
+      aria-invalid={!!value && !valid}
+      autoFocus
+      spellCheck={false}
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="none"
+    />
+  );
+}
+
+function PassOnSheet(props: {
+  id: string;
+  payload: any;
+  tampered: boolean;
+  handRaw: unknown;
+  searchE?: string;
+  title: string;
+  potLabel: string;
+  meta: React.ReactNode;
+  onClose: () => void;
+}) {
+  const { address } = useAccount();
+  const { login } = usePrivy();
+  const flow = usePassOnFlow({
+    active: true,
+    id: props.id,
+    payload: props.payload,
+    tampered: props.tampered,
+    handRaw: props.handRaw,
+    searchE: props.searchE,
+  });
+  const [copied, setCopied] = useState(false);
+  const [ctaCopied, setCtaCopied] = useState(false);
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  const maxAvailablePct = useMemo(() => {
+    if (!props.payload) return 100;
+    const currentParentClaim = props.payload.shakes.length === 0
+      ? 10000
+      : props.payload.shakes[props.payload.shakes.length - 1].shake.childClaimBps;
+    return currentParentClaim / 100;
+  }, [props.payload]);
+
+  const rewardAmount = useMemo(() => {
+    if (!props.handRaw) return 0;
+    const [,, remainingReward] = props.handRaw as any[];
+    return Number(formatUnits(remainingReward, 6));
+  }, [props.handRaw]);
+
+  // Prefill with the connected address (PoC behavior), still editable.
+  useEffect(() => {
+    if (address && !flow.payoutAddr) flow.setPayoutAddr(address);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
+
+  const copy = async () => {
+    if (!flow.newShareUrl) return;
+    try {
+      await navigator.clipboard.writeText(flow.newShareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* no false "copied" */
+    }
+  };
+
+  const send = async () => {
+    if (!flow.newShareUrl) return;
+    if (canShare) {
+      try {
+        await navigator.share({ url: flow.newShareUrl });
+      } catch {
+        /* dismissed the share sheet */
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(flow.newShareUrl);
+      setCtaCopied(true);
+      setTimeout(() => setCtaCopied(false), 2000);
+    } catch {
+      /* no false "copied" */
+    }
+  };
+
+  return (
+    <Sheet label={t("I can ask")} onClose={props.onClose}>
+      {/* Hand summary card (mock 05/14) */}
+      <div
+        className="ah-card mt-4 flex items-center justify-between gap-3"
+        style={{ borderRadius: "var(--r-btn)", padding: "14px 16px" }}
+      >
+        <span
+          className="font-extrabold flex items-center gap-2 min-w-0"
+          style={{ fontSize: 16, letterSpacing: "-0.015em" }}
+        >
+          <Emoji size={19}>✋</Emoji>
+          <span className="truncate">{props.title}</span>
+        </span>
+        <span style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+          {props.potLabel}
+        </span>
+      </div>
+      <div className="mt-2 md:hidden">{props.meta}</div>
+
+      {/* Where the thanks lands (#6): a newcomer never faces a raw 0x field.
+          Connected → the pocket fills it; the hex hides behind "change". */}
+      <p className="ah-label mt-5">{t("where your thanks lands")}</p>
+      {address ? (
+        <PayoutField
+          value={flow.payoutAddr}
+          valid={flow.payoutValid}
+          onChange={(v) => flow.setPayoutAddr(v)}
+        />
+      ) : (
+        <p className="ah-label ah-label--dim mt-2">
+          {t("Connect a pocket below — your thanks lands there, nothing to paste.")}
+        </p>
+      )}
+      <p className="ah-label ah-label--dim mt-1.5">
+        {t("even if you pass it all on, a thank-you would reach you here")}
+      </p>
+
+      {/* Your share (#8): lead with the act, tuck the cut. Default is pass it
+          all on; the chips only appear if they want to keep a thank-you. */}
+      <ShareChoice
+        marginPct={flow.marginPct}
+        setMarginPct={flow.setMarginPct}
+        maxAvailablePct={maxAvailablePct}
+        rewardAmount={rewardAmount}
+      />
+
+      {flow.error && (
+        <div className="ah-alert mt-3.5" role="alert">
+          <p className="ah-alert__text">{flow.error}</p>
+        </div>
+      )}
+
+      {/* Copy row — full real link, middle-ellipsis display (no shortlinks) */}
+      {flow.newShareUrl && (
+        <button type="button" className="ah-linkrow mt-4" onClick={copy}>
+          <span className="ah-linkrow__value">{truncateMiddle(flow.newShareUrl, 26, 8)}</span>
+          <span className="ah-linkrow__action">{copied ? t("copied") : t("copy")}</span>
+        </button>
+      )}
+
+      <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
+      <div className="md:mt-6 flex flex-col gap-3.5 md:flex-row md:items-center md:justify-between md:gap-4">
+        <MetaLine
+          dim
+          className="order-2 md:order-1 text-center md:text-left"
+          style={{ fontSize: "var(--fs-mono-xs)" }}
+          text={
+            !address
+              ? t("your pocket is where thanks lands — connect it to send")
+              : flow.newShareUrl
+                ? t("every pass is remembered · thanks follows the hand")
+                : t("add an address and the link appears")
+          }
+        />
+        <SwipeButton
+          gesture="shake"
+          variant="ink"
+          disabled={address ? !flow.newShareUrl : false}
+          onClick={address ? send : () => login()}
+          className="order-1 md:order-2 md:min-w-[280px] whitespace-nowrap"
+        >
+          {!address
+            ? t("Connect a pocket & send")
+            : ctaCopied
+              ? t("Copied")
+              : canShare
+                ? t("Send the hand")
+                : t("Copy the link")}
+        </SwipeButton>
+      </div>
+    </Sheet>
+  );
+}
+
+function HelpSheet(props: {
+  id: string;
+  payload: any;
+  tampered: boolean;
+  railNodes: string[];
+  solverMinLabel: string;
+  onClose: () => void;
+}) {
+  const { address } = useAccount();
+  const { login } = usePrivy();
+  const flow = useSolveFlow({
+    active: true,
+    id: props.id,
+    payload: props.payload,
+    tampered: props.tampered,
+  });
+  const [copied, setCopied] = useState(false);
+  const [ctaCopied, setCtaCopied] = useState(false);
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  // Prefill with the connected address (PoC behavior), still editable.
+  useEffect(() => {
+    if (address && !flow.solverAddr) flow.setSolverAddr(address);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
+
+  const copy = async () => {
+    if (!flow.solveUrl) return;
+    try {
+      await navigator.clipboard.writeText(flow.solveUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* no false "copied" */
+    }
+  };
+
+  const send = async () => {
+    if (!flow.solveUrl) return;
+    if (canShare) {
+      try {
+        await navigator.share({ url: flow.solveUrl });
+      } catch {
+        /* dismissed the share sheet */
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(flow.solveUrl);
+      setCtaCopied(true);
+      setTimeout(() => setCtaCopied(false), 2000);
+    } catch {
+      /* no false "copied" */
+    }
+  };
+
+  const hopsFromRaiser = props.railNodes.length; // raiser + passers → you
+
+  return (
+    <Sheet label={t("i can help")} onClose={props.onClose}>
+      <h2
+        className="mt-3 font-extrabold"
+        style={{ fontSize: "var(--fs-title-m-sm)", lineHeight: 1.1, letterSpacing: "-0.025em" }}
+      >
+        {t("Tell them you're on it.")}
+      </h2>
+
+      <ChainRail className="mt-4.5" nodes={props.railNodes} youLabel={t("you")} />
+      <p className="mt-1.5 text-[12.5px] text-ink/50">
+        {hopsFromRaiser <= 1
+          ? t("You came straight from the raiser.")
+          : t("You're {n} hands from the raiser.", { n: hopsFromRaiser })}
+      </p>
+
+      <p className="ah-label mt-5">{t("what you can do")}</p>
+      <textarea
+        className="ah-input mt-2.5"
+        style={{ minHeight: 110 }}
+        value={flow.solutionText}
+        onChange={(e) => flow.setSolutionText(e.target.value)}
+        placeholder={t("What can you do for them? Plain words, links welcome.")}
+        aria-label={t("what you can do")}
+      />
+
+      <p className="ah-label mt-4.5">{t("where your thanks lands")}</p>
+      {address ? (
+        <PayoutField
+          value={flow.solverAddr}
+          valid={flow.solverValid}
+          onChange={(v) => flow.setSolverAddr(v)}
+        />
+      ) : (
+        <p className="ah-label ah-label--dim mt-2">
+          {t("Connect a pocket below — your thanks lands there, nothing to paste.")}
+        </p>
+      )}
+
+      {flow.error && (
+        <div className="ah-alert mt-3.5" role="alert">
+          <p className="ah-alert__text">{flow.error}</p>
+        </div>
+      )}
+
+      {flow.solveUrl && (
+        <>
+          <button type="button" className="ah-linkrow mt-4" onClick={copy}>
+            <span className="ah-linkrow__value">{truncateMiddle(flow.solveUrl, 26, 8)}</span>
+            <span className="ah-linkrow__action">{copied ? t("copied") : t("copy")}</span>
+          </button>
+          <p className="ah-label ah-label--dim mt-2">
+            {t("Send your reply back to whoever asked — they'll say thanks if it helps.")}
+          </p>
+        </>
+      )}
+
+      <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
+      <div className="md:mt-6 flex flex-col gap-3.5 md:flex-row md:items-center md:justify-between md:gap-4">
+        <MetaLine
+          dim
+          className="order-2 md:order-1 text-center md:text-left"
+          style={{ fontSize: "var(--fs-mono-xs)" }}
+          text={
+            !address
+              ? t("your pocket is where thanks lands — connect it to reply")
+              : flow.solveUrl
+                ? t("if accepted, you keep at least {amount}", { amount: props.solverMinLabel })
+                : t("Write what you can do, and it goes straight back to them.")
+          }
+        />
+        <SwipeButton
+          gesture="cheer"
+          variant="amber"
+          disabled={address ? !flow.solveUrl : false}
+          onClick={address ? send : () => login()}
+          className="order-1 md:order-2 md:min-w-[240px] whitespace-nowrap"
+        >
+          {!address
+            ? t("Connect a pocket & reply")
+            : ctaCopied
+              ? t("Copied")
+              : canShare
+                ? t("Tell them I'm on it")
+                : t("Copy the link")}
+        </SwipeButton>
+      </div>
+    </Sheet>
+  );
 }

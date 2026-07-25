@@ -12,8 +12,11 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as RaiseImport } from './routes/raise'
+import { Route as PocketImport } from './routes/pocket'
+import { Route as HandsImport } from './routes/hands'
 import { Route as IndexImport } from './routes/index'
 import { Route as HIdImport } from './routes/h.$id'
+import { Route as DevGalleryImport } from './routes/dev.gallery'
 import { Route as HIdThankImport } from './routes/h.$id.thank'
 
 // Create/Update Routes
@@ -21,6 +24,18 @@ import { Route as HIdThankImport } from './routes/h.$id.thank'
 const RaiseRoute = RaiseImport.update({
   id: '/raise',
   path: '/raise',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const PocketRoute = PocketImport.update({
+  id: '/pocket',
+  path: '/pocket',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const HandsRoute = HandsImport.update({
+  id: '/hands',
+  path: '/hands',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -33,6 +48,12 @@ const IndexRoute = IndexImport.update({
 const HIdRoute = HIdImport.update({
   id: '/h/$id',
   path: '/h/$id',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const DevGalleryRoute = DevGalleryImport.update({
+  id: '/dev/gallery',
+  path: '/dev/gallery',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -53,11 +74,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/hands': {
+      id: '/hands'
+      path: '/hands'
+      fullPath: '/hands'
+      preLoaderRoute: typeof HandsImport
+      parentRoute: typeof rootRoute
+    }
+    '/pocket': {
+      id: '/pocket'
+      path: '/pocket'
+      fullPath: '/pocket'
+      preLoaderRoute: typeof PocketImport
+      parentRoute: typeof rootRoute
+    }
     '/raise': {
       id: '/raise'
       path: '/raise'
       fullPath: '/raise'
       preLoaderRoute: typeof RaiseImport
+      parentRoute: typeof rootRoute
+    }
+    '/dev/gallery': {
+      id: '/dev/gallery'
+      path: '/dev/gallery'
+      fullPath: '/dev/gallery'
+      preLoaderRoute: typeof DevGalleryImport
       parentRoute: typeof rootRoute
     }
     '/h/$id': {
@@ -91,14 +133,20 @@ const HIdRouteWithChildren = HIdRoute._addFileChildren(HIdRouteChildren)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/hands': typeof HandsRoute
+  '/pocket': typeof PocketRoute
   '/raise': typeof RaiseRoute
+  '/dev/gallery': typeof DevGalleryRoute
   '/h/$id': typeof HIdRouteWithChildren
   '/h/$id/thank': typeof HIdThankRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/hands': typeof HandsRoute
+  '/pocket': typeof PocketRoute
   '/raise': typeof RaiseRoute
+  '/dev/gallery': typeof DevGalleryRoute
   '/h/$id': typeof HIdRouteWithChildren
   '/h/$id/thank': typeof HIdThankRoute
 }
@@ -106,29 +154,60 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/hands': typeof HandsRoute
+  '/pocket': typeof PocketRoute
   '/raise': typeof RaiseRoute
+  '/dev/gallery': typeof DevGalleryRoute
   '/h/$id': typeof HIdRouteWithChildren
   '/h/$id/thank': typeof HIdThankRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/raise' | '/h/$id' | '/h/$id/thank'
+  fullPaths:
+    | '/'
+    | '/hands'
+    | '/pocket'
+    | '/raise'
+    | '/dev/gallery'
+    | '/h/$id'
+    | '/h/$id/thank'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/raise' | '/h/$id' | '/h/$id/thank'
-  id: '__root__' | '/' | '/raise' | '/h/$id' | '/h/$id/thank'
+  to:
+    | '/'
+    | '/hands'
+    | '/pocket'
+    | '/raise'
+    | '/dev/gallery'
+    | '/h/$id'
+    | '/h/$id/thank'
+  id:
+    | '__root__'
+    | '/'
+    | '/hands'
+    | '/pocket'
+    | '/raise'
+    | '/dev/gallery'
+    | '/h/$id'
+    | '/h/$id/thank'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HandsRoute: typeof HandsRoute
+  PocketRoute: typeof PocketRoute
   RaiseRoute: typeof RaiseRoute
+  DevGalleryRoute: typeof DevGalleryRoute
   HIdRoute: typeof HIdRouteWithChildren
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HandsRoute: HandsRoute,
+  PocketRoute: PocketRoute,
   RaiseRoute: RaiseRoute,
+  DevGalleryRoute: DevGalleryRoute,
   HIdRoute: HIdRouteWithChildren,
 }
 
@@ -143,15 +222,27 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/hands",
+        "/pocket",
         "/raise",
+        "/dev/gallery",
         "/h/$id"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
+    "/hands": {
+      "filePath": "hands.tsx"
+    },
+    "/pocket": {
+      "filePath": "pocket.tsx"
+    },
     "/raise": {
       "filePath": "raise.tsx"
+    },
+    "/dev/gallery": {
+      "filePath": "dev.gallery.tsx"
     },
     "/h/$id": {
       "filePath": "h.$id.tsx",

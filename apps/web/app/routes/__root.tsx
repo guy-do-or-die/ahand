@@ -2,23 +2,27 @@ import { createRootRoute, Outlet, HeadContent, Scripts, useRouterState } from "@
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nProvider } from "@lingui/react";
+import { i18n } from "../i18n";
 import { config as wagmiConfig, activeChain } from "../config/web3";
+import { AMBER_HEX } from "../styles/tokens";
+import { AppHeader } from "../components/AppHeader";
+import { GlobalFooter } from "../components/GlobalFooter";
 import appCss from "../index.css?url";
 
 const queryClient = new QueryClient();
 
 export const Route = createRootRoute({
-  meta: () => [
-    { charSet: "utf-8" },
-    { name: "viewport", content: "width=device-width, initial-scale=1" },
-    { title: "a🙌and — Ask your people" },
-  ],
+  meta: () => [{ title: "aHand — Ask your people" }],
   component: RootComponent,
 });
 
 function RootComponent() {
   const matches = useRouterState({ select: (s) => s.matches });
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://welcome-primate-specially.ngrok-free.app";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://welcome-primate-specifically.ngrok-free.app";
+  const isHome = useRouterState({
+    select: (s) => s.location.pathname === "/",
+  });
 
   const dynamicMeta = matches.map((match) => {
     if (match.id.startsWith('/h/') && match.loaderData) {
@@ -33,11 +37,20 @@ function RootComponent() {
     return match.meta || [];
   }).flat();
 
+  // Deduplicate title tags: pick the LAST title defined in the match tree (leaf overrides parent)
+  const titleMeta = dynamicMeta.filter((m: any) => m.title);
+  const finalTitle = titleMeta.length > 0 ? titleMeta[titleMeta.length - 1].title : "aHand — Ask your people";
+  const otherMeta = dynamicMeta.filter((m: any) => !m.title);
+
   return (
     <html lang="en">
       <head>
-        {dynamicMeta.map((m: any, i: number) => {
-          if (m.title) return <title key={`meta-${i}`}>{m.title}</title>;
+        {/* Static, universal — never route these through the meta() system:
+            a missing viewport tag makes phones render at 980px and shrink. */}
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <title>{finalTitle}</title>
+        {otherMeta.map((m: any, i: number) => {
           if (m.charSet) return <meta key={`meta-${i}`} charSet={m.charSet} />;
           return <meta key={`meta-${i}`} {...m} />;
         })}
@@ -45,7 +58,8 @@ function RootComponent() {
         <link rel="stylesheet" href={appCss} />
         <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🙌</text></svg>" />
       </head>
-      <body className="bg-paper text-ink selection:bg-gold selection:text-paper antialiased">
+      <body className="antialiased">
+        <I18nProvider i18n={i18n}>
         <PrivyProvider
           appId="clt69jwp204btq1o3q72cupji"
           config={{
@@ -54,39 +68,25 @@ function RootComponent() {
             supportedChains: [activeChain],
             appearance: {
               theme: "light",
-              accentColor: "#D4AF37",
+              accentColor: AMBER_HEX,
             },
           }}
         >
           <WagmiProvider config={wagmiConfig}>
             <QueryClientProvider client={queryClient}>
-              <div className="min-h-screen bg-paper text-ink selection:bg-gold selection:text-paper font-sans flex items-center justify-center p-4">
-                <div className="w-full max-w-md bg-paper border-2 border-ink rounded-2xl shadow-xl overflow-hidden flex flex-col min-h-[550px]">
-                  
-                  {/* Header */}
-                  <header className="border-b-2 border-ink px-6 py-4 flex justify-between items-center bg-paper">
-                    <span className="text-xl font-black tracking-tighter flex items-center space-x-1 select-none">
-                      <span>a🙌and</span>
-                    </span>
-                    <div className="text-[10px] font-bold uppercase tracking-widest bg-gold/20 text-ink/80 px-2 py-0.5 rounded border border-ink/20 font-mono">
-                      v0.1
-                    </div>
-                  </header>
-
-                  {/* Main Content Area */}
-                  <main className="flex-grow flex flex-col justify-between">
-                    <Outlet />
-                  </main>
-
-                  {/* Footer */}
-                  <footer className="border-t border-ink/10 px-6 py-3 text-center text-[10px] text-ink/40 font-mono">
-                    a🙌and Protocol • positive-sum routing
-                  </footer>
+              {/* One shell for every screen: global header + footer, page
+                  content fills the middle. */}
+              <div className="flex flex-col min-h-dvh">
+                <AppHeader />
+                <div className="flex-1 flex flex-col">
+                  <Outlet />
                 </div>
+                <GlobalFooter />
               </div>
             </QueryClientProvider>
           </WagmiProvider>
         </PrivyProvider>
+        </I18nProvider>
         <Scripts />
       </body>
     </html>

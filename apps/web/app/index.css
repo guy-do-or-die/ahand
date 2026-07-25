@@ -1,15 +1,47 @@
 @import "tailwindcss";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "./styles/tokens.css";
+@import "./styles/components.css";
 
 @theme {
-  --color-paper: #fafaf7;
-  --color-ink: #101014;
-  --color-gold: #f5b841;
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-card: var(--card);
+  --color-amber: var(--amber);
+  --color-gold: var(--amber);
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-meta);
 }
 
-body {
-  background-color: var(--color-paper);
-  color: var(--color-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  margin: 0;
-  padding: 0;
+@layer base {
+  body {
+    margin: 0;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: var(--bw-focus) solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  /* Native number-input spinners never fit the design */
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  ::selection {
+    background-color: var(--amber);
+    color: var(--on-amber);
+  }
 }
