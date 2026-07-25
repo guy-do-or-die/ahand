@@ -48,7 +48,7 @@ contract AHandSignals {
     );
     event ApprovalForAll(address indexed account, address indexed operator, bool approved);
     event URI(string value, uint256 indexed id);
-    event UpGiven(address indexed from, address indexed target);
+    event Upped(address indexed from, address indexed target);
     event Downed(address indexed from, address indexed target);
     event ConfigUpdated(uint256 emissionCapUsd);
     event AnchorSet(address indexed anchor);
@@ -73,8 +73,7 @@ contract AHandSignals {
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert ZeroAddress();
-        pendingOwner = newOwner;
+        pendingOwner = newOwner; // address(0) = cancels the initiated transfer (L-4)
         emit OwnershipTransferStarted(owner, newOwner);
     }
 
@@ -97,6 +96,7 @@ contract AHandSignals {
 
     /*//////////////////// Mint / Burn ////////////////////*/
     function _mint(address to, uint256 id, uint256 value) internal {
+        if (to == address(0)) return; // L-1: zero recipient does not break receipt batch
         balanceOf[id][to] += value;
         totalSupply[id] += value;
         emit TransferSingle(msg.sender, address(0), to, id, value);
@@ -124,6 +124,7 @@ contract AHandSignals {
         uint96 charityFee
     ) external onlyCore {
         _mint(raiser, SIGNAL_THANK, 1);
+        if (payees.length != margins.length) revert LengthMismatch(); // L-3
         _mint(solver, SIGNAL_GIVE, 1);
         for (uint256 i = 0; i < payees.length; ++i) {
             if (margins[i] > 0) {
@@ -166,6 +167,8 @@ contract AHandSignals {
         }
     }
 
+    /// @dev Integer floor-sqrt, Babylonian method; monotonic and sub-additive —
+    ///      the load-bearing pillar of the emission curve's split-invariance (L-5).
     function _isqrt(uint256 y) internal pure returns (uint256 z) {
         if (y > 3) {
             z = y;
@@ -179,13 +182,13 @@ contract AHandSignals {
         }
     }
 
-    /*//////////////////// Vouch / Down (Spendable Signals) ////////////////////*/
+    /*//////////////////// Up / Down (Spendable Signals) ////////////////////*/
     function up(address target) external {
         if (earnedOf[msg.sender] < ONE_UP) revert InsufficientEarned();
         earnedOf[msg.sender] -= ONE_UP;          // spend only earned
         _burn(msg.sender, SIGNAL_UP, ONE_UP);    // recursion cut is here
         _mint(target, SIGNAL_UP, ONE_UP);        // targets get received portion
-        emit UpGiven(msg.sender, target);
+        emit Upped(msg.sender, target);
     }
 
     function down(address target) external {

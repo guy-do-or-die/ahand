@@ -6,6 +6,7 @@ import "../src/AHandTypes.sol";
 import {AHandCore} from "../src/AHandCore.sol";
 import {AHandSignals} from "../src/AHandSignals.sol";
 import {StaticAnchor} from "../src/StaticAnchor.sol";
+import {AHandWitness} from "../src/AHandWitness.sol";
 
 /*//////////////////////////////////////////////////////////////
                             MOCKS
@@ -95,7 +96,7 @@ contract AHandBase is Test {
         core.setSignals(address(signals));
         anchorC = new StaticAnchor();
         usd = new MockERC20("USD");
-        anchorC.setRate(address(usd), 1e12);      // USDC-подобный: 6dec → usd18
+        anchorC.setRate(address(usd), 1e12);      // USDC-like: 6dec -> usd18
         signals.setAnchor(address(anchorC));
         usd.mint(raiser, 1_000e6);
         vm.prank(raiser); usd.approve(address(core), type(uint256).max);
@@ -158,9 +159,9 @@ contract AHandAttacksTest is AHandBase {
 
     function test_Raise_PullsDepositAndStoresHand() public {
         uint256 h = _raise(usd, 5000);
-        (, , uint96 remaining, , , , , HandStatus st, , address rootCap,) = core.hands(h);
+        (, , uint96 remaining, , , , , Status st, , address rootCap,) = core.hands(h);
         assertEq(remaining, DEPOSIT, "I-12: remainingReward = credited");
-        assertEq(uint8(st), uint8(HandStatus.Active));
+        assertEq(uint8(st), uint8(Status.Active));
         assertEq(rootCap, vm.addr(E0));
         assertEq(usd.balanceOf(address(core)), DEPOSIT);
     }
@@ -197,9 +198,9 @@ contract AHandAttacksTest is AHandBase {
         assertEq(usd.balanceOf(connA), net * 1000 / 10_000, "A margin 10%");
         assertEq(usd.balanceOf(connB), net *  500 / 10_000, "B margin 5%");
         assertEq(usd.balanceOf(solver), net * 8500 / 10_000, "solver: claim 85%");
-        (, , uint96 remaining, , , , , HandStatus st, , ,) = core.hands(h);
+        (, , uint96 remaining, , , , , Status st, , ,) = core.hands(h);
         assertEq(remaining, 0, "I-16");
-        assertEq(uint8(st), uint8(HandStatus.Settled), "I-3");
+        assertEq(uint8(st), uint8(Status.Settled), "I-3");
     }
 
     /// I-5: solver self-insertion - coalition receives EXACTLY same amount (telescope identity).
@@ -378,8 +379,8 @@ contract AHandAttacksTest is AHandBase {
         core.finalize(h);
         assertEq(usd.balanceOf(raiser) - before, DEPOSIT - 1e6, "refund - charity 1%");
         assertEq(usd.balanceOf(charity), 1e6);
-        (, , uint96 remaining, , , , , HandStatus st, , ,) = core.hands(h);
-        assertEq(remaining, 0); assertEq(uint8(st), uint8(HandStatus.Reclaimed));
+        (, , uint96 remaining, , , , , Status st, , ,) = core.hands(h);
+        assertEq(remaining, 0); assertEq(uint8(st), uint8(Status.Reclaimed));
     }
 
     function test_TopUp_JoinsPoolBeforeSettlement() public {
@@ -502,9 +503,9 @@ contract AHandAttacksTest is AHandBase {
     }
 
     /// I-1 / I-4 / I-6 fuzzed route logic check
-    /// Спека §4: неизвестный якорю токен — полный settlement, ноль истории.
+    /// Spec §4: token unknown to anchor — full settlement, zero history.
     function test_Signals_UnknownToken_ZeroEmission() public {
-        MockERC20 junk = new MockERC20("JUNK");   // rate не задан
+        MockERC20 junk = new MockERC20("JUNK");   // rate not set
         junk.mint(raiser, 1_000e6);
         vm.prank(raiser); junk.approve(address(core), type(uint256).max);
         uint256 h = _raise(junk, 5000);
@@ -516,8 +517,8 @@ contract AHandAttacksTest is AHandBase {
         assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), 0);
     }
 
-    /// OZ ECDSA: malleable s (N - s, flipped v) отвергается.
-    /// NB: py-evm строже мейнета и режет high-s сам; ДЕМОНСТРАТИВЕН этот тест на anvil/geth.
+    /// OZ ECDSA: malleable s (N - s, flipped v) is rejected.
+    /// NB: py-evm is stricter than mainnet and rejects high-s automatically; this test is DEMONSTRATIVE on anvil/geth.
     function test_Malleability_Rejected() public {
         uint256 h = _raise(usd, 5000);
         Shake[] memory sh = new Shake[](1); bytes[] memory sg = new bytes[](1);
@@ -607,17 +608,17 @@ contract AHandAttacksTest is AHandBase {
     /// I-2 obligations vs actual balance sanity check
     function test_I2_ObligationsBookkeeping_ForceSend() public {
         uint256 h = _raise(usd, 5000);
-        (, , uint96 remaining, , , , , HandStatus st, , ,) = core.hands(h);
+        (, , uint96 remaining, , , , , Status st, , ,) = core.hands(h);
         assertEq(remaining, DEPOSIT);
-        assertEq(uint8(st), uint8(HandStatus.Active));
+        assertEq(uint8(st), uint8(Status.Active));
 
         // Force-send tokens directly to the contract
         usd.mint(address(core), 500e6);
 
         // Verify that the contract balance increases, but remaining reward and hand state are untouched
-        (, , uint96 remainingAfter, , , , , HandStatus stAfter, , ,) = core.hands(h);
+        (, , uint96 remainingAfter, , , , , Status stAfter, , ,) = core.hands(h);
         assertEq(remainingAfter, DEPOSIT, "I-2: remainingReward is unaffected");
-        assertEq(uint8(stAfter), uint8(HandStatus.Active), "I-2: hand status remains Active");
+        assertEq(uint8(stAfter), uint8(Status.Active), "I-2: hand status remains Active");
 
         // Verify contract balance is greater than obligations
         uint256 expectedObligations = DEPOSIT;
@@ -636,9 +637,9 @@ contract AHandAttacksTest is AHandBase {
         _thank(h1, sh, sg, g, gs);
 
         // Verify hand 2 is completely unaffected
-        (, , uint96 remaining2, , , , , HandStatus st2, , ,) = core.hands(h2);
+        (, , uint96 remaining2, , , , , Status st2, , ,) = core.hands(h2);
         assertEq(remaining2, DEPOSIT, "I-16: hand 2 remaining reward is unaffected by hand 1 settlement");
-        assertEq(uint8(st2), uint8(HandStatus.Active), "I-16: hand 2 status remains Active");
+        assertEq(uint8(st2), uint8(Status.Active), "I-16: hand 2 status remains Active");
     }
 
     /*──────────────── Signals & Reputation Tests (USDC 6 decimals) ────────────────*/
@@ -843,6 +844,37 @@ contract AHandAttacksTest is AHandBase {
         anchorC.acceptOwnership();
         assertEq(anchorC.pendingOwner(), address(0));
         assertEq(anchorC.owner(), stranger);
+    }
+
+    function test_Anchors_Smoke() public {
+        AHandWitness anchors = new AHandWitness(address(core));
+        
+        // 1. Anchor a random hash
+        bytes32 h = keccak256("test");
+        anchors.witness(h);
+        assertEq(anchors.witnessedAt(h), block.timestamp);
+        
+        // 2. anchorShake with honest signature
+        uint256 handId = _raise(usd, 5000);
+        (Shake memory sh, bytes memory sig) = _shake(handId, E0, vm.addr(E1), connA, 10_000, 9_000);
+        
+        // We expect ShakeWitnessed event
+        vm.expectEmit(true, true, false, true, address(anchors));
+        emit AHandWitness.ShakeWitnessed(handId, vm.addr(E0), vm.addr(E1), connA, 1000, uint40(block.timestamp));
+        anchors.witnessShake(sh, sig);
+        
+        // Repeated anchor is idempotent
+        anchors.witnessShake(sh, sig);
+        
+        // 3. anchorGive with honest signature
+        (Give memory g, bytes memory gs) = _give(handId, E0, solver);
+        vm.expectEmit(true, true, true, true, address(anchors));
+        emit AHandWitness.GiveWitnessed(handId, vm.addr(E0), solver, g.solutionHash, uint40(block.timestamp));
+        anchors.witnessGive(g, gs);
+        
+        // Invalid signature must revert
+        vm.expectRevert(AHandWitness.BadSignature.selector);
+        anchors.witnessGive(g, "garbage");
     }
 }
 

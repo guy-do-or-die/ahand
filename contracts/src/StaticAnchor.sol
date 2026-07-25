@@ -3,7 +3,6 @@ pragma solidity 0.8.35;
 
 import "./AHandTypes.sol";
 
-/// @notice Value anchor interface (spec §4): anchor is only needed for signals emission.
 interface IValueAnchor {
     /// @return usd18 value of `amount` of `token` in USD, scaled to 18 decimals; 0 = token not recognized
     function usdValue(address token, uint256 amount) external view returns (uint256 usd18);
@@ -50,6 +49,9 @@ contract StaticAnchor is IValueAnchor {
     }
 
     function usdValue(address token, uint256 amount) external view returns (uint256) {
-        return amount * rate[token];
+        uint256 r = rate[token];
+        if (r == 0) return 0;                       // unrecognized token
+        if (amount > type(uint256).max / r) return 0; // misconfig => honest zero,
+        return amount * r;                            // instead of wrapped junk in emission
     }
 }

@@ -6,6 +6,7 @@ import {AHandCore} from "../src/AHandCore.sol";
 import {MockERC20} from "../test/AHand.attacks.t.sol";
 import {AHandSignals} from "../src/AHandSignals.sol";
 import {StaticAnchor} from "../src/StaticAnchor.sol";
+import {AHandWitness} from "../src/AHandWitness.sol";
 
 /// @notice Local stand: anvil-only.
 ///   anvil --chain-id 31337
@@ -26,6 +27,7 @@ contract Deploy is Script {
         core.setSignals(address(signals));
         StaticAnchor anchor = new StaticAnchor();
         signals.setAnchor(address(anchor));
+        AHandWitness witness = new AHandWitness(address(core));
 
         MockERC20 usd = new MockERC20("mockUSD");
         anchor.setRate(address(usd), 1e12); // USDC-like 6dec
@@ -37,6 +39,7 @@ contract Deploy is Script {
         console2.log("AHandCore :", address(core));
         console2.log("Signals   :", address(signals));
         console2.log("Anchor    :", address(anchor));
+        console2.log("Witness   :", address(witness));
         console2.log("mockUSD   :", address(usd));
         console2.log("charity   :", charity);
         console2.log("maintainer:", maintainer);

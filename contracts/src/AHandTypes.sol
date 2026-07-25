@@ -22,7 +22,7 @@ struct Give {
     bytes32 solutionHash;
 }
 
-enum HandStatus { None, Active, Settled, Reclaimed }
+enum Status { None, Active, Settled, Reclaimed }
 
 struct Hand {
     address    raiser;
@@ -32,7 +32,7 @@ struct Hand {
     uint16     charityFeeBps;
     uint16     maintFeeBps;
     uint16     minSolverClaimBps;
-    HandStatus status;
+    Status     status;
     address    charity;          // locked during raise (I-10)
     address    rootCapability;   // addr(e0)
     bytes32    metadataHash;     // sha256 of canonical JSON (Appendix P)
@@ -69,7 +69,7 @@ error BoundsViolated();        // parameters outside of the constitutional bound
 /*//////////////////////////////////////////////////////////////
                         Events (§5, §7)
 //////////////////////////////////////////////////////////////*/
-event HandRaised(uint256 indexed handId, address indexed raiser, address token,
+event Raised(uint256 indexed handId, address indexed raiser, address token,
                  uint96 amount, uint40 expiry, bytes32 metadataHash);
 event Shaken(uint256 indexed handId, address indexed payout, uint16 marginBps); // during thank!
 event Settled(uint256 indexed handId, address indexed solver, bytes32 solutionHash);

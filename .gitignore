@@ -14,5 +14,11 @@ contracts/lib/
 
 # Local development metadata
 local/
-.vercel
+contracts/broadcast/
+contracts/foundry.lock
+artifacts/
+
+
+# Secrets & deploy metadata
 .env*
+.vercel/

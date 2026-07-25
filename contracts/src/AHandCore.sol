@@ -154,12 +154,12 @@ contract AHandCore {
             charityFeeBps: charityFeeBps,
             maintFeeBps: maintFeeBps,
             minSolverClaimBps: minSolverClaimBps,
-            status: HandStatus.Active,
+            status: Status.Active,
             charity: charity,
             rootCapability: rootCapability,
             metadataHash: metadataHash
         });
-        emit HandRaised(handId, msg.sender, token, credited, expiry, metadataHash);
+        emit Raised(handId, msg.sender, token, credited, expiry, metadataHash);
 
         if (signals != address(0)) {
             try IAHandSignals(signals).mintRaise{gas: SIGNALS_GAS}(msg.sender, handId) {} catch {}
@@ -304,7 +304,7 @@ contract AHandCore {
         uint96 topUp
     ) external nonReentrant {
         Hand storage h = hands[handId];
-        if (h.status != HandStatus.Active) revert NotActive();
+        if (h.status != Status.Active) revert NotActive();
         if (msg.sender != h.raiser) revert NotRaiser();
 
         (address[] memory payees, uint16[] memory margins, address solver, ) = 
@@ -323,7 +323,7 @@ contract AHandCore {
         }
 
         h.remainingReward = 0;
-        h.status = HandStatus.Settled;
+        h.status = Status.Settled;
 
         uint256 charityFee = (uint256(pool) * h.charityFeeBps) / BPS_DENOMINATOR;
         uint256 maintFee = (uint256(pool) * h.maintFeeBps) / BPS_DENOMINATOR;
@@ -366,7 +366,7 @@ contract AHandCore {
      */
     function finalize(uint256 handId) external nonReentrant {
         Hand storage h = hands[handId];
-        if (h.status != HandStatus.Active) revert NotActive();
+        if (h.status != Status.Active) revert NotActive();
         if (block.timestamp < h.expiry) revert NotExpired();
 
         address token = h.token;
@@ -375,7 +375,7 @@ contract AHandCore {
 
         uint96 pool = h.remainingReward;
         h.remainingReward = 0;
-        h.status = HandStatus.Reclaimed;
+        h.status = Status.Reclaimed;
 
         uint256 charityFee = (uint256(pool) * h.charityFeeBps) / BPS_DENOMINATOR;
         uint256 refund = pool - charityFee;

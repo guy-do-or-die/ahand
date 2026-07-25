@@ -161,8 +161,11 @@ contract AHandHandler is Test {
         }
     }
 
+    uint256 public junkTotal;   // ghost: amount of junk token manually minted to core
+
     function donateJunk(uint96 amount) external {
         amount = uint96(bound(amount, 1, 1_000e6));
+        junkTotal += amount;
         usd.mint(address(core), amount);
     }
 }
@@ -197,8 +200,8 @@ contract AHandInvariantTest is Test {
     function sumOfActiveEscrows() public view returns (uint256 sum) {
         uint256 count = core.handsCount();
         for (uint256 i = 1; i <= count; ++i) {
-            (, , uint96 remaining, , , , , HandStatus st, , ,) = core.hands(i);
-            if (st == HandStatus.Active) {
+            (, , uint96 remaining, , , , , Status st, , ,) = core.hands(i);
+            if (st == Status.Active) {
                 sum += remaining;
             }
         }
@@ -211,10 +214,28 @@ contract AHandInvariantTest is Test {
                core.pending(charity, address(usd));
     }
 
-    /// @custom:invariant I-1 / I-16: total contract balance must cover all active escrows and pending payouts
+    /// @custom:invariant I-2: balance is always sufficient to cover obligations (junk is only extra)
     function invariant_TelescopicConservation() public view {
         uint256 actualBal = usd.balanceOf(address(core));
         uint256 expectedObligations = sumOfActiveEscrows() + sumOfPending();
         assertGe(actualBal, expectedObligations, "Conservation invariant broken: balance < obligations");
+    }
+
+    /// @custom:invariant I-1 strict: ghost accounting of junk converts >= to ==
+    function invariant_StrictConservation() public view {
+        assertEq(
+            usd.balanceOf(address(core)),
+            sumOfActiveEscrows() + sumOfPending() + handler.junkTotal(),
+            "strict conservation broken"
+        );
+    }
+
+    /// @custom:invariant I-16: non-Active hand must hold exactly zero escrow
+    function invariant_SettledZeroRemaining() public view {
+        uint256 count = core.handsCount();
+        for (uint256 i = 1; i <= count; ++i) {
+            (, , uint96 remaining, , , , , Status st, , ,) = core.hands(i);
+            if (st != Status.Active) assertEq(remaining, 0, "settled hand holds escrow");
+        }
     }
 }
