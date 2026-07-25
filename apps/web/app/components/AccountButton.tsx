@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { usePrivy } from "@privy-io/react-auth";
+import { useAccount } from "wagmi";
 import { Emoji } from "./Emoji";
 import { POCKET_EMOJI } from "../styles/tokens";
 import { t } from "../i18n";
@@ -13,6 +14,10 @@ import { useEffect, useState } from "react";
 export function AccountButton() {
   const [mounted, setMounted] = useState(false);
   const { authenticated, login } = usePrivy();
+  // The pocket page keys off wagmi's connection; the header must agree —
+  // an injected wallet can be wagmi-connected without a live Privy session.
+  const { isConnected } = useAccount();
+  const connected = authenticated || isConnected;
 
   useEffect(() => {
     setMounted(true);
@@ -30,7 +35,7 @@ export function AccountButton() {
     );
   }
 
-  if (authenticated) {
+  if (connected) {
     return (
       <Link
         to="/pocket"

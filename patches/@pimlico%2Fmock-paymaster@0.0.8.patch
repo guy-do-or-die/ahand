@@ -1,0 +1,44 @@
+diff --git a/_cjs/helpers/schema.js b/_cjs/helpers/schema.js
+index 49d7b2403418162fc93fded607c7b575117f8391..49cccbfde71e795622856ddf7f71464d4be04c55 100644
+--- a/_cjs/helpers/schema.js
++++ b/_cjs/helpers/schema.js
+@@ -107,7 +107,7 @@ const userOperationSchemaPaymasterV7 = zod_1.z
+     .object({
+     sender: exports.addressSchema,
+     nonce: exports.hexNumberSchema,
+-    factory: exports.addressSchema.optional().transform((val) => val ?? undefined),
++    factory: zod_1.z.union([exports.addressSchema, zod_1.z.literal("0x7702")]).optional().transform((val) => val ?? undefined),
+     factoryData: exports.hexDataSchema
+         .optional()
+         .transform((val) => val ?? undefined),
+@@ -197,7 +197,7 @@ const eip7677UserOperationSchemaV7 = zod_1.z
+     .object({
+     sender: exports.addressSchema,
+     nonce: exports.hexNumberSchema,
+-    factory: exports.addressSchema
++    factory: zod_1.z.union([exports.addressSchema, zod_1.z.literal("0x7702")])
+         .nullable()
+         .optional()
+         .transform((val) => val ?? null),
+diff --git a/_esm/helpers/schema.js b/_esm/helpers/schema.js
+index 2f4380bc4a7eeff9bbfc586cfaee11c2f2cb4a45..30c72901f644bdd3679fc5928441b16aeb748fe7 100644
+--- a/_esm/helpers/schema.js
++++ b/_esm/helpers/schema.js
+@@ -105,7 +105,7 @@ const userOperationSchemaPaymasterV7 = z
+     .object({
+     sender: addressSchema,
+     nonce: hexNumberSchema,
+-    factory: addressSchema.optional().transform((val) => val ?? undefined),
++    factory: z.union([addressSchema, z.literal("0x7702")]).optional().transform((val) => val ?? undefined),
+     factoryData: hexDataSchema
+         .optional()
+         .transform((val) => val ?? undefined),
+@@ -195,7 +195,7 @@ const eip7677UserOperationSchemaV7 = z
+     .object({
+     sender: addressSchema,
+     nonce: hexNumberSchema,
+-    factory: addressSchema
++    factory: z.union([addressSchema, z.literal("0x7702")])
+         .nullable()
+         .optional()
+         .transform((val) => val ?? null),

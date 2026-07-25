@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useAccount, useReadContract, useWriteContract, usePublicClient } from "wagmi";
+import { useAccount, useReadContract, usePublicClient } from "wagmi";
 import { parseUnits } from "viem";
+import { useSender, type SenderCall } from "./useSender";
 import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
 import { t } from "../i18n";
 import { humanizeChainError } from "../lib/errors";
@@ -13,7 +14,7 @@ import { humanizeChainError } from "../lib/errors";
 export function useThankFlow(id: string) {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { send } = useSender();
 
   const [thankData, setThankData] = useState<any>(null);
   const [parseError, setParseError] = useState("");
@@ -74,19 +75,7 @@ export function useThankFlow(id: string) {
     try {
       const parsedTopUp = parseUnits(topUp || "0", 6); // mockUSD is 6 decimals
 
-      // 1. Approve topUp if necessary
-      if (parsedTopUp > 0n && (!allowance || (allowance as bigint) < parsedTopUp)) {
-        const approveTx = await writeContractAsync({
-          address: DeployedAddresses.mockUSD,
-          abi: MockERC20Abi,
-          functionName: "approve",
-          args: [DeployedAddresses.AHandCore, parsedTopUp],
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approveTx, pollingInterval: 100 });
-        await refetchAllowance();
-      }
-
-      // 2. Format shakes & sigs
+      // 1. Format shakes & sigs
       const shakes = thankData.shakes.map((s: any) => ({
         handId: BigInt(s.shake.handId),
         childCapability: s.shake.childCapability as `0x${string}`,
@@ -107,7 +96,18 @@ export function useThankFlow(id: string) {
 
       const giveSig = thankData.giveSig as `0x${string}`;
 
-      const thankTx = await writeContractAsync({
+      // 2. Approve top-up (only if short) + thank — one sponsored userOp for
+      // embedded pockets, the same sequential txs as before for external wallets.
+      const calls: SenderCall[] = [];
+      if (parsedTopUp > 0n && (!allowance || (allowance as bigint) < parsedTopUp)) {
+        calls.push({
+          address: DeployedAddresses.mockUSD,
+          abi: MockERC20Abi,
+          functionName: "approve",
+          args: [DeployedAddresses.AHandCore, parsedTopUp],
+        });
+      }
+      calls.push({
         address: DeployedAddresses.AHandCore,
         abi: AHandCoreAbi,
         functionName: "thank",
@@ -121,7 +121,8 @@ export function useThankFlow(id: string) {
         ],
       });
 
-      await publicClient.waitForTransactionReceipt({ hash: thankTx, pollingInterval: 100 });
+      await send(calls);
+      await refetchAllowance();
       setSettledPot(((handRaw as any[])[2] as bigint) + parsedTopUp);
       setSuccess(true);
     } catch (err: any) {

@@ -517,6 +517,11 @@ export const AHandCoreAbi = [
             "name": "solutionHash",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "finalClaimBps",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
       },
@@ -886,6 +891,11 @@ export const AHandCoreAbi = [
     "type": "error",
     "name": "ZeroAmount",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroPayee",
+    "inputs": []
   }
 ] as const;
 
@@ -1017,14 +1027,14 @@ export const AHandSignalsAbi = [
     "name": "balanceOf",
     "inputs": [
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "",
+        "name": "account",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
@@ -1719,6 +1729,11 @@ export const AHandSignalsAbi = [
   },
   {
     "type": "error",
+    "name": "BoundsViolated",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InsufficientBalance",
     "inputs": []
   },
@@ -1820,6 +1835,11 @@ export const AHandWitnessAbi = [
             "name": "solutionHash",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "finalClaimBps",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
       },
@@ -2432,11 +2452,11 @@ export const MockERC20Abi = [
 ] as const;
 
 export const DeployedAddresses = {
-  "AHandCore": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "AHandSignals": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-  "StaticAnchor": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-  "AHandWitness": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-  "mockUSD": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+  "AHandCore": "0x2a810409872AfC346F9B5b26571Fd6eC42EA4849",
+  "AHandSignals": "0xb9bEECD1A582768711dE1EE7B0A1d582D9d72a6C",
+  "StaticAnchor": "0x40918Ba7f132E0aCba2CE4de4c4baF9BD2D7D849",
+  "AHandWitness": "0xd6e1afe5cA8D00A2EFC01B89997abE2De47fdfAf",
+  "mockUSD": "0x99dBE4AEa58E518C50a1c04aE9b48C9F6354612f",
   "charity": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "maintainer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
 } as const;

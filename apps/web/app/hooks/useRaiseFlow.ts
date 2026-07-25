@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useReadContract, useWriteContract, usePublicClient } from "wagmi";
-import { parseUnits, decodeEventLog } from "viem";
+import { useAccount, useReadContract, usePublicClient } from "wagmi";
+import { parseUnits, decodeEventLog, type Log } from "viem";
+import { useSender, type SenderCall } from "./useSender";
 import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
 import { encodePayload, newCapability } from "@ahand/sdk";
 import { activeChain } from "../config/web3";
@@ -39,7 +40,7 @@ export interface RaiseDraftPreview {
 export function useRaiseFlow() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { send } = useSender();
 
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("preview");
@@ -158,23 +159,22 @@ export function useRaiseFlow() {
         visibility,
       });
 
-      // 2. Allowance
+      // 2. Generate capability & assemble calls: approve (only if the
+      // allowance is short) + raise. One sponsored userOp for embedded
+      // pockets; the same two sequential txs as before for external wallets.
+      const cap = newCapability();
+      const expiryTimestamp = BigInt(Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60);
+
+      const calls: SenderCall[] = [];
       if (!allowance || (allowance as bigint) < parsedReward) {
-        const txHash = await writeContractAsync({
+        calls.push({
           address: DeployedAddresses.mockUSD,
           abi: MockERC20Abi,
           functionName: "approve",
           args: [DeployedAddresses.AHandCore, parsedReward],
         });
-        await publicClient.waitForTransactionReceipt({ hash: txHash, pollingInterval: 100 });
-        await refetchAllowance();
       }
-
-      // 3. Generate capability & Raise
-      const cap = newCapability();
-      const expiryTimestamp = BigInt(Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60);
-
-      const raiseTx = await writeContractAsync({
+      calls.push({
         address: DeployedAddresses.AHandCore,
         abi: AHandCoreAbi,
         functionName: "raise",
@@ -191,16 +191,18 @@ export function useRaiseFlow() {
         ],
       });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: raiseTx, pollingInterval: 100 });
+      // 3. Send & wait — logs cover every call that was sent.
+      const { logs }: { logs: Log[] } = await send(calls);
+      await refetchAllowance();
 
-      const raiseEvent = receipt.logs
-        .map((log) => {
+      const raiseEvent = logs
+        .map((log: Log): { eventName: string; args: unknown } | null => {
           try {
             return decodeEventLog({
               abi: AHandCoreAbi,
               data: log.data,
               topics: log.topics,
-            });
+            }) as { eventName: string; args: unknown };
           } catch {
             return null;
           }

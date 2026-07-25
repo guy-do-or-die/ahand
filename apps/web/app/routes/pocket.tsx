@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { useDisconnect } from "wagmi";
 import { usePocket, type PocketReceipt } from "../hooks/usePocket";
 import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
 import { GiveInbox } from "../components/GiveInbox";
 import { OnboardingSheet } from "../components/OnboardingSheet";
+import { DevFaucet } from "../components/DevFaucet";
 import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
 import { Logo } from "../components/Logo";
@@ -57,11 +59,29 @@ const dateFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric
 function PocketComponent() {
   const navigate = useNavigate();
   const pocket = usePocket();
-  const { login, logout } = usePrivy();
+  const { login, logout, authenticated } = usePrivy();
+  const { disconnect } = useDisconnect();
+
+  // A wallet can be connected in wagmi without a live Privy session (e.g. an
+  // injected wallet auto-reconnected after the session expired). Disconnect
+  // must clear BOTH; calling Privy's logout without a session just 400s.
+  const handleDisconnect = () => {
+    disconnect();
+    if (authenticated) void logout().catch(() => {});
+  };
+
+  // Same mounted-guard as AccountButton: the server always renders the
+  // disconnected shell, but a restored Privy session can connect wagmi on
+  // the FIRST client render — a structural mismatch here aborts hydration
+  // and leaves the whole page with dead event handlers.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="ah-page">
-      {!pocket.isConnected ? (
+      {!mounted || !pocket.isConnected ? (
         /* A welcome, not a redacted ledger. */
         <div className="flex flex-col flex-1 items-center justify-center text-center px-6 pb-16">
           <Emoji size={64}>{POCKET_EMOJI}</Emoji>
@@ -89,7 +109,7 @@ function PocketComponent() {
               <button
                 type="button"
                 className="text-[12px] font-bold text-ink/40 hover:text-ink cursor-pointer bg-transparent border-0 p-0"
-                onClick={() => logout()}
+                onClick={handleDisconnect}
               >
                 {t("Disconnect")}
               </button>
@@ -120,6 +140,7 @@ function PocketComponent() {
             <p className="ah-label ah-label--dim mt-2">
               {t("yours to keep · {n} good turns so far", { n: pocket.thanksCount })}
             </p>
+            <DevFaucet />
 
             {/* CTA row (desktop keeps it in the card; mobile pins to bottom) */}
             <div className="hidden lg:flex mt-6 gap-2.5 items-center">

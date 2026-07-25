@@ -16,7 +16,16 @@ export default defineConfig({
       // the first send and mid-session re-optimization races in-flight
       // requests ("Cannot set headers after they are sent").
       exclude: ["@xmtp/wasm-bindings", "@xmtp/browser-sdk"],
-      include: ["@xmtp/browser-sdk > @xmtp/content-type-primitives", "viem/accounts"],
+      include: [
+        "@xmtp/browser-sdk > @xmtp/content-type-primitives",
+        "viem/accounts",
+        // AA stack — prebundle up front for the same reason as above.
+        "permissionless",
+        "permissionless/utils",
+        "permissionless/clients/pimlico",
+        "viem/account-abstraction",
+        "@privy-io/wagmi",
+      ],
     },
   },
 });

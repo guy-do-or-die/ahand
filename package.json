@@ -31,6 +31,8 @@
     "@tanstack/start-client-core": "1.120.17",
     "@tanstack/start-server-core": "1.120.17",
     "@tanstack/router-core": "1.120.19"
+  },
+  "patchedDependencies": {
+    "@pimlico/mock-paymaster@0.0.8": "patches/@pimlico%2Fmock-paymaster@0.0.8.patch"
   }
 }
-
