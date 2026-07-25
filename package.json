@@ -3,10 +3,34 @@
   "version": "1.0.0",
   "description": "aHand Protocol",
   "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "infra/*"
+  ],
   "scripts": {
     "build": "cd contracts && forge build",
     "test": "cd contracts && forge test",
     "anvil": "anvil --chain-id 31337",
-    "deploy:local": "cd contracts && forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast"
+    "deploy:local": "cd contracts && forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast",
+    "stand": "bun run --cwd infra/anvil stand",
+    "dev": "bun run --cwd apps/web dev"
+  },
+  "overrides": {
+    "@tanstack/react-router": "1.120.20",
+    "@tanstack/router-generator": "1.120.20",
+    "@tanstack/router-plugin": "1.120.20",
+    "@tanstack/react-start-plugin": "1.120.17",
+    "@tanstack/server-functions-plugin": "1.120.17",
+    "@tanstack/start-server-functions-handler": "1.120.17",
+    "@tanstack/start-server-functions-server": "1.120.17",
+    "@tanstack/start-server-functions-client": "1.120.17",
+    "@tanstack/react-start-server": "1.120.17",
+    "@tanstack/react-start-client": "1.120.17",
+    "@tanstack/start": "1.120.20",
+    "@tanstack/start-client-core": "1.120.17",
+    "@tanstack/start-server-core": "1.120.17",
+    "@tanstack/router-core": "1.120.19"
   }
 }
+

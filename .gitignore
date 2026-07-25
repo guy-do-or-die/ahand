@@ -18,7 +18,11 @@ contracts/broadcast/
 contracts/foundry.lock
 artifacts/
 
-
-# Secrets & deploy metadata
-.env*
+# JS/Node
+node_modules/
+dist/
+.turbo/
+.env
+.env.local
+.DS_Store
 .vercel/
