@@ -73,7 +73,7 @@ export const messages: Record<string, string> = {
   // Raise — CTA + errors
   "Raise it": "Raise it",
   "Raising…": "Raising…",
-  "${amount} secured · all {refund} back if it expires · {charity} to charity when accepted": "${amount} secured · all {refund} back if it expires · {charity} to charity when accepted",
+  "{amount} secured · all {refund} back if it expires · {charity} to charity when accepted": "{amount} secured · all {refund} back if it expires · {charity} to charity when accepted",
   "If no Give is accepted within {days} days, the whole {refund} returns to you. Charity's {charity} moves only when it works out.": "If no Give is accepted within {days} days, the whole {refund} returns to you. Charity’s {charity} moves only when it works out.",
   "held safe · paid when accepted · all of it back after {days} days · {pct}% to charity": "held safe · paid when accepted · all of it back after {days} days · {pct}% to charity",
   "something to fix": "something to fix",

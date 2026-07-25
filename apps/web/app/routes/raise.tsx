@@ -238,7 +238,7 @@ function RaiseComponent() {
           <MetaLine
             dim
             className="order-2 lg:order-1 text-center lg:text-left"
-            text={t("${amount} secured · all {refund} back if it expires · {charity} to charity when accepted", {
+            text={t("{amount} secured · all {refund} back if it expires · {charity} to charity when accepted", {
               amount: formatUsd(rewardDisplay),
               refund: formatUsd(flow.refundAmount),
               charity: formatUsd(flow.charityAmount),

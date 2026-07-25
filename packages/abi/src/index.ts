@@ -159,6 +159,19 @@ export const AHandCoreAbi = [
   },
   {
     "type": "function",
+    "name": "PUSH_GAS_STIPEND",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "acceptPolicyAdmin",
     "inputs": [],
     "outputs": [],
@@ -740,6 +753,68 @@ export const AHandCoreAbi = [
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
+      },
+      {
+        "name": "amount",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PayoutDeferred",
+    "inputs": [
+      {
+        "name": "handId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PayoutPushed",
+    "inputs": [
+      {
+        "name": "handId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "amount",
@@ -2650,11 +2725,11 @@ export const MockUSDAbi = [
 ] as const;
 
 export const DeployedAddresses = {
-  "AHandCore": "0x55A009A3Ef2b219BDd1188BB3FdA1c4A6977646e",
-  "AHandSignals": "0x7774d0FA4a8063f5e578cd0F6eFbB49a93622C64",
-  "AHandWitness": "0xf3897B772BcFb73e33459Ce418648e2d2debC40E",
+  "AHandCore": "0x840C2D884ad2d17c3756c4cc86C84E801A57E811",
+  "AHandSignals": "0x9d4AC0e5aA9A11F161c2D5e39A931Dde24375b17",
+  "AHandWitness": "0x964Ec4995d43cc6Da4BD9666617b0877012Db63a",
   "mockUSD": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
   "charity": "0x2D9A5736E99eB8c180fDbD8B9F19a46F733B1351",
   "policyAdmin": "0xa42E5d4447c133440406aAA685DE725Ad381A162",
-  "deployBlock": 44605134
+  "deployBlock": 44613002
 } as const;

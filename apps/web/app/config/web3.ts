@@ -20,7 +20,10 @@ const anvil = defineChain({
 
 // "anvil" (default) | "base" | "baseSepolia" | "worldchain" — public chains keep
 // their built-in public RPC unless VITE_RPC_URL overrides it.
-const chainName = (import.meta.env.VITE_CHAIN as string | undefined) ?? "anvil";
+// Local dev talks to the anvil stand; a production build (ahand.in) targets
+// Base Sepolia. VITE_CHAIN overrides either way.
+const chainName =
+  (import.meta.env.VITE_CHAIN as string | undefined) ?? (import.meta.env.PROD ? "baseSepolia" : "anvil");
 const rpcOverride = import.meta.env.VITE_RPC_URL as string | undefined;
 
 export const activeChain =
