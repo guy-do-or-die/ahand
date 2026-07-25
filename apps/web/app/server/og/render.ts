@@ -1,7 +1,15 @@
-import { readFileSync } from "node:fs";
+/// <reference types="vite/client" />
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import { b64urlDecode, Envelope } from "../../lib/metadata";
+
+// All render assets are baked into the chunk: the SVG marks as ?raw imports,
+// the fonts as generated base64 (fonts.b64.ts) — runtime fs reads don't
+// survive serverless bundling, and the vinxi server build ignores both
+// ?inline and static new URL(..., import.meta.url) asset emission.
+import markLightSvg from "../../../public/ahand-mark-light.svg?raw";
+import markDarkSvg from "../../../public/ahand-mark-dark.svg?raw";
+import { SG400, SG700, NS400, NS700 } from "./fonts.b64";
 
 /**
  * OG card renderer — 1200×630 PNG for /api/og/$id.png. Everything comes
@@ -16,25 +24,22 @@ const INK = "#101014";
 const PAPER = "#fafaf7";
 const AMBER = "#f5b841";
 
-const font = (file: string) => readFileSync(new URL(`./fonts/${file}`, import.meta.url));
+const font = (b64: string) => Buffer.from(b64, "base64");
 
 // THE canonical marks — same files the app header uses (single point of
 // truth, regenerate via scripts/generate-mark.ts). Fully outlined, so they
 // render identically here and in every browser.
-const markUri = (file: string) =>
-  `data:image/svg+xml;base64,${readFileSync(
-    new URL(`../../../public/${file}`, import.meta.url),
-  ).toString("base64")}`;
-const MARK_LIGHT = markUri("ahand-mark-light.svg"); // ink text, for paper bg
-const MARK_DARK = markUri("ahand-mark-dark.svg"); // paper text, for ink bg
+const markUri = (svg: string) => `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+const MARK_LIGHT = markUri(markLightSvg); // ink text, for paper bg
+const MARK_DARK = markUri(markDarkSvg); // paper text, for ink bg
 
 let fonts: { name: string; data: Buffer; weight: 400 | 700; style: "normal" }[] | null = null;
 function getFonts() {
   fonts ??= [
-    { name: "Schibsted Grotesk", data: font("SchibstedGrotesk-400.ttf"), weight: 400, style: "normal" },
-    { name: "Schibsted Grotesk", data: font("SchibstedGrotesk-700.ttf"), weight: 700, style: "normal" },
-    { name: "Noto Sans", data: font("NotoSans-400.ttf"), weight: 400, style: "normal" },
-    { name: "Noto Sans", data: font("NotoSans-700.ttf"), weight: 700, style: "normal" },
+    { name: "Schibsted Grotesk", data: font(SG400), weight: 400, style: "normal" },
+    { name: "Schibsted Grotesk", data: font(SG700), weight: 700, style: "normal" },
+    { name: "Noto Sans", data: font(NS400), weight: 400, style: "normal" },
+    { name: "Noto Sans", data: font(NS700), weight: 700, style: "normal" },
   ];
   return fonts;
 }
