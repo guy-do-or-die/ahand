@@ -60,7 +60,7 @@ function PocketComponent() {
   const navigate = useNavigate();
   const pocket = usePocket();
   const { login, logout, authenticated } = usePrivy();
-  const { disconnect } = useDisconnect();
+  const { mutate: disconnect } = useDisconnect();
 
   // A wallet can be connected in wagmi without a live Privy session (e.g. an
   // injected wallet auto-reconnected after the session expired). Disconnect

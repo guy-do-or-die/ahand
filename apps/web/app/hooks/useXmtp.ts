@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
-import { useAccount, useSignMessage } from "wagmi";
+import { useConnection, useSignMessage } from "wagmi";
 import { FLAGS } from "../config/flags";
 import { xmtpRegisteredKey } from "../config/xmtp";
 import { isUserRejection } from "../lib/errors";
@@ -133,8 +133,8 @@ async function enableForAddress(address: string, signHex: SignHex): Promise<Xmtp
  * registration OK is asked exclusively inside `enable()`, a user action.
  */
 export function useXmtp() {
-  const { address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { address } = useConnection();
+  const { mutateAsync: signMessageAsync } = useSignMessage();
 
   const signHexRef = useRef(signMessageAsync);
   signHexRef.current = signMessageAsync;

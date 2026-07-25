@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useReadContract, usePublicClient } from "wagmi";
+import { useConnection, useReadContract, usePublicClient } from "wagmi";
 import { parseUnits, decodeEventLog, type Log } from "viem";
 import { useSender, type SenderCall } from "./useSender";
 import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
@@ -40,7 +40,7 @@ export interface RaiseDraftPreview {
  * the real assembled link, not an estimate.
  */
 export function useRaiseFlow() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useConnection();
   const publicClient = usePublicClient();
   const { send } = useSender();
 

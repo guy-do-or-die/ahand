@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useAccount, usePublicClient, useWalletClient, useWriteContract } from "wagmi";
+import { useConnection, usePublicClient, useWalletClient, useWriteContract } from "wagmi";
 import { useSign7702Authorization, useWallets } from "@privy-io/react-auth";
 import { encodeFunctionData, type Abi, type Address, type Log, type TransactionReceipt } from "viem";
 import { AA, SIMPLE_7702_IMPLEMENTATION } from "../config/aa";
@@ -30,10 +30,10 @@ export type SendResult = {
  *   sequential writeContract + waitForTransactionReceipt, user pays gas.
  */
 export function useSender() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useConnection();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-  const { writeContractAsync } = useWriteContract();
+  const { mutateAsync: writeContractAsync } = useWriteContract();
   const { wallets } = useWallets();
   const { signAuthorization } = useSign7702Authorization();
 

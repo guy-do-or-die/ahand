@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
-import { useAccount } from "wagmi";
+import { useConnection } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatUnits, createPublicClient, http } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
@@ -109,7 +109,7 @@ export const Route = createFileRoute("/h/$id")({
 function HandComponent() {
   const { id } = Route.useParams();
   const search = Route.useSearch();
-  const { address } = useAccount();
+  const { address } = useConnection();
 
   // /h/$id/thank is a generated child of this route; hand over to it.
   // (Pre-existing PoC bug: no Outlet meant the thank page never rendered —
@@ -450,7 +450,7 @@ function PassOnSheet(props: {
   meta: React.ReactNode;
   onClose: () => void;
 }) {
-  const { address } = useAccount();
+  const { address } = useConnection();
   const { login } = usePrivy();
   const flow = usePassOnFlow({
     active: true,
@@ -618,7 +618,7 @@ function HelpSheet(props: {
   raiser: string;
   onClose: () => void;
 }) {
-  const { address } = useAccount();
+  const { address } = useConnection();
   const { login } = usePrivy();
   const flow = useSolveFlow({
     active: true,

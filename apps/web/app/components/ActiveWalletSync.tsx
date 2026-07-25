@@ -4,7 +4,7 @@ import { useSetActiveWallet } from "@privy-io/wagmi";
 
 /**
  * Routes the Privy embedded wallet (if any) through wagmi as the active
- * account, so useAccount/useSignMessage — and therefore the XMTP layer —
+ * account, so useConnection/useSignMessage — and therefore the XMTP layer —
  * see the embedded EOA. Sessions without an embedded wallet (external
  * wallets) are untouched: this renders nothing and does nothing.
  */

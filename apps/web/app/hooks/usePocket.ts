@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAccount, usePublicClient, useReadContract } from "wagmi";
+import { useConnection, usePublicClient, useReadContract } from "wagmi";
 import { formatUnits, parseAbiItem } from "viem";
 import { MockERC20Abi, DeployedAddresses } from "@ahand/abi";
 
@@ -32,7 +32,7 @@ const PAYOUT_PUSHED = parseAbiItem("event PayoutPushed(address indexed token, ad
  * would bound the range or use an indexer.
  */
 export function usePocket() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useConnection();
   const publicClient = usePublicClient();
 
   const [receipts, setReceipts] = useState<PocketReceipt[] | null>(null);

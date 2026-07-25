@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAccount, useReadContract, usePublicClient } from "wagmi";
+import { useConnection, useReadContract, usePublicClient } from "wagmi";
 import { parseUnits } from "viem";
 import { useSender, type SenderCall } from "./useSender";
 import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
@@ -12,7 +12,7 @@ import { humanizeChainError } from "../lib/errors";
  * topUp) → waitForTransactionReceipt. Raiser-only, atomic on-chain.
  */
 export function useThankFlow(id: string) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useConnection();
   const publicClient = usePublicClient();
   const { send } = useSender();
 
