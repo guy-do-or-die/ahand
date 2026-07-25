@@ -1,0 +1,8 @@
+{
+  "name": "@ahand/infra-anvil",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "stand": "bun run ./stand.ts"
+  }
+}

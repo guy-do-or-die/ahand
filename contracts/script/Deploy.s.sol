@@ -34,6 +34,11 @@ contract Deploy is Script {
         usd.mint(msg.sender, 1_000_000e6);
         usd.approve(address(core), type(uint256).max);
 
+        // Fund user's Rabby wallet
+        address user = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+        payable(user).transfer(100 ether);
+        usd.mint(user, 1_000_000e6);
+
         vm.stopBroadcast();
 
         console2.log("AHandCore :", address(core));

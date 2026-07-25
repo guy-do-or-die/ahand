@@ -5,6 +5,10 @@
     "": {
       "name": "ahand",
     },
+    "infra/anvil": {
+      "name": "@ahand/infra-anvil",
+      "version": "0.1.0",
+    },
     "packages/abi": {
       "name": "@ahand/abi",
       "version": "0.1.0",
@@ -45,6 +49,8 @@
     "@adraffy/ens-normalize": ["@adraffy/ens-normalize@1.11.1", "", {}, "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ=="],
 
     "@ahand/abi": ["@ahand/abi@workspace:packages/abi"],
+
+    "@ahand/infra-anvil": ["@ahand/infra-anvil@workspace:infra/anvil"],
 
     "@ahand/sdk": ["@ahand/sdk@workspace:packages/sdk"],
 
