@@ -23,16 +23,18 @@ contract AHandWitness {
 
     event Witnessed(bytes32 indexed hash, address indexed by, uint40 timestamp);
     event ShakeWitnessed(uint256 indexed handId, address indexed parentCapability,
-                        address childCapability, address payout, uint16 marginBps, uint40 timestamp);
+                        address childCapability, address shaker, uint16 marginBps,
+                        bytes32 hopDataHash, uint40 timestamp);
     event GiveWitnessed(uint256 indexed handId, address indexed capability,
-                       address indexed solver, bytes32 solutionHash, uint40 timestamp);
+                       address indexed giver, bytes32 routeHash, bytes32 solutionHash,
+                       uint40 timestamp);
     event EpochRoot(address indexed relay, bytes32 root, uint256 leaves);
 
     error BadSignature();
     error InvalidShake();
 
     constructor(address core_) {
-        if (core_ == address(0)) revert ZeroAddress();   // L-9
+        if (core_ == address(0)) revert ZeroAddress();
         core = ICoreDomain(core_);
     }
 
@@ -47,7 +49,7 @@ contract AHandWitness {
     /// Typed shake anchor. Attribution is recovered from signature:
     /// you can only anchor a hop you actually own.
     function witnessShake(Shake calldata s, bytes calldata sig) external {
-        if (s.childClaimBps > s.parentClaimBps) revert InvalidShake(); // M-4:
+        if (s.childClaimBps > s.parentClaimBps) revert InvalidShake();
         // witness only attests to protocol-compliant structures;
         // arbitrary payloads should go to blind witness(hash)
         bytes32 h = AHandSig.hashShake(s);
@@ -57,8 +59,9 @@ contract AHandWitness {
         bytes32 key = keccak256(abi.encode(h, sig));
         if (witnessedAt[key] == 0) {
             witnessedAt[key] = uint40(block.timestamp);
-            emit ShakeWitnessed(s.handId, parent, s.childCapability, s.payout,
-                               s.parentClaimBps - s.childClaimBps, uint40(block.timestamp));
+            emit ShakeWitnessed(s.handId, parent, s.childCapability, s.shaker,
+                               s.parentClaimBps - s.childClaimBps, s.hopDataHash,
+                               uint40(block.timestamp));
         }
     }
 
@@ -72,7 +75,8 @@ contract AHandWitness {
         bytes32 key = keccak256(abi.encode(h, sig));
         if (witnessedAt[key] == 0) {
             witnessedAt[key] = uint40(block.timestamp);
-            emit GiveWitnessed(g.handId, cap, g.solver, g.solutionHash, uint40(block.timestamp));
+            emit GiveWitnessed(g.handId, cap, g.giver, g.routeHash, g.solutionHash,
+                              uint40(block.timestamp));
         }
     }
 

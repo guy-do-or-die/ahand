@@ -2,100 +2,166 @@
 pragma solidity 0.8.35;
 
 /*//////////////////////////////////////////////////////////////
-                    aHand v1 — Types (spec §3)
+                        aHand — Types
 //////////////////////////////////////////////////////////////*/
+
+enum Status { None, Active, Settled, Reclaimed }
+
+/// @notice Discovery posture, frozen per Hand at raise.
+enum Visibility { Public, Preview, Dark }
+
+/// @notice Reason a claim was credited; carried by PayoutAllocated.
+enum AllocationKind { Charity, ShakerMargin, GiverResidual, RaiserRefund }
 
 /// @notice Shake: EIP-712, signed by the parent capability.
 struct Shake {
     uint256 handId;
     address childCapability; // bearer: fresh ephemeral key; personal: wallet of the recipient
-    address payout;          // payout wallet of the forwarder - hop margin is sent here
+    address shaker;          // stable attributed account; zero = anonymous (zero-margin only)
     uint16  parentClaimBps;  // = childClaim of the previous hop (honest display during signing)
     uint16  childClaimBps;   // hop margin = parent − child
-    uint40  deadline;
+    bytes32 hopDataHash;     // app-opaque commitment; zero = none
+    uint40  deadline;        // explicit, never past the Hand expiry
+}
+
+/// @notice Acceptance by a distinct Shaker account: consent to attribution and payout.
+struct ShakerAcceptance {
+    bytes32 shakeHash;       // EIP-712 struct hash of the accepted Shake
 }
 
 /// @notice Give: EIP-712, signed by the last capability of the route.
 struct Give {
     uint256 handId;
-    address solver;
+    bytes32 routeHash;       // binds the complete accepted route — no tail substitution
+    address giver;
     bytes32 solutionHash;
-    uint16  finalClaimBps;   // M-2: binds the solver signature to their terminal share —
-                             // swapping in a less favorable route tail breaks the signature
+    uint16  finalClaimBps;   // binds the giver signature to their terminal share
+    uint40  deadline;        // never past the Hand expiry
 }
 
-enum Status { None, Active, Settled, Reclaimed }
+/// @notice Acceptance by the Giver account: consent to attribution and residual payout.
+struct GiverAcceptance {
+    bytes32 giveHash;        // EIP-712 struct hash of the accepted Give
+}
+
+/// @notice Raise inputs; policy values snapshot into the Hand and never change.
+struct RaiseParams {
+    address    token;
+    uint96     amount;
+    uint40     expiry;
+    address    charityRecipient;
+    uint16     charityBps;        // within [MIN_CHARITY_BPS, MAX_CHARITY_BPS]
+    uint16     minGiverClaimBps;
+    address    rootCapability;
+    Visibility visibility;
+    bytes32    metadataCommitment;
+    bytes32    discoveryCommitment;
+}
 
 struct Hand {
+    // slot 0
     address    raiser;
-    address    token;            // ERC20 only; ETH = WETH (spec §4)
-    uint96     remainingReward;  // the sole source of truth (I-12, I-16)
     uint40     expiry;
-    uint16     charityFeeBps;
-    uint16     maintFeeBps;
-    uint16     minSolverClaimBps;
+    uint16     charityBps;
+    uint16     minGiverClaimBps;
+    Visibility visibility;
     Status     status;
-    address    charity;          // locked during raise (I-10)
-    address    rootCapability;   // addr(e0)
-    bytes32    metadataHash;     // sha256 of canonical JSON (Appendix P)
+    // slot 1 — creditedReward is a snapshot, never mutated; liability keys on status
+    address    rewardToken;
+    uint96     creditedReward;
+    // slot 2
+    address    charityRecipient;
+    uint64     usdScaleAtRaise;
+    // slot 3
+    address    rootCapability;
+    // slots 4–6
+    bytes32    metadataCommitment;
+    bytes32    discoveryCommitment;
+    bytes32    thankSignalSourceHash; // zero until Thank; stays zero on Reclaim
+}
+
+/// @notice Context attached to a voluntary Up; enriches events, never a balance dimension.
+struct UpContext {
+    uint256 handId;          // zero = none; implicitly HandRef(chainid, sourceCore, handId)
+    bytes32 reasonTag;
+    bytes32 evidenceHash;
 }
 
 /*//////////////////////////////////////////////////////////////
-                        Errors (§6, §9)
+                            Errors
 //////////////////////////////////////////////////////////////*/
-error OnlyOwner();
 error Reentrancy();
 error ZeroAddress();
-error OnlyCore();
 error InsufficientBalance();
 error InsufficientEarned();
 error LengthMismatch();
-error Soulbound();
 error NotPendingOwner();
 
 error WrongHand();
-error CapabilityProof();       // I-7 / I-15: signature not from the expected capability
-error ClaimMismatch();         // parentClaim != childClaim of the previous hop
-error ClaimMustNotGrow();      // telescopic margins (I-4)
+error CapabilityProof();          // signature not from the expected capability
+error ClaimMismatch();            // parentClaim != childClaim of the previous hop
+error ClaimMustNotGrow();         // telescopic margins
+error ClaimBelowFloor();          // < minGiverClaimBps
 error TicketExpired();
-error SolverClaimTooSmall();   // < minSolverClaimBps
-error RouteTooLong();          // > MAX_ROUTE_LEN (gas limit)
+error DeadlineExceedsExpiry();
+error RouteTooLong();             // > MAX_SHAKES
 error NotRaiser();
-error NotActive();             // settle-once (I-3)
+error NotActive();                // settle-once
 error NotExpired();
+error Expired();                  // thank at or after expiry
 error CharityNotWhitelisted();
-error ZeroPayee();
 error ZeroAmount();
-error BoundsViolated();        // parameters outside of the constitutional boundaries
+error BoundsViolated();           // parameters outside of the constitutional boundaries
 
+error OnlyPolicyAdmin();
+error TokenNotEnabled();
+error TokenMismatch();
+error InexactDeposit();           // received delta != declared amount (fee-on-transfer rejected)
+error ZeroCharityAllocation();
+error ZeroDistributable();
+error AnonymousShakerWithMargin();
+error ShakerAcceptanceInvalid();
+error UnexpectedAcceptance();     // self/anonymous entry carrying acceptance bytes
+error MarginRoundsToZero();
+error RouteHashMismatch();
+error GiverAcceptanceInvalid();
+error InvalidVisibilityData();
+error TagsInvalid();
+error ZeroClaim();
+
+// Signals
+error NotSettled();
+error AlreadyMaterialized();
+error SourceCommitmentMismatch();
+error SelfTarget();
+error ZeroContext();
 
 /*//////////////////////////////////////////////////////////////
-                        Events (§5, §7)
-//////////////////////////////////////////////////////////////*/
-event Raised(uint256 indexed handId, address indexed raiser, address token,
-                 uint96 amount, uint40 expiry, bytes32 metadataHash);
-event Shaken(uint256 indexed handId, address indexed payout, uint16 marginBps); // during thank!
-event Settled(uint256 indexed handId, address indexed solver, bytes32 solutionHash);
-event Reclaimed(uint256 indexed handId);
-event PayoutPushed(address indexed token, address indexed to, uint96 amount);
-event PayoutDeferred(address indexed token, address indexed to, uint96 amount);
-
-/*//////////////////////////////////////////////////////////////
-        EIP-712 — shared between core and tests (names visible in wallet)
+        EIP-712 — shared between core, SDK and tests
 //////////////////////////////////////////////////////////////*/
 library AHandSig {
     bytes32 internal constant SHAKE_TYPEHASH = keccak256(
-        "Shake(uint256 handId,address childCapability,address payout,uint16 parentClaimBps,uint16 childClaimBps,uint40 deadline)"
+        "Shake(uint256 handId,address childCapability,address shaker,uint16 parentClaimBps,uint16 childClaimBps,bytes32 hopDataHash,uint40 deadline)"
+    );
+    bytes32 internal constant SHAKER_ACCEPTANCE_TYPEHASH = keccak256(
+        "ShakerAcceptance(bytes32 shakeHash)"
     );
     bytes32 internal constant GIVE_TYPEHASH = keccak256(
-        "Give(uint256 handId,address solver,bytes32 solutionHash,uint16 finalClaimBps)"
+        "Give(uint256 handId,bytes32 routeHash,address giver,bytes32 solutionHash,uint16 finalClaimBps,uint40 deadline)"
+    );
+    bytes32 internal constant GIVER_ACCEPTANCE_TYPEHASH = keccak256(
+        "GiverAcceptance(bytes32 giveHash)"
+    );
+    /// @dev Reserved for the relayed-submission extension; no entry point consumes it yet.
+    bytes32 internal constant THANK_PERMIT_TYPEHASH = keccak256(
+        "ThankPermit(uint256 handId,bytes32 routeHash,bytes32 giveHash,uint256 nonce,uint40 deadline)"
     );
 
     function domainSeparator(address core) internal view returns (bytes32) {
         return keccak256(abi.encode(
             keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
             keccak256(bytes("aHand")),
-            keccak256(bytes("1")),
+            keccak256(bytes("2")),
             block.chainid,
             core
         ));
@@ -103,13 +169,35 @@ library AHandSig {
 
     function hashShake(Shake memory s) internal pure returns (bytes32) {
         return keccak256(abi.encode(
-            SHAKE_TYPEHASH, s.handId, s.childCapability, s.payout,
-            s.parentClaimBps, s.childClaimBps, s.deadline
+            SHAKE_TYPEHASH, s.handId, s.childCapability, s.shaker,
+            s.parentClaimBps, s.childClaimBps, s.hopDataHash, s.deadline
         ));
     }
 
+    function hashShakerAcceptance(bytes32 shakeHash) internal pure returns (bytes32) {
+        return keccak256(abi.encode(SHAKER_ACCEPTANCE_TYPEHASH, shakeHash));
+    }
+
     function hashGive(Give memory g) internal pure returns (bytes32) {
-        return keccak256(abi.encode(GIVE_TYPEHASH, g.handId, g.solver, g.solutionHash, g.finalClaimBps));
+        return keccak256(abi.encode(
+            GIVE_TYPEHASH, g.handId, g.routeHash, g.giver,
+            g.solutionHash, g.finalClaimBps, g.deadline
+        ));
+    }
+
+    function hashGiverAcceptance(bytes32 giveHash) internal pure returns (bytes32) {
+        return keccak256(abi.encode(GIVER_ACCEPTANCE_TYPEHASH, giveHash));
+    }
+
+    /// @notice Canonical Hand reference — one identity across contracts, SDK and indexers.
+    function handRef(address core, uint256 handId) internal view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, core, handId));
+    }
+
+    /// @notice Route identity: ordered shake struct hashes under the Hand reference.
+    ///         Signature bytes deliberately excluded — malleability cannot rename a route.
+    function hashRoute(bytes32 handRef_, bytes32[] memory shakeHashes) internal pure returns (bytes32) {
+        return keccak256(abi.encode(handRef_, shakeHashes));
     }
 
     function digest(bytes32 ds, bytes32 structHash) internal pure returns (bytes32) {
@@ -117,22 +205,51 @@ library AHandSig {
     }
 }
 
+/*//////////////////////////////////////////////////////////////
+        Signals source domains — typed, collision-free keys
+//////////////////////////////////////////////////////////////*/
+library AHandSource {
+    bytes32 internal constant RAISED_SOURCE = keccak256("aHand.signals.source.raised.v1");
+    bytes32 internal constant THANK_SOURCE  = keccak256("aHand.signals.source.thank.v1");
+
+    function raisedKey(address core, uint256 handId) internal view returns (bytes32) {
+        return keccak256(abi.encode(RAISED_SOURCE, block.chainid, core, handId));
+    }
+
+    function thankKey(address core, uint256 handId) internal view returns (bytes32) {
+        return keccak256(abi.encode(THANK_SOURCE, block.chainid, core, handId));
+    }
+
+    /// @notice Commitment binding the Thank settlement facts Signals later verifies.
+    ///         Occurrence arrays keep route order and preserve anonymous zeros.
+    function thankCommitment(
+        address core,
+        uint256 handId,
+        address raiser,
+        address giver,
+        uint96  charityTokenAmount,
+        uint64  usdScaleAtRaise,
+        address[] memory occShakers,
+        uint16[]  memory occClaimDeltas
+    ) internal view returns (bytes32) {
+        return keccak256(abi.encode(
+            THANK_SOURCE, block.chainid, core, handId,
+            raiser, giver, charityTokenAmount, usdScaleAtRaise,
+            keccak256(abi.encodePacked(occShakers)),
+            keccak256(abi.encodePacked(occClaimDeltas))
+        ));
+    }
+}
+
 interface IERC20Minimal {
     function transfer(address to, uint256 amt) external returns (bool);
     function transferFrom(address from, address to, uint256 amt) external returns (bool);
     function balanceOf(address a) external view returns (uint256);
+    function decimals() external view returns (uint8);
 }
 
-interface IAHandSignals {
-    function mintRaise(address raiser, uint256 handId) external;
-    function mintSettlement(
-        uint256 handId,
-        address raiser,
-        address solver,
-        address[] calldata payees,
-        uint16[] calldata margins,
-        address token,
-        uint96 charityFee
-    ) external;
-    function onFinalize(uint256 handId, address raiser) external;
+/// @notice Read surface Signals depends on; an explicit struct getter avoids
+///         the auto-getter tuple fragility that positional decoding invites.
+interface IAHandCoreView {
+    function getHand(uint256 handId) external view returns (Hand memory);
 }

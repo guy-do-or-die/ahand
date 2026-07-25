@@ -2,221 +2,271 @@
 pragma solidity 0.8.35;
 
 import "./AHandTypes.sol";
-import {IValueAnchor} from "./StaticAnchor.sol";
+import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 /// @title AHandSignals
 /// @notice Soulbound receipt and referral reputation contract for the aHand protocol.
+///         Ownerless, config-free and hook-free: the core never calls in; anyone may
+///         materialize signals out of facts the immutable source core already settled.
+///         The one and only external call in this contract is the read-only
+///         IAHandCoreView.getHand — a Signals outage or quirk can never touch escrow.
 contract AHandSignals {
     /*//////////////////// Token IDs ////////////////////*/
-    uint256 public constant SIGNAL_RAISE = 1;
-    uint256 public constant SIGNAL_SHAKE = 2;
-    uint256 public constant SIGNAL_GIVE  = 3;
-    uint256 public constant SIGNAL_THANK = 4;
-    uint256 public constant SIGNAL_UP    = 5;   // 9 decimals; spendable only earned
-    uint256 public constant SIGNAL_DOWN  = 6;   // counter at target; non-spendable
+    uint256 public constant SIGNAL_RAISED  = 1;
+    uint256 public constant SIGNAL_SHAKEN  = 2;
+    uint256 public constant SIGNAL_GIVEN   = 3;
+    uint256 public constant SIGNAL_THANKED = 4;
+    uint256 public constant SIGNAL_UP      = 5;  // 9 decimals; spendable only earned
+    uint256 public constant SIGNAL_DOWN    = 6;  // reserved; no entry point mints it
 
-    uint256 public constant ONE_UP = 1e9;
+    uint256 public constant ONE_UP    = 1e9;
+    uint256 public constant DOWN_COST = 3e9;     // reserved for the down() bolt-on
 
-    /*//////////////////// ERC1155 State ////////////////////*/
-    mapping(uint256 => mapping(address => uint256)) internal _bal; // L-2: not public — the getter below upholds the ERC-1155 ABI
+    /// @dev Role bits carried by EarnedUpMaterialized.roleMask.
+    uint8 public constant ROLE_RAISER = 1 << 0;
+    uint8 public constant ROLE_GIVER  = 1 << 1;
 
-    /// @notice ERC-1155 standard single-balance getter (address,uint256) — L-2 fix.
-    function balanceOf(address account, uint256 id) external view returns (uint256) {
-        return _bal[id][account];
-    }
-    mapping(uint256 => uint256) public totalSupply;
+    /// @dev Source domains, re-exposed from AHandSource for indexers and tests.
+    bytes32 public constant RAISED_SOURCE = AHandSource.RAISED_SOURCE;
+    bytes32 public constant THANK_SOURCE  = AHandSource.THANK_SOURCE;
 
     /*//////////////////// Signals State ////////////////////*/
-    address public immutable core;
-    address public owner;
-    address public pendingOwner;
-    
-    uint256 public emissionCapUsd = 10_000 * 1e18; // default $10,000
-    IValueAnchor public anchor;                    // 0 = emission disabled
+    /// @notice The single core this contract reads settled facts from. Immutable:
+    ///         no owner exists to repoint it, so a source key means one thing forever.
+    address public immutable sourceCore;
 
-    mapping(address => uint256) public cumulativeUsd;
-    mapping(address => uint256) public prevIsqrt;
-    mapping(address => uint256) public earnedOf;     // spendable part of SIGNAL_UP
+    /// @notice Idempotence flags, keyed by AHandSource.raisedKey / thankKey.
+    mapping(bytes32 => bool) public processedSource;
 
-    function receivedOf(address a) external view returns (uint256) {
-        return _bal[SIGNAL_UP][a] - earnedOf[a];
-    }
+    mapping(uint256 => mapping(address => uint256)) internal _balances; // getters below uphold the ERC-1155 read ABI
+
+    mapping(uint256 => uint256) public totalSupply;
+
+    mapping(address => uint256) public cumulativeUsd; // lifetime credited role value, 1e18 scale
+    mapping(address => uint256) public prevSqrt;      // floor-sqrt watermark of cumulativeUsd
+    mapping(address => uint256) public earnedUp;      // spendable part of SIGNAL_UP
+
+    mapping(address => uint256) public downCount;     // reserved; stays zero until down() lands
 
     /*//////////////////// Events ////////////////////*/
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
-    event TransferBatch(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256[] ids,
-        uint256[] values
+
+    event EarnedUpMaterialized(
+        bytes32 indexed sourceKey,
+        address indexed actor,
+        uint8   roleMask,
+        uint256 credit,
+        uint256 cumulativeBefore,
+        uint256 cumulativeAfter,
+        uint256 delta
     );
-    event ApprovalForAll(address indexed account, address indexed operator, bool approved);
-    event URI(string value, uint256 indexed id);
-    event Upped(address indexed from, address indexed target);
-    event Downed(address indexed from, address indexed target);
-    event ConfigUpdated(uint256 emissionCapUsd);
-    event AnchorSet(address indexed anchor);
-    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    modifier onlyCore() {
-        if (msg.sender != core) revert OnlyCore();
-        _;
-    }
+    event ThankSignalsMaterialized(
+        bytes32 indexed sourceKey,
+        uint256 indexed handId,
+        address raiser,
+        address giver,
+        uint96  charityTokenAmount,
+        uint256 charityUsd,
+        uint256 uniqueShakers
+    );
 
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert OnlyOwner();
-        _;
-    }
+    event Upped(
+        address indexed issuer,
+        address indexed target,
+        uint256 indexed handId,
+        uint256 wholeUpCount,
+        uint256 amount,
+        bytes32 reasonTag,
+        bytes32 evidenceHash
+    );
 
-    constructor(address core_) {
-        if (core_ == address(0)) revert ZeroAddress();
-        core = core_;
-        owner = msg.sender;
-        emit OwnershipTransferred(address(0), msg.sender);
-    }
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        pendingOwner = newOwner; // address(0) = cancels the initiated transfer (L-4)
-        emit OwnershipTransferStarted(owner, newOwner);
-    }
-
-    function acceptOwnership() external {
-        if (msg.sender != pendingOwner) revert NotPendingOwner();
-        emit OwnershipTransferred(owner, pendingOwner);
-        owner = pendingOwner;
-        pendingOwner = address(0);
-    }
-
-    function setConfig(uint256 emissionCapUsd_) external onlyOwner {
-        if (emissionCapUsd_ < 1_000 * 1e18 || emissionCapUsd_ > 100_000 * 1e18) revert BoundsViolated();
-        emissionCapUsd = emissionCapUsd_;
-        emit ConfigUpdated(emissionCapUsd_);
-    }
-
-    function setAnchor(address anchor_) external onlyOwner {
-        anchor = IValueAnchor(anchor_);
-        emit AnchorSet(anchor_);
+    constructor(address sourceCore_) {
+        if (sourceCore_ == address(0)) revert ZeroAddress();
+        sourceCore = sourceCore_;
     }
 
     /*//////////////////// Mint / Burn ////////////////////*/
     function _mint(address to, uint256 id, uint256 value) internal {
-        if (to == address(0)) return; // L-1: zero recipient does not break receipt batch
-        _bal[id][to] += value;
+        _balances[id][to] += value;
         totalSupply[id] += value;
         emit TransferSingle(msg.sender, address(0), to, id, value);
     }
 
     function _burn(address from, uint256 id, uint256 value) internal {
-        if (_bal[id][from] < value) revert InsufficientBalance();
-        _bal[id][from] -= value;
+        if (_balances[id][from] < value) revert InsufficientBalance();
+        _balances[id][from] -= value;
         totalSupply[id] -= value;
         emit TransferSingle(msg.sender, from, address(0), id, value);
     }
 
-    /*//////////////////// Core Entry Points ////////////////////*/
-    function mintRaise(address raiser, uint256 /*handId*/) external onlyCore {
-        _mint(raiser, SIGNAL_RAISE, 1);
+    /*//////////////////// Materialization (permissionless, idempotent) ////////////////////*/
+    /// @notice Mint the RAISED receipt for a Hand that exists in the source core.
+    ///         Valid for any existing status, terminal ones included — the raise
+    ///         happened regardless of how the Hand later resolved.
+    function materializeRaised(uint256 handId) external {
+        bytes32 key = AHandSource.raisedKey(sourceCore, handId);
+        if (processedSource[key]) revert AlreadyMaterialized();
+
+        Hand memory hand = IAHandCoreView(sourceCore).getHand(handId);
+        if (hand.status == Status.None) revert WrongHand();
+
+        processedSource[key] = true; // flag before mint
+        _mint(hand.raiser, SIGNAL_RAISED, 1);
     }
 
-    function mintSettlement(
-        uint256 /*handId*/,
-        address raiser,
-        address solver,
-        address[] calldata payees,
-        uint16[] calldata margins,
-        address token,
-        uint96 charityFee
-    ) external onlyCore {
-        _mint(raiser, SIGNAL_THANK, 1);
-        if (payees.length != margins.length) revert LengthMismatch(); // L-3
-        // Minted only to the winning solver at settlement; do not confuse with GiveWitnessed
-        _mint(solver, SIGNAL_GIVE, 1);
-        for (uint256 i = 0; i < payees.length; ++i) {
-            if (margins[i] > 0) {
-                _mint(payees[i], SIGNAL_SHAKE, 1);
+    /// @notice Materialize the full signal set of a settled Thank. The caller supplies
+    ///         the settlement facts; nothing is trusted — the charity amount is
+    ///         recomputed from the Hand snapshot and the whole payload must rebuild
+    ///         the exact source commitment the core stored at settlement.
+    /// @param occShakers     attributed shaker per hop, route order, zero = anonymous
+    /// @param occClaimDeltas margin bps per hop, route order (parentClaim − childClaim)
+    function materializeThank(
+        uint256 handId,
+        address giver,
+        address[] calldata occShakers,
+        uint16[] calldata occClaimDeltas
+    ) external {
+        bytes32 key = AHandSource.thankKey(sourceCore, handId);
+        if (processedSource[key]) revert AlreadyMaterialized();
+
+        Hand memory hand = IAHandCoreView(sourceCore).getHand(handId);
+        if (hand.status != Status.Settled) revert NotSettled();
+
+        // Recompute rather than trust: the same floor math the core ran at settlement.
+        // creditedReward is never zeroed, so this stays readable after settlement.
+        uint96 charityAmount = uint96(uint256(hand.creditedReward) * hand.charityBps / 10_000);
+
+        bytes32 commitment = AHandSource.thankCommitment(
+            sourceCore,
+            handId,
+            hand.raiser,
+            giver,
+            charityAmount,
+            hand.usdScaleAtRaise,
+            occShakers,
+            occClaimDeltas
+        );
+        if (commitment != hand.thankSignalSourceHash) revert SourceCommitmentMismatch();
+
+        processedSource[key] = true; // flag before any mint
+
+        _mint(hand.raiser, SIGNAL_THANKED, 1);
+        _mint(giver, SIGNAL_GIVEN, 1);
+
+        // One SHAKEN per distinct attributed shaker; anonymous zeros mint nothing.
+        // O(n^2) dedupe is deliberate: routes carry at most MAX_SHAKES occurrences.
+        uint256 uniqueShakers;
+        for (uint256 i; i < occShakers.length; ++i) {
+            address shaker = occShakers[i];
+            if (shaker == address(0)) continue;
+            bool seen;
+            for (uint256 j; j < i; ++j) {
+                if (occShakers[j] == shaker) { seen = true; break; }
+            }
+            if (!seen) {
+                ++uniqueShakers;
+                _mint(shaker, SIGNAL_SHAKEN, 1);
             }
         }
 
-        // UP emission: only via value anchor (quarantined: revert => 0 usd value, no freeze)
-        if (charityFee > 0 && address(anchor) != address(0)) {
-            uint256 usdVal;
-            try anchor.usdValue{gas: 50_000}(token, charityFee) returns (uint256 v) {
-                usdVal = v;                       // unrecognized token / rate = 0 => 0 emission
-            } catch {}
-            if (usdVal > emissionCapUsd) {
-                usdVal = emissionCapUsd;
-            }
-            if (usdVal > 0) {
-                uint256 halfVal = usdVal / 2;
-                _emitEarnedUp(raiser, halfVal);
-                _emitEarnedUp(solver, halfVal);
-            }
-        }
-    }
+        // USD value from the raise-time snapshot scale — no live oracle, ever.
+        uint256 charityUsd = uint256(charityAmount) * hand.usdScaleAtRaise; // checked
+        uint256 roleCredit = charityUsd / 2;
 
-    /// @notice Reserved hook: core is immutable, Signals is mutable.
-    function onFinalize(uint256 handId, address raiser) external onlyCore {}
+        if (hand.raiser == giver) {
+            // Both roles on one account: one atomic update, both halves at once.
+            _materializeEarnedUp(key, giver, ROLE_RAISER | ROLE_GIVER, 2 * roleCredit);
+        } else {
+            _materializeEarnedUp(key, hand.raiser, ROLE_RAISER, roleCredit);
+            _materializeEarnedUp(key, giver, ROLE_GIVER, roleCredit);
+        }
+
+        emit ThankSignalsMaterialized(key, handId, hand.raiser, giver, charityAmount, charityUsd, uniqueShakers);
+    }
 
     /*//////////////////// Earned Up Emission ////////////////////*/
-    function _emitEarnedUp(address addr, uint256 amount) internal {
-        uint256 newCum = cumulativeUsd[addr] + amount;
-        cumulativeUsd[addr] = newCum;
+    /// @dev Sqrt emission curve: an actor's total minted UP equals floor(sqrt(cumulativeUsd)).
+    ///      Floor-sqrt is monotonic and sub-additive — splitting value across many Hands
+    ///      never mints more than one big Hand would. Checked addition means an overflowing
+    ///      credit reverts the whole materialization atomically; nothing is half-applied.
+    function _materializeEarnedUp(bytes32 sourceKey, address actor, uint8 roleMask, uint256 credit) internal {
+        uint256 cumulativeBefore = cumulativeUsd[actor];
+        uint256 cumulativeAfter = cumulativeBefore + credit;
+        cumulativeUsd[actor] = cumulativeAfter;
 
-        uint256 newSqrt = _isqrt(newCum);
-        uint256 prev = prevIsqrt[addr];
-        if (newSqrt > prev) {
-            uint256 diff = newSqrt - prev;
-            prevIsqrt[addr] = newSqrt;
-            earnedOf[addr] += diff;
-            _mint(addr, SIGNAL_UP, diff);
+        uint256 newSqrt = Math.sqrt(cumulativeAfter); // floor
+        uint256 delta = newSqrt - prevSqrt[actor];
+        prevSqrt[actor] = newSqrt;
+        if (delta != 0) {
+            earnedUp[actor] += delta;
+            _mint(actor, SIGNAL_UP, delta);
         }
+        emit EarnedUpMaterialized(sourceKey, actor, roleMask, credit, cumulativeBefore, cumulativeAfter, delta);
     }
 
-    /// @dev Integer floor-sqrt, Babylonian method; monotonic and sub-additive —
-    ///      the load-bearing pillar of the emission curve's split-invariance (L-5).
-    function _isqrt(uint256 y) internal pure returns (uint256 z) {
-        if (y > 3) {
-            z = y;
-            uint256 x = y / 2 + 1;
-            while (x < z) {
-                z = x;
-                x = (y / x + x) / 2;
-            }
-        } else if (y != 0) {
-            z = 1;
-        }
+    /*//////////////////// Up (Spendable Signal) ////////////////////*/
+    /// @notice Spend earned UP to endorse another account. Whole units only; the
+    ///         context must say something. Received UP is not spendable, so
+    ///         endorsement chains terminate by construction.
+    function up(address target, uint256 wholeUpCount, UpContext calldata ctx) external {
+        if (wholeUpCount == 0) revert ZeroAmount();
+        uint256 amount = wholeUpCount * ONE_UP;
+        if (amount > earnedUp[msg.sender]) revert InsufficientEarned();
+        if (target == address(0)) revert ZeroAddress();
+        if (target == msg.sender) revert SelfTarget();
+        if (ctx.handId == 0 && ctx.reasonTag == bytes32(0) && ctx.evidenceHash == bytes32(0)) revert ZeroContext();
+
+        earnedUp[msg.sender] -= amount;   // spend only earned — the recursion cut is here
+        _burn(msg.sender, SIGNAL_UP, amount);
+        _mint(target, SIGNAL_UP, amount); // lands as received; total supply conserved
+        emit Upped(msg.sender, target, ctx.handId, wholeUpCount, amount, ctx.reasonTag, ctx.evidenceHash);
     }
 
-    /*//////////////////// Up / Down (Spendable Signals) ////////////////////*/
-    function up(address target) external {
-        if (earnedOf[msg.sender] < ONE_UP) revert InsufficientEarned();
-        earnedOf[msg.sender] -= ONE_UP;          // spend only earned
-        _burn(msg.sender, SIGNAL_UP, ONE_UP);    // recursion cut is here
-        _mint(target, SIGNAL_UP, ONE_UP);        // targets get received portion
-        emit Upped(msg.sender, target);
+    /*//////////////////// Views ////////////////////*/
+    /// @notice ERC-1155 standard single-balance getter (account, id) order.
+    function balanceOf(address account, uint256 id) external view returns (uint256) {
+        return _balances[id][account];
     }
 
-    function down(address target) external {
-        if (earnedOf[msg.sender] < 3 * ONE_UP) revert InsufficientEarned();
-        earnedOf[msg.sender] -= 3 * ONE_UP;
-        _burn(msg.sender, SIGNAL_UP, 3 * ONE_UP);
-        _mint(target, SIGNAL_DOWN, 1);           // public non-spendable down indicator
-        emit Downed(msg.sender, target);
+    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+        external view returns (uint256[] memory out)
+    {
+        if (accounts.length != ids.length) revert LengthMismatch();
+        out = new uint256[](accounts.length);
+        for (uint256 i; i < accounts.length; ++i) out[i] = _balances[ids[i]][accounts[i]];
     }
 
+    /// @notice Non-spendable part of SIGNAL_UP: endorsements received from others.
+    function receivedOf(address a) external view returns (uint256) {
+        return _balances[SIGNAL_UP][a] - earnedUp[a];
+    }
+
+    function raisedSourceKey(uint256 handId) external view returns (bytes32) {
+        return AHandSource.raisedKey(sourceCore, handId);
+    }
+
+    function thankSourceKey(uint256 handId) external view returns (bytes32) {
+        return AHandSource.thankKey(sourceCore, handId);
+    }
+
+    /// @notice ERC-165 only. Deliberately does NOT claim ERC-1155 (0xd9b67a26):
+    ///         with no transfer or approval selectors on the ABI at all, claiming
+    ///         the interface would lie to wallets and marketplaces.
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x01ffc9a7; // ERC165
+    }
 
     /*//////////////////// On-chain Metadata (visual identity) ////////////////////*/
     function _meta(uint256 id) internal pure
         returns (string memory emoji, string memory title)
     {
-        if (id == SIGNAL_RAISE) return (unicode"✋", "Raised");
-        if (id == SIGNAL_SHAKE) return (unicode"🤝", "Shaken");
-        if (id == SIGNAL_GIVE)  return (unicode"🙌", "Given");
-        if (id == SIGNAL_THANK) return (unicode"🙏", "Thanked");
-        if (id == SIGNAL_UP)    return (unicode"👍", "Up");
-        if (id == SIGNAL_DOWN)  return (unicode"👎", "Down");
+        if (id == SIGNAL_RAISED)  return (unicode"✋", "Raised");
+        if (id == SIGNAL_SHAKEN)  return (unicode"🤝", "Shaken");
+        if (id == SIGNAL_GIVEN)   return (unicode"🙌", "Given");
+        if (id == SIGNAL_THANKED) return (unicode"🙏", "Thanked");
+        if (id == SIGNAL_UP)      return (unicode"👍", "Up");
+        if (id == SIGNAL_DOWN)    return (unicode"👎", "Down");
         return ("", "");
     }
 
@@ -236,7 +286,6 @@ contract AHandSignals {
         );
         return string.concat("data:application/json;base64,", _b64(bytes(json)));
     }
-
 
     function _b64(bytes memory data) internal pure returns (string memory) {
         if (data.length == 0) return "";
@@ -267,31 +316,5 @@ contract AHandSignals {
             case 2 { mstore8(sub(resultPtr, 1), 0x3d) }
         }
         return result;
-    }
-
-    function balanceOfBatch(address[] calldata owners, uint256[] calldata ids)
-        external view returns (uint256[] memory out)
-    {
-        if (owners.length != ids.length) revert LengthMismatch();
-        out = new uint256[](owners.length);
-        for (uint256 i; i < owners.length; ++i) out[i] = _bal[ids[i]][owners[i]];
-    }
-
-    function setApprovalForAll(address, bool) external pure { revert Soulbound(); }
-    function isApprovedForAll(address, address) external pure returns (bool) { return false; }
-
-    /*//////////////////// Soulbound Rules ////////////////////*/
-    function safeTransferFrom(address, address, uint256, uint256, bytes calldata) external pure {
-        revert Soulbound();
-    }
-
-    function safeBatchTransferFrom(address, address, uint256[] calldata, uint256[] calldata, bytes calldata) external pure {
-        revert Soulbound();
-    }
-
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == 0xd9b67a26 // ERC1155
-            || interfaceId == 0x0e89341c // ERC1155MetadataURI
-            || interfaceId == 0x01ffc9a7; // ERC165
     }
 }
