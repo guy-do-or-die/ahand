@@ -1,0 +1,35 @@
+{
+  "name": "@ahand/web",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start"
+  },
+  "dependencies": {
+    "@ahand/sdk": "workspace:*",
+    "@ahand/abi": "workspace:*",
+    "@tanstack/start": "1.120.20",
+    "@tanstack/react-router": "1.120.20",
+    "@tanstack/react-query": "^5.101.2",
+    "vinxi": "^0.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "wagmi": "^2.12.0",
+    "viem": "^2.18.7",
+    "@privy-io/react-auth": "^1.74.0",
+    "zustand": "^4.5.4",
+    "zod": "^3.23.8",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4",
+    "tailwindcss": "^4.0.0-alpha.25",
+    "@tailwindcss/vite": "^4.0.0-alpha.25"
+  }
+}
