@@ -4,16 +4,19 @@ import { t } from "../i18n";
 
 /**
  * Settlement receipt. Rows come straight from the chain's PayoutAllocated
- * lines — every amount already credited to a claim, nothing recomputed.
+ * lines — nothing recomputed. Each share is pushed to its recipient's wallet
+ * as the hand settles; `deferred` is true only if a push could not land (a
+ * blacklisted or hostile recipient) and that share waits as a claim instead.
  * `rows === null` renders the receipt-less "already settled" fallback (a
  * late-opened proof link has no settlement logs of its own).
  */
 export function ThankReceipt(props: {
   rows: ReceiptRow[] | null;
   total: { label: string; amount: string } | null;
+  deferred?: boolean;
   onRaise: () => void;
 }) {
-  const { rows, total } = props;
+  const { rows, total, deferred } = props;
 
   return (
     <div className="ah-page">
@@ -32,7 +35,9 @@ export function ThankReceipt(props: {
           <>
             <ReceiptTable className="mt-[22px]" caption={t("who got what")} rows={rows} total={total} />
             <p className="ah-label ah-label--dim mt-3">
-              {t("everyone's share is set aside on-chain — claimable from their pocket, any time")}
+              {deferred
+                ? t("each share went straight to their wallet — one couldn't be delivered and waits in their pocket to claim")
+                : t("each share went straight to their wallet, no claiming needed")}
             </p>
           </>
         ) : (

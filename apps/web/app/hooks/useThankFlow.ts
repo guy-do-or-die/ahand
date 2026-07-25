@@ -15,12 +15,15 @@ import { activeChain } from "../config/web3";
 import { t } from "../i18n";
 import { humanizeChainError } from "../lib/errors";
 
-/** One credited line from the settlement — decoded PayoutAllocated. */
+/** One credited line from the settlement — decoded PayoutAllocated, then
+ *  reconciled against PayoutPushed/PayoutDeferred to show how it landed. */
 export interface ThankAllocation {
   kind: "charity" | "shakerMargin" | "giverResidual" | "raiserRefund";
   beneficiary: `0x${string}`;
   routePosition: number;
   amount: bigint;
+  /** "paid" = pushed straight to their wallet; "deferred" = parked as a claim. */
+  delivered: "paid" | "deferred";
 }
 
 const ALLOCATION_KINDS = ["charity", "shakerMargin", "giverResidual", "raiserRefund"] as const;
@@ -195,7 +198,8 @@ export function useThankFlow(id: string) {
 
       const { logs }: { logs: Log[] } = await send(calls);
 
-      const credited: ThankAllocation[] = [];
+      const credited: Omit<ThankAllocation, "delivered">[] = [];
+      const deferred = new Set<string>(); // beneficiaries whose push could not land
       for (const log of logs) {
         try {
           const decoded = decodeEventLog({
@@ -210,12 +214,19 @@ export function useThankFlow(id: string) {
               routePosition: Number(decoded.args.routePosition),
               amount: decoded.args.amount as bigint,
             });
+          } else if (decoded.eventName === "PayoutDeferred") {
+            deferred.add((decoded.args.beneficiary as string).toLowerCase());
           }
         } catch {
           /* foreign log */
         }
       }
-      setAllocations(credited);
+      setAllocations(
+        credited.map((a) => ({
+          ...a,
+          delivered: deferred.has(a.beneficiary.toLowerCase()) ? "deferred" : "paid",
+        })),
+      );
       setSuccess(true);
     } catch (err: any) {
       console.error(err);

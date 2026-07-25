@@ -128,7 +128,10 @@ function ThankComponent() {
             amount: formatUsdCents(asUsd(flow.allocations.reduce((s, a) => s + a.amount, 0n))),
           }
         : null;
-    return <ThankReceipt rows={rows} total={total} onRaise={() => navigate({ to: "/raise" })} />;
+    const deferred = flow.allocations?.some((a) => a.delivered === "deferred") ?? false;
+    return (
+      <ThankReceipt rows={rows} total={total} deferred={deferred} onRaise={() => navigate({ to: "/raise" })} />
+    );
   }
 
   const verifyBlocked = !!flow.verifyError;

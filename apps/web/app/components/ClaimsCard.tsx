@@ -54,7 +54,7 @@ export function ClaimsCard({
       </div>
       {empty ? (
         <p className="ah-label ah-label--dim mt-3">
-          {t("nothing to take out yet — it lands here when a hand settles")}
+          {t("all clear — your thanks land straight in your wallet; anything undeliverable would wait here")}
         </p>
       ) : (
         <>
