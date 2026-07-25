@@ -106,6 +106,7 @@ function ThankComponent() {
         handId: BigInt(thankData.give.handId),
         solver: thankData.give.solver as `0x${string}`,
         solutionHash: thankData.give.solutionHash as `0x${string}`,
+        finalClaimBps: Number(thankData.give.finalClaimBps),
       };
 
       const giveSig = thankData.giveSig as `0x${string}`;

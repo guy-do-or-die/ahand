@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAccount, useReadContract } from "wagmi";
-import { formatUnits, keccak256, toBytes, createPublicClient, http } from "viem";
+import { formatUnits, keccak256, toBytes, createPublicClient, http, isAddress } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
 import { decodePayload, encodePayload, signShake, signGive, newCapability, type Shake, type SignedShake } from "@ahand/sdk";
 import { activeChain } from "../config/web3";
@@ -235,8 +235,14 @@ function HandComponent() {
         }
       } catch (err: any) {
         console.error(err);
-        setTampered(true);
-        setErrorMsg("Failed to decode payload fragment: " + err.message);
+        if (err.message.includes("Missing payload in URL fragment")) {
+          setTampered(false);
+          setErrorMsg("");
+          setFullMetadata(null);
+        } else {
+          setTampered(true);
+          setErrorMsg("Failed to decode payload fragment: " + err.message);
+        }
       }
     }
     load();
@@ -252,9 +258,19 @@ function HandComponent() {
       setErrorMsg("");
       setIsSolving(true);
       try {
+        if (!isAddress(solverAddr)) {
+          setErrorMsg("Please provide a valid Ethereum address for the solver.");
+          setIsSolving(false);
+          return;
+        }
+
         const latestPriv = payload.latestPrivateKey;
         const chainId = payload.chainId;
         const core = payload.core;
+
+        const currentParentClaim = payload.shakes.length === 0 
+          ? 10000 
+          : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
 
         const solutionHash = keccak256(toBytes(solutionText));
 
@@ -262,6 +278,7 @@ function HandComponent() {
           handId: BigInt(id),
           solver: solverAddr as `0x${string}`,
           solutionHash,
+          finalClaimBps: currentParentClaim,
         };
 
         const giveSig = await signGive(give, latestPriv, chainId, core);
@@ -333,12 +350,18 @@ function HandComponent() {
         </div>
 
         <h1 className="text-2xl font-bold tracking-tight">
-          {fullMetadata ? `🙌 ${fullMetadata.title}` : "Loading secured text..."}
+          {fullMetadata ? `🙌 ${fullMetadata.title}` : (window.location.hash.length > 2 ? "Loading secured text..." : "🔒 Secured Hand")}
         </h1>
-        {fullMetadata?.description && (
+        {fullMetadata?.description ? (
           <p className="text-ink/80 text-sm whitespace-pre-wrap">
             {fullMetadata.description}
           </p>
+        ) : (
+          (!window.location.hash || window.location.hash.length < 2) && (
+            <p className="text-ink/60 text-sm italic">
+              This hand is encrypted. You need the full link (with the # fragment) to decrypt and view its contents.
+            </p>
+          )
         )}
 
         <div className="space-y-2">

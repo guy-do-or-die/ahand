@@ -1,5 +1,5 @@
 {
-  "_comment": "Generated from live py-evm run against AHandCore. SDK vitest MUST reproduce every digest & signature, and encode/decode payload to identical bytes.",
+  "_comment": "Live py-evm vectors. Give now includes finalClaimBps (M-2 fix). SDK must reproduce.",
   "domain": {
     "name": "aHand",
     "version": "1",
@@ -9,12 +9,7 @@
   },
   "typehashes": {
     "Shake": "0xeaaf0bf41e660a538ddbfc46682d5cce5edd18446fa75bf535715afaa11c593f",
-    "Give": "0x98d574ca8eb1dd781a2cd1a3e735c97b460596a6d274fe9aca43f7e414faa73b"
-  },
-  "note_time": {
-    "raisedAtBlockTs": 1783264612,
-    "expiry": 1785856612,
-    "shakeDeadline": 1783869412
+    "Give": "0x966c609d8fa11946d3d9e9c9f6ca81a57f4df823be6b767d08a0cdf5745f21e9"
   },
   "shakes": [
     {
@@ -24,13 +19,13 @@
         "payout": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
         "parentClaimBps": 10000,
         "childClaimBps": 9000,
-        "deadline": 1783869412
+        "deadline": 1783896070
       },
       "signerPriv": "0x000000000000000000000000000000000000000000000000000000000000e0aa",
       "signerAddr": "0x793cE785De27B9974C5c582542a3Ad9900637A27",
-      "structHash": "0x40f64cfda7d127fc29ed684f5d10b8d08852877e80f586886e387b24b9da58ed",
-      "digest": "0x73407e32df2a458820bbd835c1d77dd2cb1efa68ce88e57bdb4c6052d5cd4124",
-      "signature": "0x1e3f6e26ba24dbe0a2acfc2fcb50acfd66d67b49da20d66aaaa1ffec341990dc0382d78bdbe42c10cd55a7301f295083f20bf8181f15e4e4b2cfb8494c6695af1c"
+      "structHash": "0xdfbb2addf6de38ad802ec6c9fd7905e455f27e0fb8f1b5d971ca21f1fdab4ac0",
+      "digest": "0x6bc8e1cf465b26869ae27d61d74215a63324d59cb403d4adbf3e13ba888d22a7",
+      "signature": "0x93324427f7f9b8213a17248fc5c9982ef8e36ce9b9edb6cabd77ffd7f34c9c702d3787689d9823cca781fa8248282ac493210eed27e4d9d3c55df4ddf35cad6c1b"
     },
     {
       "shake": {
@@ -39,43 +34,38 @@
         "payout": "0x4CCeBa2d7D2B4fdcE4304d3e09a1fea9fbEb1528",
         "parentClaimBps": 9000,
         "childClaimBps": 8500,
-        "deadline": 1783869412
+        "deadline": 1783896070
       },
       "signerPriv": "0x000000000000000000000000000000000000000000000000000000000000e1aa",
       "signerAddr": "0xaE2388754E8c7e141ffACcF76ff6a889dBA18834",
-      "structHash": "0x727c9c4f24e890a94379760c6e38ced4a9c631cb11add235201aa64cd6b2c6b1",
-      "digest": "0x7b49c4574aada611f4f526d5201f6288e20047abf78055f9163fb90bbc8ebb55",
-      "signature": "0x5fd0d2014c9b941b7af343a04b9b35b0586fe935c00517e5d9d23195fb6362ea386c863c31f910f909951ed61413655383ce660e451a203d90132b180f148f861b"
+      "structHash": "0x5afa6630d6349feb5889c09d16d4e5da4e86388b4eb124577e74096105a9f7ad",
+      "digest": "0xe2c81dc8f5da05e8eaf4b494399d00d50a2999f972747f13c172fa35609e504d",
+      "signature": "0x4ebe5e53c23058857694ee02f53bdfa31646b26cc2d82857f34a34871ca242955bbe4bfb9e1a974db3735ae440fdd74e1b4fc301d30ab630c0cfa506d10d2e191b"
     }
   ],
   "give": {
     "give": {
       "handId": 1,
       "solver": "0xE74d29Ba16AF3bCa4C8D324cF0a718FAb37bEA80",
-      "solutionHash": "0x4a8ee31735ed0122efba9543c86bfd6468a9f791a4ef55515e565b0faa166035"
+      "solutionHash": "0x4a8ee31735ed0122efba9543c86bfd6468a9f791a4ef55515e565b0faa166035",
+      "finalClaimBps": 8500
     },
     "signerPriv": "0x000000000000000000000000000000000000000000000000000000000000e2aa",
-    "structHash": "0xe98ca78a9a1ae0b814098ebf54a12c908948b49c2a806603084563593978119d",
-    "digest": "0x17203d03c563bd3b5859cca469f91ce201678805edb92714bf91fd5c53b38254",
-    "signature": "0xe3ed00a9a625af97de9757b128e6c0536dc3e34e8b8e592ca3b60c93c267647247c4a6f2db2752f3b05c670fcbb6067fef64a558aa11c9af04e3280cef52f9821c"
+    "structHash": "0x0e34d6f4ab88c79f1d220efbd64a66142ab2516aaadcd81e3e60464ce69014bf",
+    "digest": "0x122f35beca40c1d14d8e79d55a9b86b5afd3e57b386837b134713fa1dd3331a1",
+    "signature": "0x793e155a6242ea0acbd3aeb857f3c0cada99885adad45489447ad19aa61a22820b4ef47e276fbf8fa75a4fd1a6b9ee3b357b8907b12f8782ef3b9063faeb518f1c"
   },
   "payload": {
-    "schema": "ver(1)|handId(32)|chainId(8)|core(20)|nShakes(1)|[shake49|sig65]*|latestPriv(32)|metaLen(2)|meta",
+    "schema": "ver|handId32|chainId8|core20|nShakes1|[shake81|sig65]*|latestPriv32|metaLen2|meta",
     "decodedByteLen": 459,
     "nShakes": 2,
     "latestPriv": "0x000000000000000000000000000000000000000000000000000000000000e2aa",
-    "fragmentB64Url": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAB3ZWIzcHny4ka7dt-HbO-LOK6EEw9PVd45WwIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa4jiHVOjH4UH_rM92_2qInboYg0aBPrk2I3Lu9iAPOx28P4GWccumknECMoAGpTr-QeP24muiTb4KKs_C_LUKz9ZtZ7Sdog1mqqof_sNBmQ3AOC14vb5CwQzVWnMB8pUIPyC_gYHxXk5LLPuElMZpWvHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSJDSbRYIbo7fVnHZkcuBlCoMEkZMzrotfStP3OQwTT4Jof6p--sVKCMoITQAalOv5F_Q0gFMm5QbevNDoEubNbBYb-k1wAUX5dnSMZX7Y2LqOGyGPDH5EPkJlR7WFBNlU4POZg5FGiA9kBMrGA8Uj4YbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4qoAR3sidGl0bGUiOiJMb29raW5nIGZvciBhIHN1YmxldCBpbiBZZXJldmFuLCBKdW5lIiwidmlzaWJpbGl0eSI6InB1YmxpYyJ9",
+    "fragmentB64Url": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAB3ZWIzcHny4ka7dt-HbO-LOK6EEw9PVd45WwIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa4jiHVOjH4UH_rM92_2qInboYg0aBPrk2I3Lu9iAPOx28P4GWccumknECMoAGpUGAaTMkQn9_m4IToXJI_FyZgu-ONs6bnttsq9d__X80yccC03h2idmCPMp4H6gkgoKsSTIQ7tJ-TZ08Vd9N3zXK1sGwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSJDSbRYIbo7fVnHZkcuBlCoMEkZMzrotfStP3OQwTT4Jof6p--sVKCMoITQAalQYBk6-XlPCMFiFdpTuAvU736MWRrJswtgoV_NKNIccokKVW75L-54al02zc1rkQP3XThtPwwHTCrYwwM-lBtENLhkbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4qoAR3sidGl0bGUiOiJMb29raW5nIGZvciBhIHN1YmxldCBpbiBZZXJldmFuLCBKdW5lIiwidmlzaWJpbGl0eSI6InB1YmxpYyJ9",
     "metaJson": "{\"title\":\"Looking for a sublet in Yerevan, June\",\"visibility\":\"public\"}"
   },
   "crossCheck": {
     "thankStatus": 1,
     "solver": 84150000,
-    "connA": 9900000,
-    "connB": 4950000,
-    "expected": {
-      "solver": 84150000,
-      "connA": 9900000,
-      "connB": 4950000
-    }
+    "expectedSolver": 84150000
   }
 }

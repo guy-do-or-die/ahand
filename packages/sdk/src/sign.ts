@@ -28,7 +28,7 @@ export function domainSeparator(
   core: `0x${string}`,
 ): Hex {
   return hashDomain({
-    domain: domain(chainId, core),
+    domain: domain(chainId, core) as any,
     types: {
       EIP712Domain: [
         { name: "name", type: "string" },
@@ -46,11 +46,15 @@ export function shakeDigest(
   core: `0x${string}`,
 ): Hex {
   return hashTypedData({
-    domain: domain(chainId, core),
+    domain: domain(chainId, core) as any,
     types: SHAKE_TYPES,
     primaryType: "Shake",
     message: {
-      ...shake,
+      handId: shake.handId,
+      childCapability: shake.childCapability as `0x${string}`,
+      payout: shake.payout as `0x${string}`,
+      parentClaimBps: shake.parentClaimBps,
+      childClaimBps: shake.childClaimBps,
       deadline: Number(shake.deadline),
     },
   });
@@ -69,6 +73,7 @@ export function giveDigest(
       handId: give.handId,
       solver: give.solver as `0x${string}`,
       solutionHash: give.solutionHash as `0x${string}`,
+      finalClaimBps: give.finalClaimBps,
     },
   });
 }
@@ -82,11 +87,15 @@ export async function signShake(
 ): Promise<Hex> {
   const account = privateKeyToAccount(parentCapabilityPriv);
   return account.signTypedData({
-    domain: domain(chainId, core),
+    domain: domain(chainId, core) as any,
     types: SHAKE_TYPES,
     primaryType: "Shake",
     message: {
-      ...shake,
+      handId: shake.handId,
+      childCapability: shake.childCapability as `0x${string}`,
+      payout: shake.payout as `0x${string}`,
+      parentClaimBps: shake.parentClaimBps,
+      childClaimBps: shake.childClaimBps,
       deadline: Number(shake.deadline),
     },
   });
@@ -108,6 +117,7 @@ export async function signGive(
       handId: give.handId,
       solver: give.solver as `0x${string}`,
       solutionHash: give.solutionHash as `0x${string}`,
+      finalClaimBps: give.finalClaimBps,
     },
   });
 }

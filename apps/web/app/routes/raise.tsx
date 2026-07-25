@@ -1,11 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useAccount, useWriteContract, useReadContract, usePublicClient } from "wagmi";
-import { parseUnits } from "viem";
+import { parseUnits, decodeEventLog } from "viem";
 import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
 import { encodePayload, newCapability } from "@ahand/sdk";
 import { activeChain } from "../config/web3";
-import { buildMetadata, assembleLink } from "../lib/metadata";
+import { buildMetadata, assembleLink, CHARS_PER_HOP } from "../lib/metadata";
 
 export const Route = createFileRoute("/raise")({
   component: RaiseComponent,
@@ -52,7 +52,7 @@ function RaiseComponent() {
   const hops = useMemo(() => {
     // base length + payload size ~400 + b64 length of text
     const estimatedUrlLen = window.location.origin.length + 20 + 400 + (description.length * 1.5);
-    return Math.max(0, Math.floor((4096 - estimatedUrlLen) / 150));
+    return Math.max(0, Math.floor((4096 - estimatedUrlLen) / CHARS_PER_HOP));
   }, [description]);
 
   const handleRaise = async (e: React.FormEvent) => {
@@ -111,14 +111,20 @@ function RaiseComponent() {
         ],
       });
 
-      await publicClient.waitForTransactionReceipt({ hash: raiseTx });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: raiseTx });
       
-      const count = await publicClient.readContract({
-        address: DeployedAddresses.AHandCore,
-        abi: AHandCoreAbi,
-        functionName: "handsCount",
-      });
-      const newHandId = count as bigint;
+      const raiseEvent = receipt.logs.map(log => {
+        try {
+          return decodeEventLog({
+            abi: AHandCoreAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+        } catch { return null; }
+      }).find(e => e?.eventName === 'Raised');
+
+      if (!raiseEvent) throw new Error("Could not find Raised event in transaction");
+      const newHandId = (raiseEvent.args as any).handId as bigint;
 
       // 4. Encode payload and assemble final link
       const url = assembleLink(

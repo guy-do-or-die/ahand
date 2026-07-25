@@ -3,6 +3,8 @@ import canonicalize from "canonicalize";
 
 const utf8len = (s: string) => new TextEncoder().encode(s).length;
 
+export const CHARS_PER_HOP = 195;
+
 export const Envelope = z.object({
   v: z.literal(1),
   visibility: z.enum(["public", "preview", "dark"]),

@@ -18,7 +18,12 @@ contract AHandSignals {
     uint256 public constant ONE_UP = 1e9;
 
     /*//////////////////// ERC1155 State ////////////////////*/
-    mapping(uint256 => mapping(address => uint256)) public balanceOf;
+    mapping(uint256 => mapping(address => uint256)) internal _bal; // L-2: not public — the getter below upholds the ERC-1155 ABI
+
+    /// @notice ERC-1155 standard single-balance getter (address,uint256) — L-2 fix.
+    function balanceOf(address account, uint256 id) external view returns (uint256) {
+        return _bal[id][account];
+    }
     mapping(uint256 => uint256) public totalSupply;
 
     /*//////////////////// Signals State ////////////////////*/
@@ -34,7 +39,7 @@ contract AHandSignals {
     mapping(address => uint256) public earnedOf;     // spendable part of SIGNAL_UP
 
     function receivedOf(address a) external view returns (uint256) {
-        return balanceOf[SIGNAL_UP][a] - earnedOf[a];
+        return _bal[SIGNAL_UP][a] - earnedOf[a];
     }
 
     /*//////////////////// Events ////////////////////*/
@@ -85,6 +90,7 @@ contract AHandSignals {
     }
 
     function setConfig(uint256 emissionCapUsd_) external onlyOwner {
+        if (emissionCapUsd_ < 1_000 * 1e18 || emissionCapUsd_ > 100_000 * 1e18) revert BoundsViolated();
         emissionCapUsd = emissionCapUsd_;
         emit ConfigUpdated(emissionCapUsd_);
     }
@@ -97,14 +103,14 @@ contract AHandSignals {
     /*//////////////////// Mint / Burn ////////////////////*/
     function _mint(address to, uint256 id, uint256 value) internal {
         if (to == address(0)) return; // L-1: zero recipient does not break receipt batch
-        balanceOf[id][to] += value;
+        _bal[id][to] += value;
         totalSupply[id] += value;
         emit TransferSingle(msg.sender, address(0), to, id, value);
     }
 
     function _burn(address from, uint256 id, uint256 value) internal {
-        if (balanceOf[id][from] < value) revert InsufficientBalance();
-        balanceOf[id][from] -= value;
+        if (_bal[id][from] < value) revert InsufficientBalance();
+        _bal[id][from] -= value;
         totalSupply[id] -= value;
         emit TransferSingle(msg.sender, from, address(0), id, value);
     }
@@ -125,6 +131,7 @@ contract AHandSignals {
     ) external onlyCore {
         _mint(raiser, SIGNAL_THANK, 1);
         if (payees.length != margins.length) revert LengthMismatch(); // L-3
+        // Minted only to the winning solver at settlement; do not confuse with GiveWitnessed
         _mint(solver, SIGNAL_GIVE, 1);
         for (uint256 i = 0; i < payees.length; ++i) {
             if (margins[i] > 0) {
@@ -267,7 +274,7 @@ contract AHandSignals {
     {
         if (owners.length != ids.length) revert LengthMismatch();
         out = new uint256[](owners.length);
-        for (uint256 i; i < owners.length; ++i) out[i] = balanceOf[ids[i]][owners[i]];
+        for (uint256 i; i < owners.length; ++i) out[i] = _bal[ids[i]][owners[i]];
     }
 
     function setApprovalForAll(address, bool) external pure { revert Soulbound(); }

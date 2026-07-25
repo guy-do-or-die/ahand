@@ -128,7 +128,13 @@ contract AHandBase is Test {
     function _give(uint256 handId, uint256 capPk, address solver_)
         internal view returns (Give memory g, bytes memory sig)
     {
-        g = Give(handId, solver_, keccak256("solution"));
+        return _give(handId, capPk, solver_, 10_000);
+    }
+
+    function _give(uint256 handId, uint256 capPk, address solver_, uint16 finalClaimBps)
+        internal view returns (Give memory g, bytes memory sig)
+    {
+        g = Give(handId, solver_, keccak256("solution"), finalClaimBps);
         sig = _sign(capPk, AHandSig.hashGive(g));
     }
 
@@ -189,7 +195,7 @@ contract AHandAttacksTest is AHandBase {
     function test_Thank_HappyPath_TelescopicSettlement() public {
         uint256 h = _raise(usd, 5000);
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
 
         _thank(h, sh, sg, g, gs);
 
@@ -203,6 +209,20 @@ contract AHandAttacksTest is AHandBase {
         assertEq(uint8(st), uint8(Status.Settled), "I-3");
     }
 
+    function test_M2_GiveBindsToRouteTerminalClaim() public {
+        uint256 h = _raise(usd, 5000);
+        (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
+        
+        // M-2: solver tries to artificially increase finalClaimBps
+        // The last shake in _honestChain has childClaimBps = 8500
+        // We set Give.finalClaimBps = 9000
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 9000);
+        
+        vm.prank(raiser);
+        vm.expectRevert(ClaimMismatch.selector);
+        core.thank(h, sh, sg, g, gs, 0);
+    }
+
     /// I-5: solver self-insertion - coalition receives EXACTLY same amount (telescope identity).
     function testFuzz_SelfInsertion_CoalitionInvariant(uint16 split) public {
         split = uint16(bound(split, 100, 3400)); // sybil margin within its own claim
@@ -212,7 +232,7 @@ contract AHandAttacksTest is AHandBase {
         // honest: root -> A(10%) -> solver claim 90%
         Shake[] memory s1 = new Shake[](1); bytes[] memory g1 = new bytes[](1);
         (s1[0], g1[0]) = _shake(h1, E0, vm.addr(E1), connA, 10_000, 9_000);
-        (Give memory gv1, bytes memory gs1) = _give(h1, E1, solver);
+        (Give memory gv1, bytes memory gs1) = _give(h1, E1, solver, 9000);
         _thank(h1, s1, g1, gv1, gs1);
         uint256 honest = usd.balanceOf(solver);
 
@@ -221,7 +241,7 @@ contract AHandAttacksTest is AHandBase {
         Shake[] memory s2 = new Shake[](2); bytes[] memory g2 = new bytes[](2);
         (s2[0], g2[0]) = _shake(h2, E0, vm.addr(E1), connA, 10_000, 9_000);
         (s2[1], g2[1]) = _shake(h2, E1, vm.addr(E3), sybilPayout, 9_000, 9_000 - split);
-        (Give memory gv2, bytes memory gs2) = _give(h2, E3, solver);
+        (Give memory gv2, bytes memory gs2) = _give(h2, E3, solver, 9000 - split);
         uint256 solverBefore = usd.balanceOf(solver);
         _thank(h2, s2, g2, gv2, gs2);
 
@@ -239,13 +259,13 @@ contract AHandAttacksTest is AHandBase {
         // truncated route with one shake; Give signed by LAST capability (all that exists)
         Shake[] memory cut = new Shake[](1); bytes[] memory cutSig = new bytes[](1);
         cut[0] = sh[0]; cutSig[0] = sg[0];
-        (Give memory g, bytes memory gs) = _give(h, last, solver); // e2 != e1
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500); // e2 != e1
         vm.prank(raiser);
         vm.expectRevert(CapabilityProof.selector);
         core.thank(h, cut, cutSig, g, gs, 0);
 
         // and with random key - also no
-        (Give memory g2, bytes memory gs2) = _give(h, 0xBAD, solver);
+        (Give memory g2, bytes memory gs2) = _give(h, 0xBAD, solver, 8500);
         vm.prank(raiser);
         vm.expectRevert(CapabilityProof.selector);
         core.thank(h, cut, cutSig, g2, gs2, 0);
@@ -259,7 +279,7 @@ contract AHandAttacksTest is AHandBase {
         cut[0] = sh[0]; cutSig[0] = sg[0];
 
         address thief = makeAddr("thief");
-        (Give memory g, bytes memory gs) = _give(h, E1, thief); // e1 leaked - payload was not stripped
+        (Give memory g, bytes memory gs) = _give(h, E1, thief, 9000); // e1 leaked - payload was not stripped
         vm.prank(raiser);
         core.thank(h, cut, cutSig, g, gs, 0);
         assertGt(usd.balanceOf(thief), 0, "I-15b: leak => truncation by design");
@@ -272,12 +292,12 @@ contract AHandAttacksTest is AHandBase {
         (sh[0], sg[0]) = _shake(h, E0, vm.addr(E1), connA, 10_000, 9_000);
         (sh[1], sg[1]) = _shake(h, E1, solver /*personal!*/, connB, 9_000, 8_000);
 
-        (Give memory bad, bytes memory badSig) = _give(h, 0xBAD, makeAddr("thief"));
+        (Give memory bad, bytes memory badSig) = _give(h, 0xBAD, makeAddr("thief"), 8000);
         vm.prank(raiser);
         vm.expectRevert(CapabilityProof.selector);
         core.thank(h, sh, sg, bad, badSig, 0);
 
-        (Give memory ok, bytes memory okSig) = _give(h, SOLVER_PK, solver);
+        (Give memory ok, bytes memory okSig) = _give(h, SOLVER_PK, solver, 8000);
         _thank(h, sh, sg, ok, okSig);
         assertGt(usd.balanceOf(solver), 0, "personal anchor passes");
     }
@@ -319,7 +339,7 @@ contract AHandAttacksTest is AHandBase {
     function test_ExpiredShakeDeadline_Reverts() public {
         uint256 h = _raise(usd, 2000);
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         vm.warp(block.timestamp + 8 days); // ticket deadline = +7d
         vm.prank(raiser);
         vm.expectRevert(TicketExpired.selector);
@@ -329,7 +349,7 @@ contract AHandAttacksTest is AHandBase {
     function test_MinSolverClaim_Enforced() public {
         uint256 h = _raise(usd, 9000); // strict floor
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h); // claim 85% < 90%
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         vm.prank(raiser);
         vm.expectRevert(SolverClaimTooSmall.selector);
         core.thank(h, sh, sg, g, gs, 0);
@@ -356,7 +376,7 @@ contract AHandAttacksTest is AHandBase {
     function test_SettleOnce_ThankThenAnythingReverts() public {
         uint256 h = _raise(usd, 5000);
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         _thank(h, sh, sg, g, gs);
 
         vm.prank(raiser);
@@ -386,7 +406,7 @@ contract AHandAttacksTest is AHandBase {
     function test_TopUp_JoinsPoolBeforeSettlement() public {
         uint256 h = _raise(usd, 5000);
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         vm.prank(raiser);
         core.thank(h, sh, sg, g, gs, 50e6);      // thank amount larger than promised
         uint256 pool = 150e6; uint256 net = pool - pool / 100;
@@ -405,7 +425,7 @@ contract AHandAttacksTest is AHandBase {
         Shake[] memory sh = new Shake[](2); bytes[] memory sg = new bytes[](2);
         (sh[0], sg[0]) = _shake(h, E0, vm.addr(E1), address(bad), 10_000, 9_000); // custom receiver reverter hop
         (sh[1], sg[1]) = _shake(h, E1, vm.addr(E2), connB, 9_000, 8_500);
-        (Give memory g, bytes memory gs) = _give(h, E2, solver);
+        (Give memory g, bytes memory gs) = _give(h, E2, solver, 8500);
 
         _thank(h, sh, sg, g, gs); // should not revert the entire settlement (I-9a)
         uint256 net = DEPOSIT - 1e6;
@@ -423,7 +443,7 @@ contract AHandAttacksTest is AHandBase {
         bl.setBlocked(connA, true);              // USDC-freeze before settlement
 
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         _thank(h, sh, sg, g, gs);
 
         uint96 owed = core.pending(connA, address(bl));
@@ -449,7 +469,7 @@ contract AHandAttacksTest is AHandBase {
         ReenteringReceiver evil = new ReenteringReceiver();
         Shake[] memory sh = new Shake[](1); bytes[] memory sg = new bytes[](1);
         (sh[0], sg[0]) = _shake(h, E0, vm.addr(E1), address(evil), 10_000, 9_000);
-        (Give memory g, bytes memory gs) = _give(h, E1, solver);
+        (Give memory g, bytes memory gs) = _give(h, E1, solver, 9000);
         evil.arm(core, h);
 
         _thank(h, sh, sg, g, gs);
@@ -464,7 +484,7 @@ contract AHandAttacksTest is AHandBase {
         uint256 h2 = _raise(usd, 5000);           // will expire
 
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h1);
-        (Give memory g, bytes memory gs) = _give(h1, last, solver);
+        (Give memory g, bytes memory gs) = _give(h1, last, solver, 8500);
         vm.prank(raiser);
         core.thank(h1, sh, sg, g, gs, 25e6);
 
@@ -510,11 +530,11 @@ contract AHandAttacksTest is AHandBase {
         vm.prank(raiser); junk.approve(address(core), type(uint256).max);
         uint256 h = _raise(junk, 5000);
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         _thank(h, sh, sg, g, gs);
         assertGt(junk.balanceOf(solver), 0, "money settled");
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), solver), 0, "zero UP for junk");
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), 0);
+        assertEq(signals.balanceOf(solver, signals.SIGNAL_UP()), 0, "zero UP for junk");
+        assertEq(signals.balanceOf(raiser, signals.SIGNAL_UP()), 0);
     }
 
     /// OZ ECDSA: malleable s (N - s, flipped v) is rejected.
@@ -557,7 +577,7 @@ contract AHandAttacksTest is AHandBase {
         }
 
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _generateRoute(h, numHops, splits);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 10000 - totalSplit);
 
         uint256 initialCoreBal = usd.balanceOf(address(core));
         uint256 initialSolverBal = usd.balanceOf(solver);
@@ -631,7 +651,7 @@ contract AHandAttacksTest is AHandBase {
         uint256 h2 = _raise(usd, 5000);
 
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h1);
-        (Give memory g, bytes memory gs) = _give(h1, last, solver);
+        (Give memory g, bytes memory gs) = _give(h1, last, solver, 8500);
 
         // Settle hand 1
         _thank(h1, sh, sg, g, gs);
@@ -662,24 +682,24 @@ contract AHandAttacksTest is AHandBase {
     function test_Signals_MintsOnRaiseAndThank() public {
         // 1. Raise mints SIGNAL_RAISE to raiser
         uint256 h = _raise(usd, 5000);
-        assertEq(signals.balanceOf(signals.SIGNAL_RAISE(), raiser), 1);
+        assertEq(signals.balanceOf(raiser, signals.SIGNAL_RAISE()), 1);
 
         // 2. Thank mints SIGNAL_THANK to raiser, SIGNAL_GIVE to solver, SIGNAL_SHAKE to connectors
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
 
         _thank(h, sh, sg, g, gs);
 
-        assertEq(signals.balanceOf(signals.SIGNAL_THANK(), raiser), 1);
-        assertEq(signals.balanceOf(signals.SIGNAL_GIVE(), solver), 1);
-        assertEq(signals.balanceOf(signals.SIGNAL_SHAKE(), connA), 1);
-        assertEq(signals.balanceOf(signals.SIGNAL_SHAKE(), connB), 1);
+        assertEq(signals.balanceOf(raiser, signals.SIGNAL_THANK()), 1);
+        assertEq(signals.balanceOf(solver, signals.SIGNAL_GIVE()), 1);
+        assertEq(signals.balanceOf(connA, signals.SIGNAL_SHAKE()), 1);
+        assertEq(signals.balanceOf(connB, signals.SIGNAL_SHAKE()), 1);
     }
 
     function test_Signals_EarnedUpEmissionMath() public {
         uint256 h = _raise(usd, 5000); // 100 USDC deposit -> charity fee 1% = 1 USDC = 1e6 units
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
 
         _thank(h, sh, sg, g, gs);
 
@@ -689,9 +709,9 @@ contract AHandAttacksTest is AHandBase {
         // cumulativeUsd[raiser] = 0.5e18.
         // sqrt(0.5e18) = 707106781 (scaled 1e9, 9 decimals)
         uint256 expectedEarnedUp = 707106781;
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), expectedEarnedUp);
+        assertEq(signals.balanceOf(raiser, signals.SIGNAL_UP()), expectedEarnedUp);
         assertEq(signals.earnedOf(raiser), expectedEarnedUp);
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), solver), expectedEarnedUp);
+        assertEq(signals.balanceOf(solver, signals.SIGNAL_UP()), expectedEarnedUp);
         assertEq(signals.earnedOf(solver), expectedEarnedUp);
     }
 
@@ -705,13 +725,13 @@ contract AHandAttacksTest is AHandBase {
         );
 
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         _thank(h, sh, sg, g, gs);
 
         // charityFee = 20e6 USDC = 20 USDC.
         // halfVal = 10e18 USD units.
         // sqrt(10e18) = 3162277660 (~3.16 tokens of UP).
-        uint256 initialBal = signals.balanceOf(signals.SIGNAL_UP(), raiser);
+        uint256 initialBal = signals.balanceOf(raiser, signals.SIGNAL_UP());
         assertEq(initialBal, 3162277660);
         assertEq(signals.earnedOf(raiser), 3162277660);
 
@@ -720,10 +740,10 @@ contract AHandAttacksTest is AHandBase {
         signals.up(connA);
 
         assertEq(signals.earnedOf(raiser), initialBal - 1e9);
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), raiser), initialBal - 1e9);
+        assertEq(signals.balanceOf(raiser, signals.SIGNAL_UP()), initialBal - 1e9);
         
         // Target (connA) receives 1 token of received UP
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), connA), 1e9);
+        assertEq(signals.balanceOf(connA, signals.SIGNAL_UP()), 1e9);
         assertEq(signals.receivedOf(connA), 1e9);
         assertEq(signals.earnedOf(connA), 0); // target got received, not earned
 
@@ -732,8 +752,8 @@ contract AHandAttacksTest is AHandBase {
         signals.down(connB);
 
         assertEq(signals.earnedOf(solver), 3162277660 - 3e9);
-        assertEq(signals.balanceOf(signals.SIGNAL_UP(), solver), 3162277660 - 3e9);
-        assertEq(signals.balanceOf(signals.SIGNAL_DOWN(), connB), 1);
+        assertEq(signals.balanceOf(solver, signals.SIGNAL_UP()), 3162277660 - 3e9);
+        assertEq(signals.balanceOf(connB, signals.SIGNAL_DOWN()), 1);
     }
 
     function test_Signals_Up_EarnedOnly_RecursionCut() public {
@@ -745,7 +765,7 @@ contract AHandAttacksTest is AHandBase {
             100, 0, 5000, charity, vm.addr(E0), keccak256("meta")
         );
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
         _thank(h, sh, sg, g, gs);
 
         // Raiser gets ~2.23 tokens of UP. Raiser upvotes stranger.
@@ -770,7 +790,7 @@ contract AHandAttacksTest is AHandBase {
 
         // 2. Settlement must NOT freeze (I-17 Try/Catch Quarantine protects user funds)
         (Shake[] memory sh, bytes[] memory sg, uint256 last) = _honestChain(h);
-        (Give memory g, bytes memory gs) = _give(h, last, solver);
+        (Give memory g, bytes memory gs) = _give(h, last, solver, 8500);
 
         _thank(h, sh, sg, g, gs);
 

@@ -22,7 +22,7 @@ contract AHandCore {
     uint40  public constant MIN_EXPIRY = 1 days;
     uint40  public constant MAX_EXPIRY = 180 days;
     uint256 public constant PUSH_GAS_STIPEND = 100_000;
-    uint256 public constant SIGNALS_GAS = 3_000_000; // I-17: quarantine, receipts < money
+    uint256 public constant SIGNALS_GAS = 3_000_000; // I-18: quarantine, receipts < money
 
     uint256 private immutable _deploymentChainId;
     bytes32 private immutable _deploymentDomainSeparator;
@@ -137,6 +137,7 @@ contract AHandCore {
             revert BoundsViolated();
         if (uint256(charityFeeBps) + maintFeeBps >= BPS_DENOMINATOR - minSolverClaimBps)
             revert BoundsViolated();
+        if (maintFeeBps > 0 && maintainer == address(0)) revert BoundsViolated();
 
         uint256 balBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -166,6 +167,10 @@ contract AHandCore {
         }
     }
 
+    /**
+     * @dev Intermediate hops use ephemeral wallets (capabilities) rather than smart contracts.
+     * Therefore, we only need ECDSA recovery here. EIP-1271 is only required for the terminal solver and root capability.
+     */
     function _recover(bytes32 digest, bytes memory sig) internal pure returns (address) {
         (address recovered, , ) = ECDSA.tryRecover(digest, sig);
         return recovered;
@@ -233,6 +238,7 @@ contract AHandCore {
             if (s.childClaimBps > s.parentClaimBps) revert ClaimMustNotGrow();
             if (block.timestamp > s.deadline) revert TicketExpired();
 
+            if (s.payout == address(0)) revert ZeroPayee();          // L-1
             payees[i] = s.payout;
             margins[i] = s.parentClaimBps - s.childClaimBps;
             prevCap = s.childCapability;
@@ -244,7 +250,9 @@ contract AHandCore {
 
         if (prevCap == address(0) || !_isValidSignature(prevCap, giveDigest, giveSig)) revert CapabilityProof();
         if (give.handId != handId) revert WrongHand();
-        
+        if (give.finalClaimBps != prevClaim) revert ClaimMismatch(); // M-2: Give is bound to the route
+        if (give.solver == address(0)) revert ZeroPayee();           // L-1
+
         uint16 minSolverClaimBps = h.minSolverClaimBps;
         if (prevClaim < minSolverClaimBps) revert SolverClaimTooSmall();
 

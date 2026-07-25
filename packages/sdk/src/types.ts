@@ -4,29 +4,28 @@ import { z } from "zod";
 
 export const AddressSchema = z
   .string()
-  .regex(/^0x[0-9a-fA-F]{40}$/, "invalid address")
-  .transform((val) => val as `0x${string}`);
+  .regex(/^0x[0-9a-fA-F]{40}$/, "invalid address");
 export const Bytes32Schema = z
   .string()
-  .regex(/^0x[0-9a-fA-F]{64}$/, "invalid bytes32")
-  .transform((val) => val as `0x${string}`);
+  .regex(/^0x[0-9a-fA-F]{64}$/, "invalid bytes32");
 
-/** Shake structure. Signed by the parent capability (not the wallet!). */
+/** Shake. Signed by the parent CAPABILITY (not the wallet!). */
 export const ShakeSchema = z.object({
   handId: z.bigint(),
-  childCapability: AddressSchema, // bearer: fresh ephemeral; personal: recipient's wallet
-  payout: AddressSchema, // destination for hop's margin payment
+  childCapability: AddressSchema, // bearer: fresh ephemeral; personal: recipient wallet
+  payout: AddressSchema, // destination for the hop margin
   parentClaimBps: z.number().int().min(0).max(10_000),
   childClaimBps: z.number().int().min(0).max(10_000),
   deadline: z.bigint(),
 });
 export type Shake = z.infer<typeof ShakeSchema>;
 
-/** Give structure. Signed by the last capability in the route path. */
+/** Give. Signed by the LAST capability in the route. */
 export const GiveSchema = z.object({
   handId: z.bigint(),
   solver: AddressSchema,
   solutionHash: Bytes32Schema,
+  finalClaimBps: z.number().int().min(0).max(10_000), // M-2: binds Give to route terminal claim
 });
 export type Give = z.infer<typeof GiveSchema>;
 
@@ -50,24 +49,25 @@ export const GIVE_TYPES = {
     { name: "handId", type: "uint256" },
     { name: "solver", type: "address" },
     { name: "solutionHash", type: "bytes32" },
+    { name: "finalClaimBps", type: "uint16" },
   ],
 } as const;
 
 export interface Eip712Domain {
   name: string;
   version: string;
-  chainId: bigint;
+  chainId: number;
   verifyingContract: `0x${string}`;
 }
 
 export function domain(
-  chainId: number | bigint,
+  chainId: number,
   verifyingContract: `0x${string}`,
 ): Eip712Domain {
   return {
     name: EIP712_DOMAIN_NAME,
     version: EIP712_DOMAIN_VERSION,
-    chainId: BigInt(chainId),
+    chainId,
     verifyingContract,
   };
 }

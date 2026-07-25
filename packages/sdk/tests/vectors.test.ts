@@ -43,6 +43,7 @@ describe("Give digest & signature", () => {
     handId: BigInt(vectors.give.give.handId),
     solver: vectors.give.give.solver,
     solutionHash: vectors.give.give.solutionHash,
+    finalClaimBps: vectors.give.give.finalClaimBps,
   };
   it("digest matches", () => {
     expect(giveDigest(g, chainId, core).toLowerCase())

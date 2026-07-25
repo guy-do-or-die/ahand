@@ -124,7 +124,7 @@ contract AHandHandler is Test {
             currPk = nextPk;
         }
 
-        Give memory give = Give(handId, solver, keccak256("solution"));
+        Give memory give = Give(handId, solver, keccak256("solution"), currClaim);
         bytes memory giveSig = _sign(AHandSig.hashGive(give), currPk);
 
         vm.prank(raiser);

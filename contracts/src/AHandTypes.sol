@@ -20,6 +20,8 @@ struct Give {
     uint256 handId;
     address solver;
     bytes32 solutionHash;
+    uint16  finalClaimBps;   // M-2: binds the solver signature to their terminal share —
+                             // swapping in a less favorable route tail breaks the signature
 }
 
 enum Status { None, Active, Settled, Reclaimed }
@@ -62,6 +64,7 @@ error NotRaiser();
 error NotActive();             // settle-once (I-3)
 error NotExpired();
 error CharityNotWhitelisted();
+error ZeroPayee();
 error ZeroAmount();
 error BoundsViolated();        // parameters outside of the constitutional boundaries
 
@@ -85,7 +88,7 @@ library AHandSig {
         "Shake(uint256 handId,address childCapability,address payout,uint16 parentClaimBps,uint16 childClaimBps,uint40 deadline)"
     );
     bytes32 internal constant GIVE_TYPEHASH = keccak256(
-        "Give(uint256 handId,address solver,bytes32 solutionHash)"
+        "Give(uint256 handId,address solver,bytes32 solutionHash,uint16 finalClaimBps)"
     );
 
     function domainSeparator(address core) internal view returns (bytes32) {
@@ -106,7 +109,7 @@ library AHandSig {
     }
 
     function hashGive(Give memory g) internal pure returns (bytes32) {
-        return keccak256(abi.encode(GIVE_TYPEHASH, g.handId, g.solver, g.solutionHash));
+        return keccak256(abi.encode(GIVE_TYPEHASH, g.handId, g.solver, g.solutionHash, g.finalClaimBps));
     }
 
     function digest(bytes32 ds, bytes32 structHash) internal pure returns (bytes32) {
