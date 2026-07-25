@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useConnection, usePublicClient, useWalletClient, useWriteContract } from "wagmi";
+import { useConnection, usePublicClient, useSwitchChain, useWalletClient, useWriteContract } from "wagmi";
 import { useSign7702Authorization, useWallets } from "@privy-io/react-auth";
 import { encodeFunctionData, type Abi, type Address, type Log, type TransactionReceipt } from "viem";
 import { AA, SIMPLE_7702_IMPLEMENTATION } from "../config/aa";
@@ -34,6 +34,7 @@ export function useSender() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { mutateAsync: writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
   const { wallets } = useWallets();
   const { signAuthorization } = useSign7702Authorization();
 
@@ -75,14 +76,34 @@ export function useSender() {
       }
 
       // Classic path — unchanged semantics for external wallets.
+      // An injected wallet transacts on whatever network it is parked on;
+      // make it follow the app's chain before any write leaves the door.
+      // No walletClient gate: when hydration lags, the connector still
+      // answers the switch request — skipping would let the write assert.
+      if (walletClient?.chain?.id !== activeChain.id) {
+        await switchChainAsync({ chainId: activeChain.id });
+      }
       let last: TransactionReceipt | null = null;
       const logs: Log[] = [];
       for (const c of calls) {
-        const hash = await writeContractAsync({
+        // Estimate through the app's own RPC first: surfaces the real revert
+        // reason on failure, and pins a sane gas limit so the wallet never
+        // falls back to an estimate the RPC will refuse to broadcast.
+        const gas = await publicClient.estimateContractGas({
+          account: address,
           address: c.address,
           abi: c.abi,
           functionName: c.functionName,
           args: c.args as unknown[],
+          ...(c.value !== undefined ? { value: c.value } : {}),
+        });
+        const hash = await writeContractAsync({
+          chainId: activeChain.id,
+          address: c.address,
+          abi: c.abi,
+          functionName: c.functionName,
+          args: c.args as unknown[],
+          gas: (gas * 12n) / 10n,
           ...(c.value !== undefined ? { value: c.value } : {}),
         });
         const receipt = await publicClient.waitForTransactionReceipt({
@@ -94,7 +115,7 @@ export function useSender() {
       }
       return { receipt: last as TransactionReceipt, logs };
     },
-    [sponsored, walletClient, publicClient, writeContractAsync, signAuthorization],
+    [sponsored, walletClient, publicClient, writeContractAsync, switchChainAsync, signAuthorization],
   );
 
   return { send, mode: sponsored ? ("sponsored" as const) : ("classic" as const), isConnected, address };
