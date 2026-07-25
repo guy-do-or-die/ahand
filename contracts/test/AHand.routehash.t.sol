@@ -45,8 +45,11 @@ contract AHandRouteHashTest is AHandTestBase {
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled));
         assertEq(g.finalClaimBps, 10_000, "zero-shake final claim is exactly 10000");
-        assertEq(claimOf(charity), 10e6, "charity cut");
-        assertEq(claimOf(giver), 90e6, "whole distributable to the giver");
+        // Hybrid push: allocations land in wallets, not the claims ledger.
+        assertEq(usd.balanceOf(charity), 10e6, "charity cut");
+        assertEq(usd.balanceOf(giver), 90e6, "whole distributable to the giver");
+        assertEq(claimOf(charity), 0, "successful push leaves no claim");
+        assertEq(claimOf(giver), 0, "successful push leaves no claim");
 
         bytes32 expected = AHandSig.hashRoute(AHandSig.handRef(address(core), h), new bytes32[](0));
         assertEq(g.routeHash, expected, "Give binds the empty-route identity");

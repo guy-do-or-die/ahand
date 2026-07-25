@@ -114,9 +114,11 @@ contract AHandForkSafetyTest is AHandTestBase {
 
         RouteBuild memory r = newRoute();
         addSelfHop(r, h, E1, 10_000); // helpers read DOMAIN_SEPARATOR() live
+        uint256 giverBefore = usd.balanceOf(giver);
         settle(h, r);
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled), "fork settles fresh artifacts");
-        assertEq(core.claims(address(usd), giver), 90e6, "claims credited on the fork");
+        assertEq(usd.balanceOf(giver) - giverBefore, 90e6, "residual pushed on the fork");
+        assertEq(core.claims(address(usd), giver), 0, "successful push leaves no claim");
     }
 }

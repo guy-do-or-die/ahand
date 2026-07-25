@@ -15,8 +15,27 @@ contract AHandConservationTest is AHandTestBase {
     /// needs children E1..E6.
     uint256 constant E6 = 0xE6aa;
 
+    /// @dev Hybrid settlement pushes each allocation to the beneficiary's wallet
+    ///      (MockUSD never defers), so the exact-split assertions now read the
+    ///      recipient balance — the same numbers, a different destination.
+    function paidOf(address a) internal view returns (uint256) {
+        return usd.balanceOf(a);
+    }
+
     function claimOf(address a) internal view returns (uint256) {
         return core.claims(address(usd), a);
+    }
+
+    /// @dev Assert a (Transfer, PayoutPushed) pair at logs[i]/logs[i+1] delivering
+    ///      `amount` to `beneficiary`. Transfer is the token's, PayoutPushed the core's.
+    function assertPushedInOrder(Vm.Log[] memory logs, uint256 i, address beneficiary, uint96 amount) internal pure {
+        assertEq(logs[i].topics[0], keccak256("Transfer(address,address,uint256)"), "token Transfer precedes push");
+        assertEq(address(uint160(uint256(logs[i].topics[2]))), beneficiary, "Transfer to beneficiary");
+        assertEq(abi.decode(logs[i].data, (uint256)), amount, "Transfer amount");
+
+        assertEq(logs[i + 1].topics[0], AHandCore.PayoutPushed.selector, "PayoutPushed follows");
+        assertEq(address(uint160(uint256(logs[i + 1].topics[3]))), beneficiary, "pushed to beneficiary");
+        assertEq(abi.decode(logs[i + 1].data, (uint96)), amount, "pushed amount");
     }
 
     /*──────────────── golden fixture from the design doc ────────────────*/
@@ -24,7 +43,8 @@ contract AHandConservationTest is AHandTestBase {
     /// $20 pool, 1000 bps charity, claims telescope q = [10000, 9500, 9500, 9000]:
     /// charity 2.00, margins 0.90 / 0.00 / 0.90, giver 16.20 (6-dec units).
     /// Three RouteHopSettled, exactly four PayoutAllocated, in the frozen order:
-    /// Settled -> hops -> Charity -> ShakerMargin (margin > 0 only) -> GiverResidual.
+    /// Settled -> hops -> Charity -> ShakerMargin (margin > 0 only) -> GiverResidual;
+    /// then each allocation is PUSHED (Transfer + PayoutPushed) in the same order.
     function test_Golden_TwentyDollarFixture() public {
         RaiseParams memory p = defaultParams();
         p.amount = 20e6;
@@ -39,20 +59,25 @@ contract AHandConservationTest is AHandTestBase {
         settle(h, r);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        // Claims ledger: the exact allocation set.
-        assertEq(claimOf(charity), 2_000_000, "charity 2.00");
-        assertEq(claimOf(shakerA), 900_000, "hop 0 margin 0.90");
-        assertEq(claimOf(vm.addr(E1)), 0, "hop 1 zero margin pays nothing");
-        assertEq(claimOf(shakerB), 900_000, "hop 2 margin 0.90");
-        assertEq(claimOf(giver), 16_200_000, "giver 16.20");
+        // Hybrid push: the exact allocation set lands in recipient wallets.
+        assertEq(paidOf(charity), 2_000_000, "charity 2.00");
+        assertEq(paidOf(shakerA), 900_000, "hop 0 margin 0.90");
+        assertEq(paidOf(vm.addr(E1)), 0, "hop 1 zero margin pays nothing");
+        assertEq(paidOf(shakerB), 900_000, "hop 2 margin 0.90");
+        assertEq(paidOf(giver), 16_200_000, "giver 16.20");
         assertEq(
-            claimOf(charity) + claimOf(shakerA) + claimOf(shakerB) + claimOf(giver),
+            paidOf(charity) + paidOf(shakerA) + paidOf(shakerB) + paidOf(giver),
             20e6,
             "P == C + sum(margins) + giverResidual"
         );
+        // Successful pushes leave nothing in the claims ledger.
+        assertEq(claimOf(charity), 0, "no deferral");
+        assertEq(claimOf(giver), 0, "no deferral");
 
-        // Event stream: pull payments emit no transfers — exactly these eight.
-        assertEq(logs.length, 8, "Settled + 3 hops + 4 allocations");
+        // Event stream: Settled + 3 hops + 4 allocations, then 3 pushes
+        // (charity, shakerA, shakerB, giver — but the zero-margin hop pays
+        // nobody, so four beneficiaries, each a Transfer + PayoutPushed pair).
+        // The four accounting events keep the frozen order at indices 0..7.
         assertEq(logs[0].topics[0], AHandCore.Settled.selector);
         for (uint256 i = 1; i <= 3; ++i) {
             assertEq(logs[i].topics[0], AHandCore.RouteHopSettled.selector, "hops in route order");
@@ -60,6 +85,12 @@ contract AHandConservationTest is AHandTestBase {
         for (uint256 i = 4; i <= 7; ++i) {
             assertEq(logs[i].topics[0], AHandCore.PayoutAllocated.selector);
         }
+        // Four allocations pushed: each emits a token Transfer then PayoutPushed.
+        assertEq(logs.length, 8 + 4 * 2, "8 accounting logs + 4 (Transfer, PayoutPushed) pushes");
+        assertPushedInOrder(logs, 8, charity, 2_000_000);
+        assertPushedInOrder(logs, 10, shakerA, 900_000);
+        assertPushedInOrder(logs, 12, shakerB, 900_000);
+        assertPushedInOrder(logs, 14, giver, 16_200_000);
 
         // Settled carries the split and the USD mirror of the charity cut.
         {
@@ -144,19 +175,23 @@ contract AHandConservationTest is AHandTestBase {
             addSelfHop(r, h, keys[i + 1], claim); // margin accrues to vm.addr(keys[i])
             marginSum += (D * delta) / 10_000;
         }
+        // Snapshot before: self-hop shakers are vm.addr(keys[i]); a shaker can
+        // repeat across hops, so read balances after a single settlement where
+        // every beneficiary starts at zero. Giver may equal a hop's self-shaker
+        // only if keys collide (they never do here: distinct E-keys, distinct giver).
         settle(h, r);
 
-        assertEq(claimOf(charity), C, "charity floor cut");
+        assertEq(paidOf(charity), C, "charity floor cut");
 
-        uint256 total = claimOf(charity) + claimOf(giver);
+        uint256 total = paidOf(charity) + paidOf(giver);
         for (uint256 i; i < hopCount; ++i) {
-            total += claimOf(vm.addr(keys[i]));
+            total += paidOf(vm.addr(keys[i]));
         }
         assertEq(total, amount, "P == C + sum(margins) + giverResidual, exactly");
 
-        assertEq(claimOf(giver), D - marginSum, "residual is D minus floored margins");
-        assertGe(claimOf(giver), 1, "giver allocation is always at least one unit");
-        assertGe(claimOf(giver), (D * claim) / 10_000, "dust lands on the giver, never below the floored share");
+        assertEq(paidOf(giver), D - marginSum, "residual is D minus floored margins");
+        assertGe(paidOf(giver), 1, "giver allocation is always at least one unit");
+        assertGe(paidOf(giver), (D * claim) / 10_000, "dust lands on the giver, never below the floored share");
     }
 
     /*──────────────── duplicate shakers aggregate ────────────────*/
@@ -173,9 +208,11 @@ contract AHandConservationTest is AHandTestBase {
         settle(h, r);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        assertEq(claimOf(shakerA), 13_500_000, "one entry, both margins");
-        assertEq(claimOf(giver), 76_500_000);
-        assertEq(claimOf(charity) + claimOf(shakerA) + claimOf(giver), uint256(DEPOSIT), "conserved");
+        // Duplicate shaker: both margins are pushed to the same wallet, so the
+        // summed balance delta equals the aggregate (9.0 + 4.5 = 13.5).
+        assertEq(paidOf(shakerA), 13_500_000, "one wallet, both margins pushed");
+        assertEq(paidOf(giver), 76_500_000);
+        assertEq(paidOf(charity) + paidOf(shakerA) + paidOf(giver), uint256(DEPOSIT), "conserved");
 
         // Per-occurrence events survive aggregation: two ShakerMargin
         // allocations to the same beneficiary at positions 0 and 1.
@@ -192,9 +229,9 @@ contract AHandConservationTest is AHandTestBase {
         }
         assertEq(marginEvents, 2, "one event per occurrence");
 
-        // Single withdrawal drains the aggregate.
+        // Both occurrences were pushed straight through: no claim to withdraw.
+        assertEq(claimOf(shakerA), 0, "aggregate delivered, not deferred");
+        vm.expectRevert(ZeroClaim.selector);
         core.withdraw(address(usd), shakerA);
-        assertEq(usd.balanceOf(shakerA), 13_500_000);
-        assertEq(claimOf(shakerA), 0);
     }
 }

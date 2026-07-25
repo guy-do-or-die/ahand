@@ -267,6 +267,91 @@ contract AHandTestBase is Test {
         g = settle(handId, r);
     }
 
+    /*//////////////////// settle against a secondary Core ////////////////////*/
+
+    /// @dev settleSimple, but bound to an arbitrary Core `c` (e.g. a BlacklistToken
+    ///      core used to force a deferral). Every artifact is signed under `c`'s own
+    ///      domain separator and handRef, since those key on the core's address.
+    ///      One zero-margin self hop E0 -> E1; the giver takes the whole distributable.
+    function settleSimpleOn(AHandCore c, uint256 handId) internal {
+        RouteBuild memory r = newRoute(); // tail E0, claim 10000
+        _addSelfHopOn(c, r, handId, E1, 10_000);
+
+        bytes32 ds = c.DOMAIN_SEPARATOR();
+        Give memory g = Give({
+            handId: handId,
+            routeHash: AHandSig.hashRoute(AHandSig.handRef(address(c), handId), _shakeHashesOf(r)),
+            giver: giver,
+            solutionHash: keccak256("solution"),
+            finalClaimBps: r.claim,
+            deadline: defaultDeadline()
+        });
+        bytes memory giveSig = _sign(r.parentPk, ds, AHandSig.hashGive(g));
+        bytes memory giverAcc = _sign(GIVER_PK, ds, AHandSig.hashGiverAcceptance(AHandSig.hashGive(g)));
+
+        vm.prank(raiser);
+        c.thank(handId, r.shakes, r.sigs, r.acceptances, g, giveSig, giverAcc);
+    }
+
+    /// @dev addSelfHop, signed under Core `c`'s domain instead of the primary core's.
+    function _addSelfHopOn(AHandCore c, RouteBuild memory r, uint256 handId, uint256 childPk, uint16 childClaim)
+        internal
+        view
+    {
+        Shake memory s = Shake({
+            handId: handId,
+            childCapability: vm.addr(childPk),
+            shaker: vm.addr(r.parentPk), // self-attributed: no acceptance bytes
+            parentClaimBps: r.claim,
+            childClaimBps: childClaim,
+            hopDataHash: bytes32(0),
+            deadline: defaultDeadline()
+        });
+        bytes32 shakeHash = AHandSig.hashShake(s);
+        r.shakes = _pushShake(r.shakes, s);
+        r.sigs = _pushBytes(r.sigs, _sign(r.parentPk, c.DOMAIN_SEPARATOR(), shakeHash));
+        r.acceptances = _pushBytes(r.acceptances, "");
+        r.parentPk = childPk;
+        r.claim = childClaim;
+    }
+
+    function _sign(uint256 pk, bytes32 ds, bytes32 structHash) internal pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, AHandSig.digest(ds, structHash));
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _shakeHashesOf(RouteBuild memory r) internal pure returns (bytes32[] memory hashes) {
+        hashes = new bytes32[](r.shakes.length);
+        for (uint256 i; i < r.shakes.length; ++i) hashes[i] = AHandSig.hashShake(r.shakes[i]);
+    }
+
+    /*//////////////////// payout accounting ////////////////////*/
+
+    /// @dev Hybrid settlement pushes each allocation straight to the beneficiary's
+    ///      wallet (MockUSD never defers). These helpers read where the value now
+    ///      lands — the recipient's token balance — instead of the claims ledger.
+
+    /// @dev Live reward-token balance of an account.
+    function usdBalanceOf(address who) internal view returns (uint256) {
+        return usd.balanceOf(who);
+    }
+
+    /// @dev Snapshot balances of a set of accounts, run `body`, and return the
+    ///      per-account deltas. Callers use it to assert exact pushed amounts.
+    ///      (Unused-by-default convenience; suites mostly snapshot inline.)
+    struct BalSnap {
+        address who;
+        uint256 before;
+    }
+
+    function snap(address who) internal view returns (BalSnap memory) {
+        return BalSnap({who: who, before: usd.balanceOf(who)});
+    }
+
+    function delta(BalSnap memory s) internal view returns (uint256) {
+        return usd.balanceOf(s.who) - s.before;
+    }
+
     /*//////////////////// small utilities ////////////////////*/
 
     function defaultDeadline() internal view returns (uint40) {

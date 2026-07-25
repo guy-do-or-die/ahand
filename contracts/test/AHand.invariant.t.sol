@@ -80,9 +80,10 @@ contract AHandInvariantHandler is AHandTestBase {
     mapping(address => uint256) public ghostClaims; // mirror of claims[usd][b]
     address[] public beneficiaries;                 // every account ever credited
     mapping(address => bool) internal isBeneficiary;
-    uint256 public ghostOutstanding;     // sum over ghostClaims
+    uint256 public ghostOutstanding;     // sum over ghostClaims (DEFERRED only)
     uint256 public ghostDeposited;       // total pulled in via raise
     uint256 public ghostWithdrawnTotal;  // total paid out via withdraw
+    uint256 public ghostDistributedOut;  // total PUSHED out of the contract at settlement/reclaim
     uint256 public ghostJunk;            // force-sent tokens (donateJunk)
 
     /*//////////////////// Ghosts — settlement facts (Signals replay) ////////////////////*/
@@ -155,13 +156,29 @@ contract AHandInvariantHandler is AHandTestBase {
         transitions.push(Transition({handId: handId, from: from, to: to}));
     }
 
-    function _credit(address beneficiary, uint256 amount) internal {
-        ghostClaims[beneficiary] += amount;
-        ghostOutstanding += amount;
+    function _track(address beneficiary) internal {
         if (!isBeneficiary[beneficiary]) {
             isBeneficiary[beneficiary] = true;
             beneficiaries.push(beneficiary);
         }
+    }
+
+    /// @dev A DEFERRED allocation: the push failed and the amount parked as a
+    ///      withdrawable claim. With MockUSD this path is never taken (every
+    ///      push succeeds), but it is kept exact for a blacklist campaign.
+    function _credit(address beneficiary, uint256 amount) internal {
+        ghostClaims[beneficiary] += amount;
+        ghostOutstanding += amount;
+        _track(beneficiary);
+    }
+
+    /// @dev A PUSHED allocation: value left the contract straight to the
+    ///      recipient. It never enters the claims ledger; the flow identity
+    ///      accounts for it via ghostDistributedOut. On MockUSD the recipient is
+    ///      an EOA or a plain-holding account, so transfer always succeeds.
+    function _distribute(address beneficiary, uint256 amount) internal {
+        ghostDistributedOut += amount;
+        _track(beneficiary); // so the invariant still asserts claims==0 for it
     }
 
     function _removeActive(uint256 index) internal {
@@ -261,11 +278,14 @@ contract AHandInvariantHandler is AHandTestBase {
         }
         uint96 giverAlloc = distributable - marginTotal;
 
-        _credit(h.charityRecipient, charityAlloc);
+        // Hybrid push: MockUSD never defers, so every allocation leaves the
+        // contract straight to the recipient — tracked as distributed-out, not
+        // as a claim. Same floor math, different destination.
+        _distribute(h.charityRecipient, charityAlloc);
         for (uint256 i; i < hops; ++i) {
-            if (hopAllocs[i] != 0) _credit(r.shakes[i].shaker, hopAllocs[i]);
+            if (hopAllocs[i] != 0) _distribute(r.shakes[i].shaker, hopAllocs[i]);
         }
-        _credit(giverAddr, giverAlloc);
+        _distribute(giverAddr, giverAlloc);
 
         _removeActive(index);
         settledHands.push(handId);
@@ -292,7 +312,8 @@ contract AHandInvariantHandler is AHandTestBase {
 
         core.reclaim(handId); // permissionless — the handler itself finalizes
 
-        _credit(h.raiser, h.creditedReward); // full refund, zero charity cut
+        // Full refund is PUSHED to the raiser (MockUSD never defers).
+        _distribute(h.raiser, h.creditedReward); // zero charity cut on reclaim
         _removeActive(index);
         _transition(handId, Status.Active, Status.Reclaimed);
     }
@@ -485,10 +506,13 @@ contract AHandInvariantTest is Test {
             activeSum + claimSum + handler.ghostJunk(),
             "strict conservation broken: balance != active escrow + claims + junk"
         );
+        // Flow identity under hybrid push: value leaves the contract two ways —
+        // pushed directly to recipients at settlement/reclaim (distributedOut)
+        // and drained from deferred claims via withdraw (withdrawn).
         assertEq(
             handler.ghostDeposited() + handler.ghostJunk(),
-            usd.balanceOf(address(core)) + handler.ghostWithdrawnTotal(),
-            "flow identity broken: deposits + junk != balance + withdrawals"
+            usd.balanceOf(address(core)) + handler.ghostDistributedOut() + handler.ghostWithdrawnTotal(),
+            "flow identity broken: deposits + junk != balance + distributed + withdrawals"
         );
     }
 

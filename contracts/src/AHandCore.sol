@@ -29,6 +29,10 @@ contract AHandCore is IAHandCoreView {
     ///      14 verifications (6 shakes + 6 acceptances + give + giver acceptance)
     ///      x 350k ~= 4.9M gas ceiling — acceptable on Base.
     uint256 public constant ERC1271_GAS       = 350_000;
+    /// @dev Gas forwarded to each settlement push. Enough for USDC's transfer
+    ///      (proxy delegatecall + blacklist check + balance writes, ~65k), bounded
+    ///      so a pathological recipient can waste at most this before we defer.
+    uint256 public constant PUSH_GAS_STIPEND  = 120_000;
 
     /// @dev The ERC-1271 selector doubles as the required magic return value.
     bytes4 private constant ERC1271_MAGIC = 0x1626ba7e; // isValidSignature(bytes32,bytes)
@@ -118,6 +122,12 @@ contract AHandCore is IAHandCoreView {
         uint8   routePosition,
         uint96  amount
     );
+
+    /// @dev A settlement allocation delivered straight to the beneficiary's wallet.
+    event PayoutPushed(uint256 indexed handId, address indexed token, address indexed beneficiary, uint96 amount);
+    /// @dev A settlement allocation the push could not deliver (e.g. a blacklisted
+    ///      or reverting recipient); parked as a claim, withdrawable by anyone.
+    event PayoutDeferred(uint256 indexed handId, address indexed token, address indexed beneficiary, uint96 amount);
 
     event PayoutWithdrawn(address indexed token, address indexed beneficiary, uint256 amount);
 
@@ -315,8 +325,9 @@ contract AHandCore is IAHandCoreView {
 
     /*//////////////////////////////////////////////////////////
         thank — success settlement. Three phases:
-        A verification (staticcalls only), B floor math, C effects+events.
-        NO external calls after phase A; funds move only via withdraw.
+        A verification (staticcalls only), B floor math, C effects then
+        interactions. Allocations are pushed to recipients directly; any push
+        that fails defers only that share to a withdrawable claim.
     //////////////////////////////////////////////////////////*/
     /// @param shakerAcceptances Positional with shakes: entry i is the ShakerAcceptance
     ///        signature for hop i when the shaker is an explicit distinct account,
@@ -348,14 +359,15 @@ contract AHandCore is IAHandCoreView {
         address token = h.rewardToken;
         address raiser = h.raiser;
         uint96 refund = h.creditedReward;
-        claims[token][raiser] += refund;
 
         emit Reclaimed(handId, raiser, token, refund);
         emit PayoutAllocated(handId, token, raiser, AllocationKind.RaiserRefund, 0, refund);
+        _pay(handId, token, raiser, refund); // push the refund; defers to a claim on failure
     }
 
     /*//////////////////////////////////////////////////////////
-        withdraw — the ONLY exit for value. Permissionless with a fixed
+        withdraw — the exit for DEFERRED value: allocations a settlement push
+        could not deliver land as claims here. Permissionless with a fixed
         destination: anyone can pay the gas, nobody can redirect the funds.
         No tokenEnabled gate — accrued claims survive policy changes.
     //////////////////////////////////////////////////////////*/
@@ -428,17 +440,13 @@ contract AHandCore is IAHandCoreView {
             r.giverAllocation = r.distributable - marginTotal;
         }
 
-        // Phase C — effects + events. NO external calls.
+        // Phase C — effects, then interactions (checks-effects-interactions).
+        // ALL state is finalized before any token transfer, and the whole
+        // function is nonReentrant, so the stipended pushes below cannot
+        // observe or corrupt a half-settled hand.
         h.status = Status.Settled; // creditedReward stays intact — Signals rereads it
 
         address token = h.rewardToken;
-        claims[token][h.charityRecipient] += r.charityAllocation;
-        for (uint256 i; i < shakes.length; ++i) {
-            if (r.hopAllocations[i] != 0) {
-                claims[token][shakes[i].shaker] += r.hopAllocations[i];
-            }
-        }
-        claims[token][give.giver] += r.giverAllocation;
 
         // Commit the settlement facts Signals later verifies against.
         h.thankSignalSourceHash = AHandSource.thankCommitment(
@@ -496,6 +504,41 @@ contract AHandCore is IAHandCoreView {
             }
         }
         emit PayoutAllocated(handId, token, give.giver, AllocationKind.GiverResidual, 0, r.giverAllocation);
+
+        // Interactions — deliver each allocation. A recipient that reverts
+        // (blacklist, hostile contract) only defers ITS OWN share to a claim;
+        // every other payout still lands in the same transaction.
+        _pay(handId, token, h.charityRecipient, r.charityAllocation);
+        for (uint256 i; i < shakes.length; ++i) {
+            if (r.hopAllocations[i] != 0) {
+                _pay(handId, token, shakes[i].shaker, r.hopAllocations[i]);
+            }
+        }
+        _pay(handId, token, give.giver, r.giverAllocation);
+    }
+
+    /// @dev Deliver a settlement allocation: try a gas-bounded push, and on any
+    ///      failure park the amount as a claim withdrawable by anyone. Amount is
+    ///      always non-zero at the call sites that matter, but guarded for safety.
+    function _pay(uint256 handId, address token, address to, uint96 amt) internal {
+        if (amt == 0) return;
+        if (_tryPush(token, to, amt)) {
+            emit PayoutPushed(handId, token, to, amt);
+        } else {
+            claims[token][to] += amt;
+            emit PayoutDeferred(handId, token, to, amt);
+        }
+    }
+
+    /// @dev Bounded-gas ERC20 transfer that never bubbles a revert. Returns true
+    ///      only on a call that succeeded AND returned either nothing or `true`
+    ///      (the SafeERC20 success shape, inlined so failure is catchable).
+    function _tryPush(address token, address to, uint96 amt) internal returns (bool ok) {
+        bytes memory cd = abi.encodeCall(IERC20.transfer, (to, amt));
+        assembly ("memory-safe") {
+            let success := call(PUSH_GAS_STIPEND, token, 0, add(cd, 0x20), mload(cd), 0x00, 0x20)
+            ok := and(success, or(iszero(returndatasize()), and(gt(returndatasize(), 31), mload(0x00))))
+        }
     }
 
     /// @dev Walks the delegation chain from the root capability, verifying each

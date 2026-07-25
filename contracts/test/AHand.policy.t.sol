@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import "./AHandTestBase.sol";
+import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 
 /*//////////////////////////////////////////////////////////////
         SUITE: policy — bounded admin, prospective-only
@@ -26,9 +27,10 @@ contract AHandPolicyTest is AHandTestBase {
         vm.prank(policyAdmin);
         core.setTokenEnabled(false);
 
+        uint256 giverBefore = usd.balanceOf(giver);
         settleSimple(h);
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled));
-        assertEq(core.claims(address(usd), giver), 90e6, "residual credited under disabled policy");
+        assertEq(usd.balanceOf(giver) - giverBefore, 90e6, "residual pushed under disabled policy");
     }
 
     function test_DisableToken_ExistingHandStillReclaims() public {
@@ -36,21 +38,41 @@ contract AHandPolicyTest is AHandTestBase {
         vm.prank(policyAdmin);
         core.setTokenEnabled(false);
 
+        uint256 raiserBefore = usd.balanceOf(raiser);
         vm.warp(core.getHand(h).expiry);
         core.reclaim(h);
-        assertEq(core.claims(address(usd), raiser), DEPOSIT, "refund credited under disabled policy");
+        assertEq(usd.balanceOf(raiser) - raiserBefore, DEPOSIT, "refund pushed under disabled policy");
     }
 
     /// Withdraw has no tokenEnabled check at all — the full escrow exit
-    /// survives any policy posture. (Deeper coverage in the withdraw suite.)
+    /// survives any policy posture. A normal settlement now pushes straight
+    /// through, so to leave a withdrawable claim we force a deferral by
+    /// blacklisting the charity recipient, then disable the token and confirm
+    /// the deferred claim still exits. (Deeper coverage in the withdraw suite.)
     function test_DisableToken_WithdrawUnaffected() public {
-        uint256 h = makeRaise();
-        settleSimple(h);
-        vm.prank(policyAdmin);
-        core.setTokenEnabled(false);
+        BlacklistToken bl = new BlacklistToken();
+        AHandCore blCore = deployCore(address(bl));
+        bl.mint(raiser, 1_000e6);
+        vm.prank(raiser);
+        bl.approve(address(blCore), type(uint256).max);
 
-        core.withdraw(address(usd), charity);
-        assertEq(usd.balanceOf(charity), 10e6);
+        RaiseParams memory p = defaultParams();
+        p.token = address(bl);
+        vm.prank(raiser);
+        uint256 h = blCore.raise(p, DEFAULT_REF, noTags());
+
+        // Block the charity so its share defers to a claim on settlement.
+        bl.setBlocked(charity, true);
+        settleSimpleOn(blCore, h);
+        assertEq(blCore.claims(address(bl), charity), 10e6, "charity share deferred to a claim");
+
+        // Disabling the token must not trap the accrued claim.
+        vm.prank(policyAdmin);
+        blCore.setTokenEnabled(false);
+
+        bl.setBlocked(charity, false);
+        blCore.withdraw(address(bl), charity);
+        assertEq(bl.balanceOf(charity), 10e6);
     }
 
     function test_ReenableToken_RaiseWorksAgain() public {
@@ -76,8 +98,9 @@ contract AHandPolicyTest is AHandTestBase {
         vm.prank(policyAdmin);
         core.setCharityAllowed(charity, false);
 
+        uint256 charityBefore = usd.balanceOf(charity);
         settleSimple(h);
-        assertEq(core.claims(address(usd), charity), 10e6, "snapshot beats allowlist");
+        assertEq(usd.balanceOf(charity) - charityBefore, 10e6, "snapshot beats allowlist");
     }
 
     function test_AllowNewCharity_RaiseAccepts() public {

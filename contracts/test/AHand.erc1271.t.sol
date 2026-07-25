@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 
 import "./AHandTestBase.sol";
 import {console2} from "forge-std/console2.sol";
+import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {
     SmartWallet1271,
     GasBomb1271,
@@ -157,8 +158,8 @@ contract AHandERC1271Test is AHandTestBase {
         doThank(h, r, g, gs, signGiverAcceptance(GIVER_PK, g));
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled), "smart-wallet hop settles");
-        assertEq(core.claims(address(usd), charity), 10e6, "charity 10%");
-        assertEq(core.claims(address(usd), giver), 90e6, "zero-margin route: giver takes D");
+        assertEq(usd.balanceOf(charity), 10e6, "charity 10% pushed");
+        assertEq(usd.balanceOf(giver), 90e6, "zero-margin route: giver takes D");
     }
 
     /// A SmartWallet1271 as the TERMINAL capability signing the Give via 1271.
@@ -175,12 +176,12 @@ contract AHandERC1271Test is AHandTestBase {
         doThank(h, r, g, gs, signGiverAcceptance(GIVER_PK, g));
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled), "1271 give signature settles");
-        assertEq(core.claims(address(usd), giver), 90e6, "giver residual intact");
+        assertEq(usd.balanceOf(giver), 90e6, "giver residual pushed");
     }
 
     /// A SmartWallet1271 as an explicit shaker: margin > 0, acceptance co-signed
-    /// by the wallet owner and validated via 1271. The wallet earns a real claim
-    /// and can be paid out through withdraw.
+    /// by the wallet owner and validated via 1271. A plain-holding contract takes
+    /// the push directly — its margin lands in its token balance in the same tx.
     function test_WalletShaker_Acceptance_Via1271() public {
         SmartWallet1271 shakerWallet = new SmartWallet1271(vm.addr(OWNER_A_PK));
         uint256 h = makeRaise();
@@ -189,12 +190,10 @@ contract AHandERC1271Test is AHandTestBase {
         addAddrHop(r, h, vm.addr(E1), E1, address(shakerWallet), OWNER_A_PK, 9_500); // 500 bps margin
         settle(h, r);
 
-        assertEq(core.claims(address(usd), address(shakerWallet)), 4_500_000, "500bps of D = 90e6");
-        assertEq(core.claims(address(usd), giver), 85_500_000, "giver residual");
-        assertEq(core.claims(address(usd), charity), 10e6, "charity 10%");
-
-        core.withdraw(address(usd), address(shakerWallet));
-        assertEq(usd.balanceOf(address(shakerWallet)), 4_500_000, "smart wallet actually gets paid");
+        assertEq(usd.balanceOf(address(shakerWallet)), 4_500_000, "500bps of D = 90e6, pushed");
+        assertEq(usd.balanceOf(giver), 85_500_000, "giver residual pushed");
+        assertEq(usd.balanceOf(charity), 10e6, "charity 10% pushed");
+        assertEq(core.claims(address(usd), address(shakerWallet)), 0, "successful push leaves no claim");
     }
 
     /// A SmartWallet1271 as the GIVER: GiverAcceptance validated via 1271.
@@ -208,7 +207,7 @@ contract AHandERC1271Test is AHandTestBase {
         doThank(h, r, g, gs, signGiverAcceptance(OWNER_B_PK, g));
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled));
-        assertEq(core.claims(address(usd), address(giverWallet)), 90e6, "residual to the wallet");
+        assertEq(usd.balanceOf(address(giverWallet)), 90e6, "residual pushed to the wallet");
     }
 
     /// Worst honest case: EVERY signer is a contract. 7 capability wallets
@@ -242,11 +241,11 @@ contract AHandERC1271Test is AHandTestBase {
         assertLt(used, 4_900_000, "honest wallets land far inside the 4.9M hostile ceiling");
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled));
-        assertEq(core.claims(address(usd), charity), 10e6, "charity 10%");
+        assertEq(usd.balanceOf(charity), 10e6, "charity 10% pushed");
         for (uint256 i; i < 6; ++i) {
-            assertEq(core.claims(address(usd), address(shakerWallets[i])), 4_500_000, "500bps hop margin");
+            assertEq(usd.balanceOf(address(shakerWallets[i])), 4_500_000, "500bps hop margin pushed");
         }
-        assertEq(core.claims(address(usd), address(giverWallet)), 63e6, "residual after 6 margins");
+        assertEq(usd.balanceOf(address(giverWallet)), 63e6, "residual after 6 margins pushed");
     }
 
     /*//////////////////////////////////////////////////////////
@@ -352,33 +351,61 @@ contract AHandERC1271Test is AHandTestBase {
     /// context makes the reentry revert inside the validator -> sig invalid,
     /// zero state change. The very same withdraw succeeds outside verification,
     /// proving static context (not anything else) is what blocked it.
+    ///
+    /// Hybrid settlement pushes straight through on MockUSD, so a normal thank
+    /// no longer leaves a withdrawable claim. To give the attacker a REAL claim
+    /// to target, this runs over a BlacklistToken core: blocking the charity
+    /// defers its cut into claims[bl][charity], the exact ledger entry the
+    /// reentrant withdraw tries (and fails) to drain.
     function test_ReentrantValidator_Blocked_NoStateChange() public {
-        // Fund a genuinely withdrawable claim the attacker will target.
-        uint256 h1 = makeRaise();
-        settleSimple(h1); // claims[usd][charity] = 10e6
+        BlacklistToken bl = new BlacklistToken();
+        AHandCore blCore = deployCore(address(bl));
+        bl.mint(raiser, 1_000e6);
+        vm.prank(raiser);
+        bl.approve(address(blCore), type(uint256).max);
 
-        Reentrant1271 attacker = new Reentrant1271(core, address(usd), charity);
-        uint256 h2 = makeRaise();
+        // Seed a genuine deferred claim: block the charity so its cut defers.
+        RaiseParams memory p1 = defaultParams();
+        p1.token = address(bl);
+        vm.prank(raiser);
+        uint256 h1 = blCore.raise(p1, DEFAULT_REF, noTags());
+        bl.setBlocked(charity, true);
+        settleSimpleOn(blCore, h1); // claims[bl][charity] = 10e6, deferred
+        assertEq(blCore.claims(address(bl), charity), 10e6, "deferred claim seeded");
 
+        Reentrant1271 attacker = new Reentrant1271(blCore, address(bl), charity);
+        vm.prank(raiser);
+        uint256 h2 = blCore.raise(p1, DEFAULT_REF, noTags());
+
+        // Build h2 artifacts under blCore's domain, terminal giver = the attacker.
         RouteBuild memory r = newRoute();
-        addSelfHop(r, h2, E1, 10_000);
-        (Give memory g, bytes memory gs) = buildGive(h2, r, address(attacker), defaultDeadline());
+        _addSelfHopOn(blCore, r, h2, E1, 10_000);
+        bytes32 ds = blCore.DOMAIN_SEPARATOR();
+        Give memory g = Give({
+            handId: h2,
+            routeHash: AHandSig.hashRoute(AHandSig.handRef(address(blCore), h2), _shakeHashesOf(r)),
+            giver: address(attacker),
+            solutionHash: keccak256("solution"),
+            finalClaimBps: r.claim,
+            deadline: defaultDeadline()
+        });
+        bytes memory gs = _sign(r.parentPk, ds, AHandSig.hashGive(g));
+        bytes memory ga = _sign(JUNK_PK, ds, AHandSig.hashGiverAcceptance(AHandSig.hashGive(g)));
 
-        uint256 coreBalBefore = usd.balanceOf(address(core));
-        thankRevertMeasured(GiverAcceptanceInvalid.selector, h2, r, g, gs, signGiverAcceptance(JUNK_PK, g));
+        uint256 coreBalBefore = bl.balanceOf(address(blCore));
+        vm.prank(raiser);
+        vm.expectRevert(GiverAcceptanceInvalid.selector);
+        blCore.thank(h2, r.shakes, r.sigs, r.acceptances, g, gs, ga);
 
-        assertEq(core.claims(address(usd), charity), 10e6, "targeted claim untouched");
-        assertEq(usd.balanceOf(address(core)), coreBalBefore, "no value left escrow");
-        assertEq(usd.balanceOf(charity), 0, "reentrant withdraw never executed");
-        assertEq(uint8(core.getHand(h2).status), uint8(Status.Active), "verification left no trace");
+        assertEq(blCore.claims(address(bl), charity), 10e6, "targeted claim untouched");
+        assertEq(bl.balanceOf(address(blCore)), coreBalBefore, "no value left escrow");
+        assertEq(uint8(blCore.getHand(h2).status), uint8(Status.Active), "verification left no trace");
 
-        // Control: the exact call the validator attempted is live outside static context.
-        core.withdraw(address(usd), charity);
-        assertEq(usd.balanceOf(charity), 10e6, "same call succeeds normally");
-
-        // And the hand remains honestly settleable after the attack.
-        settle(h2, r);
-        assertEq(uint8(core.getHand(h2).status), uint8(Status.Settled));
+        // Control: the exact call the validator attempted is live outside static
+        // context — unblock first so the deferred claim can finally exit.
+        bl.setBlocked(charity, false);
+        blCore.withdraw(address(bl), charity);
+        assertEq(bl.balanceOf(charity), 10e6, "same call succeeds normally");
     }
 
     /*//////////////////////////////////////////////////////////
@@ -469,8 +496,8 @@ contract AHandERC1271Test is AHandTestBase {
         settle(h, r);
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled), "empty acceptance validated by code");
-        assertEq(core.claims(address(usd), address(acceptor)), 4_500_000, "margin credited to the contract");
-        assertEq(core.claims(address(usd), giver), 85_500_000, "giver residual");
+        assertEq(usd.balanceOf(address(acceptor)), 4_500_000, "margin pushed to the contract");
+        assertEq(usd.balanceOf(giver), 85_500_000, "giver residual pushed");
     }
 
     /*//////////////////// key derivation for the smart route ////////////////////*/

@@ -25,6 +25,13 @@ contract AHandAttacksTest is AHandTestBase {
         return core.claims(address(usd), a);
     }
 
+    /// @dev Where settled value now lands: a residual/margin captured by an
+    ///      address is a push to its wallet, not a claims entry (MockUSD never
+    ///      defers). Same amounts as the pre-hybrid claims, different destination.
+    function paidOf(address a) internal view returns (uint256) {
+        return usd.balanceOf(a);
+    }
+
     /// Canonical honest chain: root E0 -> E1 (shaker A, margin 10%)
     /// -> E2 (shaker B, margin 5%), terminal claim 85%.
     function honestChain(uint256 h) internal view returns (RouteBuild memory r) {
@@ -85,9 +92,10 @@ contract AHandAttacksTest is AHandTestBase {
         addExplicitHop(cut, h, E1, shakerA, SHAKER_A_PK, 9_000);
         // buildGive signs with the route tail — E1, the leaked key.
         (Give memory g, bytes memory gs) = buildGive(h, cut, thief, defaultDeadline());
+        uint256 thiefBefore = usd.balanceOf(thief);
         doThank(h, cut, g, gs, signGiverAcceptance(THIEF_PK, g));
 
-        assertEq(claimOf(thief), 81e6, "leaked key captures the tail residual");
+        assertEq(usd.balanceOf(thief) - thiefBefore, 81e6, "leaked key captures the tail residual");
     }
 
     /// (c) Personal-capability anchor: when a hop's child capability is the
@@ -114,8 +122,9 @@ contract AHandAttacksTest is AHandTestBase {
 
         // Only the anchored wallet itself continues: giver == terminal capability.
         (Give memory g, bytes memory gs) = buildGive(h, r, giver, defaultDeadline());
+        uint256 giverBefore = usd.balanceOf(giver);
         doThank(h, r, g, gs, signGiverAcceptance(GIVER_PK, g));
-        assertEq(claimOf(giver), 72e6, "personal anchor passes for its owner");
+        assertEq(usd.balanceOf(giver) - giverBefore, 72e6, "personal anchor passes for its owner");
     }
 
     /*──────────────── route validity ────────────────*/
@@ -271,41 +280,60 @@ contract AHandAttacksTest is AHandTestBase {
 
     /*──────────────── escrow bookkeeping ────────────────*/
 
-    /// Settling one hand moves nothing for any other: pull payments leave the
-    /// escrow untouched and the sibling hand fully reclaimable.
+    /// Settling one hand touches only that hand's escrow: h1's distributed value
+    /// leaves the contract (pushed to recipients), while the sibling h2 stays
+    /// fully escrowed and reclaimable. Isolation now shows as a bounded balance
+    /// drop, not an untouched balance.
     function test_EscrowIsolation() public {
         uint256 h1 = makeRaise();
         uint256 h2 = makeRaise();
+
+        uint256 charityBefore = usd.balanceOf(charity);
+        uint256 giverBefore = usd.balanceOf(giver);
         settleSimple(h1);
 
         Hand memory hand2 = core.getHand(h2);
         assertEq(uint8(hand2.status), uint8(Status.Active), "sibling untouched");
         assertEq(hand2.creditedReward, DEPOSIT, "sibling snapshot intact");
-        assertEq(usd.balanceOf(address(core)), 2 * uint256(DEPOSIT), "no value leaves at settlement");
-        assertEq(claimOf(charity) + claimOf(giver), uint256(DEPOSIT), "claims cover h1 only");
+        // h1's pool left the contract; only h2's escrow remains.
+        assertEq(usd.balanceOf(address(core)), uint256(DEPOSIT), "only the sibling's escrow remains");
+        assertEq(
+            (usd.balanceOf(charity) - charityBefore) + (usd.balanceOf(giver) - giverBefore),
+            uint256(DEPOSIT),
+            "h1's pool was distributed to its recipients"
+        );
 
+        uint256 raiserBefore = usd.balanceOf(raiser);
         vm.warp(hand2.expiry);
         core.reclaim(h2);
-        assertEq(claimOf(raiser), DEPOSIT, "sibling reclaims its full pool");
+        assertEq(usd.balanceOf(raiser) - raiserBefore, DEPOSIT, "sibling reclaims its full pool");
+        assertEq(usd.balanceOf(address(core)), 0, "escrow fully drained");
     }
 
-    /// Force-sent tokens are ghost balance: they change no hand, join no
-    /// pool, and withdraw pays exactly the credited claims around them.
+    /// Force-sent tokens are ghost balance: they change no hand, join no pool,
+    /// and cannot be swept. Settlement pushed the pool straight to recipients,
+    /// so after distribution only the stranded junk remains in the contract.
     function test_ForceSend_Bookkeeping() public {
         uint256 h = makeRaise();
+        uint256 giverBefore = usd.balanceOf(giver);
+        uint256 charityBefore = usd.balanceOf(charity);
         settleSimple(h);
         usd.mint(address(core), 500e6); // force-send analog
 
         assertEq(core.getHand(h).creditedReward, DEPOSIT, "snapshot unaffected");
 
-        core.withdraw(address(usd), giver);
-        assertEq(usd.balanceOf(giver), 90e6, "exact claim, no ghost leakage");
-        core.withdraw(address(usd), charity);
-        assertEq(usd.balanceOf(charity), 10e6);
+        // The pool was delivered by push, not parked as claims.
+        assertEq(usd.balanceOf(giver) - giverBefore, 90e6, "giver paid exactly, no ghost leakage");
+        assertEq(usd.balanceOf(charity) - charityBefore, 10e6, "charity paid exactly");
+        assertEq(claimOf(giver), 0, "no claim to sweep");
+        assertEq(claimOf(charity), 0, "no claim to sweep");
 
+        // The junk is unreachable: no claim keys to it, withdraw finds nothing.
         assertEq(usd.balanceOf(address(core)), 500e6, "ghost stays stranded");
         vm.expectRevert(ZeroClaim.selector);
-        core.withdraw(address(usd), giver); // nothing re-credited
+        core.withdraw(address(usd), giver);
+        vm.expectRevert(ZeroClaim.selector);
+        core.withdraw(address(usd), charity);
     }
 
     /*──────────────── self-insertion coalition ────────────────*/
@@ -320,21 +348,24 @@ contract AHandAttacksTest is AHandTestBase {
         uint256 h1 = makeRaise();
         uint256 h2 = makeRaise();
 
-        // Honest: root -> E1 (shaker A, 10%), giver claims 90%.
+        // Honest: root -> E1 (shaker A, 10%), giver claims 90%. Value is pushed
+        // to the giver's wallet, so the honest baseline is a balance delta.
         RouteBuild memory r1 = newRoute();
         addExplicitHop(r1, h1, E1, shakerA, SHAKER_A_PK, 9_000);
+        uint256 giverPreHonest = usd.balanceOf(giver);
         settle(h1, r1);
-        uint256 honest = claimOf(giver);
+        uint256 honest = usd.balanceOf(giver) - giverPreHonest;
 
         // Coalition: same head, then a sybil hop E1 -> E3 carving `split`
-        // out of the giver's own claim. Sybil margin lands on vm.addr(E1).
+        // out of the giver's own claim. Sybil margin is pushed to vm.addr(E1).
         RouteBuild memory r2 = newRoute();
         addExplicitHop(r2, h2, E1, shakerA, SHAKER_A_PK, 9_000);
         addSelfHop(r2, h2, E3, 9_000 - split);
-        uint256 giverBefore = claimOf(giver);
+        uint256 giverBefore = usd.balanceOf(giver);
+        uint256 sybilBefore = usd.balanceOf(vm.addr(E1));
         settle(h2, r2);
-        uint256 giverPart = claimOf(giver) - giverBefore;
-        uint256 coalition = giverPart + claimOf(vm.addr(E1));
+        uint256 giverPart = usd.balanceOf(giver) - giverBefore;
+        uint256 coalition = giverPart + (usd.balanceOf(vm.addr(E1)) - sybilBefore);
 
         assertLe(coalition, honest, "self-insertion never beats the honest route");
 

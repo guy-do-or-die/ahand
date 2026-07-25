@@ -16,6 +16,8 @@ contract AHandWindowsTest is AHandTestBase {
     /// matrix lives elsewhere — this is the base-fixture smoke.
     function test_Smoke_SimpleThank_SelfHop() public {
         uint256 h = makeRaise();
+        uint256 charityBefore = usd.balanceOf(charity);
+        uint256 giverBefore = usd.balanceOf(giver);
         settleSimple(h);
 
         Hand memory hand = core.getHand(h);
@@ -23,13 +25,14 @@ contract AHandWindowsTest is AHandTestBase {
         assertEq(hand.creditedReward, DEPOSIT, "snapshot never zeroed");
         assertTrue(hand.thankSignalSourceHash != bytes32(0), "commitment stored");
 
-        assertEq(core.claims(address(usd), charity), 10e6, "charity 10%");
-        assertEq(core.claims(address(usd), giver), 90e6, "giver residual");
-        assertEq(
-            core.claims(address(usd), charity) + core.claims(address(usd), giver),
-            uint256(DEPOSIT),
-            "claims conserve the pool"
-        );
+        // Hybrid push: allocations land directly in recipient wallets.
+        uint256 charityPaid = usd.balanceOf(charity) - charityBefore;
+        uint256 giverPaid = usd.balanceOf(giver) - giverBefore;
+        assertEq(charityPaid, 10e6, "charity 10% pushed");
+        assertEq(giverPaid, 90e6, "giver residual pushed");
+        assertEq(charityPaid + giverPaid, uint256(DEPOSIT), "pushes conserve the pool");
+        assertEq(core.claims(address(usd), charity), 0, "successful push leaves no claim");
+        assertEq(core.claims(address(usd), giver), 0, "successful push leaves no claim");
     }
 
     /*──────────────── thank window: strictly before expiry ────────────────*/
@@ -96,27 +99,34 @@ contract AHandWindowsTest is AHandTestBase {
         uint256 h = makeRaise();
         vm.warp(core.getHand(h).expiry);
 
+        uint256 raiserBefore = usd.balanceOf(raiser);
         vm.expectEmit();
         emit AHandCore.Reclaimed(h, raiser, address(usd), DEPOSIT);
         vm.expectEmit();
         emit AHandCore.PayoutAllocated(h, address(usd), raiser, AllocationKind.RaiserRefund, 0, DEPOSIT);
+        vm.expectEmit();
+        emit AHandCore.PayoutPushed(h, address(usd), raiser, DEPOSIT);
         vm.prank(stranger);
         core.reclaim(h);
 
-        assertEq(core.claims(address(usd), raiser), DEPOSIT, "refund to raiser, not caller");
-        assertEq(core.claims(address(usd), stranger), 0, "caller earns nothing");
+        // Refund is pushed to the raiser's wallet, never the caller's.
+        assertEq(usd.balanceOf(raiser) - raiserBefore, DEPOSIT, "refund to raiser, not caller");
+        assertEq(core.claims(address(usd), raiser), 0, "successful push leaves no claim");
+        assertEq(usd.balanceOf(stranger), 0, "caller earns nothing");
     }
 
     /// Success-only charity: expiry refunds the FULL pool, zero charity cut,
     /// and the Hand keeps its snapshot with no signal commitment.
     function test_Reclaim_FullRefund_ZeroCharity() public {
         uint256 h = makeRaise();
+        uint256 raiserBefore = usd.balanceOf(raiser);
         vm.warp(core.getHand(h).expiry + 7 days);
         core.reclaim(h);
 
         Hand memory hand = core.getHand(h);
-        assertEq(core.claims(address(usd), raiser), hand.creditedReward, "claims[usd][raiser] == credited");
-        assertEq(core.claims(address(usd), charity), 0, "zero charity on reclaim");
+        assertEq(usd.balanceOf(raiser) - raiserBefore, hand.creditedReward, "full pool pushed to raiser");
+        assertEq(core.claims(address(usd), raiser), 0, "successful push leaves no claim");
+        assertEq(usd.balanceOf(charity), 0, "zero charity on reclaim");
         assertEq(hand.creditedReward, DEPOSIT, "snapshot intact");
         assertEq(hand.thankSignalSourceHash, bytes32(0), "stays zero on Reclaim");
     }

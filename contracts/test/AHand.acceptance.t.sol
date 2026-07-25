@@ -18,6 +18,13 @@ contract AHandAcceptanceTest is AHandTestBase {
         return core.claims(address(usd), a);
     }
 
+    /// @dev Hybrid settlement pushes each allocation to the beneficiary's wallet
+    ///      (MockUSD never defers), so happy-path attribution now reads the
+    ///      recipient's balance — same amounts, delivered instead of parked.
+    function paidOf(address a) internal view returns (uint256) {
+        return usd.balanceOf(a);
+    }
+
     /// @dev Route with a single default hop E0 -> E1 built by the caller,
     ///      settled to the default giver. Wraps the boilerplate around
     ///      per-test acceptance mutations.
@@ -40,7 +47,7 @@ contract AHandAcceptanceTest is AHandTestBase {
 
         assertEq(uint8(core.getHand(h).status), uint8(Status.Settled));
         assertEq(claimOf(address(0)), 0, "nothing ever credited to zero");
-        assertEq(claimOf(giver), 90e6, "full distributable to giver");
+        assertEq(paidOf(giver), 90e6, "full distributable to giver");
     }
 
     /// A paid hop must have a payable, attributed shaker.
@@ -71,8 +78,8 @@ contract AHandAcceptanceTest is AHandTestBase {
         addSelfHop(r, h, E1, 9_000); // shaker = vm.addr(E0), margin 10%
         settle(h, r);
 
-        assertEq(claimOf(vm.addr(E0)), 9e6, "margin to the self-attributed capability");
-        assertEq(claimOf(giver), 81e6, "giver residual");
+        assertEq(paidOf(vm.addr(E0)), 9e6, "margin to the self-attributed capability");
+        assertEq(paidOf(giver), 81e6, "giver residual");
     }
 
     /// Even a technically VALID acceptance signature is rejected on a self
@@ -97,7 +104,7 @@ contract AHandAcceptanceTest is AHandTestBase {
         RouteBuild memory ok = newRoute();
         addHop(ok, h, E1, vm.addr(E1), E1, 9_000, defaultDeadline()); // child co-signs
         settle(h, ok);
-        assertEq(claimOf(vm.addr(E1)), 9e6, "margin to the consenting child account");
+        assertEq(paidOf(vm.addr(E1)), 9e6, "margin to the consenting child account");
     }
 
     /*──────────────── explicit: distinct shaker must co-sign ────────────────*/
@@ -108,8 +115,8 @@ contract AHandAcceptanceTest is AHandTestBase {
         addExplicitHop(r, h, E1, shakerA, SHAKER_A_PK, 9_000);
         settle(h, r);
 
-        assertEq(claimOf(shakerA), 9e6, "margin to the consenting shaker");
-        assertEq(claimOf(giver), 81e6);
+        assertEq(paidOf(shakerA), 9e6, "margin to the consenting shaker");
+        assertEq(paidOf(giver), 81e6);
     }
 
     /// Attribution is consensual even when unpaid: a zero-margin explicit
@@ -120,8 +127,8 @@ contract AHandAcceptanceTest is AHandTestBase {
         addExplicitHop(r, h, E1, shakerA, SHAKER_A_PK, 10_000);
         settle(h, r);
 
-        assertEq(claimOf(shakerA), 0, "attributed but unpaid");
-        assertEq(claimOf(giver), 90e6);
+        assertEq(paidOf(shakerA), 0, "attributed but unpaid");
+        assertEq(paidOf(giver), 90e6);
     }
 
     function test_Explicit_ZeroMargin_MissingAcceptance_Reverts() public {
@@ -275,7 +282,7 @@ contract AHandAcceptanceTest is AHandTestBase {
         bytes memory ga = signGiverAcceptance(E0, g); // same key signs Give AND acceptance
         doThank(h, r, g, gs, ga);
 
-        assertEq(claimOf(vm.addr(E0)), 90e6, "residual to the capability-giver");
+        assertEq(paidOf(vm.addr(E0)), 90e6, "residual to the capability-giver");
     }
 
     /*──────────────── margin flooring ────────────────*/
