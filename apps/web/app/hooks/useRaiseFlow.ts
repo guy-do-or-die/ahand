@@ -22,6 +22,8 @@ export interface RaiseDraftPreview {
   title: string;
   /** Codec-derived teaser (envelope.preview.teaser) */
   teaser?: string;
+  /** The draft envelope itself — feeds /api/og for a pixel-exact card preview. */
+  envelopeB64: string;
   /** Length of the actually assembled root link for the current draft. */
   linkLength: number;
   /** floor((4096 − len(rootLink)) / CHARS_PER_HOP) */
@@ -99,6 +101,7 @@ export function useRaiseFlow() {
           setDraft({
             title: envelope.preview.title,
             teaser: envelope.preview.teaser,
+            envelopeB64: metadata.envelopeB64,
             linkLength: url.length,
             hops: Math.max(0, Math.floor((4096 - url.length) / CHARS_PER_HOP)),
           });
@@ -229,7 +232,15 @@ export function useRaiseFlow() {
         visibility,
       );
 
-      setShareUrl(url);
+      // Presentation-only: carry the raiser's theme so the OG card matches
+      // (?th=d before the fragment; scrapers have no theme of their own).
+      const theme =
+        document.documentElement.dataset.theme ??
+        (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const themedUrl =
+        theme === "dark" ? url.replace("#", url.includes("?") ? "&th=d#" : "?th=d#") : url;
+
+      setShareUrl(themedUrl);
     } catch (err: any) {
       console.error(err);
       const human = humanizeChainError(err);

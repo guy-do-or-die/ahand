@@ -26,11 +26,15 @@ import { t } from "../i18n";
 const publicClientLoader = createPublicClient({ chain: activeChain, transport: http() });
 
 export const Route = createFileRoute("/h/$id")({
-  validateSearch: (search: Record<string, unknown>): { e?: string } => {
-    return { e: typeof search.e === "string" ? search.e : undefined };
+  validateSearch: (search: Record<string, unknown>): { e?: string; th?: string } => {
+    return {
+      e: typeof search.e === "string" ? search.e : undefined,
+      // presentation-only passthrough: raiser's theme for the OG card
+      th: search.th === "d" ? "d" : undefined,
+    };
   },
-  loaderDeps: ({ search: { e } }) => ({ e }),
-  loader: async ({ params, deps: { e } }) => {
+  loaderDeps: ({ search: { e, th } }) => ({ e, th }),
+  loader: async ({ params, deps: { e, th } }) => {
     const id = BigInt(params.id);
     let handData;
     try {
@@ -41,7 +45,7 @@ export const Route = createFileRoute("/h/$id")({
         args: [id],
       });
     } catch {
-      return { id: params.id, generic: true, title: `aHand #${params.id}`, desc: "" };
+      return { id: params.id, generic: true, title: `aHand #${params.id}`, desc: "", th };
     }
 
     const [
@@ -81,7 +85,7 @@ export const Route = createFileRoute("/h/$id")({
       }
     }
 
-    return { id: params.id, title, desc, e };
+    return { id: params.id, title, desc, e, th };
   },
   meta: ({ loaderData }) => {
     if (!loaderData) return [];

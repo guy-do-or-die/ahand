@@ -35,11 +35,17 @@ function RootComponent() {
   const dynamicMeta = matches.map((match) => {
     if (match.id.startsWith('/h/') && match.loaderData) {
       const data: any = match.loaderData;
+      const q = [data.e && `e=${data.e}`, data.th === "d" && "th=d"].filter(Boolean).join("&");
+      const image = `${origin}/api/og/${data.id}.png${q ? `?${q}` : ""}`;
       return [
         { title: data.title },
         { property: "og:title", content: data.title },
         { property: "og:description", content: data.desc },
-        { property: "og:image", content: data.e ? `${origin}/api/og/${data.id}.png?e=${data.e}` : `${origin}/api/og/${data.id}.png` }
+        { property: "og:image", content: image },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: image }
       ];
     }
     return match.meta || [];

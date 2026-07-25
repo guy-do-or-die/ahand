@@ -27,6 +27,23 @@ function RaiseComponent() {
   const [customAmount, setCustomAmount] = useState(!PRESETS.includes(flow.reward));
   const composeRef = useRef<HTMLTextAreaElement>(null);
 
+  // Current theme, kept live across ThemeToggle flips — the OG preview (and
+  // the share link) follow the raiser's theme.
+  const [darkTheme, setDarkTheme] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () =>
+      setDarkTheme(
+        (root.dataset.theme ??
+          (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) ===
+          "dark",
+      );
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
   // esc leaves only when there's nothing to lose: an untouched compose, and
   // never from the success screen (that link is the hand).
   const escSafe = !flow.description.trim() && !flow.shareUrl;
@@ -88,6 +105,23 @@ function RaiseComponent() {
     <div aria-live="polite">
       <p className="ah-label ah-label--dim">{t("what your people see when they get the link")}</p>
       <div className="ah-ogcard mt-2">
+        {/* The REAL card image — same renderer scrapers hit, fed the draft
+            envelope. Dark mode naturally yields the generic card. */}
+        {flow.draft && (
+          <img
+            src={`/api/og/draft.png?e=${encodeURIComponent(flow.draft.envelopeB64)}${darkTheme ? "&th=d" : ""}`}
+            alt={t("link preview card")}
+            width={1200}
+            height={630}
+            style={{
+              width: "100%",
+              height: "auto",
+              borderRadius: "8px",
+              border: "var(--bw-hair) solid var(--ink-a10)",
+              marginBottom: "10px",
+            }}
+          />
+        )}
         <p className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", color: "var(--ink-a45)" }}>
           {ogMeta}
         </p>
