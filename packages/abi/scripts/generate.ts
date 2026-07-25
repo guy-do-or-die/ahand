@@ -26,7 +26,13 @@ export const ${name}Abi = ${JSON.stringify(data.abi, null, 2)} as const;
 `;
 }
 
-const addressesPath = join(OUT_DIR, "addresses.json");
+// AHAND_CHAIN=base-sepolia picks addresses.base-sepolia.json; default is the anvil stand.
+const chain = process.env.AHAND_CHAIN;
+const chainPath = chain ? join(OUT_DIR, `addresses.${chain}.json`) : null;
+if (chainPath && !existsSync(chainPath)) {
+  throw new Error(`AHAND_CHAIN=${chain} but ${chainPath} does not exist`);
+}
+const addressesPath = chainPath ?? join(OUT_DIR, "addresses.json");
 if (existsSync(addressesPath)) {
   const addrData = JSON.parse(readFileSync(addressesPath, "utf-8"));
   output += `
