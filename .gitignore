@@ -24,6 +24,7 @@ dist/
 
 # Secrets & deploy metadata
 .env*
+!.env.example
 .vercel/
 
 # Local development metadata
