@@ -13,6 +13,7 @@
     "@fontsource-variable/schibsted-grotesk": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@lingui/core": "^6.5.0",
+    "@lingui/message-utils": "^6.5.0",
     "@lingui/react": "^6.5.0",
     "@privy-io/react-auth": "^3.34.0",
     "@privy-io/wagmi": "^4.0.14",
