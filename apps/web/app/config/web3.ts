@@ -2,7 +2,7 @@
 import { http } from "wagmi";
 import { createConfig } from "@privy-io/wagmi";
 import { defineChain } from "viem";
-import { base, baseSepolia, worldchain } from "viem/chains";
+import { base, baseSepolia, mainnet, worldchain } from "viem/chains";
 
 export const PRIVY_APP_ID =
   (import.meta.env.VITE_PRIVY_APP_ID as string | undefined) ?? "clt69jwp204btq1o3q72cupji";
@@ -32,14 +32,20 @@ export const activeChain =
         ? worldchain
         : anvil;
 
+// Mainnet rides along read-only for ENS resolution — names live there no
+// matter which chain the app transacts on. VITE_ENS_RPC overrides the
+// public default when rate limits bite.
+const ensRpc = import.meta.env.VITE_ENS_RPC as string | undefined;
+
 export const config = createConfig({
-  chains: [activeChain],
+  chains: [activeChain, mainnet],
   ssr: true,
   transports: {
     [anvil.id]: http(rpcUrl),
     [base.id]: http(rpcOverride),
     [baseSepolia.id]: http(rpcOverride),
     [worldchain.id]: http(rpcOverride),
+    [mainnet.id]: http(ensRpc),
   },
 });
 
