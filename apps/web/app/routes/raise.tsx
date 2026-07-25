@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAccount, useWriteContract, useReadContract, usePublicClient } from "wagmi";
 import { parseUnits } from "viem";
 import { AHandCoreAbi, MockERC20Abi, DeployedAddresses } from "@ahand/abi";
 import { encodePayload, newCapability } from "@ahand/sdk";
 import { activeChain } from "../config/web3";
+import { buildMetadata, assembleLink } from "../lib/metadata";
 
 export const Route = createFileRoute("/raise")({
   component: RaiseComponent,
@@ -18,6 +19,7 @@ function RaiseComponent() {
 
   // Form state
   const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "preview" | "dark">("preview");
   const [reward, setReward] = useState("150");
   const [solverKeep, setSolverKeep] = useState(70); // in Bps = 7000
   const [charityFee, setCharityFee] = useState(1);  // in Bps = 100
@@ -27,13 +29,31 @@ function RaiseComponent() {
   const [errorMsg, setErrorMsg] = useState("");
   const [shareUrl, setShareUrl] = useState("");
 
-  // Read allowance
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: DeployedAddresses.mockUSD,
     abi: MockERC20Abi,
     functionName: "allowance",
     args: address && DeployedAddresses.AHandCore ? [address, DeployedAddresses.AHandCore] : undefined,
   });
+
+  // Derived logic
+  const splitTitle = useMemo(() => {
+    let cut = description.indexOf("\n");
+    if (cut === -1 || cut > 80) {
+      if (description.length <= 80) cut = description.length;
+      else {
+        cut = description.lastIndexOf(" ", 80);
+        if (cut === -1) cut = 80;
+      }
+    }
+    return description.slice(0, cut).trim() || "Raise a hand";
+  }, [description]);
+
+  const hops = useMemo(() => {
+    // base length + payload size ~400 + b64 length of text
+    const estimatedUrlLen = window.location.origin.length + 20 + 400 + (description.length * 1.5);
+    return Math.max(0, Math.floor((4096 - estimatedUrlLen) / 150));
+  }, [description]);
 
   const handleRaise = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,57 +70,29 @@ function RaiseComponent() {
     setErrorMsg("");
 
     try {
-      const parsedReward = parseUnits(reward, 6); // mockUSD is 6 decimals
+      const parsedReward = parseUnits(reward, 6);
 
-      // 1. Check & Approve allowance if needed
-      console.log("[Raise Flow] Starting allowance check. Reward:", reward, "Parsed:", parsedReward.toString());
-      console.log("[Raise Flow] Current mockUSD allowance:", allowance?.toString());
-      
+      // 1. Build Metadata
+      const metadata = await buildMetadata({
+        text: description,
+        visibility
+      });
+
+      // 2. Allowance
       if (!allowance || (allowance as bigint) < parsedReward) {
-        console.log("[Raise Flow] Allowance insufficient. Requesting approve transaction...");
-        console.log("[Raise Flow] Approve target (mockUSD):", DeployedAddresses.mockUSD);
-        console.log("[Raise Flow] Approve spender (AHandCore):", DeployedAddresses.AHandCore);
-        
-        try {
-          const txHash = await writeContractAsync({
-            address: DeployedAddresses.mockUSD,
-            abi: MockERC20Abi,
-            functionName: "approve",
-            args: [DeployedAddresses.AHandCore, parsedReward],
-          });
-          console.log("[Raise Flow] Approve Tx submitted! Hash:", txHash);
-          console.log("[Raise Flow] Waiting for block confirmation...");
-          const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-          console.log("[Raise Flow] Approve Tx confirmed! Receipt:", receipt);
-          await refetchAllowance();
-        } catch (approveErr) {
-          console.error("[Raise Flow] ❌ Approve Tx Failed!", approveErr);
-          throw approveErr;
-        }
-      } else {
-        console.log("[Raise Flow] Allowance is sufficient. Skipping approve.");
+        const txHash = await writeContractAsync({
+          address: DeployedAddresses.mockUSD,
+          abi: MockERC20Abi,
+          functionName: "approve",
+          args: [DeployedAddresses.AHandCore, parsedReward],
+        });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        await refetchAllowance();
       }
 
-      // 2. Generate first ephemeral capability
+      // 3. Generate capability & Raise
       const cap = newCapability();
-
-      // 3. Call raise on AHandCore
       const expiryTimestamp = BigInt(Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60);
-      const minSolverClaimBps = solverKeep * 100;
-      const charityFeeBps = charityFee * 100;
-      const metadataHash = "0x0000000000000000000000000000000000000000000000000000000000000000"; // Blank metadata for now
-
-      console.log("Raising hand on core...", {
-        token: DeployedAddresses.mockUSD,
-        amount: parsedReward,
-        expiry: uint40(expiryTimestamp),
-        charityFee: uint16(charityFeeBps),
-        maintFee: uint16(0),
-        minSolver: uint16(minSolverClaimBps),
-        charity: DeployedAddresses.charity,
-        cap: cap.address,
-        metadataHash
-      });
       
       const raiseTx = await writeContractAsync({
         address: DeployedAddresses.AHandCore,
@@ -109,21 +101,18 @@ function RaiseComponent() {
         args: [
           DeployedAddresses.mockUSD,
           parsedReward,
-          uint40(expiryTimestamp),
-          uint16(charityFeeBps),
-          uint16(0), // maintFeeBps
-          uint16(minSolverClaimBps),
+          Number(expiryTimestamp),
+          charityFee * 100,
+          0,
+          solverKeep * 100,
           DeployedAddresses.charity,
           cap.address,
-          metadataHash,
+          metadata.metadataHash,
         ],
       });
 
-      console.log("Tx submitted! Hash:", raiseTx);
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: raiseTx });
-      console.log("Tx confirmed! Receipt:", receipt);
+      await publicClient.waitForTransactionReceipt({ hash: raiseTx });
       
-      // Read new handId from handsCount
       const count = await publicClient.readContract({
         address: DeployedAddresses.AHandCore,
         abi: AHandCoreAbi,
@@ -131,17 +120,22 @@ function RaiseComponent() {
       });
       const newHandId = count as bigint;
 
-      // 4. Encode payload
-      const payload = encodePayload({
-        handId: newHandId,
-        chainId: activeChain.id,
-        core: DeployedAddresses.AHandCore,
-        shakes: [],
-        latestPrivateKey: cap.privateKey,
-        metadata: { title: description },
-      });
-
-      const url = `${window.location.origin}/h/${newHandId}#${payload}`;
+      // 4. Encode payload and assemble final link
+      const url = assembleLink(
+        window.location.origin, 
+        newHandId, 
+        { envelopeB64: metadata.envelopeB64, bodyB64: metadata.bodyB64 },
+        (meta) => encodePayload({
+          handId: newHandId,
+          chainId: activeChain.id,
+          core: DeployedAddresses.AHandCore,
+          shakes: [],
+          latestPrivateKey: cap.privateKey,
+          metadata: meta,
+        }),
+        visibility
+      );
+      
       setShareUrl(url);
     } catch (err: any) {
       console.error(err);
@@ -156,20 +150,12 @@ function RaiseComponent() {
     alert("Share link copied to clipboard!");
   };
 
-  // Safe cast helpers
-  function uint40(n: bigint) {
-    return Number(n);
-  }
-  function uint16(n: number) {
-    return n;
-  }
-
   if (shareUrl) {
     return (
       <div className="py-8 px-4 text-center space-y-6 animate-fade-in">
         <h1 className="text-3xl font-extrabold">🙌 Hand Raised!</h1>
         <p className="text-ink/60 text-sm leading-relaxed">
-          Your hand has been successfully raised. Share the link below with your network to start the positive-sum chain.
+          Your link has been successfully generated. Share it securely with your network.
         </p>
 
         <div className="bg-ink/5 p-4 rounded-lg border border-ink/10 text-left font-mono text-xs break-all">
@@ -194,6 +180,8 @@ function RaiseComponent() {
     );
   }
 
+  const dateStr = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toLocaleDateString();
+
   return (
     <div className="py-6 px-4 space-y-6">
       <div className="space-y-2">
@@ -203,22 +191,37 @@ function RaiseComponent() {
         </p>
       </div>
 
-      <form onSubmit={handleRaise} className="space-y-4">
+      <form onSubmit={handleRaise} className="space-y-6">
         <div className="flex flex-col space-y-1">
           <label className="text-xs font-bold uppercase tracking-wider text-ink/60">
-            What do you need?
+            What do you need? (First line becomes the title)
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Looking for a sublet in Yerevan, June..."
+            placeholder="Looking for a sublet in Yerevan, June...\nNeed a 1-bedroom apartment under $800/mo."
             className="w-full border border-ink/20 rounded-lg p-3 text-sm focus:border-ink focus:outline-none bg-transparent resize-none h-24"
           />
         </div>
 
         <div className="flex flex-col space-y-1">
           <label className="text-xs font-bold uppercase tracking-wider text-ink/60">
-            Reward (USDC)
+            Visibility Mode
+          </label>
+          <select
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value as any)}
+            className="w-full border border-ink/20 rounded-lg p-3 text-sm focus:border-ink focus:outline-none bg-transparent"
+          >
+            <option value="preview">Preview (Rich card by link only)</option>
+            <option value="public">Public (Listed & Rich preview)</option>
+            <option value="dark">Dark (Generic card, nothing leaves the link)</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col space-y-1">
+          <label className="text-xs font-bold uppercase tracking-wider text-ink/60">
+            Reward (mockUSD)
           </label>
           <input
             type="number"
@@ -226,6 +229,37 @@ function RaiseComponent() {
             onChange={(e) => setReward(e.target.value)}
             className="w-full border border-ink/20 rounded-lg p-3 text-sm focus:border-ink focus:outline-none bg-transparent"
           />
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-xs font-bold uppercase tracking-wider text-ink/60 flex justify-between">
+            <span>Link Survival</span>
+            <span className={hops < 8 ? "text-red-500" : "text-green-600"}>
+              ~{hops} hops in Telegram
+            </span>
+          </div>
+          {hops < 8 && (
+            <p className="text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
+              Warning: Link is getting very long. Consider shortening the description.
+            </p>
+          )}
+        </div>
+
+        {/* Live OG Preview */}
+        <div className="bg-ink/5 border border-ink/10 rounded-lg overflow-hidden">
+          <div className="bg-ink/10 px-3 py-1 text-[10px] font-bold uppercase text-ink/50 border-b border-ink/10">
+            OpenGraph Preview ({visibility})
+          </div>
+          <div className="p-4 space-y-1">
+            <h3 className="font-bold text-sm truncate">
+              {visibility === "dark" 
+                ? "✋ Someone raised a hand"
+                : `✋ ${splitTitle}`}
+            </h3>
+            <p className="text-xs text-ink/60">
+              solver keeps ≥{solverKeep}% · escrow pays only on success · until {dateStr}
+            </p>
+          </div>
         </div>
 
         <div className="border-t border-ink/10 pt-4">

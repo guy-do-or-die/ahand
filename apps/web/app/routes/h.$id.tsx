@@ -1,20 +1,99 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAccount, useReadContract } from "wagmi";
-import { formatUnits, keccak256, toBytes } from "viem";
+import { formatUnits, keccak256, toBytes, createPublicClient, http } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
-import { decodePayload, signShake, signGive, newCapability, type Shake, type SignedShake } from "@ahand/sdk";
+import { decodePayload, encodePayload, signShake, signGive, newCapability, type Shake, type SignedShake } from "@ahand/sdk";
+import { activeChain } from "../config/web3";
+import { Envelope, b64urlDecode, sha256hex, parseLink, verifyMetadata, assembleLink } from "../lib/metadata";
+
+const publicClientLoader = createPublicClient({ chain: activeChain, transport: http() });
 
 export const Route = createFileRoute("/h/$id")({
+  validateSearch: (search: Record<string, unknown>): { e?: string } => {
+    return { e: typeof search.e === "string" ? search.e : undefined };
+  },
+  loaderDeps: ({ search: { e } }) => ({ e }),
+  loader: async ({ params, deps: { e } }) => {
+    const id = BigInt(params.id);
+    let handData;
+    try {
+      handData = await publicClientLoader.readContract({
+        address: DeployedAddresses.AHandCore,
+        abi: AHandCoreAbi,
+        functionName: "hands",
+        args: [id],
+      });
+    } catch {
+      return { id: params.id, generic: true, title: `aHand #${params.id}`, desc: "" };
+    }
+
+    const [
+      , , remainingReward, expiry, , , minSolverClaimBps,
+      status, , , metadataHash
+    ] = handData as any[];
+
+    const amount = formatUnits(remainingReward, 6);
+    const date = new Date(Number(expiry) * 1000);
+    const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    
+    // Generic meta defaults
+    let title = `✋ aHand #${params.id} — ${amount} USDC`;
+    let desc = `solver keeps ≥${(Number(minSolverClaimBps)/100).toFixed(0)}% · escrow pays only on success · until ${dateStr}`;
+    
+    if (status === 2) desc = "Status: Settled 🙏";
+    if (status === 3) desc = "Status: Reclaimed 👎";
+
+    // Stateless SSR Verification!
+    if (e && metadataHash !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
+      try {
+        const envelopeBytes = b64urlDecode(e);
+        const calcHash = await sha256hex(envelopeBytes);
+        if (calcHash === metadataHash) {
+          const envStr = new TextDecoder().decode(envelopeBytes);
+          const env = Envelope.parse(JSON.parse(envStr));
+          if (env.visibility !== "dark") {
+            title = `✋ ${env.preview.title}`;
+          }
+        }
+      } catch (err) {
+        console.error("[SSR] Envelope validation failed, falling back to generic:", err);
+      }
+    }
+
+    return { id: params.id, title, desc, e };
+  },
+  meta: ({ loaderData }) => {
+    if (!loaderData) return [];
+    
+    const ogImageUrl = loaderData.e 
+       ? `/api/og/${loaderData.id}.png?e=${loaderData.e}` 
+       : `/api/og/${loaderData.id}.png`;
+
+    return [
+      { title: loaderData.title },
+      { property: "og:title", content: loaderData.title },
+      { property: "og:description", content: loaderData.desc },
+      { property: "og:image", content: ogImageUrl },
+    ];
+  },
   component: HandComponent,
 });
 
 function HandComponent() {
   const { id } = Route.useParams();
-  const { address, isConnected } = useAccount();
+  const search = Route.useSearch();
+  const loaderData = Route.useLoaderData();
+  const { address } = useAccount();
+
+  const ogImageUrl = loaderData.e 
+    ? `/api/og/${loaderData.id}.png?e=${loaderData.e}` 
+    : `/api/og/${loaderData.id}.png`;
 
   const [payload, setPayload] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [tampered, setTampered] = useState(false);
+  const [fullMetadata, setFullMetadata] = useState<{ title: string, description: string } | null>(null);
   
   // UI states
   const [showPassOn, setShowPassOn] = useState(false);
@@ -38,157 +117,211 @@ function HandComponent() {
     args: [BigInt(id)],
   });
 
+  const [childCap, setChildCap] = useState<{ privateKey: `0x${string}`; address: `0x${string}` } | null>(null);
+
+  useEffect(() => {
+    if (showPassOn && !childCap) {
+      setChildCap(newCapability());
+    }
+  }, [showPassOn, childCap]);
+
+  useEffect(() => {
+    if (!showPassOn || !payload || !childCap || tampered) {
+      setNewShareUrl("");
+      return;
+    }
+
+    async function generate() {
+      setErrorMsg("");
+      setNewShareUrl("");
+
+      if (payoutOption === "keep" && !payoutAddr) {
+        setErrorMsg("Please provide a payout address");
+        return;
+      }
+      if (payoutOption === "keep" && !/^0x[a-fA-F0-9]{40}$/.test(payoutAddr)) {
+        setErrorMsg("Please provide a valid Ethereum address (0x...)");
+        return;
+      }
+
+      try {
+        const latestPriv = payload.latestPrivateKey;
+        const chainId = payload.chainId;
+        const core = payload.core;
+
+        const currentParentClaim = payload.shakes.length === 0 
+          ? 10000 
+          : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
+
+        const chosenMargin = payoutOption === "gift" ? 0 : Number(marginBps) * 100;
+        const childClaim = currentParentClaim - chosenMargin;
+
+        if (childClaim < 0) {
+          setErrorMsg("Margin exceeds available claim amount.");
+          return;
+        }
+
+        const shake: Shake = {
+          handId: BigInt(id),
+          childCapability: childCap.address,
+          payout: (payoutOption === "gift" || !payoutAddr) ? "0x0000000000000000000000000000000000000000" : (payoutAddr as `0x${string}`),
+          parentClaimBps: currentParentClaim,
+          childClaimBps: childClaim,
+          deadline: BigInt((handRaw as any[])[3]),
+        };
+
+        const signature = await signShake(shake, latestPriv, chainId, core);
+        const newSignedShake: SignedShake = { shake, signature };
+
+        // Visibility doesn't change on pass-on, but we need it for assembleLink
+        const visibility = (search as any).e ? (payload.metadata.envelopeB64 ? "dark" : "public") : "public"; 
+
+        const url = assembleLink(
+          window.location.origin, 
+          id, 
+          { 
+            envelopeB64: (search as any).e || payload.metadata.envelopeB64, 
+            bodyB64: payload.metadata.bodyB64 
+          },
+          (meta) => encodePayload({
+            handId: BigInt(id),
+            chainId,
+            core,
+            shakes: [...payload.shakes, newSignedShake],
+            latestPrivateKey: childCap.privateKey,
+            metadata: meta,
+          }),
+          visibility as any
+        );
+        
+        setNewShareUrl(url);
+      } catch (err: any) {
+        setErrorMsg(`Error generating link: ${err.shortMessage || err.message}`);
+      }
+    }
+    
+    generate();
+  }, [showPassOn, payload, tampered, payoutOption, payoutAddr, marginBps, childCap, id, handRaw, (search as any).e]);
+
   useEffect(() => {
     if (address && !payoutAddr) setPayoutAddr(address);
     if (address && !solverAddr) setSolverAddr(address);
   }, [address]);
 
-  // Parse location.hash on client side
+  // Client-side payload and hash validation
   useEffect(() => {
-    const hash = window.location.hash.replace("#", "");
-    if (!hash) {
-      setErrorMsg("Missing payload fragment in URL hash.");
+    async function load() {
+      if (!handRaw) return; // Wait for on-chain anchor
+      
+      const onchainHash = (handRaw as any[])[10];
+
+      try {
+        const parsed = parseLink(window.location.href, decodePayload);
+        setPayload(parsed.decodedPayload);
+        
+        const verify = await verifyMetadata(parsed.envelopeB64, parsed.bodyB64, onchainHash);
+        
+        if (!verify.ok) {
+          setTampered(true);
+          setErrorMsg(`Content doesn't match on-chain anchor: ${verify.reason}`);
+          setFullMetadata(null); // Hide text
+        } else {
+          setTampered(false);
+          setErrorMsg("");
+          setFullMetadata({
+            title: verify.envelope.preview.title,
+            description: verify.body.description
+          });
+        }
+      } catch (err: any) {
+        console.error(err);
+        setTampered(true);
+        setErrorMsg("Failed to decode payload fragment: " + err.message);
+      }
+    }
+    load();
+  }, [handRaw]);
+
+  useEffect(() => {
+    if (!showSolve || !payload || !solutionText.trim() || tampered) {
+      setSolveUrl("");
       return;
     }
-    try {
-      const decoded = decodePayload(hash);
-      setPayload(decoded);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg("Failed to decode payload fragment: " + err.message);
+
+    async function generateSolve() {
+      setErrorMsg("");
+      setIsSolving(true);
+      try {
+        const latestPriv = payload.latestPrivateKey;
+        const chainId = payload.chainId;
+        const core = payload.core;
+
+        const solutionHash = keccak256(toBytes(solutionText));
+
+        const give = {
+          handId: BigInt(id),
+          solver: solverAddr as `0x${string}`,
+          solutionHash,
+        };
+
+        const giveSig = await signGive(give, latestPriv, chainId, core);
+
+        const thankPayloadObj = {
+          give,
+          giveSig,
+          shakes: payload.shakes,
+        };
+        
+        const serialized = btoa(JSON.stringify(thankPayloadObj, (key, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        ))
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+
+        const url = `${window.location.origin}/h/${id}/thank#${serialized}`;
+        setSolveUrl(url);
+      } catch (err: any) {
+        setErrorMsg(`Error generating solution proof: ${err.shortMessage || err.message}`);
+      } finally {
+        setIsSolving(false);
+      }
     }
-  }, []);
+
+    generateSolve();
+  }, [showSolve, payload, solutionText, solverAddr, tampered, id]);
 
   if (isLoading) return <div className="py-12 text-center text-ink/60">Loading hand details...</div>;
   if (isError || !handRaw) return <div className="py-12 text-center text-red-600">Hand not found on chain.</div>;
 
   const [
     raiser,
-    token,
+    , // token
     remainingReward,
     expiry,
-    charityFeeBps,
-    maintFeeBps,
+    , // charityFeeBps
+    , // maintFeeBps
     minSolverClaimBps,
     status,
-    charity,
-    rootCapability,
-    metadataHash
   ] = handRaw as any[];
 
   // Convert status to readable text
   const statusTexts = ["None", "Active 🙌", "Settled 🙏", "Reclaimed 👎"];
   const isHandActive = status === 1;
 
-  const handlePassOn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!payload) return;
 
-    try {
-      const latestPriv = payload.latestPrivateKey;
-      const chainId = payload.chainId;
-      const core = payload.core;
 
-      // Calculate claims
-      const currentParentClaim = payload.shakes.length === 0 
-        ? 10000 
-        : payload.shakes[payload.shakes.length - 1].shake.childClaimBps;
 
-      const chosenMargin = payoutOption === "gift" ? 0 : Number(marginBps);
-      const childClaim = currentParentClaim - chosenMargin;
-
-      if (childClaim < 0) {
-        alert("Margin exceeds available claim amount.");
-        return;
-      }
-
-      // Generate child capability bearer
-      const childCap = newCapability();
-
-      const shake: Shake = {
-        handId: BigInt(id),
-        childCapability: childCap.address,
-        payout: payoutAddr as `0x${string}`,
-        parentClaimBps: currentParentClaim,
-        childClaimBps: childClaim,
-        deadline: BigInt(expiry),
-      };
-
-      console.log("Signing shake with parent key...");
-      const signature = await signShake(shake, latestPriv, chainId, core);
-
-      const newSignedShake: SignedShake = { shake, signature };
-
-      const newPayload = encodePayload({
-        handId: BigInt(id),
-        chainId,
-        core,
-        shakes: [...payload.shakes, newSignedShake],
-        latestPrivateKey: childCap.privateKey,
-        metadata: payload.metadata,
-      });
-
-      const url = `${window.location.origin}/h/${id}#${newPayload}`;
-      setNewShareUrl(url);
-    } catch (err: any) {
-      console.error(err);
-      alert("Error generating pass-on link: " + err.message);
-    }
-  };
-
-  const handleSolve = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!payload || !solutionText.trim()) return;
-
-    setIsSolving(true);
-    try {
-      const latestPriv = payload.latestPrivateKey;
-      const chainId = payload.chainId;
-      const core = payload.core;
-
-      const solutionHash = keccak256(toBytes(solutionText));
-
-      const give = {
-        handId: BigInt(id),
-        solver: solverAddr as `0x${string}`,
-        solutionHash,
-      };
-
-      console.log("Signing give assignment...");
-      const giveSig = await signGive(give, latestPriv, chainId, core);
-
-      // Serialize thank payload (JSON base64url envelope)
-      const thankPayloadObj = {
-        give,
-        giveSig,
-        shakes: payload.shakes,
-      };
-      
-      const serialized = btoa(JSON.stringify(thankPayloadObj))
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-
-      const url = `${window.location.origin}/h/${id}/thank#${serialized}`;
-      setSolveUrl(url);
-    } catch (err: any) {
-      console.error(err);
-      alert("Error generating solution proof: " + err.message);
-    } finally {
-      setIsSolving(false);
-    }
-  };
 
   const copyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
-    alert("Copied to clipboard!");
   };
 
   return (
     <div className="py-6 px-4 space-y-6">
       {errorMsg && (
-        <div className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">
-          {errorMsg}
+        <div className="text-sm font-bold text-red-600 bg-red-50 border-2 border-red-200 p-4 rounded-lg shadow-sm">
+          🚨 {errorMsg}
         </div>
       )}
 
@@ -200,8 +333,13 @@ function HandComponent() {
         </div>
 
         <h1 className="text-2xl font-bold tracking-tight">
-          🙌 {payload?.metadata?.title || "No description provided"}
+          {fullMetadata ? `🙌 ${fullMetadata.title}` : "Loading secured text..."}
         </h1>
+        {fullMetadata?.description && (
+          <p className="text-ink/80 text-sm whitespace-pre-wrap">
+            {fullMetadata.description}
+          </p>
+        )}
 
         <div className="space-y-2">
           <div className="w-full bg-ink/10 h-3.5 rounded-full overflow-hidden">
@@ -219,7 +357,7 @@ function HandComponent() {
         </div>
       </div>
 
-      {isHandActive && (
+      {isHandActive && !tampered && (
         <div className="flex flex-col space-y-4 border-t border-ink/10 pt-6">
           {!showPassOn && !showSolve && (
             <div className="grid grid-cols-2 gap-4">
@@ -240,7 +378,7 @@ function HandComponent() {
 
           {/* Pass On Panel */}
           {showPassOn && (
-            <form onSubmit={handlePassOn} className="space-y-4 bg-ink/5 p-4 rounded-lg border border-ink/10 animate-slide-down">
+            <div className="space-y-4 bg-ink/5 p-4 rounded-lg border border-ink/10 animate-slide-down">
               <h3 className="text-sm font-bold">Pass it on 🤝</h3>
 
               <div className="flex flex-col space-y-2">
@@ -274,7 +412,7 @@ function HandComponent() {
                     <input
                       type="number"
                       value={marginBps}
-                      onChange={(e) => setMarginBps(e.target.value)}
+                      onChange={(e) => setMarginBps(e.target.value as unknown as number)}
                       className="w-16 border border-ink/20 rounded p-1 text-center bg-transparent"
                     />
                   </div>
@@ -290,30 +428,25 @@ function HandComponent() {
                 </div>
               )}
 
-              {newShareUrl && (
-                <div className="mt-3 space-y-2">
-                  <div className="bg-paper p-3 rounded border border-ink/10 font-mono text-[10px] break-all">
-                    {newShareUrl}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => copyUrl(newShareUrl)}
-                    className="w-full bg-ink text-paper py-2 rounded font-bold text-xs"
-                  >
-                    Copy new link
-                  </button>
+              <div className="mt-4 space-y-2">
+                <div className="bg-paper p-3 rounded border border-ink/10 font-mono text-[10px] truncate text-ink/70">
+                  {newShareUrl || "Waiting for valid parameters..."}
                 </div>
-              )}
+                <button
+                  type="button"
+                  disabled={!newShareUrl}
+                  onClick={() => newShareUrl && copyUrl(newShareUrl)}
+                  className={`w-full py-2 rounded font-bold text-xs transition-colors ${
+                    newShareUrl 
+                      ? "bg-ink text-paper hover:bg-ink/80" 
+                      : "bg-ink/10 text-ink/30 cursor-not-allowed"
+                  }`}
+                >
+                  Copy new link
+                </button>
+              </div>
 
               <div className="flex space-x-2 pt-2 text-xs">
-                {!newShareUrl && (
-                  <button
-                    type="submit"
-                    className="flex-1 bg-ink text-paper py-2 rounded font-bold"
-                  >
-                    Generate Link
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -325,74 +458,70 @@ function HandComponent() {
                   Cancel
                 </button>
               </div>
-            </form>
+            </div>
           )}
 
           {/* Solve Panel */}
           {showSolve && (
-            <form onSubmit={handleSolve} className="space-y-4 bg-ink/5 p-4 rounded-lg border border-ink/10 animate-slide-down">
+            <div className="space-y-4 bg-ink/5 p-4 rounded-lg border border-ink/10 animate-slide-down">
               <h3 className="text-sm font-bold">Provide Help 🙌</h3>
 
-              <div className="flex flex-col space-y-1 text-xs">
-                <label className="font-semibold text-ink/60">Solution Description</label>
+              <div className="flex flex-col space-y-1">
+                <label className="text-xs font-semibold text-ink/60">Solution Description</label>
                 <textarea
                   value={solutionText}
                   onChange={(e) => setSolutionText(e.target.value)}
-                  placeholder="I have a perfect apartment available in Center Yerevan..."
-                  className="w-full border border-ink/20 rounded p-2 bg-transparent h-16 resize-none"
+                  className="w-full border border-ink/20 rounded p-2 text-xs bg-transparent min-h-[60px]"
+                  placeholder="Describe your solution or link to PR/results..."
                 />
               </div>
 
-              <div className="flex flex-col space-y-1 text-xs">
-                <label className="font-semibold text-ink/60">Your Payout Address (Solver)</label>
+              <div className="flex flex-col space-y-1 mt-2">
+                <label className="text-xs font-semibold text-ink/60">Your Payout Address (Solver)</label>
                 <input
                   type="text"
                   value={solverAddr}
                   onChange={(e) => setSolverAddr(e.target.value)}
-                  className="w-full border border-ink/20 rounded p-2 bg-transparent"
+                  className="w-full border border-ink/20 rounded p-2 text-xs bg-transparent"
                 />
               </div>
 
-              {solveUrl && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-[10px] text-ink/60 font-semibold leading-relaxed">
-                    Send this Solve proof URL back to the raiser. They will execute the Thank settlement.
-                  </p>
-                  <div className="bg-paper p-3 rounded border border-ink/10 font-mono text-[10px] break-all">
-                    {solveUrl}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => copyUrl(solveUrl)}
-                    className="w-full bg-ink text-paper py-2 rounded font-bold text-xs"
-                  >
-                    Copy Solve link
-                  </button>
+              <p className="text-[10px] text-ink/50 leading-relaxed italic">
+                Send this Solve proof URL back to the raiser. They will execute the Thank settlement.
+              </p>
+
+              <div className="mt-4 space-y-2">
+                <div className="bg-paper p-3 rounded border border-ink/10 font-mono text-[10px] truncate text-ink/70">
+                  {solveUrl || "Waiting for valid parameters..."}
                 </div>
-              )}
+                <button
+                  type="button"
+                  disabled={!solveUrl}
+                  onClick={() => solveUrl && copyUrl(solveUrl)}
+                  className={`w-full py-2 rounded font-bold text-xs transition-colors ${
+                    solveUrl 
+                      ? "bg-ink text-paper hover:bg-ink/80" 
+                      : "bg-ink/10 text-ink/30 cursor-not-allowed"
+                  }`}
+                >
+                  Copy Solve link
+                </button>
+              </div>
 
               <div className="flex space-x-2 pt-2 text-xs">
-                {!solveUrl && (
-                  <button
-                    type="submit"
-                    disabled={isSolving}
-                    className="flex-1 bg-ink text-paper py-2 rounded font-bold"
-                  >
-                    {isSolving ? "Signing..." : "Generate Solve link"}
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => {
                     setShowSolve(false);
                     setSolveUrl("");
+                    setSolutionText("");
                   }}
                   className="flex-1 border border-ink/20 py-2 rounded font-medium text-center"
                 >
                   Cancel
                 </button>
               </div>
-            </form>
+            </div>
           )}
         </div>
       )}

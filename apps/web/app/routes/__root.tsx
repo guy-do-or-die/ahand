@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, HeadContent, Scripts } from "@tanstack/react-router";
+import { createRootRoute, Outlet, HeadContent, Scripts, useRouterState } from "@tanstack/react-router";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,9 +17,30 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  const matches = useRouterState({ select: (s) => s.matches });
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://welcome-primate-specially.ngrok-free.app";
+
+  const dynamicMeta = matches.map((match) => {
+    if (match.id.startsWith('/h/') && match.loaderData) {
+      const data: any = match.loaderData;
+      return [
+        { title: data.title },
+        { property: "og:title", content: data.title },
+        { property: "og:description", content: data.desc },
+        { property: "og:image", content: data.e ? `${origin}/api/og/${data.id}.png?e=${data.e}` : `${origin}/api/og/${data.id}.png` }
+      ];
+    }
+    return match.meta || [];
+  }).flat();
+
   return (
     <html lang="en">
       <head>
+        {dynamicMeta.map((m: any, i: number) => {
+          if (m.title) return <title key={`meta-${i}`}>{m.title}</title>;
+          if (m.charSet) return <meta key={`meta-${i}`} charSet={m.charSet} />;
+          return <meta key={`meta-${i}`} {...m} />;
+        })}
         <HeadContent />
         <link rel="stylesheet" href={appCss} />
         <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🙌</text></svg>" />

@@ -8,21 +8,22 @@
     "start": "vinxi start"
   },
   "dependencies": {
-    "@ahand/sdk": "workspace:*",
     "@ahand/abi": "workspace:*",
-    "@tanstack/start": "1.120.20",
-    "@tanstack/react-router": "1.120.20",
+    "@ahand/sdk": "workspace:*",
+    "@privy-io/react-auth": "^1.74.0",
     "@tanstack/react-query": "^5.101.2",
-    "vinxi": "^0.4.1",
+    "@tanstack/react-router": "1.120.20",
+    "@tanstack/start": "1.120.20",
+    "canonicalize": "^3.0.0",
+    "clsx": "^2.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "wagmi": "^2.12.0",
+    "tailwind-merge": "^2.4.0",
     "viem": "^2.18.7",
-    "@privy-io/react-auth": "^1.74.0",
-    "zustand": "^4.5.4",
-    "zod": "^3.23.8",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.4.0"
+    "vinxi": "^0.4.1",
+    "wagmi": "^2.12.0",
+    "zod": "^4.4.3",
+    "zustand": "^4.5.4"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
