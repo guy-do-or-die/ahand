@@ -1,0 +1,85 @@
+name: branch-domains
+
+# Auto-register <branch>.ahand.in for every git branch.
+# DNS side is covered by the wildcard CNAME (*.ahand.in -> cname.vercel-dns.com),
+# so registering the domain on the Vercel project is all that's needed.
+# Requires the VERCEL_TOKEN repository secret (Vercel token scoped to the gethering team).
+# NOTE: create/delete events only trigger workflows present on the default branch,
+# so this file takes effect once it lands on main.
+
+on:
+  create:
+  delete:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch name
+        required: true
+        type: string
+      mode:
+        description: add or remove the domain
+        required: false
+        default: add
+        type: choice
+        options: [add, remove]
+
+permissions: {}
+
+concurrency:
+  group: branch-domains-${{ github.event.ref || inputs.branch }}
+
+jobs:
+  sync:
+    if: github.repository == 'guy-do-or-die/ahand' && (github.event_name == 'workflow_dispatch' || github.event.ref_type == 'branch')
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PROJECT_ID: prj_kZOdNHEn1crAcFVdMGE6TW12QA9L
+      TEAM_ID: team_rTnwMJOD6kiWqLrTQ2YVmzM1
+      APEX: ahand.in
+      BRANCH: ${{ inputs.branch || github.event.ref }}
+      MODE: ${{ github.event_name == 'delete' && 'remove' || github.event_name == 'create' && 'add' || inputs.mode }}
+    steps:
+      - name: Sync branch domain
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is not set (create one at vercel.com/account/settings/tokens, scope: gethering)"
+            exit 1
+          fi
+
+          # branch name -> DNS label: lowercase, non-alphanumerics collapsed to '-', max 63 chars
+          SUB=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-63)
+          case "$SUB" in
+            ""|main|www)
+              echo "Skipping reserved/empty subdomain for branch '$BRANCH'"
+              exit 0
+              ;;
+          esac
+          DOMAIN="$SUB.$APEX"
+
+          if [ "$MODE" = "add" ]; then
+            BODY=$(jq -n --arg name "$DOMAIN" --arg br "$BRANCH" '{name: $name, gitBranch: $br}')
+            CODE=$(curl -s -o resp.json -w '%{http_code}' -X POST \
+              "https://api.vercel.com/v10/projects/$PROJECT_ID/domains?teamId=$TEAM_ID" \
+              -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+              -d "$BODY")
+            if [ "$CODE" = "200" ]; then
+              echo "Registered https://$DOMAIN -> branch '$BRANCH'"
+            elif grep -qi 'already' resp.json; then
+              echo "$DOMAIN is already registered, nothing to do"
+            else
+              echo "::error::Vercel API returned $CODE"; cat resp.json; exit 1
+            fi
+          else
+            CODE=$(curl -s -o resp.json -w '%{http_code}' -X DELETE \
+              "https://api.vercel.com/v9/projects/$PROJECT_ID/domains/$DOMAIN?teamId=$TEAM_ID" \
+              -H "Authorization: Bearer $VERCEL_TOKEN")
+            if [ "$CODE" = "200" ]; then
+              echo "Removed $DOMAIN"
+            elif [ "$CODE" = "404" ]; then
+              echo "$DOMAIN was not registered, nothing to do"
+            else
+              echo "::error::Vercel API returned $CODE"; cat resp.json; exit 1
+            fi
+          fi
