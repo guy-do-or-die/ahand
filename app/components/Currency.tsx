@@ -54,8 +54,8 @@ export const CurrencyFetch = () => {
       notify('Fetching price...', 'loading', {id: fetchPriceId})
 
       try {
-        const response = await axios.get('https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD')
-        setConfig('price', response?.data?.USD)
+        const response = await axios.get('https://api.coinbase.com/v2/prices/ETH-USD/spot')
+        setConfig('price', parseFloat(response?.data?.data?.amount))
       } catch (error) {
         notify('Failed to fetch ETH price', 'error', {id: "price-fetch-failed"})
         console.error('Error fetching price:', error)
