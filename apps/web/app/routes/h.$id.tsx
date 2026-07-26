@@ -20,6 +20,7 @@ import { PotBar } from "../components/PotBar";
 import { ChainRail } from "../components/ChainRail";
 import { MetaLine } from "../components/MetaLine";
 import { AttributionChoice } from "../components/AttributionChoice";
+import { QrCode } from "../components/QrCode";
 import { ReclaimButton } from "../components/ReclaimButton";
 import { formatUsd, truncateMiddle } from "../lib/format";
 import { humanizeChainError } from "../lib/errors";
@@ -564,10 +565,15 @@ function PassOnSheet(props: {
 
       {/* Copy row — full real link, middle-ellipsis display (no shortlinks) */}
       {flow.newShareUrl && (
-        <button type="button" className="ah-linkrow mt-4" onClick={copy}>
-          <span className="ah-linkrow__value">{truncateMiddle(flow.newShareUrl, 26, 8)}</span>
-          <span className="ah-linkrow__action">{copied ? t("copied") : t("copy")}</span>
-        </button>
+        <>
+          <button type="button" className="ah-linkrow mt-4" onClick={copy}>
+            <span className="ah-linkrow__value">{truncateMiddle(flow.newShareUrl, 26, 8)}</span>
+            <span className="ah-linkrow__action">{copied ? t("copied") : t("copy")}</span>
+          </button>
+          {/* Same link as a QR — for the friend standing right there. */}
+          <QrCode value={flow.newShareUrl} className="mt-4 mx-auto w-[160px]" />
+          <p className="ah-label ah-label--dim mt-2 text-center">{t("or let them scan it")}</p>
+        </>
       )}
 
       <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />

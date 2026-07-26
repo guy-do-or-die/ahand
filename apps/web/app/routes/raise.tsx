@@ -8,6 +8,7 @@ import { ChipRow } from "../components/ChipRow";
 import { CharityBpsPicker } from "../components/CharityBpsPicker";
 import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
 import { Emoji } from "../components/Emoji";
+import { QrCode } from "../components/QrCode";
 import { MetaLine } from "../components/MetaLine";
 import { formatUsd, formatDateHuman, truncateMiddle } from "../lib/format";
 import { t } from "../i18n";
@@ -438,6 +439,10 @@ function RaiseSuccess({ shareUrl, hops }: { shareUrl: string; hops?: number }) {
         <span className="ah-linkrow__value">{truncateMiddle(shareUrl, 28, 10)}</span>
         <span className="ah-linkrow__action">{rowCopied ? t("copied") : t("copy")}</span>
       </button>
+
+      {/* Same link as a QR — for the friend standing right there. */}
+      <QrCode value={shareUrl} className="mt-4 mx-auto w-[176px]" />
+      <p className="ah-label ah-label--dim mt-2 text-center">{t("or let them scan it")}</p>
 
       <DirectDeliveryCard className="mt-4" />
 

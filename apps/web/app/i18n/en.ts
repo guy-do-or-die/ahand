@@ -24,6 +24,7 @@ export const messages: Record<string, string> = {
   "copy": "copy",
   "copied": "copied",
   "Copied": "Copied",
+  "or let them scan it": "or let them scan it",
   "esc to close": "esc to close",
 
   // Raise — compose
@@ -280,6 +281,7 @@ export const messages: Record<string, string> = {
   "with {who}": "with {who}",
   "nothing said yet — start it off": "nothing said yet — start it off",
   "Say it plainly — it lands right in their pocket.": "Say it plainly — it lands right in their pocket.",
+  "tip": "tip",
   "Send": "Send",
   "their words, sealed into the give ✓": "their words, sealed into the give ✓",
   "their words, as sent": "their words, as sent",
