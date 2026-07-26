@@ -1,0 +1,16 @@
+{
+  "name": "@ahand/infra-seed",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "seed": "bun --env-file=../../.env run ./seed.ts"
+  },
+  "dependencies": {
+    "@ahand/abi": "workspace:*",
+    "@ahand/sdk": "workspace:*",
+    "canonicalize": "^3.0.0",
+    "viem": "2.52.0",
+    "zod": "^4.4.3"
+  }
+}
