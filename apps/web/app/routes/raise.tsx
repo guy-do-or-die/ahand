@@ -6,9 +6,10 @@ import { SwipeButton } from "../components/SwipeButton";
 import { QuietButton } from "../components/QuietButton";
 import { ChipRow } from "../components/ChipRow";
 import { CharityBpsPicker } from "../components/CharityBpsPicker";
-import { DirectDeliveryCard } from "../components/DirectDeliveryCard";
 import { Emoji } from "../components/Emoji";
 import { QrCode } from "../components/QrCode";
+import { FLAGS } from "../config/flags";
+import { useXmtp } from "../hooks/useXmtp";
 import { MetaLine } from "../components/MetaLine";
 import { formatUsd, formatDateHuman, truncateMiddle } from "../lib/format";
 import { t } from "../i18n";
@@ -394,9 +395,22 @@ function FineTune({
 
 function RaiseSuccess({ shareUrl, hops }: { shareUrl: string; hops?: number }) {
   const navigate = useNavigate();
+  const xmtp = useXmtp();
   const [rowCopied, setRowCopied] = useState(false);
   const [ctaCopied, setCtaCopied] = useState(false);
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  // A raised hand wants its replies — switch direct delivery on right away
+  // (the raise swipe was the ask; the wallet OK appears once, ever). A
+  // closed confirm quietly leaves the switch line below as the way back in.
+  const autoEnabledRef = useRef(false);
+  useEffect(() => {
+    if (autoEnabledRef.current || !FLAGS.xmtpDelivery) return;
+    if (xmtp.status === "unregistered") {
+      autoEnabledRef.current = true;
+      void xmtp.enable();
+    }
+  }, [xmtp]);
 
   const copyTo = async (setter: (v: boolean) => void) => {
     try {
@@ -444,7 +458,32 @@ function RaiseSuccess({ shareUrl, hops }: { shareUrl: string; hops?: number }) {
       <QrCode value={shareUrl} className="mt-4 mx-auto w-[176px]" />
       <p className="ah-label ah-label--dim mt-2 text-center">{t("or let them scan it")}</p>
 
-      <DirectDeliveryCard className="mt-4" />
+      {/* Direct delivery switches itself on above — one quiet line of truth,
+          not a card; the fallback button only appears if the OK was waved
+          away. Full controls live in the pocket. */}
+      {FLAGS.xmtpDelivery && (
+        <div className="mt-4 text-center">
+          {xmtp.status === "ready" ? (
+            <p className="ah-label ah-label--dim">
+              {t("when someone helps, their answer lands in your pocket")}
+            </p>
+          ) : xmtp.status === "connecting" ? (
+            <p className="ah-label ah-label--dim">{t("switching on…")}</p>
+          ) : xmtp.status === "busy" ? (
+            <p className="ah-label ah-label--dim">
+              {t("your messages are open in another tab — close it there first")}
+            </p>
+          ) : xmtp.status === "error" ? (
+            <p className="ah-label ah-label--dim">
+              {t("the message post isn't answering — the link still works")}
+            </p>
+          ) : xmtp.status === "unregistered" ? (
+            <QuietButton compact onClick={() => void xmtp.enable()}>
+              {t("Let replies land right here.")}
+            </QuietButton>
+          ) : null}
+        </div>
+      )}
 
       <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
       <div className="flex flex-col gap-3.5 pt-8">
