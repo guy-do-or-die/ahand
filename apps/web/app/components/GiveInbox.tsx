@@ -15,7 +15,12 @@ function preview(text: string, max = 64): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
 
-type OpenThread = { conversationId: string; title: string };
+type OpenThread = {
+  conversationId: string;
+  title: string;
+  /** Set for give threads — the sheet grows thank/tip shortcuts. */
+  give?: { handId: string; fragment: string };
+};
 
 /**
  * What the pocket heard over XMTP: incoming gives (each row deep-links
@@ -77,6 +82,7 @@ export function GiveInbox({ className = "" }: { className?: string }) {
                 setThread({
                   conversationId: item.conversationId,
                   title: t("about your hand #{id}", { id: item.handId }),
+                  give: { handId: item.handId, fragment: item.fragment },
                 })
               }
             >
@@ -124,6 +130,7 @@ export function GiveInbox({ className = "" }: { className?: string }) {
         <ThreadSheet
           conversationId={thread.conversationId}
           title={thread.title}
+          give={thread.give}
           onClose={() => setThread(null)}
         />
       )}
