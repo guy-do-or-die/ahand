@@ -11,7 +11,7 @@ import {
 } from "@ahand/sdk";
 import { activeChain } from "../config/web3";
 import { buildMetadata, assembleLink, CHARS_PER_HOP, MAX_LINK_CHARS } from "../lib/metadata";
-import { publishDiscovery } from "../lib/discovery";
+import { pinDiscoveryViaApp } from "../lib/discovery";
 import { bearerCapability, handRefFor, packLinkMetadata } from "../lib/link";
 import { t } from "../i18n";
 import { humanizeChainError } from "../lib/errors";
@@ -203,13 +203,14 @@ export function useRaiseFlow() {
         throw err;
       }
 
-      // 3. Publish the discovery doc (dark hands publish nothing). Without a
-      // pinning key the locator is still valid — computed locally, honestly
+      // 3. Publish the discovery doc (dark hands publish nothing). The
+      // server holds the pinning key, so this rides /api/pin; if the pipe
+      // is down the locator is still valid — computed locally, honestly
       // unpinned; the link itself keeps carrying the content.
       const discoveryRef =
         visibility === "dark"
           ? "0x"
-          : stringToHex((await publishDiscovery(metadata.discoveryBytes)).uri);
+          : stringToHex((await pinDiscoveryViaApp(metadata.discoveryBytes)).uri);
 
       // 4. Assemble calls: approve (only if the allowance is short) + raise.
       // One sponsored userOp for embedded pockets (with materializeRaised

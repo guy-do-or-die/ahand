@@ -58,6 +58,21 @@ export async function cidForBytes(bytes: Uint8Array): Promise<string> {
   return `b${base32encode(await cidBytes(bytes))}`;
 }
 
+/**
+ * CIDv1 raw locator from an already-known sha256 digest. The on-chain
+ * discoveryCommitment IS that digest, so a public hand's doc is fetchable
+ * from storage reads alone — no event scan, no indexer.
+ */
+export function cidFromSha256Hex(digestHex: string): string {
+  const clean = digestHex.replace(/^0x/, "");
+  const digest = new Uint8Array(DIGEST_LEN);
+  for (let i = 0; i < DIGEST_LEN; i++) digest[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  const cid = new Uint8Array(4 + digest.length);
+  cid.set([CIDV1, RAW_CODEC, SHA2_256, DIGEST_LEN], 0);
+  cid.set(digest, 4);
+  return `b${base32encode(cid)}`;
+}
+
 export function ipfsUri(cid: string): `ipfs://${string}` {
   return `ipfs://${cid}`;
 }
@@ -141,6 +156,32 @@ export function pinBackendFromEnv(): PinBackend | null {
   const web3Token = readEnv("WEB3_STORAGE_TOKEN");
   if (web3Token) return web3StorageBackend(web3Token);
   return null;
+}
+
+/**
+ * Browser side of pinning: the key lives only in the server env, so the
+ * raise flow asks /api/pin to do it. Same honesty contract as
+ * publishDiscovery — the locator is always valid, `pinned` only turns true
+ * when the server confirmed OUR cid.
+ */
+export async function pinDiscoveryViaApp(bytes: Uint8Array): Promise<DiscoveryRef> {
+  const cid = await cidForBytes(bytes);
+  const local: DiscoveryRef = { cid, uri: ipfsUri(cid), pinned: false, provider: null };
+  try {
+    let b64 = "";
+    for (let i = 0; i < bytes.length; i++) b64 += String.fromCharCode(bytes[i]);
+    const res = await fetch("/api/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ b64: btoa(b64) }),
+    });
+    if (!res.ok) return { ...local, pinError: `pin api ${res.status}` };
+    const ref = (await res.json()) as DiscoveryRef;
+    if (ref.cid !== cid) return { ...local, pinError: `server derived ${ref.cid}, expected ${cid}` };
+    return ref;
+  } catch (err: any) {
+    return { ...local, pinError: String(err?.message ?? err) };
+  }
 }
 
 /**
