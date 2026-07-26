@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useConnection } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatUnits, createPublicClient, http } from "viem";
@@ -647,8 +647,24 @@ function HelpSheet(props: {
   const [copied, setCopied] = useState(false);
   const [ctaCopied, setCtaCopied] = useState(false);
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
-  /* The raiser takes replies directly — the swipe delivers, the link stays as a spare. */
+  /* The raiser takes replies directly — one swipe seals AND delivers. */
   const direct = Boolean(address) && delivery.canSendDirect;
+  /* The giver met this hand through a chain of strangers — a link they'd
+     paste somewhere is a dead end. The link only surfaces as the fallback
+     when the raiser can't take the message (or a send just failed). */
+  const linkFallback = !direct || delivery.phase === "failed";
+
+  // Seal → send is one gesture: the swipe arms this, and the send fires on
+  // the render where the fresh proof AND the direct offer are both real
+  // (sendDirect closes over render-time state, so calling it inline after
+  // prepare() would still see the old, empty link).
+  const autoSendRef = useRef(false);
+  useEffect(() => {
+    if (autoSendRef.current && flow.solveUrl && direct && delivery.phase === "idle") {
+      autoSendRef.current = false;
+      void delivery.sendDirect();
+    }
+  }, [flow.solveUrl, direct, delivery]);
 
   const copy = async () => {
     if (!flow.solveUrl) return;
@@ -663,6 +679,7 @@ function HelpSheet(props: {
 
   const send = async () => {
     if (!flow.solveUrl) return;
+    autoSendRef.current = false; // they chose the link — no surprise DM later
     if (canShare) {
       try {
         await navigator.share({ url: flow.solveUrl });
@@ -722,28 +739,19 @@ function HelpSheet(props: {
         </div>
       )}
 
-      {flow.solveUrl && (
+      {flow.solveUrl && linkFallback && (
         <>
           <button type="button" className="ah-linkrow mt-4" onClick={copy}>
             <span className="ah-linkrow__value">{truncateMiddle(flow.solveUrl, 26, 8)}</span>
             <span className="ah-linkrow__action">{copied ? t("copied") : t("copy")}</span>
           </button>
           <p className="ah-label ah-label--dim mt-2">
-            {delivery.phase === "sent"
-              ? t("Delivered. The link above is your copy, just in case.")
-              : delivery.phase === "failed"
-                ? delivery.failure === "busy"
-                  ? t("your messages are open in another tab — close it there first")
-                  : t("Couldn't reach them directly — send the link yourself.")
-                : direct
-                  ? t("They take replies right in their pocket — swipe below and it's there.")
-                  : t("Send your reply back to whoever asked — they'll say thanks if it helps.")}
+            {delivery.phase === "failed"
+              ? delivery.failure === "busy"
+                ? t("your messages are open in another tab — close it there first")
+                : t("Couldn't reach them directly — send the link yourself.")
+              : t("Send your reply back to whoever asked — they'll say thanks if it helps.")}
           </p>
-          {direct && delivery.phase !== "sent" && delivery.phase !== "sending" && (
-            <QuietButton compact className="mt-2.5 self-start" onClick={send}>
-              {ctaCopied ? t("Copied") : t("or send the link yourself")}
-            </QuietButton>
-          )}
         </>
       )}
 
@@ -777,8 +785,13 @@ function HelpSheet(props: {
             !address
               ? () => login()
               : needsSeal
-                ? () => void flow.prepare()
-                : direct
+                ? () => {
+                    // One swipe does both: seal the proof, then the effect
+                    // above delivers it the moment the fresh link exists.
+                    autoSendRef.current = true;
+                    void flow.prepare();
+                  }
+                : !linkFallback
                   ? delivery.phase === "sent"
                     ? props.onClose
                     : () => void delivery.sendDirect()
@@ -792,7 +805,7 @@ function HelpSheet(props: {
               ? flow.signing
                 ? t("sealing…")
                 : t("Tell them I'm on it")
-              : direct
+              : !linkFallback
                 ? delivery.phase === "sending"
                   ? t("sending…")
                   : delivery.phase === "sent"
