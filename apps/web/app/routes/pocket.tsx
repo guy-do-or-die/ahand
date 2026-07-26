@@ -175,14 +175,17 @@ function PocketComponent() {
               </div>
             </div>
 
-            {/* Claimable — what PayoutAllocated set aside for this pocket. */}
-            <ClaimsCard
-              amount={claimableUsd !== null ? formatUsdCents(claimableUsd) : "—"}
-              tokenSymbol="USDC"
-              empty={claimableUsd === null || claimableUsd === 0}
-              loading={pocket.claims.takingOut}
-              onTakeOut={() => void pocket.claims.takeOut()}
-            />
+            {/* Claimable — what PayoutAllocated set aside for this pocket.
+                Nothing waiting → no card; thanks normally lands straight
+                in the wallet, so an empty ledger line would only worry. */}
+            {claimableUsd !== null && claimableUsd > 0 && (
+              <ClaimsCard
+                amount={formatUsdCents(claimableUsd)}
+                tokenSymbol="USDC"
+                loading={pocket.claims.takingOut}
+                onTakeOut={() => void pocket.claims.takeOut()}
+              />
+            )}
             {pocket.claims.error && (
               <div className="ah-alert" role="alert">
                 <p className="ah-alert__text">{pocket.claims.error}</p>

@@ -7,8 +7,6 @@ export interface ClaimsCardProps {
   amount: string;
   /** Quiet mono note next to the amount, e.g. "USDC". */
   tokenSymbol?: string;
-  /** Nothing credited yet — the button hides, a quiet line explains. */
-  empty?: boolean;
   /** Withdrawal in flight. */
   loading?: boolean;
   /** "Take out" → withdraw(token, address); wired by the caller. */
@@ -19,18 +17,12 @@ export interface ClaimsCardProps {
 /**
  * Claimable pocket card — what PayoutAllocated has credited to you, with
  * the one action that moves it (withdraw). Pure shell: the caller reads the
- * chain and formats money; this only shows and asks.
+ * chain, formats money, and only mounts this when there IS something to
+ * claim — an empty card is noise, not reassurance.
  */
-export function ClaimsCard({
-  amount,
-  tokenSymbol,
-  empty = false,
-  loading = false,
-  onTakeOut,
-  className,
-}: ClaimsCardProps) {
+export function ClaimsCard({ amount, tokenSymbol, loading = false, onTakeOut, className }: ClaimsCardProps) {
   return (
-    <div className={clsx("ah-card", className)}>
+    <div className={clsx("ah-card p-[18px]", className)}>
       <p className="ah-label ah-label--dim">{t("claimable")}</p>
       <div className="flex items-end justify-between gap-3 mt-2">
         <span
@@ -40,7 +32,6 @@ export function ClaimsCard({
             lineHeight: 1,
             letterSpacing: "-0.035em",
             fontVariantNumeric: "tabular-nums",
-            color: empty ? "var(--ink-a45)" : "var(--ink)",
           }}
           aria-live="polite"
         >
@@ -52,25 +43,12 @@ export function ClaimsCard({
           </span>
         ) : null}
       </div>
-      {empty ? (
-        <p className="ah-label ah-label--dim mt-3">
-          {t("all clear — your thanks land straight in your wallet; anything undeliverable would wait here")}
-        </p>
-      ) : (
-        <>
-          <QuietButton
-            className="mt-4 w-full"
-            disabled={loading}
-            aria-busy={loading}
-            onClick={onTakeOut}
-          >
-            {loading ? t("Taking out…") : t("Take out")}
-          </QuietButton>
-          <p className="ah-label ah-label--dim mt-2.5">
-            {t("yours already · taking out just moves it to your pocket")}
-          </p>
-        </>
-      )}
+      <QuietButton className="mt-4 w-full" disabled={loading} aria-busy={loading} onClick={onTakeOut}>
+        {loading ? t("Taking out…") : t("Take out")}
+      </QuietButton>
+      <p className="ah-label ah-label--dim mt-2.5">
+        {t("yours already · taking out just moves it to your pocket")}
+      </p>
     </div>
   );
 }
