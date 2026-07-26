@@ -25,6 +25,7 @@ export const messages: Record<string, string> = {
   "copied": "copied",
   "Copied": "Copied",
   "or let them scan it": "or let them scan it",
+  "Looking around…": "Looking around…",
   "esc to close": "esc to close",
 
   // Raise — compose

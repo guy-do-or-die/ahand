@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { SwipeButton } from "../components/SwipeButton";
 import { Logo } from "../components/Logo";
 import { Emoji } from "../components/Emoji";
 import { PotBar } from "../components/PotBar";
 import { OnboardingSheet } from "../components/OnboardingSheet";
+import { OpenHandCard, useOpenHands } from "../components/OpenHandCard";
 import { formatUsd } from "../lib/format";
 import { t } from "../i18n";
 
@@ -81,29 +82,8 @@ function HomeComponent() {
           </p>
         </div>
 
-        {/* Illustration card */}
-        <div className="ah-card ah-card--lg p-[26px] pb-[22px]" aria-hidden="true">
-          <p className="mt-1 font-extrabold" style={{ fontSize: "var(--fs-card-title-lg)", lineHeight: 1.12, letterSpacing: "-0.02em" }}>
-            {t("Looking for a sublet in Yerevan, June")}
-          </p>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="font-extrabold" style={{ fontSize: 32, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>
-              {formatUsd(148)}
-            </span>
-            <span className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "0.06em", color: "var(--ink-a55)" }}>
-              {t("in the pot")}
-            </span>
-          </div>
-          <PotBar className="mt-2.5" size="md" progress={0.78} />
-          <div className="mt-6 flex gap-2">
-            <SwipeButton gesture="shake" variant="ink" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
-              {t("I can ask")}
-            </SwipeButton>
-            <SwipeButton gesture="cheer" variant="amber" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
-              {t("I can help")}
-            </SwipeButton>
-          </div>
-        </div>
+        {/* Live open hands when there are any; the illustration otherwise. */}
+        <OpenHandsRail />
       </div>
 
       {/* How it works */}
@@ -123,6 +103,77 @@ function HomeComponent() {
         ))}
       </div>
 
+    </div>
+  );
+}
+
+/**
+ * Hero rail: live public hands cycling where the mock's illustration card
+ * sat — the protocol showing itself instead of an example. Falls back to
+ * the (aria-hidden) illustration while loading or when the board is quiet,
+ * so the landing never blocks on chain + gateway round-trips.
+ */
+function OpenHandsRail() {
+  const hands = useOpenHands(6);
+  const [cursor, setCursor] = useState(0);
+
+  useEffect(() => {
+    if (!hands || hands.length < 2) return;
+    const timer = setInterval(() => setCursor((c) => (c + 1) % hands.length), 5000);
+    return () => clearInterval(timer);
+  }, [hands]);
+
+  if (!hands || hands.length === 0) {
+    return (
+      <div className="ah-card ah-card--lg p-[26px] pb-[22px]" aria-hidden="true">
+        <p className="mt-1 font-extrabold" style={{ fontSize: "var(--fs-card-title-lg)", lineHeight: 1.12, letterSpacing: "-0.02em" }}>
+          {t("Looking for a sublet in Yerevan, June")}
+        </p>
+        <div className="mt-4 flex items-baseline justify-between">
+          <span className="font-extrabold" style={{ fontSize: 32, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>
+            {formatUsd(148)}
+          </span>
+          <span className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "0.06em", color: "var(--ink-a55)" }}>
+            {t("in the pot")}
+          </span>
+        </div>
+        <PotBar className="mt-2.5" size="md" progress={0.78} />
+        <div className="mt-6 flex gap-2">
+          <SwipeButton gesture="shake" variant="ink" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
+            {t("I can ask")}
+          </SwipeButton>
+          <SwipeButton gesture="cheer" variant="amber" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
+            {t("I can help")}
+          </SwipeButton>
+        </div>
+      </div>
+    );
+  }
+
+  const hand = hands[cursor % hands.length];
+  return (
+    <div>
+      <OpenHandCard key={hand.id} hand={hand} />
+      {hands.length > 1 && (
+        <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
+          {hands.map((h, i) => (
+            <button
+              key={h.id}
+              type="button"
+              tabIndex={-1}
+              onClick={() => setCursor(i)}
+              className="border-0 p-0 cursor-pointer"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: i === cursor % hands.length ? "var(--ink)" : "var(--ink-a25)",
+                transition: "background 140ms ease",
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
