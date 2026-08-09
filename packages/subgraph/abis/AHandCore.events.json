@@ -1,0 +1,126 @@
+[
+  {
+    "type": "event",
+    "name": "Raised",
+    "anonymous": false,
+    "inputs": [
+      { "name": "handId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "raiser", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "token", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "credited", "type": "uint96", "indexed": false, "internalType": "uint96" },
+      { "name": "usdScaleAtRaise", "type": "uint64", "indexed": false, "internalType": "uint64" },
+      { "name": "policyRevision", "type": "uint64", "indexed": false, "internalType": "uint64" },
+      { "name": "expiry", "type": "uint40", "indexed": false, "internalType": "uint40" },
+      { "name": "rootCapability", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "visibility", "type": "uint8", "indexed": false, "internalType": "enum AHandTypes.Visibility" },
+      { "name": "metadataCommitment", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "discoveryCommitment", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "discoveryRef", "type": "bytes", "indexed": false, "internalType": "bytes" },
+      { "name": "minGiverClaimBps", "type": "uint16", "indexed": false, "internalType": "uint16" },
+      { "name": "charityRecipient", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "charityBps", "type": "uint16", "indexed": false, "internalType": "uint16" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "HandTagged",
+    "anonymous": false,
+    "inputs": [
+      { "name": "handId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "raiser", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "tagIds", "type": "bytes32[]", "indexed": false, "internalType": "bytes32[]" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Settled",
+    "anonymous": false,
+    "inputs": [
+      { "name": "handId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "giver", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "solutionHash", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "routeHash", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "giveHash", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "token", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "creditedPool", "type": "uint96", "indexed": false, "internalType": "uint96" },
+      { "name": "distributablePool", "type": "uint96", "indexed": false, "internalType": "uint96" },
+      { "name": "giverAllocation", "type": "uint96", "indexed": false, "internalType": "uint96" },
+      { "name": "charityRecipient", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "charityAllocation", "type": "uint96", "indexed": false, "internalType": "uint96" },
+      { "name": "usdScale", "type": "uint64", "indexed": false, "internalType": "uint64" },
+      { "name": "charityUsd", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RouteHopSettled",
+    "anonymous": false,
+    "inputs": [
+      { "name": "handId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "routeHash", "type": "bytes32", "indexed": true, "internalType": "bytes32" },
+      { "name": "position", "type": "uint8", "indexed": false, "internalType": "uint8" },
+      { "name": "parentCapability", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "childCapability", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "parentClaimBps", "type": "uint16", "indexed": false, "internalType": "uint16" },
+      { "name": "childClaimBps", "type": "uint16", "indexed": false, "internalType": "uint16" },
+      { "name": "shaker", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "shakeHash", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "hopDataHash", "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "marginAllocation", "type": "uint96", "indexed": false, "internalType": "uint96" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Reclaimed",
+    "anonymous": false,
+    "inputs": [
+      { "name": "handId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "raiser", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "token", "type": "address", "indexed": false, "internalType": "address" },
+      { "name": "refund", "type": "uint96", "indexed": false, "internalType": "uint96" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PayoutAllocated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "handId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "token", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "beneficiary", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "kind", "type": "uint8", "indexed": false, "internalType": "enum AHandTypes.AllocationKind" },
+      { "name": "routePosition", "type": "uint8", "indexed": false, "internalType": "uint8" },
+      { "name": "amount", "type": "uint96", "indexed": false, "internalType": "uint96" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PayoutWithdrawn",
+    "anonymous": false,
+    "inputs": [
+      { "name": "token", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "beneficiary", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "TokenPolicyUpdated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "token", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "enabled", "type": "bool", "indexed": false, "internalType": "bool" },
+      { "name": "policyRevision", "type": "uint64", "indexed": false, "internalType": "uint64" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "CharityPolicyUpdated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "charity", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "allowed", "type": "bool", "indexed": false, "internalType": "bool" },
+      { "name": "policyRevision", "type": "uint64", "indexed": false, "internalType": "uint64" }
+    ]
+  }
+]

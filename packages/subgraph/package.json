@@ -1,0 +1,16 @@
+{
+  "name": "@ahand/subgraph",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:manifest": "bun run ./scripts/prepare.ts",
+    "codegen": "graph codegen subgraph.base-sepolia.yaml",
+    "build": "graph build subgraph.base-sepolia.yaml",
+    "deploy:studio": "graph deploy ahand-base-sepolia subgraph.base-sepolia.yaml"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.97.1",
+    "@graphprotocol/graph-ts": "^0.38.1"
+  }
+}

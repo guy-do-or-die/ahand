@@ -1,0 +1,56 @@
+# Template for subgraph.<chain>.yaml — do NOT edit generated files by hand.
+# scripts/prepare.ts fills the network / address / startBlock / ABI-file
+# placeholders from packages/abi/src/addresses.<chain>.json.
+specVersion: 1.2.0
+description: >-
+  aHand Core survival subgraph: discoverable Hands, tags, settled routes,
+  allocations, withdrawals, and Actor counters.
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AHandCore
+    network: {{network}}
+    source:
+      address: "{{address}}"
+      abi: AHandCore
+      startBlock: {{startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Hand
+        - HandTag
+        - Settlement
+        - RouteHop
+        - PayoutAllocation
+        - Withdrawal
+        - Actor
+        - TokenPolicy
+        - CharityPolicy
+      abis:
+        - name: AHandCore
+          file: {{abiFile}}
+      eventHandlers:
+        - event: Raised(indexed uint256,indexed address,indexed address,uint96,uint64,uint64,uint40,address,uint8,bytes32,bytes32,bytes,uint16,address,uint16)
+          handler: handleRaised
+        - event: HandTagged(indexed uint256,indexed address,bytes32[])
+          handler: handleHandTagged
+        - event: Settled(indexed uint256,indexed address,bytes32,bytes32,bytes32,address,uint96,uint96,uint96,address,uint96,uint64,uint256)
+          handler: handleSettled
+        - event: RouteHopSettled(indexed uint256,indexed bytes32,uint8,address,address,uint16,uint16,address,bytes32,bytes32,uint96)
+          handler: handleRouteHopSettled
+        - event: Reclaimed(indexed uint256,indexed address,address,uint96)
+          handler: handleReclaimed
+        - event: PayoutAllocated(indexed uint256,indexed address,indexed address,uint8,uint8,uint96)
+          handler: handlePayoutAllocated
+        - event: PayoutWithdrawn(indexed address,indexed address,uint256)
+          handler: handlePayoutWithdrawn
+        - event: TokenPolicyUpdated(indexed address,bool,uint64)
+          handler: handleTokenPolicyUpdated
+        - event: CharityPolicyUpdated(indexed address,bool,uint64)
+          handler: handleCharityPolicyUpdated
+      file: ./src/mapping.ts

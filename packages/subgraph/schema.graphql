@@ -1,0 +1,229 @@
+# aHand survival subgraph schema (Gate 6 baseline).
+# Scope: discoverable Hands, tags, settled route, settlement, allocations,
+# withdrawals, Actor counters. Post-baseline Signals datasource entities
+# (SignalReceipt, ActorSignalState, UpEdge) are intentionally absent.
+#
+# Conventions:
+# - All monetary amounts are BigInt in raw reward-token units (no floats).
+# - Provenance fields (block, timestamp, tx) record the creating event;
+#   mutable entities additionally carry updatedBlock/updatedTimestamp/updatedTx.
+# - Hand id = "<core address hex>-<handId hex>" (both lowercase, 0x-prefixed).
+
+enum HandStatus {
+  Active
+  Settled
+  Reclaimed
+}
+
+enum Visibility {
+  Public
+  Preview
+  Dark
+}
+
+enum AllocationKind {
+  Charity
+  ShakerMargin
+  GiverResidual
+  RaiserRefund
+}
+
+type Hand @entity(immutable: false) {
+  "core address hex + \"-\" + handId hex"
+  id: ID!
+  handId: BigInt!
+  core: Bytes!
+  "Derived from the manifest network name; 0 when the network is unknown to the mapping"
+  chainId: BigInt!
+  network: String!
+  "keccak256(abi.encode(chainId, core, handId)) — byte-matches the contract/SDK HandRef; null when chainId unknown"
+  handRef: Bytes
+
+  raiser: Actor!
+  status: HandStatus!
+
+  token: Bytes!
+  "creditedReward escrowed at raise (uint96, never zeroed on-chain)"
+  creditedReward: BigInt!
+  "usdScaleAtRaise snapshot (e.g. 1e12 for 6-decimals USDC)"
+  usdScaleAtRaise: BigInt!
+  "policyRevision at raise time"
+  policyRevision: BigInt!
+  expiry: BigInt!
+  rootCapability: Bytes!
+  visibility: Visibility!
+  metadataCommitment: Bytes!
+  discoveryCommitment: Bytes!
+  "Opaque discovery locator bytes (e.g. ipfs:// ref); empty for Dark hands"
+  discoveryRef: Bytes!
+  minGiverClaimBps: Int!
+  charityRecipient: Bytes!
+  charityBps: Int!
+
+  tags: [HandTag!]! @derivedFrom(field: "hand")
+  "Set when the hand settles (1:1, same id as the hand)"
+  settlement: Settlement
+  allocations: [PayoutAllocation!]! @derivedFrom(field: "hand")
+
+  "Refund credited to the raiser on reclaim (null unless status == Reclaimed)"
+  reclaimRefund: BigInt
+  reclaimedTimestamp: BigInt
+
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+  updatedBlock: BigInt!
+  updatedTimestamp: BigInt!
+  updatedTx: Bytes!
+}
+
+type HandTag @entity(immutable: true) {
+  "hand id + \"-\" + tagId hex"
+  id: ID!
+  hand: Hand!
+  "bytes32 tag id (tags are strictly ascending and unique per hand on-chain)"
+  tag: Bytes!
+  raiser: Bytes!
+  "Index within the HandTagged tagIds array"
+  position: Int!
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+type Settlement @entity(immutable: true) {
+  "Same id as the hand (1:1)"
+  id: ID!
+  hand: Hand!
+  giver: Actor!
+  solutionHash: Bytes!
+  routeHash: Bytes!
+  giveHash: Bytes!
+  token: Bytes!
+  creditedPool: BigInt!
+  distributablePool: BigInt!
+  giverAllocation: BigInt!
+  charityRecipient: Bytes!
+  charityAllocation: BigInt!
+  usdScale: BigInt!
+  "charityAllocation * usdScale (1e18-scaled USD), uint256-exact"
+  charityUsd: BigInt!
+  hops: [RouteHop!]! @derivedFrom(field: "settlement")
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+# One entity per settled route occurrence — occurrences are NEVER collapsed:
+# anonymous zero-margin hops (shaker == 0x0) and repeated use of one Shaker
+# account each remain distinct RouteHop rows.
+type RouteHop @entity(immutable: true) {
+  "hand id + \"-\" + position"
+  id: ID!
+  hand: Hand!
+  settlement: Settlement!
+  routeHash: Bytes!
+  position: Int!
+  parentCapability: Bytes!
+  childCapability: Bytes!
+  parentClaimBps: Int!
+  childClaimBps: Int!
+  "parentClaimBps - childClaimBps (exact integer)"
+  marginBps: Int!
+  "Zero address = anonymous forwarding (preserved, not filtered)"
+  shaker: Bytes!
+  "Actor link only for attributed (non-zero) shakers"
+  shakerActor: Actor
+  shakeHash: Bytes!
+  hopDataHash: Bytes!
+  marginAllocation: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+type PayoutAllocation @entity(immutable: true) {
+  "tx hash + \"-\" + logIndex"
+  id: ID!
+  hand: Hand!
+  token: Bytes!
+  beneficiary: Actor!
+  kind: AllocationKind!
+  "Route position for ShakerMargin allocations; 0 otherwise"
+  routePosition: Int!
+  amount: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+# Aggregate withdrawal of claims[token][beneficiary]. Deliberately carries NO
+# hand link: on-chain claims are pooled across hands, so attributing a
+# withdrawal to any single hand would be an invention.
+type Withdrawal @entity(immutable: true) {
+  "tx hash + \"-\" + logIndex"
+  id: ID!
+  token: Bytes!
+  beneficiary: Actor!
+  amount: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+# Address-keyed counters with provenance. Counters are protocol facts derived
+# from Core events only — no scores, no ENS, no Signals here.
+# allocatedTotal/withdrawnTotal sum raw reward-token units; Core has a single
+# immutable reward token, so per-token scoping is unnecessary at this baseline.
+type Actor @entity(immutable: false) {
+  "Lowercase address hex"
+  id: ID!
+  address: Bytes!
+  "Hands raised"
+  raisedCount: BigInt!
+  "Hands reclaimed where this actor was the raiser"
+  reclaimedCount: BigInt!
+  "Settlements where this actor was the giver"
+  giverSettlementCount: BigInt!
+  "Settled route-hop OCCURRENCES as a non-zero shaker (not distinct hands)"
+  shakerHopCount: BigInt!
+  allocationCount: BigInt!
+  allocatedTotal: BigInt!
+  withdrawalCount: BigInt!
+  withdrawnTotal: BigInt!
+  hands: [Hand!]! @derivedFrom(field: "raiser")
+  settlements: [Settlement!]! @derivedFrom(field: "giver")
+  hops: [RouteHop!]! @derivedFrom(field: "shakerActor")
+  allocations: [PayoutAllocation!]! @derivedFrom(field: "beneficiary")
+  withdrawals: [Withdrawal!]! @derivedFrom(field: "beneficiary")
+  "First-seen provenance"
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+  updatedBlock: BigInt!
+  updatedTimestamp: BigInt!
+  updatedTx: Bytes!
+}
+
+# Current prospective-policy state (latest event wins; provenance = last update).
+type TokenPolicy @entity(immutable: false) {
+  "Token address hex"
+  id: ID!
+  token: Bytes!
+  enabled: Boolean!
+  policyRevision: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+type CharityPolicy @entity(immutable: false) {
+  "Charity address hex"
+  id: ID!
+  charity: Bytes!
+  allowed: Boolean!
+  policyRevision: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
