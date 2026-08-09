@@ -150,7 +150,7 @@ All three modes require a mandatory `metadataCommitment`.
 
 ### Public Hand
 
-A Hand that publishes a non-empty discovery reference (≤ 128 bytes, an IPFS locator in practice) and its non-zero `discoveryCommitment`, plus optional public tags. Its discovery document may be indexed and discovered without possessing the capability link; clients verify the fetched document byte-for-byte against the commitment.
+A Hand that publishes a non-empty discovery reference (≤ 128 bytes, an IPFS locator in practice) and its non-zero `discoveryCommitment`, plus optional public tags. Its discovery document may be indexed and discovered without possessing the capability link; clients verify the fetched document byte-for-byte against the commitment. In the web app, Public also means open: the pinned document embeds the root bearer secret and route body, so anyone who discovers the Hand can read it in full and join its chain directly from the board.
 
 ### Preview Hand
 

@@ -86,6 +86,30 @@ export async function verifyDiscoveryBytes(bytes: Uint8Array, cid: string): Prom
   return (await cidForBytes(bytes)) === cid;
 }
 
+/**
+ * Fetch a discovery doc straight from its on-chain anchor: commitment →
+ * CID → gateway GET → byte-for-byte verification. Isomorphic (SSR loader
+ * and browser both use it); null on any miss — callers degrade quietly.
+ */
+export async function fetchDiscoveryByCommitment(
+  discoveryCommitment: string,
+  timeoutMs = 4000,
+): Promise<Uint8Array | null> {
+  const cid = cidFromSha256Hex(discoveryCommitment);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(gatewayUrl(cid), { signal: controller.signal });
+    if (!res.ok) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return (await verifyDiscoveryBytes(bytes, cid)) ? bytes : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type PinProvider = "pinata" | "web3.storage";
 
 export interface PinBackend {

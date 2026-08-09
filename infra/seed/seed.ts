@@ -98,11 +98,17 @@ async function main() {
 
   const lines: string[] = ["# Seeded hands — links carry the root capability, keep private", ""];
   for (const s of SCENARIOS) {
-    const metadata = await buildMetadata({ text: s.text, visibility: "public" });
+    // Capability first: public docs embed the bearer secret (open hands),
+    // so anyone on the board can join the chain — no link hand-off needed.
+    const cap = newCapability();
+    const metadata = await buildMetadata({
+      text: s.text,
+      visibility: "public",
+      open: { secret: cap.privateKey },
+    });
     const ref = await publishDiscovery(metadata.discoveryBytes);
     if (!ref.pinned) throw new Error(`pin failed for "${metadata.discovery.title}": ${ref.pinError}`);
 
-    const cap = newCapability();
     const expiry = BigInt(Math.floor(Date.now() / 1000) + s.expiryDays * 24 * 60 * 60);
     const hash = await wallet.writeContract({
       address: core,
@@ -154,6 +160,7 @@ async function main() {
           metadata: packLinkMetadata(meta),
         }),
       "public",
+      { omitDiscoveryParam: true },
     );
     console.log(`  raised #${handId} "$${s.rewardUsd} ${metadata.discovery.title}" (pinned ${ref.cid.slice(0, 16)}…)`);
     lines.push(`## #${handId} — ${metadata.discovery.title}`, `- pot: $${s.rewardUsd} · expires in ${s.expiryDays}d`, `- ${url}`, "");

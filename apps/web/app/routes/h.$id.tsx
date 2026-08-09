@@ -4,10 +4,12 @@ import { useConnection } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatUnits, createPublicClient, http } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
-import { activeChain } from "../config/web3";
-import { Discovery, b64urlDecode, sha256hex, ZERO_HASH } from "../lib/metadata";
+import { activeChain, APP_SHAKER_ADDRESS } from "../config/web3";
+import { Discovery, b64urlDecode, b64urlEncode, sha256hex, ZERO_HASH } from "../lib/metadata";
+import { fetchDiscoveryByCommitment } from "../lib/discovery";
 import { mapHand, isReclaimable, type Hand, type HandAbiOutput } from "../lib/hand";
 import { useHandView, type HandRoute } from "../hooks/useHandView";
+import { useSettlement } from "../hooks/useSettlement";
 import { usePassOnFlow } from "../hooks/usePassOnFlow";
 import { useSolveFlow } from "../hooks/useSolveFlow";
 import { useGiveDelivery } from "../hooks/useGiveDelivery";
@@ -65,9 +67,20 @@ export const Route = createFileRoute("/h/$id")({
 
     // Stateless SSR verification: ?e= carries the discovery doc, anchored by
     // the on-chain discoveryCommitment (zero for dark hands — nothing public).
-    if (e && hand.discoveryCommitment !== ZERO_HASH) {
+    // Open public links travel without ?e= — fetch the pinned doc by its
+    // commitment instead, and hand the verified bytes to the OG card as e.
+    let effectiveE = e;
+    if (!effectiveE && hand.discoveryCommitment !== ZERO_HASH) {
       try {
-        const discoveryBytes = b64urlDecode(e);
+        const fetched = await fetchDiscoveryByCommitment(hand.discoveryCommitment, 3000);
+        if (fetched) effectiveE = b64urlEncode(fetched);
+      } catch {
+        /* generic card — the doc simply isn't reachable right now */
+      }
+    }
+    if (effectiveE && hand.discoveryCommitment !== ZERO_HASH) {
+      try {
+        const discoveryBytes = b64urlDecode(effectiveE);
         const calcHash = await sha256hex(discoveryBytes);
         if (calcHash === hand.discoveryCommitment) {
           const doc = Discovery.parse(JSON.parse(new TextDecoder().decode(discoveryBytes)));
@@ -81,7 +94,7 @@ export const Route = createFileRoute("/h/$id")({
       }
     }
 
-    return { id: params.id, title, desc, e, th };
+    return { id: params.id, title, desc, e: effectiveE, th };
   },
   meta: ({ loaderData }) => {
     if (!loaderData) return [];
@@ -112,6 +125,7 @@ function HandComponent() {
 
   const { hand, isError, isLoading, refetchHand, route, tampered, errorMsg, fullMetadata, hasFragment } =
     useHandView(id, { disabled: isChildRoute });
+  const settlement = useSettlement(id, !isChildRoute && hand?.status === "settled");
 
   const [showPassOn, setShowPassOn] = useState(false);
   const [showSolve, setShowSolve] = useState(false);
@@ -148,8 +162,13 @@ function HandComponent() {
   const hops = route?.payload.shakes ?? [];
   // Word of mouth, not hex: people show as warm roles, never 0x… addresses.
   // The real route still lives in the payload and drives every flow — this
-  // is display only.
-  const railNodes = [t("who asked"), ...hops.map(() => t("a friend"))];
+  // is display only. The app's own board hop resolves to its name.
+  const railNodes = [
+    t("who asked"),
+    ...hops.map((h) =>
+      h.shake.shaker.toLowerCase() === APP_SHAKER_ADDRESS ? "aHand" : t("a friend"),
+    ),
+  ];
   const actionsDisabled = tampered || !route;
   const statusLabel = hand.status === "settled" ? t("accepted") : hand.status === "reclaimed" ? t("reclaimed") : null;
   const statusEmoji = hand.status === "settled" ? "🙏" : hand.status === "reclaimed" ? "👎" : null;
@@ -209,6 +228,48 @@ function HandComponent() {
         label={`${formatUsd(potAmount)} ${t("in the pot")}`}
       />
     </>
+  );
+
+  // How the thanks went — chain facts for a settled hand, warm labels only.
+  const receiptBlock = hand.status === "settled" && settlement && (
+    <div className="mt-5">
+      <p className="ah-label ah-label--dim">{t("how the thanks went")}</p>
+      <div className="mt-2.5 flex flex-col gap-2">
+        {settlement.hops
+          .filter((h) => h.shaker !== "0x0000000000000000000000000000000000000000")
+          .map((h) => (
+            <div key={h.position} className="flex items-baseline justify-between">
+              <span className="text-[14px] text-ink/70">
+                {h.shaker.toLowerCase() === APP_SHAKER_ADDRESS
+                  ? t("aHand · passed it on")
+                  : t("{who} · passed it on", { who: truncateMiddle(h.shaker) })}
+              </span>
+              <span className="font-extrabold text-[15px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {formatUsd(h.marginUsd)}
+              </span>
+            </div>
+          ))}
+        <div className="flex items-baseline justify-between">
+          <span className="text-[14px] text-ink/70">
+            {t("{who} · helped", { who: truncateMiddle(settlement.giver) })}
+          </span>
+          <span className="font-extrabold text-[15px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {formatUsd(settlement.giverUsd)}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[14px] text-ink/70">{t("to charity")}</span>
+          <span className="font-extrabold text-[15px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {formatUsd(settlement.charityUsd)}
+          </span>
+        </div>
+      </div>
+      <p className="ah-label ah-label--dim mt-3">
+        {settlement.receiptsMinted
+          ? t("soulbound receipts minted 🙏")
+          : t("receipts pending — anyone can mint them from the pocket")}
+      </p>
+    </div>
   );
 
   const actions = isHandActive && !showPassOn && !showSolve && (
@@ -281,6 +342,7 @@ function HandComponent() {
           {/* Mobile-only: pot + actions inline */}
           <div className="lg:hidden mt-5 flex flex-col flex-1">
             {potBlock}
+            {receiptBlock}
             <div aria-hidden="true" className="flex-1 min-h-5 max-h-24" />
             <div className="pt-4">
               {actions}
@@ -293,6 +355,7 @@ function HandComponent() {
         {/* Desktop action card */}
         <aside className="hidden lg:block ah-card ah-card--lg p-[26px] pb-[22px]">
           {potBlock}
+          {receiptBlock}
           <div className="mt-5">
             {actions}
             {reclaimBlock}

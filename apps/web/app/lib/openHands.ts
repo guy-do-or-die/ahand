@@ -2,7 +2,7 @@ import { createPublicClient, http, formatUnits } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
 import { activeChain } from "../config/web3";
 import { cidFromSha256Hex, gatewayUrl, verifyDiscoveryBytes } from "./discovery";
-import { Discovery } from "./metadata";
+import { Discovery, b64urlDecode, reopenFromDiscovery, sha256hex } from "./metadata";
 import { mapHand, type HandAbiOutput } from "./hand";
 
 /**
@@ -25,6 +25,8 @@ export type OpenHand = {
   charityBps: number;
   /** Unix seconds. */
   expiry: number;
+  /** True when the doc carries open-hand extras — joinable straight from the board. */
+  open: boolean;
 };
 
 /** Newest hands considered per refresh — a board, not an archive. */
@@ -79,6 +81,14 @@ export async function listOpenHands(limit = 8): Promise<OpenHand[]> {
           const bytes = await fetchDocBytes(cid);
           if (!bytes || !(await verifyDiscoveryBytes(bytes, cid))) return null;
           const doc = Discovery.parse(JSON.parse(new TextDecoder().decode(bytes)));
+          // The board lists only verifiably joinable hands: the doc must
+          // reopen (open extras present) AND the rebuilt envelope must match
+          // the hand's on-chain metadataCommitment — a legacy or doctored
+          // doc drops out instead of dead-ending on a locked page.
+          const reopened = await reopenFromDiscovery(bytes);
+          if (!reopened) return null;
+          const envHash = await sha256hex(b64urlDecode(reopened.metaParts.envelopeB64));
+          if (envHash !== hand.metadataCommitment) return null;
           return {
             id: id.toString(),
             title: doc.title,
@@ -86,6 +96,7 @@ export async function listOpenHands(limit = 8): Promise<OpenHand[]> {
             potUsd: Number(formatUnits(hand.creditedReward, 6)),
             charityBps: hand.charityBps,
             expiry: hand.expiry,
+            open: true,
           };
         } catch {
           return null; // one bad hand never empties the board

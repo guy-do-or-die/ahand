@@ -372,4 +372,17 @@ export const messages: Record<string, string> = {
   "these settled hands haven't minted their memory yet — one tap does it, for everyone": "these settled hands haven’t minted their memory yet — one tap does it, for everyone",
   "materialize receipts": "materialize receipts",
   "minting…": "minting…",
+  "reading open hands from the chain": "reading open hands from the chain",
+  "The board is clear right now.": "The board is clear right now.",
+  "Hands also travel hand to hand — by link. Raise one and start a chain.":
+    "Hands also travel hand to hand — by link. Raise one and start a chain.",
+  "travels by link — ask whoever holds it": "travels by link — ask whoever holds it",
+  "how the thanks went": "how the thanks went",
+  "aHand · passed it on": "aHand · passed it on",
+  "{who} · passed it on": "{who} · passed it on",
+  "{who} · helped": "{who} · helped",
+  "to charity": "to charity",
+  "soulbound receipts minted 🙏": "soulbound receipts minted 🙏",
+  "receipts pending — anyone can mint them from the pocket":
+    "receipts pending — anyone can mint them from the pocket",
 };

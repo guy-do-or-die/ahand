@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { useReadContract } from "wagmi";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
 import {
+  buildLiveRoute,
   decodeLiveRoute,
   verifyLiveRoute,
   type LiveRoutePayload,
   type RouteContext,
 } from "@ahand/sdk";
-import { b64urlDecode, parseLink, verifyMetadata } from "../lib/metadata";
+import { b64urlDecode, parseLink, reopenFromDiscovery, verifyMetadata } from "../lib/metadata";
+import { fetchDiscoveryByCommitment } from "../lib/discovery";
 import { mapHand, type Hand, type HandAbiOutput } from "../lib/hand";
 import {
+  bearerCapability,
   handRefFor,
+  packLinkMetadata,
   routeContextFor,
   unpackLinkMetadata,
   type LinkMetadataParts,
@@ -68,15 +72,93 @@ export function useHandView(id: string, options?: { disabled?: boolean }) {
 
     let cancelled = false;
     async function load(current: Hand) {
-      setHasFragment(window.location.hash.length > 2);
+      const fragmentPresent = window.location.hash.length > 2;
+      // null = still resolving (an open public hand may recover a payload
+      // from its pinned doc) — the "missing key" card waits for a verdict.
+      setHasFragment(fragmentPresent ? true : null);
 
       const ctx = routeContextFor(
         current,
         handRefFor(activeChain.id, DeployedAddresses.AHandCore, BigInt(id)),
       );
 
+      // Open-hand recovery: a public hand's pinned doc may carry the root
+      // bearer secret + route body; rebuild the same payload a share link
+      // would carry, then verify it through the identical fail-closed path.
+      // Board routes start with aHand's own attributed first hop when the
+      // app-hop endpoint answers; a bare root branch is the quiet fallback.
+      async function recoverOpenHref(): Promise<string | null> {
+        if (current.visibility !== "public") return null;
+        try {
+          const docBytes = await fetchDiscoveryByCommitment(current.discoveryCommitment);
+          if (!docBytes) return null;
+          const reopened = await reopenFromDiscovery(docBytes);
+          if (!reopened) return null;
+
+          let shakes: Parameters<typeof buildLiveRoute>[0]["shakes"] = [];
+          let capability = bearerCapability(reopened.secret);
+          try {
+            const res = await fetch("/api/app-hop", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ handId: id }),
+            });
+            if (res.ok) {
+              const hop = await res.json();
+              shakes = [
+                {
+                  shake: {
+                    handId: BigInt(hop.shake.handId),
+                    childCapability: hop.shake.childCapability,
+                    shaker: hop.shake.shaker,
+                    parentClaimBps: hop.shake.parentClaimBps,
+                    childClaimBps: hop.shake.childClaimBps,
+                    hopDataHash: hop.shake.hopDataHash,
+                    deadline: BigInt(hop.shake.deadline),
+                  },
+                  signature: hop.signature,
+                  acceptanceSig: hop.acceptanceSig,
+                },
+              ];
+              capability = bearerCapability(hop.childSecret);
+            }
+          } catch {
+            /* endpoint down — the bare root branch still works */
+          }
+
+          const payloadStr = buildLiveRoute({
+            handRef: ctx.handRef,
+            expiry: ctx.expiry,
+            rootCapability: ctx.rootCapability,
+            shakes,
+            capability,
+            metadata: packLinkMetadata(reopened.metaParts),
+          });
+          return `${window.location.origin}/h/${id}#${payloadStr}`;
+        } catch {
+          return null; // a malformed doc reads as "no key", never as tampering
+        }
+      }
+
       try {
-        const parsed = parseLink(window.location.href, (fragment: string) => {
+        let href = window.location.href;
+        let recoveredFragment: string | null = null;
+        if (!fragmentPresent) {
+          const recovered = await recoverOpenHref();
+          if (cancelled) return;
+          if (!recovered) {
+            setHasFragment(false);
+            setTampered(false);
+            setErrorMsg("");
+            setFullMetadata(null);
+            setRoute(null);
+            return;
+          }
+          href = recovered;
+          recoveredFragment = recovered.split("#")[1] ?? null;
+          setHasFragment(true);
+        }
+        const parsed = parseLink(href, (fragment: string) => {
           const payload = decodeLiveRoute(fragment, ctx);
           return { ...payload, metadata: unpackLinkMetadata(payload.metadata) };
         });
@@ -141,6 +223,15 @@ export function useHandView(id: string, options?: { disabled?: boolean }) {
           description: verify.body.description,
         });
         setRoute({ payload, ctx, metaParts });
+        // Make the recovered route shareable AS a link: put the verified
+        // payload in the address bar, exactly what a passed link would carry.
+        if (recoveredFragment) {
+          try {
+            window.history.replaceState(null, "", `#${recoveredFragment}`);
+          } catch {
+            /* display-only nicety */
+          }
+        }
       } catch (err: any) {
         if (cancelled) return;
         console.error(err);

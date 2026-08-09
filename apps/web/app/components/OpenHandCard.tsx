@@ -52,14 +52,20 @@ export function OpenHandCard({ hand, className = "" }: { hand: OpenHand; classNa
         </span>
       </div>
       <PotBar className="mt-2.5" size="md" progress={progress} />
-      <div className="mt-6 flex gap-2 pointer-events-none" aria-hidden="true">
-        <SwipeButton gesture="shake" variant="ink" compact still className="flex-1 ah-swipe--card" tabIndex={-1}>
-          {t("I can ask")}
-        </SwipeButton>
-        <SwipeButton gesture="cheer" variant="amber" compact still className="flex-1 ah-swipe--card" tabIndex={-1}>
-          {t("I can help")}
-        </SwipeButton>
-      </div>
+      {hand.open ? (
+        <div className="mt-6 flex gap-2 pointer-events-none" aria-hidden="true">
+          <SwipeButton gesture="shake" variant="ink" compact still className="flex-1 ah-swipe--card" tabIndex={-1}>
+            {t("I can ask")}
+          </SwipeButton>
+          <SwipeButton gesture="cheer" variant="amber" compact still className="flex-1 ah-swipe--card" tabIndex={-1}>
+            {t("I can help")}
+          </SwipeButton>
+        </div>
+      ) : (
+        <p className="ah-label ah-label--dim mt-6" aria-hidden="true">
+          {t("travels by link — ask whoever holds it")}
+        </p>
+      )}
     </Link>
   );
 }

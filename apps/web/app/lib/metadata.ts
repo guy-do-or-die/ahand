@@ -42,10 +42,25 @@ export const Envelope = z.object({
   routeBodyHash: Hex32,
 }).passthrough();
 
+/**
+ * Open-hand extras inside a PUBLIC discovery doc: the root bearer secret plus
+ * everything needed to rebuild the canonical envelope byte-for-byte (the
+ * envelope commits to the discovery hash, so it cannot ride inside the doc
+ * itself). Public means open — anyone who can discover the hand can join its
+ * chain; the raiser opts in by choosing public visibility.
+ */
+export const OpenExtras = z.object({
+  secret: z.string().regex(/^0x[0-9a-f]{64}$/i),
+  envNonce: z.string().min(22),
+  /** b64url of the canonical route-body bytes. */
+  body: z.string().min(1),
+});
+
 export const Discovery = z.object({
   title: z.string().min(1).max(80),
   teaser: z.string().max(140).optional(),
   nonce: z.string().min(22),
+  open: OpenExtras.optional(),
 }).passthrough();
 
 export const RouteBody = z.object({
@@ -120,6 +135,8 @@ export async function buildMetadata(input: {
   contacts?: string;
   image?: string;
   visibility: "public" | "preview" | "dark";
+  /** Public only: embed the root bearer secret so the hand is openly joinable. */
+  open?: { secret: `0x${string}` };
   opts?: { nonces?: Partial<{ envelope: string; discovery: string; body: string }> };
 }): Promise<BuiltMetadata> {
   if (!input.text.trim()) {
@@ -159,10 +176,23 @@ export async function buildMetadata(input: {
   const bodyBytes = new TextEncoder().encode(bodyCanonicalStr);
   const routeBodyHash = await sha256hex(bodyBytes);
 
+  // The envelope nonce is fixed BEFORE the discovery doc: open (public) docs
+  // carry it so readers can rebuild the canonical envelope from the doc alone.
+  const envelopeNonce = input.opts?.nonces?.envelope || newNonce();
+
   const discoveryObj = {
     title,
     ...(teaser ? { teaser } : {}),
     nonce: input.opts?.nonces?.discovery || newNonce(),
+    ...(input.visibility === "public" && input.open
+      ? {
+          open: {
+            secret: input.open.secret,
+            envNonce: envelopeNonce,
+            body: b64urlEncode(bodyBytes),
+          },
+        }
+      : {}),
   };
 
   const parsedDiscoveryObj = Discovery.parse(discoveryObj);
@@ -173,7 +203,7 @@ export async function buildMetadata(input: {
   const envelopeObj = {
     v: 2 as const,
     visibility: input.visibility,
-    nonce: input.opts?.nonces?.envelope || newNonce(),
+    nonce: envelopeNonce,
     schema: METADATA_SCHEMA as typeof METADATA_SCHEMA,
     discoveryHash,
     routeBodyHash,
@@ -266,18 +296,60 @@ export async function verifyMetadata(
 }
 
 /**
+ * Rebuild link-shaped metadata parts from a fetched-and-verified PUBLIC
+ * discovery doc that carries open-hand extras. The canonical envelope is
+ * reconstructed deterministically (same canonicalize, same field set); the
+ * caller then runs the ordinary fail-closed verifyMetadata against the
+ * on-chain commitments, so a doctored doc gets exactly as far as a doctored
+ * link would. Returns null when the doc has no open extras.
+ */
+export async function reopenFromDiscovery(docBytes: Uint8Array): Promise<{
+  secret: `0x${string}`;
+  metaParts: { envelopeB64: string; discoveryB64: string; bodyB64: string };
+} | null> {
+  const doc = Discovery.parse(JSON.parse(new TextDecoder().decode(docBytes)));
+  if (!doc.open) return null;
+
+  const discoveryHash = await sha256hex(docBytes);
+  const routeBodyHash = await sha256hex(b64urlDecode(doc.open.body));
+  const envelopeObj = Envelope.parse({
+    v: 2 as const,
+    visibility: "public" as const,
+    nonce: doc.open.envNonce,
+    schema: METADATA_SCHEMA as typeof METADATA_SCHEMA,
+    discoveryHash,
+    routeBodyHash,
+  });
+  const envelopeBytes = new TextEncoder().encode(canonicalize(envelopeObj)!);
+
+  return {
+    secret: doc.open.secret.toLowerCase() as `0x${string}`,
+    metaParts: {
+      envelopeB64: b64urlEncode(envelopeBytes),
+      discoveryB64: b64urlEncode(docBytes),
+      bodyB64: doc.open.body,
+    },
+  };
+}
+
+/**
  * Link layout — dark keeps everything in the fragment (no ?e=, per the Dark
  * rules); public/preview expose only the discovery doc to servers/scrapers:
  *
  *   public/preview  /h/:id?e=<discoveryB64>#<payload{envelopeB64, bodyB64}>
  *   dark            /h/:id#<payload{envelopeB64, discoveryB64, bodyB64}>
+ *
+ * Open public hands omit ?e= — their doc now embeds the route body, which
+ * would balloon the query string; the doc is pinned and every reader (SSR
+ * included) can fetch it by the on-chain commitment instead.
  */
 export function assembleLink(
   base: string,
   handId: bigint | string,
   parts: { envelopeB64: string; discoveryB64?: string; bodyB64: string },
   encodePayloadFn: (metadata: any) => string,
-  visibility: "public" | "preview" | "dark"
+  visibility: "public" | "preview" | "dark",
+  opts?: { omitDiscoveryParam?: boolean }
 ): string {
   const metadata = visibility === "dark"
     ? { envelopeB64: parts.envelopeB64, discoveryB64: parts.discoveryB64, bodyB64: parts.bodyB64 }
@@ -286,7 +358,7 @@ export function assembleLink(
   const payloadStr = encodePayloadFn(metadata);
 
   const url = new URL(`h/${handId}`, base.endsWith('/') ? base : base + '/');
-  if (visibility !== "dark" && parts.discoveryB64) {
+  if (visibility !== "dark" && parts.discoveryB64 && !opts?.omitDiscoveryParam) {
     url.searchParams.set("e", parts.discoveryB64);
   }
   url.hash = payloadStr;

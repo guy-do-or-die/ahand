@@ -7,6 +7,13 @@ import { base, baseSepolia, mainnet, worldchain } from "viem/chains";
 export const PRIVY_APP_ID =
   (import.meta.env.VITE_PRIVY_APP_ID as string | undefined) ?? "clt69jwp204btq1o3q72cupji";
 
+/** aHand's public Shaker identity on board routes — display resolution only;
+ *  the server-held APP_SHAKER_KEY signs, this just names the hop in the UI. */
+export const APP_SHAKER_ADDRESS = (
+  (import.meta.env.VITE_APP_SHAKER_ADDRESS as string | undefined) ??
+  "0x9092a223be934f6756F8496714063E755eBE5dd2"
+).toLowerCase();
+
 const rpcUrl = typeof window !== "undefined" ? "/api/rpc" : "http://127.0.0.1:8545";
 
 const anvil = defineChain({

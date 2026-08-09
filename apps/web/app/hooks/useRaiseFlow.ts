@@ -103,6 +103,9 @@ export function useRaiseFlow() {
           metadata: packLinkMetadata(meta),
         }),
       visibility,
+      // Open public hands: the doc embeds the body, so ?e= would balloon the
+      // link; readers (SSR included) fetch the pinned doc by commitment.
+      { omitDiscoveryParam: visibility === "public" },
     );
 
   useEffect(() => {
@@ -116,7 +119,11 @@ export function useRaiseFlow() {
       try {
         if (!draftCap.current) draftCap.current = newCapability();
         const cap = draftCap.current;
-        const metadata = await buildMetadata({ text: description, visibility });
+        const metadata = await buildMetadata({
+          text: description,
+          visibility,
+          ...(visibility === "public" ? { open: { secret: cap.privateKey } } : {}),
+        });
         const expiry = BigInt(Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60);
         const url = assembleFor(0n, metadata, cap, expiry);
         if (!cancelled) {
@@ -185,13 +192,18 @@ export function useRaiseFlow() {
     try {
       const parsedReward = parseUnits(reward, 6);
 
-      // 1. Build metadata layers.
-      const metadata = await buildMetadata({ text: description, visibility });
+      // 1. The root capability first — a PUBLIC hand embeds its bearer secret
+      // in the discovery doc, making it openly joinable from the board.
+      const cap = newCapability();
 
-      // 2. Generate the root capability, prove the link fits BEFORE any money
+      // 2. Build metadata layers, then prove the link fits BEFORE any money
       // moves (probe with a placeholder id — the payload is fixed-width in
       // handId, so the probe length IS the real length).
-      const cap = newCapability();
+      const metadata = await buildMetadata({
+        text: description,
+        visibility,
+        ...(visibility === "public" ? { open: { secret: cap.privateKey } } : {}),
+      });
       const expiryTimestamp = BigInt(Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60);
       try {
         assembleFor(0n, metadata, cap, expiryTimestamp);

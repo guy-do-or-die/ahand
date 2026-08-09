@@ -10,7 +10,9 @@ import { publishDiscovery } from "../lib/discovery";
  * Deliberately narrow: a couple KB of valid JSON or nothing — this is a
  * discovery-doc pipe, not a general file host.
  */
-const MAX_DOC_BYTES = 2048;
+// Open public docs embed the route body (b64) plus the bearer secret, so the
+// ceiling covers title + teaser + max body at the codec's text caps.
+const MAX_DOC_BYTES = 4096;
 
 export const APIRoute = createAPIFileRoute("/api/pin")({
   POST: async ({ request }) => {

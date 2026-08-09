@@ -4,11 +4,11 @@
 
 | Mode | On-chain requirements | Discovery document | Tags | Route body |
 |---|---|---|---|---|
-| Public | `discoveryRef` (≤ 128 bytes) + non-zero `discoveryCommitment` | Matching-safe detail, publicly retrievable and indexable | Up to 8 | Capability-gated; may add detail beyond the public document |
+| Public | `discoveryRef` (≤ 128 bytes) + non-zero `discoveryCommitment` | Full detail plus open-hand extras; publicly retrievable, indexable, and joinable | Up to 8 | Published inside the discovery document |
 | Preview | Same as Public | Deliberately coarse, publicly indexable | Up to 8 | Capability-gated |
 | Dark | `discoveryRef`, `discoveryCommitment`, and tags all empty/zero | None | None | Capability-gated |
 
-`metadataCommitment` is mandatory in every mode; `raise` reverts without it. Core enforces the table above (`InvalidVisibilityData`); beyond that, visibility affects information availability, not settlement semantics. Selecting Preview is itself consent to public indexing of the coarse preview. A Raiser who wants no semantic discovery selects Dark.
+`metadataCommitment` is mandatory in every mode; `raise` reverts without it. Core enforces the on-chain shape (`InvalidVisibilityData`); beyond that, visibility affects information availability, not settlement semantics. **Public means open**: the web app embeds the Hand's root bearer secret, the envelope nonce, and the route-body bytes in the pinned discovery document (`open` field), so anyone who discovers the Hand on the board can read it in full and join its chain — no link hand-off required. Selecting Preview is consent to indexing of the coarse preview only, with the body and route authority capability-gated. A Raiser who wants no semantic discovery selects Dark.
 
 These modes govern application metadata; they do not conceal the winning route once it is submitted. The `thank` transaction exposes the signed route artifacts, and Core events preserve each hop's position, claim delta, margin, and attributed `shaker` (or zero) — for Preview and Dark Hands too.
 
@@ -20,7 +20,10 @@ The web app implements a layered package (schema `ahand/meta@2`), anchored by on
 Envelope        {v, visibility, nonce, schema, discoveryHash, routeBodyHash}
                 metadataCommitment = sha256(canonical envelope JSON)
 
-Discovery doc   {title, teaser?, nonce}            # absent for Dark
+Discovery doc   {title, teaser?, nonce, open?}     # absent for Dark
+                open = {secret, envNonce, body}    # public only: root bearer
+                secret + enough to rebuild the canonical envelope, making the
+                Hand joinable straight from discovery
                 discoveryCommitment = sha256(canonical discovery JSON)
 
 Route body      {description, contacts?, image?, nonce}
@@ -38,7 +41,7 @@ At Raise, the client posts the canonical discovery bytes (under 2 KB) to the app
 
 When displaying a Hand, the app fetches the document through an IPFS gateway and verifies the bytes byte-for-byte against the commitment before using any field. Gateways and pinning providers are availability infrastructure, never trust anchors.
 
-Links additionally carry the discovery bytes in a `?e=` query parameter so server-side rendering can build previews without an IPFS round trip; the same commitment check applies.
+Preview links additionally carry the discovery bytes in a `?e=` query parameter so server-side rendering can build previews without an IPFS round trip; the same commitment check applies. Open public links omit `?e=` (the doc embeds the route body and would balloon the URL) — server-side rendering fetches the pinned document by its commitment instead.
 
 ## Integrity, availability, and confidentiality
 
