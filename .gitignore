@@ -29,3 +29,4 @@ dist/
 
 # Local development metadata
 local/
+.vercel

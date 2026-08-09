@@ -9,15 +9,16 @@ function currentTheme(): "light" | "dark" {
 }
 
 /**
- * Session theme override. The app follows the device appearance by default
- * (prefers-color-scheme); this flips it for the session by setting
- * `data-theme` on <html>. No persistence — the stateless rule forbids
- * storage, so a hard reload returns to the device preference. The override
- * survives client-side navigation, so one control covers the whole session.
+ * Theme override. The app follows the device appearance until the user flips
+ * this control; the choice is saved to localStorage and re-applied before
+ * first paint by the inline script in __root, so it sticks across reloads
+ * until flipped again.
  *
  * A CSS half-disc (the universal contrast glyph) rather than a sun/moon
  * emoji — emoji are reserved for the brand gestures in this system.
  */
+const THEME_KEY = "ahand-theme";
+
 export function ThemeToggle({ className, label = false }: { className?: string; label?: boolean }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   useEffect(() => setTheme(currentTheme()), []);
@@ -25,6 +26,11 @@ export function ThemeToggle({ className, label = false }: { className?: string; 
   const flip = () => {
     const next = currentTheme() === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      /* private mode — the flip still applies for this session */
+    }
     setTheme(next);
   };
 

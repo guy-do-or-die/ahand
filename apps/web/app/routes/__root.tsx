@@ -63,12 +63,23 @@ function RootComponent() {
             a missing viewport tag makes phones render at 980px and shrink. */}
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        {/* Domain-ownership verification for the talent app listing. */}
+        <meta name="talentapp:project_verification" content="null" />
         <title>{finalTitle}</title>
         {otherMeta.map((m: any, i: number) => {
           if (m.charSet) return <meta key={`meta-${i}`} charSet={m.charSet} />;
           return <meta key={`meta-${i}`} {...m} />;
         })}
         <HeadContent />
+        {/* Apply the saved theme override before first paint — the toggle
+            persists to localStorage; without a saved value the device
+            preference (prefers-color-scheme) stays in charge. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{var t=localStorage.getItem("ahand-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}',
+          }}
+        />
         <link rel="stylesheet" href={appCss} />
         <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🙌</text></svg>" />
       </head>
