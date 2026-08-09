@@ -5,6 +5,7 @@ import { AHandSignalsAbi, MockUSDAbi, DeployedAddresses } from "@ahand/abi";
 import { useSender } from "./useSender";
 import { useClaims } from "./useClaims";
 import { humanizeChainError } from "../lib/errors";
+import { scanLogs } from "../lib/logs";
 
 export type PocketReceiptKind =
   | "gave" // GiverResidual credited to me
@@ -88,15 +89,15 @@ export function usePocket() {
       try {
         const core = DeployedAddresses.AHandCore;
         const [allocated, withdrawn, raisedMine] = await Promise.all([
-          publicClient!.getLogs({ address: core, event: PAYOUT_ALLOCATED, args: { beneficiary: address }, fromBlock: FROM_BLOCK }),
-          publicClient!.getLogs({ address: core, event: PAYOUT_WITHDRAWN, args: { beneficiary: address }, fromBlock: FROM_BLOCK }),
-          publicClient!.getLogs({ address: core, event: RAISED, args: { raiser: address }, fromBlock: FROM_BLOCK }),
+          scanLogs(publicClient!, FROM_BLOCK, (range) => publicClient!.getLogs({ address: core, event: PAYOUT_ALLOCATED, args: { beneficiary: address }, ...range })),
+          scanLogs(publicClient!, FROM_BLOCK, (range) => publicClient!.getLogs({ address: core, event: PAYOUT_WITHDRAWN, args: { beneficiary: address }, ...range })),
+          scanLogs(publicClient!, FROM_BLOCK, (range) => publicClient!.getLogs({ address: core, event: RAISED, args: { raiser: address }, ...range })),
         ]);
 
         // settlements of hands I raised (to relabel raises as "thanked")
         const myHandIds = raisedMine.map((l) => l.args.handId!);
         const settledOfMine = myHandIds.length
-          ? await publicClient!.getLogs({ address: core, event: SETTLED, args: { handId: myHandIds }, fromBlock: FROM_BLOCK })
+          ? await scanLogs(publicClient!, FROM_BLOCK, (range) => publicClient!.getLogs({ address: core, event: SETTLED, args: { handId: myHandIds }, ...range }))
           : [];
         const settledHandIds = new Set(settledOfMine.map((l) => String(l.args.handId)));
 
@@ -188,8 +189,8 @@ export function usePocket() {
       try {
         const core = DeployedAddresses.AHandCore;
         const [settled, hops] = await Promise.all([
-          publicClient.getLogs({ address: core, event: SETTLED, args: { handId: BigInt(handId) }, fromBlock: FROM_BLOCK }),
-          publicClient.getLogs({ address: core, event: ROUTE_HOP_SETTLED, args: { handId: BigInt(handId) }, fromBlock: FROM_BLOCK }),
+          scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: SETTLED, args: { handId: BigInt(handId) }, ...range })),
+          scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: ROUTE_HOP_SETTLED, args: { handId: BigInt(handId) }, ...range })),
         ]);
         const settlement = settled[0];
         if (!settlement) throw new Error("settlement not found on chain");

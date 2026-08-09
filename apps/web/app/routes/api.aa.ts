@@ -5,7 +5,15 @@ export const APIRoute = createAPIFileRoute("/api/aa")({
     try {
       const body = await request.text();
 
-      const res = await fetch(process.env.AA_LOCAL_URL ?? "http://127.0.0.1:4339", {
+      // Server-held bundler/paymaster upstream: a Pimlico v2 endpoint in
+      // production (serves both eth_* and pm_* methods, key stays out of the
+      // client bundle), the local alto+mock stand otherwise.
+      const upstream =
+        process.env.AA_UPSTREAM_URL ??
+        process.env.AA_LOCAL_URL ??
+        "http://127.0.0.1:4339";
+
+      const res = await fetch(upstream, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
