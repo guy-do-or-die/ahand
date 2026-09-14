@@ -16,7 +16,32 @@ export const Route = createFileRoute("/hands")({
 function OpenHandsComponent() {
   const navigate = useNavigate();
   const feed = useOpenHands(24);
-  const hands = FLAGS.openHandsBoard ? feed : [];
+  const hands = FLAGS.openHandsBoard ? feed.hands : [];
+
+  if (FLAGS.openHandsBoard && feed.error) {
+    return (
+      <div className="ah-page">
+        <div className="flex flex-col flex-1 items-center justify-center text-center px-6 pb-16">
+          <h1
+            className="font-extrabold"
+            style={{ fontSize: "var(--fs-title-m)", lineHeight: 1.06, letterSpacing: "-0.03em", textWrap: "balance", maxWidth: "16ch" }}
+          >
+            {t("Couldn't load open hands.")}
+          </h1>
+          <p role="alert" className="mt-3.5 text-[15.5px] leading-[1.5] text-ink/65 max-w-[38ch]">
+            {t("The board couldn't be reached. Please try again.")}
+          </p>
+          <button
+            type="button"
+            className="mt-6 min-h-11 px-6 font-semibold underline underline-offset-[3px]"
+            onClick={feed.retry}
+          >
+            {t("Retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (hands && hands.length > 0) {
     return (
@@ -61,10 +86,10 @@ function OpenHandsComponent() {
           className="font-extrabold"
           style={{ fontSize: "var(--fs-title-m)", lineHeight: 1.06, letterSpacing: "-0.03em", textWrap: "balance", maxWidth: "16ch" }}
         >
-          {t("The board is clear right now.")}
+          {t("No open hands right now.")}
         </h1>
         <p className="mt-3.5 text-[15.5px] leading-[1.5] text-ink/65 max-w-[38ch]">
-          {t("Hands also travel hand to hand — by link. Raise one and start a chain.")}
+          {t("Completed and expired hands leave this board. Raise one and start a chain.")}
         </p>
         <SwipeButton
           gesture="raise"

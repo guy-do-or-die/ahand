@@ -6,11 +6,13 @@ The web app is the reference client for aHand: a TanStack Start (Vinxi) applicat
 
 - `/` — landing: hero, how-it-works, and a live carousel of open Hands read from chain.
 - `/raise` — compose and fund a Hand: title, description, reward amount, expiry (1–180 days, default 30), charity share (picker with 1% / 5% / 10% / 30% presets, clamped to the protocol's 1–30% range), and visibility (Public / Preview / Dark); ends on a share screen with the link and its QR code.
-- `/hands` — public board: the 24 newest Public Hands, read straight from chain. Only verifiably open Hands are listed — the pinned doc must carry open-hand extras whose rebuilt envelope matches the on-chain `metadataCommitment`; anyone can join a listed Hand directly, and board-originated routes start with aHand's own attributed first-Shaker hop (250 bps disclosed margin, clamped to the giver floor) signed by `/api/app-hop`.
+- `/hands` — public board: scans the 24 newest Hand IDs and lists only active, unexpired Public Hands. The pinned doc must carry open-hand extras whose rebuilt envelope matches the on-chain `metadataCommitment`; anyone can join a listed Hand directly, and board-originated routes start with aHand's own attributed first-Shaker hop (250 bps disclosed margin, clamped to the giver floor) signed by `/api/app-hop`. RPC or document-loading failures show a retry state rather than an empty board; partial results remain visible and failed scans are not cached.
 - `/h/$id` — Hand detail: current state, the route so far, and shake / pass / give / reclaim actions. The discovery document is fetched from an IPFS gateway and verified byte-for-byte against the on-chain `discoveryCommitment` before it is shown.
 - `/h/$id/thank` — the raiser's settlement flow.
 - `/pocket` — personal dashboard: incoming Gives (XMTP inbox), payout claims, and activity; includes a dev faucet when running on anvil.
 - `/dev/gallery` — component gallery, development only.
+
+Discovery reads use `https://gateway.pinata.cloud` by default. Set the public build variable `VITE_IPFS_GATEWAY` to another gateway origin (without `/ipfs`); failed configured-gateway reads fall back to Pinata within the same timeout. Documents are always checked against their on-chain commitment. The shared default timeout is 10 seconds; SSR previews can use a shorter budget. `ipfs.io` is [retiring its HTTP retrieval service in September 2026](https://gatewaychanges.ipfs.io/) and is no longer the default. Direct board RPC reads honor `VITE_RPC_URL`.
 
 ## Server routes
 

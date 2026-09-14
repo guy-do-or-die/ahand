@@ -28,5 +28,7 @@ dist/
 .vercel/
 
 # Local development metadata
+output/
+outputs/
 local/
 .vercel
