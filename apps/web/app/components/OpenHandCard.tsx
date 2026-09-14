@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PotBar } from "./PotBar";
 import { SwipeButton } from "./SwipeButton";
@@ -73,22 +73,37 @@ export function OpenHandCard({ hand, className = "" }: { hand: OpenHand; classNa
 /**
  * Client-side feed: the landing and the board must never block first paint
  * on a chain scan plus gateway round-trips — render a fallback, fill in
- * when the feed lands. null = still looking, [] = nothing to show.
+ * when the feed lands. null = no result yet, [] = a successfully empty
+ * board. A failed read stays separate so it never looks like an empty board.
  */
-export function useOpenHands(limit: number): OpenHand[] | null {
+export function useOpenHands(limit: number): {
+  hands: OpenHand[] | null;
+  error: boolean;
+  retry: () => void;
+} {
   const [hands, setHands] = useState<OpenHand[] | null>(null);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setHands(null);
+    setError(false);
+    setAttempt((value) => value + 1);
+  }, []);
+
   useEffect(() => {
     let live = true;
+    setHands(null);
+    setError(false);
     listOpenHands(limit)
       .then((found) => {
         if (live) setHands(found);
       })
       .catch(() => {
-        if (live) setHands([]);
+        if (live) setError(true);
       });
     return () => {
       live = false;
     };
-  }, [limit]);
-  return hands;
+  }, [limit, attempt]);
+  return { hands, error, retry };
 }

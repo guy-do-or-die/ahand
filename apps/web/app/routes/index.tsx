@@ -114,7 +114,7 @@ function HomeComponent() {
  * so the landing never blocks on chain + gateway round-trips.
  */
 function OpenHandsRail() {
-  const hands = useOpenHands(6);
+  const { hands, error, retry } = useOpenHands(6);
   const [cursor, setCursor] = useState(0);
 
   useEffect(() => {
@@ -125,27 +125,41 @@ function OpenHandsRail() {
 
   if (!hands || hands.length === 0) {
     return (
-      <div className="ah-card ah-card--lg p-[26px] pb-[22px]" aria-hidden="true">
-        <p className="mt-1 font-extrabold" style={{ fontSize: "var(--fs-card-title-lg)", lineHeight: 1.12, letterSpacing: "-0.02em" }}>
-          {t("Looking for a sublet in Yerevan, June")}
-        </p>
-        <div className="mt-4 flex items-baseline justify-between">
-          <span className="font-extrabold" style={{ fontSize: 32, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>
-            {formatUsd(148)}
-          </span>
-          <span className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "0.06em", color: "var(--ink-a55)" }}>
-            {t("in the pot")}
-          </span>
+      <div>
+        <div className="ah-card ah-card--lg p-[26px] pb-[22px]" aria-hidden="true">
+          <p className="mt-1 font-extrabold" style={{ fontSize: "var(--fs-card-title-lg)", lineHeight: 1.12, letterSpacing: "-0.02em" }}>
+            {t("Looking for a sublet in Yerevan, June")}
+          </p>
+          <div className="mt-4 flex items-baseline justify-between">
+            <span className="font-extrabold" style={{ fontSize: 32, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>
+              {formatUsd(148)}
+            </span>
+            <span className="ah-meta" style={{ fontSize: "var(--fs-mono-xs)", letterSpacing: "0.06em", color: "var(--ink-a55)" }}>
+              {t("in the pot")}
+            </span>
+          </div>
+          <PotBar className="mt-2.5" size="md" progress={0.78} />
+          <div className="mt-6 flex gap-2">
+            <SwipeButton gesture="shake" variant="ink" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
+              {t("I can ask")}
+            </SwipeButton>
+            <SwipeButton gesture="cheer" variant="amber" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
+              {t("I can help")}
+            </SwipeButton>
+          </div>
         </div>
-        <PotBar className="mt-2.5" size="md" progress={0.78} />
-        <div className="mt-6 flex gap-2">
-          <SwipeButton gesture="shake" variant="ink" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
-            {t("I can ask")}
-          </SwipeButton>
-          <SwipeButton gesture="cheer" variant="amber" compact className="flex-1 ah-swipe--card" tabIndex={-1}>
-            {t("I can help")}
-          </SwipeButton>
-        </div>
+        {error && (
+          <div className="mt-3 text-center text-sm text-ink/65">
+            <p role="alert">{t("Couldn't load open hands.")}</p>
+            <button
+              type="button"
+              className="min-h-11 px-3 font-semibold underline underline-offset-[3px]"
+              onClick={retry}
+            >
+              {t("Retry")}
+            </button>
+          </div>
+        )}
       </div>
     );
   }

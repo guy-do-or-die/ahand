@@ -373,9 +373,12 @@ export const messages: Record<string, string> = {
   "materialize receipts": "materialize receipts",
   "minting…": "minting…",
   "reading open hands from the chain": "reading open hands from the chain",
-  "The board is clear right now.": "The board is clear right now.",
-  "Hands also travel hand to hand — by link. Raise one and start a chain.":
-    "Hands also travel hand to hand — by link. Raise one and start a chain.",
+  "No open hands right now.": "No open hands right now.",
+  "Completed and expired hands leave this board. Raise one and start a chain.":
+    "Completed and expired hands leave this board. Raise one and start a chain.",
+  "Couldn't load open hands.": "Couldn’t load open hands.",
+  "The board couldn't be reached. Please try again.": "The board couldn’t be reached. Please try again.",
+  "Retry": "Retry",
   "travels by link — ask whoever holds it": "travels by link — ask whoever holds it",
   "how the thanks went": "how the thanks went",
   "aHand · passed it on": "aHand · passed it on",

@@ -77,7 +77,16 @@ export function ipfsUri(cid: string): `ipfs://${string}` {
   return `ipfs://${cid}`;
 }
 
-export function gatewayUrl(cid: string, gateway = "https://ipfs.io"): string {
+const DEFAULT_IPFS_GATEWAY = "https://gateway.pinata.cloud";
+
+function configuredGateway(): string {
+  // Vite exposes this in the web app; the process fallback also serves the
+  // Bun seeder, which imports this module without a Vite build.
+  const configured = import.meta.env?.VITE_IPFS_GATEWAY ?? readEnv("VITE_IPFS_GATEWAY");
+  return configured?.trim() || DEFAULT_IPFS_GATEWAY;
+}
+
+export function gatewayUrl(cid: string, gateway = configuredGateway()): string {
   return `${gateway.replace(/\/$/, "")}/ipfs/${cid}`;
 }
 
@@ -89,21 +98,29 @@ export async function verifyDiscoveryBytes(bytes: Uint8Array, cid: string): Prom
 /**
  * Fetch a discovery doc straight from its on-chain anchor: commitment →
  * CID → gateway GET → byte-for-byte verification. Isomorphic (SSR loader
- * and browser both use it); null on any miss — callers degrade quietly.
+ * and browser both use it); null on any miss. A configured gateway falls
+ * back to Pinata, with one timeout budget shared by both attempts.
  */
 export async function fetchDiscoveryByCommitment(
   discoveryCommitment: string,
-  timeoutMs = 4000,
+  timeoutMs = 10_000,
 ): Promise<Uint8Array | null> {
   const cid = cidFromSha256Hex(discoveryCommitment);
+  const urls = new Set([gatewayUrl(cid), gatewayUrl(cid, DEFAULT_IPFS_GATEWAY)]);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(gatewayUrl(cid), { signal: controller.signal });
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    return (await verifyDiscoveryBytes(bytes, cid)) ? bytes : null;
-  } catch {
+    for (const url of urls) {
+      if (controller.signal.aborted) break;
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) continue;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if ((await verifyDiscoveryBytes(bytes, cid)) && !controller.signal.aborted) return bytes;
+      } catch {
+        // A failed or rate-limited gateway does not make the document absent.
+      }
+    }
     return null;
   } finally {
     clearTimeout(timer);
