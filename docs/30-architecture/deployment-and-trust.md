@@ -30,7 +30,7 @@ The deployed `AHandWitness` predates the blind/typed namespace split in `contrac
 
 ## Local development
 
-`infra/anvil/stand.ts` runs the full stack locally: anvil (chainId 31337), contract deployment via `Deploy.s.sol` with MockUSD, a Pimlico Alto bundler plus mock paymaster on `:4339` (reached through `/api/aa`, `AA_LOCAL_URL`), and addresses written into `packages/abi`. The browser reaches anvil through `/api/rpc`, which exists only on chain 31337 and refuses anvil/EVM cheat codes, debug methods, and unlocked-account signing or sending. `infra/seed/seed.ts` seeds Base Sepolia itself with real pinned Hands for the public board, writing the share links (which contain root capability secrets) to a gitignored local file.
+`infra/anvil/stand.ts` runs the full stack locally: anvil (chainId 31337), contract deployment via `Deploy.s.sol` with MockUSD, a Pimlico Alto bundler plus mock paymaster on `:4339` (reached through `/api/aa`, `AA_LOCAL_URL`), and addresses written into `packages/abi`. The browser reaches anvil through `/api/rpc`, which exists only on chain 31337 and relays only read methods and already-signed transactions; cheat codes, debug and trace methods, unlocked-account signing or sending, and anvil's `eth_sendUnsignedTransaction` are refused. `infra/seed/seed.ts` seeds Base Sepolia itself with real pinned Hands for the public board, writing the share links (which contain root capability secrets) to a gitignored local file.
 
 ## Trust inventory
 

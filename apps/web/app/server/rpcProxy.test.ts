@@ -19,7 +19,20 @@ describe("proxyDevRpc", () => {
     expect(anvil).not.toHaveBeenCalled();
   });
 
-  it.each(["eth_chainId", "eth_call", "eth_getLogs", "eth_getCode", "eth_sendRawTransaction", "eth_getTransactionReceipt"])(
+  it.each([
+    "eth_chainId",
+    "eth_blockNumber",
+    "eth_call",
+    "eth_estimateGas",
+    "eth_getLogs",
+    "eth_getCode",
+    "eth_getBalance",
+    "eth_getTransactionCount",
+    "eth_feeHistory",
+    "eth_sendRawTransaction",
+    "eth_sendRawTransactionSync",
+    "eth_getTransactionReceipt",
+  ])(
     "relays %s to anvil",
     async (method) => {
       const res = await proxyDevRpc(post(call(method)), 31337, anvil as unknown as typeof fetch);
@@ -39,9 +52,14 @@ describe("proxyDevRpc", () => {
     "debug_traceTransaction",
     "personal_sign",
     "eth_sendTransaction",
+    "eth_sendUnsignedTransaction",
     "eth_sign",
     "eth_signTypedData_v4",
     "eth_signTransaction",
+    "eth_accounts",
+    "trace_call",
+    "ots_getApiLevel",
+    "some_futureMethod",
   ])("keeps %s off the tunnel", async (method) => {
     const res = await proxyDevRpc(post(call(method)), 31337, anvil as unknown as typeof fetch);
     expect(res.status).toBe(403);
