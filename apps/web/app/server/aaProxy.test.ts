@@ -18,7 +18,7 @@ import { AHandCoreAbi, AHandSignalsAbi, MockUSDAbi, DeployedAddresses } from "@a
 import type { SenderCall } from "../hooks/useSender";
 import { raiseCalls, raisedReceiptCall } from "../lib/raise";
 import { getSmartAccountClient, sendSponsoredBatch } from "../lib/smartAccount";
-import { GAS_CEILINGS, aaUpstream, proxyAaRequest, screenAaRequest, type AaPolicy, type ReadCode } from "./aaProxy";
+import { FEE_HEADROOM, GAS_CEILINGS, aaUpstream, proxyAaRequest, screenAaRequest, type AaPolicy, type ReadCode } from "./aaProxy";
 
 vi.mock("../config/web3", async () => ({
   activeChain: (await import("viem/chains")).baseSepolia,
@@ -194,7 +194,9 @@ describe("screenAaRequest: sponsorship", () => {
     ["verificationGasLimit over the ceiling", { verificationGasLimit: toHex(GAS_CEILINGS.verificationGasLimit + 1n) }],
     ["paymaster verification gas over the ceiling", { paymasterVerificationGasLimit: toHex(GAS_CEILINGS.paymasterVerificationGasLimit + 1n) }],
     ["paymaster postOp gas over the ceiling", { paymasterPostOpGasLimit: toHex(GAS_CEILINGS.paymasterPostOpGasLimit + 1n) }],
+    ["preVerificationGas over the ceiling", { preVerificationGas: toHex(GAS_CEILINGS.preVerificationGas + 1n) }],
     ["a non-hex gas value", { callGasLimit: "lots" }],
+    ["a non-hex fee", { maxFeePerGas: "lots" }],
   ])("refuses %s", (_, extra) => {
     expect(refusal(sponsor(userOp([RAISE], extra))).status).toBe(403);
   });
@@ -322,7 +324,7 @@ describe("proxyAaRequest: the sender must be an aHand account", () => {
         method: "POST",
         body: rpc("pm_getPaymasterData", [op, entryPoint08Address, toHex(baseSepolia.id), null]),
       }),
-      { policy: POLICY, upstream: "https://upstream.test", readCode, fetch: send },
+      { policy: POLICY, upstream: "https://upstream.test", readCode, fetch: send, gasPrice: async () => 10n ** 9n },
     );
   const alreadyDelegated = { sender: HOLDER.address, factory: undefined, factoryData: undefined, eip7702Auth: undefined };
 
@@ -387,6 +389,97 @@ describe("proxyAaRequest: the sender must be an aHand account", () => {
     }, send as unknown as typeof fetch);
     expect(res.status).toBe(502);
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe("proxyAaRequest: sponsored gas price", () => {
+  const GWEI = 10n ** 9n;
+  const post = (method: string, op: unknown) =>
+    new Request("https://app.test/api/aa", {
+      method: "POST",
+      body: rpc(method, method.startsWith("pm_") ? [op, entryPoint08Address, toHex(baseSepolia.id), null] : [op, entryPoint08Address]),
+    });
+  // The already-delegated shape: the sender check passes on delegatedChain.
+  const priced = (fees: Record<string, unknown>) =>
+    userOp([RAISE], { factory: undefined, factoryData: undefined, eip7702Auth: undefined, ...fees });
+  const relay = (method: string, op: unknown, price: bigint) => {
+    const send = vi.fn(async () => Response.json({ jsonrpc: "2.0", id: 7, result: {} }));
+    const res = proxyAaRequest(post(method, op), {
+      policy: POLICY,
+      upstream: "https://upstream.test",
+      readCode: delegatedChain,
+      fetch: send as unknown as typeof fetch,
+      gasPrice: async () => price,
+    });
+    return { res, send };
+  };
+
+  it.each(["pm_getPaymasterStubData", "pm_getPaymasterData"])("%s: forwards fees up to the headroom over the fast price", async (method) => {
+    const { res, send } = relay(method, priced({ maxFeePerGas: toHex(GWEI * FEE_HEADROOM), maxPriorityFeePerGas: toHex(GWEI) }), GWEI);
+    expect((await res).status).toBe(200);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["maxFeePerGas", { maxFeePerGas: toHex(GWEI * FEE_HEADROOM + 1n), maxPriorityFeePerGas: toHex(GWEI) }],
+    ["maxPriorityFeePerGas", { maxFeePerGas: toHex(GWEI), maxPriorityFeePerGas: toHex(GWEI * FEE_HEADROOM + 1n) }],
+    ["the review's 1000 gwei", { maxFeePerGas: toHex(1000n * GWEI), maxPriorityFeePerGas: toHex(1000n * GWEI) }],
+  ])("refuses a paymaster stamp with %s over the ceiling", async (_, fees) => {
+    const { res, send } = relay("pm_getPaymasterData", priced(fees), GWEI);
+    const r = await res;
+    expect(r.status).toBe(403);
+    expect((await r.json()).error.message).toMatch(/gas price/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when there is no price to hold fees to", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const send = vi.fn();
+    const res = await proxyAaRequest(post("pm_getPaymasterData", priced({})), {
+      policy: POLICY,
+      upstream: "https://upstream.test",
+      readCode: delegatedChain,
+      fetch: send as unknown as typeof fetch,
+      gasPrice: async () => {
+        throw new Error("upstream down");
+      },
+    });
+    expect(res.status).toBe(502);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("reads the price from the upstream's fast tier and reuses it briefly", async () => {
+    const methods: string[] = [];
+    const send = vi.fn(async (_url: string, init: RequestInit) => {
+      const req = JSON.parse(init.body as string);
+      methods.push(req.method);
+      const price = { maxFeePerGas: toHex(GWEI), maxPriorityFeePerGas: toHex(GWEI) };
+      const result = req.method === "pimlico_getUserOperationGasPrice" ? { slow: price, standard: price, fast: price } : {};
+      return Response.json({ jsonrpc: "2.0", id: req.id, result });
+    });
+    const once = () =>
+      proxyAaRequest(post("pm_getPaymasterData", priced({ maxFeePerGas: toHex(GWEI), maxPriorityFeePerGas: toHex(GWEI) })), {
+        policy: POLICY,
+        upstream: "https://price-cache.test",
+        readCode: delegatedChain,
+        fetch: send as unknown as typeof fetch,
+      });
+    expect((await once()).status).toBe(200);
+    expect((await once()).status).toBe(200);
+    expect(methods).toEqual(["pimlico_getUserOperationGasPrice", "pm_getPaymasterData", "pm_getPaymasterData"]);
+
+    const over = await proxyAaRequest(post("pm_getPaymasterData", priced({ maxFeePerGas: toHex(3n * GWEI) })), {
+      policy: POLICY,
+      upstream: "https://price-cache.test",
+      readCode: delegatedChain,
+      fetch: send as unknown as typeof fetch,
+    });
+    expect(over.status).toBe(403);
+  });
+
+  it("leaves bundler methods to the paymaster's stamp", async () => {
+    const { res } = relay("eth_sendUserOperation", priced({ maxFeePerGas: toHex(1000n * GWEI) }), GWEI);
+    expect((await res).status).toBe(200);
   });
 });
 

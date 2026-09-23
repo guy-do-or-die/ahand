@@ -35,15 +35,24 @@ export const MAX_AA_BODY_CHARS = 64 * 1024;
 const MAX_CALLS = 3;
 
 // Several times the heaviest op the app sends (a six-hop thank plus its
-// receipt mint). preVerificationGas has no ceiling here: on Base it carries
-// the L1 data fee and moves with L1 prices, so the sponsorship policy's
-// per-op spend cap is what bounds it.
+// receipt mint). preVerificationGas is paid in full whatever the op uses, and
+// on Base it also carries the L1 data fee priced in L2 gas, which is why its
+// ceiling sits well above the execution limits; the sponsorship policy's
+// per-op spend cap stays the second layer.
 export const GAS_CEILINGS = {
   callGasLimit: 6_000_000n,
   verificationGasLimit: 1_000_000n,
   paymasterVerificationGasLimit: 500_000n,
   paymasterPostOpGasLimit: 500_000n,
+  preVerificationGas: 5_000_000n,
 } as const;
+
+// A signed paymaster stamp pays (gas used + preVerificationGas) × the op's own
+// gas price to whoever bundles it, so a stamped op priced far above the market
+// is a refund at the paymaster's expense. Sponsored fees stay within this
+// multiple of the bundler's current fast price.
+export const FEE_HEADROOM = 2n;
+const PRICE_TTL_MS = 10_000;
 
 const PLAIN_METHODS = new Set([
   "eth_chainId",
@@ -76,6 +85,8 @@ export type ScreenedOp = {
   sender: Address;
   /** The op's EIP-7702 authorization, already known to name the implementation on this chain. */
   authorization: Authorization | null;
+  /** The higher of the op's two fee fields, for a paymaster method (null: nothing to price). */
+  maxFeePerGas: bigint | null;
 };
 
 type Refusal = { ok: false; status: number; body: string };
@@ -154,6 +165,13 @@ function screenUserOp(op: unknown, p: AaPolicy): ScreenedOp | string {
     const gas = quantity(op[field]);
     if (gas === null || gas > ceiling) return `${field} is over the sponsored ceiling`;
   }
+  let maxFeePerGas: bigint | null = null;
+  for (const field of ["maxFeePerGas", "maxPriorityFeePerGas"]) {
+    if (op[field] === undefined || op[field] === null) continue;
+    const fee = quantity(op[field]);
+    if (fee === null) return `${field} is not a quantity`;
+    if (maxFeePerGas === null || fee > maxFeePerGas) maxFeePerGas = fee;
+  }
 
   if (typeof op.callData !== "string") return "missing callData";
   let calls: { to: Address; value: bigint; data: Hex }[];
@@ -171,7 +189,7 @@ function screenUserOp(op: unknown, p: AaPolicy): ScreenedOp | string {
     const refused = screenCall(call.to, call.value, call.data, p);
     if (refused) return refused;
   }
-  return { sender: op.sender, authorization };
+  return { sender: op.sender, authorization, maxFeePerGas };
 }
 
 /**
@@ -215,7 +233,7 @@ export function screenAaRequest(text: string, p: AaPolicy): AaScreen {
   const op = screenUserOp(params[0], p);
   if (typeof op === "string") return rpcError(403, id, -32602, op);
 
-  if (!sponsored) return forward(params, op);
+  if (!sponsored) return forward(params, { ...op, maxFeePerGas: null });
   const context = p.sponsorshipPolicyId ? { sponsorshipPolicyId: p.sponsorshipPolicyId } : null;
   return forward([params[0], params[1], params[2], context], op);
 }
@@ -250,6 +268,30 @@ export function aaUpstream(env: Record<string, string | undefined>, chainId: num
   return env.AA_LOCAL_URL || "http://127.0.0.1:4339";
 }
 
+const prices = new Map<string, { at: number; price: Promise<bigint> }>();
+
+/** The bundler's current fast maxFeePerGas, briefly cached per upstream. */
+function upstreamGasPrice(upstream: string, send: typeof fetch): Promise<bigint> {
+  const hit = prices.get(upstream);
+  if (hit && Date.now() - hit.at < PRICE_TTL_MS) return hit.price;
+  const price = (async () => {
+    const res = await send(upstream, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "pimlico_getUserOperationGasPrice", params: [] }),
+      cache: "no-store",
+    });
+    const fee = quantity(((await res.json()) as { result?: { fast?: { maxFeePerGas?: unknown } } })?.result?.fast?.maxFeePerGas);
+    if (!fee) throw new Error("upstream gave no gas price");
+    return fee;
+  })();
+  prices.set(upstream, { at: Date.now(), price });
+  price.catch(() => {
+    if (prices.get(upstream)?.price === price) prices.delete(upstream);
+  });
+  return price;
+}
+
 const JSON_HEADERS = {
   "Content-Type": "application/json",
   "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -264,7 +306,15 @@ export async function proxyAaRequest(
     upstream,
     readCode,
     fetch: send = fetch,
-  }: { policy: AaPolicy; upstream: string | null; readCode: ReadCode; fetch?: typeof fetch },
+    gasPrice,
+  }: {
+    policy: AaPolicy;
+    upstream: string | null;
+    readCode: ReadCode;
+    fetch?: typeof fetch;
+    /** The price sponsored fees are held to; defaults to the upstream's fast price. */
+    gasPrice?: () => Promise<bigint>;
+  },
 ): Promise<Response> {
   if (!upstream) return refuse(rpcError(503, null, -32603, "sponsored transactions are not configured"));
   const screened = screenAaRequest(await request.text(), policy);
@@ -278,6 +328,18 @@ export async function proxyAaRequest(
       return refuse(rpcError(502, screened.id, -32603, "chain unavailable"));
     }
     if (refused) return refuse(rpcError(403, screened.id, -32602, refused));
+  }
+  if (screened.op?.maxFeePerGas) {
+    let price: bigint;
+    try {
+      price = await (gasPrice ?? (() => upstreamGasPrice(upstream, send)))();
+    } catch (err) {
+      console.error("[AA Proxy Error]", err);
+      return refuse(rpcError(502, screened.id, -32603, "gas price unavailable"));
+    }
+    if (screened.op.maxFeePerGas > price * FEE_HEADROOM) {
+      return refuse(rpcError(403, screened.id, -32602, "gas price is over the sponsored ceiling"));
+    }
   }
   try {
     const res = await send(upstream, {
