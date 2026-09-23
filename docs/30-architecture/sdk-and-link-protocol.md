@@ -61,7 +61,7 @@ solutionHash = keccak256(utf8("aHand/solution/v1") | salt (32) | utf8(canonicalS
 canonicalSolutionText(note) = note.trim()     # ECMAScript trim: edge whitespace and line terminators
 ```
 
-The same canonical text is what gets delivered, so the bytes the raiser receives are the bytes that were hashed. The salt travels as a typed ref in the TerminalProof's unsigned evidence tail — `0x01 | salt (32)` (`solutionSaltRef`, read back with `solutionSalts`) — and only on the copy of the link that travels beside the note. `verifySolutionNote(note, solutionHash, evidence)` accepts a note that opens the commitment under any carried salt, or, for proofs sealed before salting, as a bare `keccak256(utf8(note))`. A missing, swapped, or forged salt only makes verification fail; opening the signed hash to different words would take a keccak preimage.
+The same canonical text is what gets delivered, so the bytes the raiser receives are the bytes that were hashed. The salt travels as a typed ref in the TerminalProof's unsigned evidence tail — `0x01 | salt (32)` (`solutionSaltRef`, read back with `solutionSalts`) — and only on the copy of the link that travels beside the note. `verifySolutionNote(note, solutionHash, evidence)` accepts a note that opens the commitment under any carried salt, or, for proofs sealed before salting, as a bare `keccak256(utf8(note))`. A missing, swapped, or forged salt only makes verification fail; opening the signed hash to different words would take a keccak preimage. The decision and its trade-offs are recorded in [ADR-0013](../70-decisions/0013-salted-solution-commitment.md).
 
 ### Size limits
 

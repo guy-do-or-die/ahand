@@ -8,7 +8,15 @@ The system runs on Base Sepolia. Whether and when to deploy to Base mainnet is o
 
 ## Gas sponsorship
 
-`/api/aa` sponsors only the app's own calls from EIP-7702 `Simple7702Account` senders, but it does not know who is asking: any holder of such an account can get those calls sponsored, and an owner who submits the signed op themselves can swap the account's code in the same transaction. Open: whether to require a server-verified Privy session and bind the op's sender to that user's embedded wallet, which calls deserve sponsorship (for example `withdraw`, or receipt mints sent on someone else's behalf), and the Pimlico policy's global, per-user and per-op spend caps.
+`/api/aa` sponsors only the app's own calls from EIP-7702 `Simple7702Account` senders, but it does not know who is asking: any holder of such an account can get those calls sponsored, and an owner who submits the signed op themselves can swap the account's code in the same transaction. Open: whether to require a server-verified Privy session and bind the op's sender to that user's embedded wallet, which calls deserve sponsorship (for example `withdraw`, or receipt mints sent on someone else's behalf), whether the `RAISED` receipt should stay a second sponsored op after every sponsored raise (it cannot ride in the raise batch, because the hand id is unknown until `raise` executes), and the Pimlico policy's global, per-user and per-op spend caps.
+
+## Solution notes
+
+The salted solution commitment ([ADR-0013](../70-decisions/0013-salted-solution-commitment.md)) canonicalizes only edge whitespace (`trim`). Whether to also normalize Unicode (NFC), inner whitespace, or line endings is open; a changed canonical form needs a new commitment tag so older seals keep verifying. The note's length is also unsettled: the Give form puts no cap on it, while the raiser's inbox (`parseGiveMessage`) ignores any message over 8192 characters, so a very long note plus its proof link never shows up.
+
+## Witness
+
+`AHandWitness` keys a typed anchor on `keccak256(structHash, sig)`, so one Shake or Give signed twice (a fresh ECDSA nonce, another signer implementation) can be anchored, and emitted, twice; keying on the struct hash alone is the alternative. `witnessGive` checks only that the recovered key signed the Give bytes — not the Hand, the route, the deadline, giver consent, or an ERC-1271 giver. Both are open, as is when to redeploy Witness on Base Sepolia: the deployed contract predates the blind/typed namespace split (see [deployment and trust](../30-architecture/deployment-and-trust.md)).
 
 ## Discovery-document pinning
 

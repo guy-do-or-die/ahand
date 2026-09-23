@@ -64,7 +64,7 @@ For a zero-margin hop, `shaker = 0` is the protocol-level way to decline durable
 
 ## Give notes
 
-A Give's `solutionHash` goes public at Thank — for Dark Hands too — while the giver's words travel only in the XMTP DM to the raiser. The web app therefore seals the words under a fresh random salt (see [solution commitment](../30-architecture/sdk-and-link-protocol.md#solution-commitment)), and the salt travels only beside the words: the DM's proof link carries it, the copy/share fallback link does not. Without the salt, the public hash cannot be dictionary-enumerated, and the same reply sealed twice yields unrelated hashes. Hands settled before salting keep their bare `keccak256(note)` on-chain permanently.
+A Give's `solutionHash` goes public at Thank — for Dark Hands too — while the giver's words travel only in the XMTP DM to the raiser. The web app therefore seals the words under a fresh random salt (see [solution commitment](../30-architecture/sdk-and-link-protocol.md#solution-commitment)), and the salt travels only beside the words: the DM's proof link carries it, the copy/share fallback link does not. Without the salt, the public hash cannot be dictionary-enumerated, and the same reply sealed twice yields unrelated hashes. Hands settled before salting keep their bare `keccak256(note)` on-chain permanently. See [ADR-0013](../70-decisions/0013-salted-solution-commitment.md).
 
 ## Data minimization
 

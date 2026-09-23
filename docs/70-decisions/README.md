@@ -17,6 +17,7 @@ This directory records decisions that would otherwise be easy to reverse acciden
 | [0010](0010-stablecoin-policy-and-pull-accounting.md) | Single stablecoin policy and hybrid push/pull payouts | Accepted |
 | [0011](0011-shaker-attribution-and-acceptance.md) | Self attribution reuses the Shake signature; only a distinct Shaker adds acceptance | Accepted |
 | [0012](0012-bounded-prospective-policy-authority.md) | Policy authority is bounded to future Raises | Accepted |
+| [0013](0013-salted-solution-commitment.md) | Give notes are sealed under a per-seal salt carried only beside the note | Accepted |
 
 ## Maintenance rule
 
