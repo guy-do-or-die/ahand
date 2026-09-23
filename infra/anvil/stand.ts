@@ -144,7 +144,7 @@ async function main() {
     }
     console.log("AA stack ready:");
     console.log(`  bundler (alto):   ${aaStack.bundlerUrl}`);
-    console.log(`  paymaster proxy:  ${aaStack.paymasterUrl}  <- point the app here`);
+    console.log(`  paymaster proxy:  ${aaStack.paymasterUrl}  <- the app's /api/aa forwards here (AA_LOCAL_URL)`);
     console.log(`  EntryPoint v0.8:  ${aa.entryPoint08}`);
     console.log(`  Simple7702 impl:  ${aa.simple7702Implementation}`);
   }

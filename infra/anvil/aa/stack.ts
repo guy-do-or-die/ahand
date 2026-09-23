@@ -83,7 +83,8 @@ async function startAlto({ anvilRpc, port }: { anvilRpc: string; port: number })
  *  - alto bundler (eth_sendUserOperation & friends for EP 0.6/0.7/0.8)
  *  - Pimlico mock paymaster (self-deploys its singleton paymasters, deposits
  *    into each EntryPoint, serves pm_* AND proxies bundler methods to alto —
- *    so the app needs only the paymaster URL).
+ *    so it is the one upstream the app's /api/aa route needs: AA_LOCAL_URL,
+ *    default http://127.0.0.1:4339; the browser never talks to it directly).
  * AA contracts must already be deployed (see deploy.ts).
  */
 export async function startAaStack({
