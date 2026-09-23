@@ -10,6 +10,8 @@ The contracts (`contracts/src`, Foundry) are implemented and deployed to Base Se
 | AHandSignals | `0x9d4ac0e5aa9a11f161c2d5e39a931dde24375b17` |
 | AHandWitness | `0x964ec4995d43cc6da4bd9666617b0877012db63a` |
 
+The deployed AHandWitness predates the current source's separate blind/Shake/Give timestamp namespaces; it needs a redeploy to pick them up (see [deployment and trust](../30-architecture/deployment-and-trust.md)).
+
 The reward token is Circle's Base Sepolia USDC, `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals).
 
 Also built:

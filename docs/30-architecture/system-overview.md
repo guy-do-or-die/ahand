@@ -19,7 +19,7 @@ The one deployed application is the web app at `https://ahand.in` (see [web app]
 - **XMTP** (v7 client, `dev` network) to deliver a Give directly to the raiser as a chat message; link export is the fallback;
 - server routes `/api/pin` (server-held IPFS pinning key), `/api/og/$id` (OG images), `/api/aa` (bundler/paymaster proxy), `/api/rpc` (local-dev RPC proxy).
 
-The app reads chain state directly over RPC (`getHand`, `handsCount`, Signals `balanceOf`, Witness `witnessedAt`); it does not query the subgraph.
+The app reads chain state directly over RPC (`getHand`, `handsCount`, Signals `balanceOf`); it does not query the subgraph.
 
 ### Packages
 

@@ -75,7 +75,7 @@ witnessed valid Give + giver consent + later Reclaimed event
 = observable freeriding-risk evidence
 ```
 
-That is evidence, not automatic guilt: the solution may have been invalid, unsafe, duplicate, or unsolicited. Applications may add objective verification where the vertical permits it — a coding task can use tests, a physical handoff a challenge-response — but such mechanisms remain application policy; Core never adjudicates quality.
+`witnessGive` verifies only that the recovered signer signed those Give bytes; the indexer must itself check that the Give is valid (existing Hand, route linkage, deadline) and consented. That is evidence, not automatic guilt: the solution may have been invalid, unsafe, duplicate, or unsolicited. Applications may add objective verification where the vertical permits it — a coding task can use tests, a physical handoff a challenge-response — but such mechanisms remain application policy; Core never adjudicates quality.
 
 ## Terminal proof hygiene
 

@@ -18,11 +18,18 @@ interface ICoreDomain {
 ///         Paid by who values it; events are telemetry, not settlement facts.
 /// @dev    IMPORTANT for indexers: typed witness proves the AUTHORSHIP of bytes
 ///         (signer = recovered), but NOT chain membership — anyone can sign
-///         any Shake struct with their own key. Tree builders MUST verify
-///         capability-linkage: parentCapability in {hand's rootCapability, childCapability
-///         of previously witnessed hops} — instead of trusting a single event.
+///         any Shake or Give struct with their own key, for any handId, route or
+///         deadline. Tree builders MUST verify capability-linkage: parentCapability
+///         in {hand's rootCapability, childCapability of previously witnessed hops},
+///         and a Give's capability must be the tail of the route its routeHash names
+///         — instead of trusting a single event.
 ///
-///         Idempotency sentinel: `witnessedAt[key] == 0` means "not yet witnessed".
+///         Three separate namespaces: blind `witnessedAt[hash]`, `shakeWitnessedAt[key]`
+///         and `giveWitnessedAt[key]` (typed key = keccak256(structHash, sig)). A blind
+///         hash can never occupy a typed slot, so whoever holds a signed artifact cannot
+///         suppress its typed event by blind-witnessing the key first.
+///
+///         Idempotency sentinel: a slot `== 0` means "not yet witnessed".
 ///         Every entry point writes the first-seen timestamp only when the slot is
 ///         still zero and emits nothing on a repeat, so re-submitting an artifact is
 ///         a cheap no-op that preserves the original timestamp. block.timestamp is
@@ -31,8 +38,12 @@ interface ICoreDomain {
 contract AHandWitness {
     /// @notice The core whose EIP-712 domain these signatures are verified against.
     ICoreDomain public immutable core;
-    /// @notice First-seen block timestamp per witnessed artifact key (0 = never witnessed).
-    mapping(bytes32 => uint40) public witnessedAt; // artifact -> first timestamp
+    /// @notice First-seen block timestamp per blind commitment (0 = never witnessed).
+    mapping(bytes32 => uint40) public witnessedAt;
+    /// @notice First-seen block timestamp per typed Shake key (0 = never witnessed).
+    mapping(bytes32 => uint40) public shakeWitnessedAt;
+    /// @notice First-seen block timestamp per typed Give key (0 = never witnessed).
+    mapping(bytes32 => uint40) public giveWitnessedAt;
 
     /// @notice A blind commitment was timestamped for the first time.
     /// @param hash      The witnessed commitment.
@@ -50,9 +61,9 @@ contract AHandWitness {
     event ShakeWitnessed(uint256 indexed handId, address indexed parentCapability,
                         address childCapability, address shaker, uint16 marginBps,
                         bytes32 hopDataHash, uint40 timestamp);
-    /// @notice A protocol-compliant Give was anchored, attributed to its recovered signer.
-    /// @param handId       The Give's Hand id.
-    /// @param capability   The recovered signer (the terminal capability).
+    /// @notice A signed Give was anchored, attributed to its recovered signer.
+    /// @param handId       The Give's Hand id (not checked to exist).
+    /// @param capability   The recovered signer (claims to be the terminal capability; unverified).
     /// @param giver        The giver named in the Give.
     /// @param routeHash    The route the Give claims.
     /// @param solutionHash The giver's solution commitment.
@@ -92,7 +103,7 @@ contract AHandWitness {
     ///         you can only anchor a hop you actually own.
     /// @dev    Attests only to protocol-compliant Shakes (child claim <= parent);
     ///         arbitrary payloads should use blind witness(hash). Keyed on
-    ///         keccak256(structHash, sig) and idempotent via the witnessedAt sentinel.
+    ///         keccak256(structHash, sig) and idempotent via the shakeWitnessedAt sentinel.
     /// @param  s   The Shake to anchor.
     /// @param  sig The Shake signature (must recover to a non-zero parent capability).
     function witnessShake(Shake calldata s, bytes calldata sig) external {
@@ -104,18 +115,21 @@ contract AHandWitness {
             ECDSA.tryRecover(AHandSig.digest(core.DOMAIN_SEPARATOR(), h), sig);
         if (err != ECDSA.RecoverError.NoError || parent == address(0)) revert BadSignature();
         bytes32 key = keccak256(abi.encode(h, sig));
-        if (witnessedAt[key] == 0) {
-            witnessedAt[key] = uint40(block.timestamp);
+        if (shakeWitnessedAt[key] == 0) {
+            shakeWitnessedAt[key] = uint40(block.timestamp);
             emit ShakeWitnessed(s.handId, parent, s.childCapability, s.shaker,
                                s.parentClaimBps - s.childClaimBps, s.hopDataHash,
                                uint40(block.timestamp));
         }
     }
 
-    /// @notice Typed give anchor. GiveWitnessed and core.Reclaimed = freerider-fact
-    ///         (indexer composability; no state changes or mints on Core).
+    /// @notice Typed give anchor: proves only that the recovered signer signed these
+    ///         Give bytes by the timestamp. It checks neither the Hand, the route, the
+    ///         deadline nor giver consent. Joined with verified route linkage, giver
+    ///         consent and a later core.Reclaimed it is freeriding-RISK evidence for
+    ///         indexers, not guilt (no state changes or mints on Core).
     /// @dev    Keyed on keccak256(structHash, sig) and idempotent via the
-    ///         witnessedAt sentinel; a repeat is a no-op that keeps the first timestamp.
+    ///         giveWitnessedAt sentinel; a repeat is a no-op that keeps the first timestamp.
     /// @param  g   The Give to anchor.
     /// @param  sig The Give signature (must recover to a non-zero capability).
     function witnessGive(Give calldata g, bytes calldata sig) external {
@@ -124,8 +138,8 @@ contract AHandWitness {
             ECDSA.tryRecover(AHandSig.digest(core.DOMAIN_SEPARATOR(), h), sig);
         if (err != ECDSA.RecoverError.NoError || cap == address(0)) revert BadSignature();
         bytes32 key = keccak256(abi.encode(h, sig));
-        if (witnessedAt[key] == 0) {
-            witnessedAt[key] = uint40(block.timestamp);
+        if (giveWitnessedAt[key] == 0) {
+            giveWitnessedAt[key] = uint40(block.timestamp);
             emit GiveWitnessed(g.handId, cap, g.giver, g.routeHash, g.solutionHash,
                               uint40(block.timestamp));
         }

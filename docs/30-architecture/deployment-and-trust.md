@@ -14,6 +14,8 @@
 | Subgraph | Graph Studio target `ahand-base-sepolia` |
 | Web app | `https://ahand.in`, deployed on Vercel |
 
+The deployed `AHandWitness` predates the blind/typed namespace split in `contracts/src/AHandWitness.sol` (one shared `witnessedAt` mapping, no `shakeWitnessedAt` / `giveWitnessedAt` getters); Witness is immutable, so the split takes effect only with a fresh deployment.
+
 **Base mainnet deployment has not happened.** Base Sepolia is the only public deployment; mainnet USDC is not the deployed asset anywhere.
 
 `packages/abi/src/addresses.{chain}.json` is the deployment registry: generated alongside the ABIs from forge artifacts, selected by `AHAND_CHAIN`, and consumed by the web app, the seeder, and the subgraph manifest generator. No production value depends on an address hidden only in frontend source.

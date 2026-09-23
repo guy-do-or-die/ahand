@@ -53,7 +53,7 @@ Materialization performs no external calls to recipients, so no contract actor c
 
 ## AHandWitness
 
-Peripheral timestamping only: `witness(hash)`, `witnessShake(shake, sig)`, `witnessGive(give, sig)`, `witnessRoot(root, leaves)`; events `Witnessed`, `ShakeWitnessed`, `GiveWitnessed`, `EpochRoot`. First write wins. It reads Core's `DOMAIN_SEPARATOR` to verify artifact signatures but has no write path into Core, and Core never reads it. Signature validity alone does not prove that an artifact belongs to a winning route.
+Peripheral timestamping only: `witness(hash)`, `witnessShake(shake, sig)`, `witnessGive(give, sig)`, `witnessRoot(root, leaves)`; events `Witnessed`, `ShakeWitnessed`, `GiveWitnessed`, `EpochRoot`. First write wins, in separate blind (`witnessedAt`), Shake (`shakeWitnessedAt`), and Give (`giveWitnessedAt`) namespaces, so a blind hash cannot pre-empt a typed event. It reads Core's `DOMAIN_SEPARATOR` to verify artifact signatures but has no write path into Core, and Core never reads it. Signature validity alone does not prove that an artifact belongs to a winning route.
 
 ## No application registry
 

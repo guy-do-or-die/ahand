@@ -84,7 +84,7 @@ Reserved. `THANK_PERMIT_TYPEHASH` is defined in AHandTypes for a future relayed 
 
 ### Witness
 
-Optional peripheral timestamping through AHandWitness, which has zero Core connectivity: `witness(hash)`, `witnessShake`, `witnessGive`, and `witnessRoot` record first-write-wins timestamps. A Witness proves that signed bytes existed at a time; it does not prove that a Shake belonged to the winning route or that a solution was useful.
+Optional peripheral timestamping through AHandWitness, which has zero Core connectivity: `witness(hash)`, `witnessShake`, `witnessGive`, and `witnessRoot` record first-write-wins timestamps (blind, Shake, and Give timestamps live in separate namespaces). A Witness proves that signed bytes existed at a time; it does not prove that a Shake belonged to the winning route or that a solution was useful.
 
 ## Semantic and trust nouns
 

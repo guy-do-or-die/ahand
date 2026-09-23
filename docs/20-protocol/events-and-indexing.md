@@ -208,7 +208,7 @@ event GiveWitnessed(uint256 indexed handId, address indexed capability,
 event EpochRoot(address indexed relay, bytes32 root, uint256 leaves);
 ```
 
-First-write-wins timestamps (`witnessedAt[key] == 0` sentinel; repeats are silent no-ops). A typed witness proves authorship of bytes — the signer recovered from the signature — but not chain membership: anyone can sign any Shake struct with their own key, so tree builders must verify capability linkage themselves instead of trusting a single event. `EpochRoot` is pure telemetry: emit-only, no storage, no verification.
+First-write-wins timestamps (zero-slot sentinel; repeats are silent no-ops) in three separate namespaces: `witnessedAt[hash]` for blind `witness(hash)`, and `shakeWitnessedAt[key]` / `giveWitnessedAt[key]` for the typed entry points, with `key = keccak256(abi.encode(structHash, sig))`. Because a blind hash can never occupy a typed slot, whoever holds a signed Shake or Give (the raiser receives the terminal Give for review) cannot suppress its `ShakeWitnessed` / `GiveWitnessed` by blind-witnessing the key first. A typed witness proves authorship of bytes — the signer recovered from the signature — but not chain membership: anyone can sign any Shake or Give struct with their own key, for any `handId`, route, or deadline. Witness checks neither Hand existence, route linkage, deadline, nor giver consent, so tree builders must verify capability linkage (and, for a Give, that its capability is the tail of the route its `routeHash` names) themselves instead of trusting a single event. `EpochRoot` is pure telemetry: emit-only, no storage, no verification.
 
 ## Public versus private data
 
