@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useReadContract, usePublicClient } from "wagmi";
-import { parseUnits, stringToHex, decodeEventLog, type Log } from "viem";
-import { useSender, type SenderCall } from "./useSender";
-import { AHandCoreAbi, AHandSignalsAbi, MockUSDAbi, DeployedAddresses } from "@ahand/abi";
+import { parseUnits, stringToHex, type Log } from "viem";
+import { useSender } from "./useSender";
+import { DeployedAddresses, MockUSDAbi } from "@ahand/abi";
 import {
   buildLiveRoute,
   newCapability,
@@ -15,6 +15,7 @@ import { pinDiscoveryViaApp } from "../lib/discovery";
 import { bearerCapability, handRefFor, packLinkMetadata } from "../lib/link";
 import { t } from "../i18n";
 import { humanizeChainError } from "../lib/errors";
+import { mintRaisedReceipt, raisedHandId, raiseCalls } from "../lib/raise";
 
 export type Visibility = "public" | "preview" | "dark";
 
@@ -43,9 +44,9 @@ export interface RaiseDraftPreview {
  * key exists, honestly unpinned otherwise) → raise(RaiseParams, discoveryRef,
  * publicTags) → find 'Raised' event for handId → assembleLink.
  *
- * The sponsored path batches materializeRaised into the same userOp (the
- * Signals trigger pattern); the classic path skips it silently — anyone can
- * materialize later, permissionlessly.
+ * The sponsored path then mints the RAISED receipt in a second op, keyed by
+ * that handId; the classic path skips it silently — anyone can materialize
+ * later, permissionlessly.
  *
  * A debounced draft pass runs the same codec (placeholder handId, throwaway
  * capability) so the OG preview + link-survival counter reflect the real
@@ -224,75 +225,31 @@ export function useRaiseFlow() {
           ? "0x"
           : stringToHex((await pinDiscoveryViaApp(metadata.discoveryBytes)).uri);
 
-      // 4. Assemble calls: approve (only if the allowance is short) + raise.
-      // One sponsored userOp for embedded pockets (with materializeRaised
-      // batched in); the same sequential txs as before for external wallets.
-      const calls: SenderCall[] = [];
-      if (!allowance || (allowance as bigint) < parsedReward) {
-        calls.push({
-          address: DeployedAddresses.mockUSD,
-          abi: MockUSDAbi,
-          functionName: "approve",
-          args: [DeployedAddresses.AHandCore, parsedReward],
-        });
-      }
-      calls.push({
-        address: DeployedAddresses.AHandCore,
-        abi: AHandCoreAbi,
-        functionName: "raise",
-        args: [
-          {
-            token: DeployedAddresses.mockUSD,
-            amount: parsedReward,
-            expiry: Number(expiryTimestamp),
-            charityRecipient: DeployedAddresses.charity,
-            charityBps,
-            minGiverClaimBps: giverKeep * 100,
-            rootCapability: cap.address,
-            visibility: VISIBILITY_ORDINAL[visibility],
-            metadataCommitment: metadata.metadataCommitment,
-            discoveryCommitment: metadata.discoveryCommitment,
-          },
-          discoveryRef,
-          [], // publicTags — none yet
-        ],
+      // 4. approve (only if the allowance is short) + raise: one sponsored
+      // userOp for embedded pockets, sequential txs for external wallets.
+      const calls = raiseCalls({
+        allowance: allowance as bigint | undefined,
+        params: {
+          token: DeployedAddresses.mockUSD,
+          amount: parsedReward,
+          expiry: Number(expiryTimestamp),
+          charityRecipient: DeployedAddresses.charity,
+          charityBps,
+          minGiverClaimBps: giverKeep * 100,
+          rootCapability: cap.address,
+          visibility: VISIBILITY_ORDINAL[visibility],
+          metadataCommitment: metadata.metadataCommitment,
+          discoveryCommitment: metadata.discoveryCommitment,
+        },
+        discoveryRef,
       });
-      if (mode === "sponsored") {
-        // The Signals trigger pattern: mint the RAISED receipt in the same
-        // userOp. handId is deterministic (handsCount + 1) at send time.
-        const count = (await publicClient.readContract({
-          address: DeployedAddresses.AHandCore,
-          abi: AHandCoreAbi,
-          functionName: "handsCount",
-        })) as bigint;
-        calls.push({
-          address: DeployedAddresses.AHandSignals,
-          abi: AHandSignalsAbi,
-          functionName: "materializeRaised",
-          args: [count + 1n],
-        });
-      }
 
       // 5. Send & wait — logs cover every call that was sent.
       const { logs }: { logs: Log[] } = await send(calls);
       await refetchAllowance();
 
-      const raiseEvent = logs
-        .map((log: Log): { eventName: string; args: unknown } | null => {
-          try {
-            return decodeEventLog({
-              abi: AHandCoreAbi,
-              data: log.data,
-              topics: log.topics,
-            }) as { eventName: string; args: unknown };
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.eventName === "Raised");
-
-      if (!raiseEvent) throw new Error(t("The raise didn't go through — try again."));
-      const newHandId = (raiseEvent.args as any).handId as bigint;
+      const newHandId = raisedHandId(logs);
+      if (newHandId === null) throw new Error(t("The raise didn't go through — try again."));
 
       // 6. Assemble the final link for the real hand id.
       const url = assembleFor(newHandId, metadata, cap, expiryTimestamp);
@@ -306,6 +263,11 @@ export function useRaiseFlow() {
         theme === "dark" ? url.replace("#", url.includes("?") ? "&th=d#" : "?th=d#") : url;
 
       setShareUrl(themedUrl);
+
+      // 7. Sponsored pockets mint the RAISED receipt in a follow-up op for
+      // the id Core just reported. Not awaited: the link is already up, and
+      // a miss stays retryable from the pocket.
+      if (mode === "sponsored") void mintRaisedReceipt(send, newHandId);
     } catch (err: any) {
       console.error(err);
       const human = humanizeChainError(err);

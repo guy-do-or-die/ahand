@@ -9,7 +9,7 @@ The web app is the reference client for aHand: a TanStack Start (Vinxi) applicat
 - `/hands` — public board: scans the 24 newest Hand IDs and lists only active, unexpired Public Hands. The pinned doc must carry open-hand extras whose rebuilt envelope matches the on-chain `metadataCommitment`; anyone can join a listed Hand directly, and board-originated routes start with aHand's own attributed first-Shaker hop (250 bps disclosed margin, clamped to the giver floor) signed by `/api/app-hop`. RPC or document-loading failures show a retry state rather than an empty board; partial results remain visible and failed scans are not cached.
 - `/h/$id` — Hand detail: current state, the route so far, and shake / pass / give / reclaim actions. The discovery document is fetched from an IPFS gateway and verified byte-for-byte against the on-chain `discoveryCommitment` before it is shown.
 - `/h/$id/thank` — the raiser's settlement flow.
-- `/pocket` — personal dashboard: incoming Gives (XMTP inbox), payout claims, and activity; includes a dev faucet when running on anvil.
+- `/pocket` — personal dashboard: incoming Gives (XMTP inbox), payout claims, activity, and a retry for Signals receipts still pending (see [Signals receipts](#signals-receipts)); includes a dev faucet when running on anvil.
 - `/dev/gallery` — component gallery, development only.
 
 Discovery reads use `https://gateway.pinata.cloud` by default. Set the public build variable `VITE_IPFS_GATEWAY` to another gateway origin (without `/ipfs`); failed configured-gateway reads fall back to Pinata within the same timeout. Documents are always checked against their on-chain commitment. The shared default timeout is 10 seconds; SSR previews can use a shorter budget. `ipfs.io` is [retiring its HTTP retrieval service in September 2026](https://gatewaychanges.ipfs.io/) and is no longer the default. Direct board RPC reads honor `VITE_RPC_URL`.
@@ -25,6 +25,10 @@ Discovery reads use `https://gateway.pinata.cloud` by default. Set the public bu
 ## Auth and wallets
 
 Privy handles social login (email, Google, passkey, Farcaster, Twitter) and provisions an embedded wallet; external wallets connect through wagmi/viem. Account abstraction sits behind the `VITE_AA_ENABLED` flag: permissionless.js with EntryPoint v0.8, the EIP-7702 `Simple7702Account` implementation, and Pimlico bundler and paymaster (optionally under a Pimlico gas-sponsorship policy).
+
+## Signals receipts
+
+Sponsored pockets get their receipts minted by the app; external wallets leave them to a later permissionless call by anyone. A raise's op carries only `approve` (when the allowance is short) and `raise`. Core assigns the `handId` when `raise` executes, so no id named before the op lands is safe — a concurrent raise can take it. The app reads the id from the op's own `Raised` log, shows the share link, then sends `materializeRaised(handId)` as a second, best-effort sponsored op. A sponsored Thank batches `materializeThank` into the settlement op. `/pocket` lists the viewer's hands still owing receipts — `THANK` for settled hands and, for a sponsored pocket, `RAISED` for its raises — each with a retry button.
 
 ## Give delivery
 

@@ -369,7 +369,7 @@ export const messages: Record<string, string> = {
   "came back unsolved · claimable": "came back unsolved · claimable",
   "moved into your pocket": "moved into your pocket",
   "receipts pending": "receipts pending",
-  "these settled hands haven't minted their memory yet — one tap does it, for everyone": "these settled hands haven’t minted their memory yet — one tap does it, for everyone",
+  "these hands haven't minted their memory yet — one tap does it, for everyone": "these hands haven’t minted their memory yet — one tap does it, for everyone",
   "materialize receipts": "materialize receipts",
   "minting…": "minting…",
   "reading open hands from the chain": "reading open hands from the chain",

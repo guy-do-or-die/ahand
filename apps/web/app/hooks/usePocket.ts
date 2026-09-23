@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useConnection, usePublicClient, useReadContract } from "wagmi";
 import { formatUnits, parseAbiItem } from "viem";
 import { AHandSignalsAbi, MockUSDAbi, DeployedAddresses } from "@ahand/abi";
-import { useSender } from "./useSender";
+import { useSender, type SenderCall } from "./useSender";
 import { useClaims } from "./useClaims";
 import { humanizeChainError } from "../lib/errors";
 import { scanLogs } from "../lib/logs";
+import { raisedReceiptCall } from "../lib/raise";
 
 export type PocketReceiptKind =
   | "gave" // GiverResidual credited to me
@@ -53,19 +54,21 @@ const FROM_BLOCK = BigInt((DeployedAddresses as { deployBlock?: number }).deploy
  * settles; PayoutWithdrawn rows are the aggregate take-outs (a withdrawal
  * has no hand — claims pool across hands by design).
  *
- * Also watches my settled raises for unmaterialized Signals receipts —
- * thankSourceKey → processedSource — and offers the permissionless
- * materializeThank retry (payload rebuilt from Settled + RouteHopSettled).
+ * Also watches my raises for unmaterialized Signals receipts — source key →
+ * processedSource — and offers the permissionless retry: materializeThank
+ * for settled hands (payload rebuilt from Settled + RouteHopSettled) and,
+ * for a sponsored pocket, whose raises the app mints RAISED for,
+ * materializeRaised.
  */
 export function usePocket() {
   const { address, isConnected } = useConnection();
   const publicClient = usePublicClient();
-  const { send } = useSender();
+  const { send, mode } = useSender();
   const claims = useClaims();
 
   const [receipts, setReceipts] = useState<PocketReceipt[] | null>(null);
-  /** Settled hands of mine whose THANK receipts are not yet materialized. */
-  const [unreceipted, setUnreceipted] = useState<string[]>([]);
+  /** Hands of mine whose receipts are not yet materialized, by receipt. */
+  const [pending, setPending] = useState<Record<string, { raised: boolean; thank: boolean }>>({});
   const [materializing, setMaterializing] = useState<string | null>(null);
   const [materializeError, setMaterializeError] = useState("");
   const [scanNonce, setScanNonce] = useState(0);
@@ -80,7 +83,7 @@ export function usePocket() {
   useEffect(() => {
     if (!address || !publicClient) {
       setReceipts(null);
-      setUnreceipted([]);
+      setPending({});
       return;
     }
     let cancelled = false;
@@ -140,35 +143,36 @@ export function usePocket() {
         if (cancelled) return;
         setReceipts(rows);
 
-        // Signals receipts: which of my settled hands still owe theirs?
-        const settledIds = [...settledHandIds];
-        if (settledIds.length > 0) {
-          const pending: string[] = [];
-          await Promise.all(
-            settledIds.map(async (hid) => {
-              try {
-                const key = (await publicClient!.readContract({
-                  address: DeployedAddresses.AHandSignals,
-                  abi: AHandSignalsAbi,
-                  functionName: "thankSourceKey",
-                  args: [BigInt(hid)],
-                })) as `0x${string}`;
-                const processed = (await publicClient!.readContract({
-                  address: DeployedAddresses.AHandSignals,
-                  abi: AHandSignalsAbi,
-                  functionName: "processedSource",
-                  args: [key],
-                })) as boolean;
-                if (!processed) pending.push(hid);
-              } catch {
-                /* signals not reachable — no button, no noise */
-              }
-            }),
-          );
-          if (!cancelled) setUnreceipted(pending.sort());
-        } else if (!cancelled) {
-          setUnreceipted([]);
-        }
+        // Signals receipts: which of my hands still owe theirs?
+        const checks = [
+          ...[...settledHandIds].map((hid) => ({ hid, kind: "thank" as const })),
+          ...(mode === "sponsored"
+            ? myHandIds.map((id) => ({ hid: String(id), kind: "raised" as const }))
+            : []),
+        ];
+        const owed: Record<string, { raised: boolean; thank: boolean }> = {};
+        await Promise.all(
+          checks.map(async ({ hid, kind }) => {
+            try {
+              const key = (await publicClient!.readContract({
+                address: DeployedAddresses.AHandSignals,
+                abi: AHandSignalsAbi,
+                functionName: kind === "raised" ? "raisedSourceKey" : "thankSourceKey",
+                args: [BigInt(hid)],
+              })) as `0x${string}`;
+              const processed = (await publicClient!.readContract({
+                address: DeployedAddresses.AHandSignals,
+                abi: AHandSignalsAbi,
+                functionName: "processedSource",
+                args: [key],
+              })) as boolean;
+              if (!processed) (owed[hid] ??= { raised: false, thank: false })[kind] = true;
+            } catch {
+              /* signals not reachable — no button, no noise */
+            }
+          }),
+        );
+        if (!cancelled) setPending(owed);
       } catch (err) {
         console.error("[pocket] event scan failed:", err);
         if (!cancelled) setReceipts([]);
@@ -178,25 +182,28 @@ export function usePocket() {
     return () => {
       cancelled = true;
     };
-  }, [address, publicClient, scanNonce]);
+  }, [address, publicClient, mode, scanNonce]);
 
-  /** Permissionless materializeThank — payload rebuilt from settlement events. */
+  /** Permissionless receipts — RAISED by id, THANK rebuilt from settlement events. */
   const materialize = useCallback(
     async (handId: string) => {
-      if (!publicClient) return;
+      const owed = pending[handId];
+      if (!publicClient || !owed) return;
       setMaterializing(handId);
       setMaterializeError("");
       try {
-        const core = DeployedAddresses.AHandCore;
-        const [settled, hops] = await Promise.all([
-          scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: SETTLED, args: { handId: BigInt(handId) }, ...range })),
-          scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: ROUTE_HOP_SETTLED, args: { handId: BigInt(handId) }, ...range })),
-        ]);
-        const settlement = settled[0];
-        if (!settlement) throw new Error("settlement not found on chain");
-        const ordered = [...hops].sort((a, b) => Number(a.args.position) - Number(b.args.position));
-        await send([
-          {
+        const calls: SenderCall[] = [];
+        if (owed.raised) calls.push(raisedReceiptCall(BigInt(handId)));
+        if (owed.thank) {
+          const core = DeployedAddresses.AHandCore;
+          const [settled, hops] = await Promise.all([
+            scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: SETTLED, args: { handId: BigInt(handId) }, ...range })),
+            scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: ROUTE_HOP_SETTLED, args: { handId: BigInt(handId) }, ...range })),
+          ]);
+          const settlement = settled[0];
+          if (!settlement) throw new Error("settlement not found on chain");
+          const ordered = [...hops].sort((a, b) => Number(a.args.position) - Number(b.args.position));
+          calls.push({
             address: DeployedAddresses.AHandSignals,
             abi: AHandSignalsAbi,
             functionName: "materializeThank",
@@ -206,8 +213,9 @@ export function usePocket() {
               ordered.map((h) => h.args.shaker!),
               ordered.map((h) => Number(h.args.parentClaimBps!) - Number(h.args.childClaimBps!)),
             ],
-          },
-        ]);
+          });
+        }
+        await send(calls);
         setScanNonce((n) => n + 1);
       } catch (err: any) {
         console.error(err);
@@ -216,11 +224,12 @@ export function usePocket() {
         setMaterializing(null);
       }
     },
-    [publicClient, send],
+    [publicClient, send, pending],
   );
 
   const balance = balanceRaw !== undefined ? Number(formatUnits(balanceRaw as bigint, 6)) : null;
   const thanksCount = receipts?.filter((r) => r.kind === "gave" || r.kind === "passed").length ?? 0;
+  const unreceipted = Object.keys(pending).sort((a, b) => Number(BigInt(a) - BigInt(b)));
 
   return {
     isConnected,

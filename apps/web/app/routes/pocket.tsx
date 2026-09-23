@@ -198,13 +198,13 @@ function PocketComponent() {
             <DirectDeliveryCard className="mb-5" />
             <GiveInbox className="mb-5" />
 
-            {/* Settled hands still owing their Signals receipts — anyone can
+            {/* Hands still owing their Signals receipts — anyone can
                 materialize them; this is the polite retry button. */}
             {pocket.unreceipted.length > 0 && (
               <div className="ah-card mb-5 p-4">
                 <p className="ah-label">{t("receipts pending")}</p>
                 <p className="ah-label ah-label--dim mt-1" style={{ fontSize: 12.5 }}>
-                  {t("these settled hands haven't minted their memory yet — one tap does it, for everyone")}
+                  {t("these hands haven't minted their memory yet — one tap does it, for everyone")}
                 </p>
                 <div className="mt-2.5 flex flex-col gap-2">
                   {pocket.unreceipted.map((hid) => (
