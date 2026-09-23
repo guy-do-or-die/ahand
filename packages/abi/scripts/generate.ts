@@ -34,6 +34,15 @@ export const ${name}Abi = ${JSON.stringify(data.abi, null, 2)} as const;
   writeFileSync(join(ABIS_DIR, `${name}.json`), JSON.stringify(data.abi, null, 2) + "\n");
 }
 
+// Deployed addresses whose bytecode predates the ABI emitted above, keyed by
+// lowercase address so a note lapses by itself once the contract is
+// redeployed. Each becomes JSDoc on its DeployedAddresses entry.
+const STALE_DEPLOYMENTS: Record<string, string> = {
+  // Base Sepolia AHandWitness, deployed before the blind/typed namespace split.
+  "0x964ec4995d43cc6da4bd9666617b0877012db63a":
+    "Deployed before the blind/typed namespace split: this bytecode has one shared `witnessedAt` and no `shakeWitnessedAt` / `giveWitnessedAt`, so AHandWitnessAbi does not match it until Witness is redeployed.",
+};
+
 // AHAND_CHAIN=base-sepolia picks addresses.base-sepolia.json; default is the anvil stand.
 const chain = process.env.AHAND_CHAIN;
 const chainPath = chain ? join(OUT_DIR, `addresses.${chain}.json`) : null;
@@ -42,9 +51,16 @@ if (chainPath && !existsSync(chainPath)) {
 }
 const addressesPath = chainPath ?? join(OUT_DIR, "addresses.json");
 if (existsSync(addressesPath)) {
-  const addrData = JSON.parse(readFileSync(addressesPath, "utf-8"));
+  const addrData: Record<string, unknown> = JSON.parse(readFileSync(addressesPath, "utf-8"));
+  const entries = Object.entries(addrData).map(([key, value]) => {
+    const note = typeof value === "string" ? STALE_DEPLOYMENTS[value.toLowerCase()] : undefined;
+    const line = `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`;
+    return note ? `  /** ${note} */\n${line}` : line;
+  });
   output += `
-export const DeployedAddresses = ${JSON.stringify(addrData, null, 2)} as const;
+export const DeployedAddresses = {
+${entries.join(",\n")}
+} as const;
 `;
 }
 

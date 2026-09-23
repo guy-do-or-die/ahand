@@ -2765,6 +2765,7 @@ export const MockUSDAbi = [
 export const DeployedAddresses = {
   "AHandCore": "0x840C2D884ad2d17c3756c4cc86C84E801A57E811",
   "AHandSignals": "0x9d4AC0e5aA9A11F161c2D5e39A931Dde24375b17",
+  /** Deployed before the blind/typed namespace split: this bytecode has one shared `witnessedAt` and no `shakeWitnessedAt` / `giveWitnessedAt`, so AHandWitnessAbi does not match it until Witness is redeployed. */
   "AHandWitness": "0x964Ec4995d43cc6Da4BD9666617b0877012Db63a",
   "mockUSD": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
   "charity": "0x2D9A5736E99eB8c180fDbD8B9F19a46F733B1351",

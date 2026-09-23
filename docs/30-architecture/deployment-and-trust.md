@@ -14,7 +14,7 @@
 | Subgraph | Graph Studio target `ahand-base-sepolia` |
 | Web app | `https://ahand.in`, deployed on Vercel |
 
-The deployed `AHandWitness` predates the blind/typed namespace split in `contracts/src/AHandWitness.sol` (one shared `witnessedAt` mapping, no `shakeWitnessedAt` / `giveWitnessedAt` getters); Witness is immutable, so the split takes effect only with a fresh deployment.
+The deployed `AHandWitness` predates the blind/typed namespace split in `contracts/src/AHandWitness.sol` (one shared `witnessedAt` mapping, no `shakeWitnessedAt` / `giveWitnessedAt` getters); Witness is immutable, so the split takes effect only with a fresh deployment. Until then `@ahand/abi` carries the mismatch as JSDoc on `DeployedAddresses.AHandWitness` (`STALE_DEPLOYMENTS` in `packages/abi/scripts/generate.ts`, keyed by address so it lapses on redeploy).
 
 **Base mainnet deployment has not happened.** Base Sepolia is the only public deployment; mainnet USDC is not the deployed asset anywhere.
 
