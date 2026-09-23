@@ -16,7 +16,7 @@ The one deployed application is the web app at `https://ahand.in` (see [web app]
 
 - **Privy** for auth (email, Google, passkey, Farcaster, Twitter → embedded wallet) alongside ordinary wagmi/viem external wallets;
 - **account abstraction** via permissionless.js: EntryPoint v0.8, EIP-7702 `Simple7702Account`, Pimlico bundler and paymaster behind the server's `/api/aa` proxy, toggled by `VITE_AA_ENABLED`;
-- **XMTP** (v7 client, `dev` network) to deliver a Give directly to the raiser as a chat message; link export is the fallback;
+- **XMTP** (v7 client, `dev` network unless `VITE_XMTP_ENV` says otherwise) to deliver a Give directly to the raiser as a chat message; link export is the fallback;
 - server routes `/api/pin` (server-held IPFS pinning key), `/api/og/$id` (OG images), `/api/aa` (bundler/paymaster proxy that relays only the app's own sponsored calls), `/api/rpc` (anvil-only RPC proxy).
 
 The app reads chain state directly over RPC (`getHand`, `handsCount`, Signals `balanceOf`); it does not query the subgraph.

@@ -32,7 +32,7 @@ Sponsored pockets get their receipts minted by the app; external wallets leave t
 
 ## Give delivery
 
-A Give can be sent directly to the raiser over XMTP (v7, "dev" environment); exporting the Give as a link is the fallback. Hand pages poll XMTP for direct replies, so a conversation can continue where the Hand lives. The giver's words are sealed into the Give under a fresh salt that rides only in the DM's proof link, never in the fallback link; the thank page marks a received note "sealed into the give" only when it opens that commitment (see [solution commitment](../30-architecture/sdk-and-link-protocol.md#solution-commitment)).
+A Give can be sent directly to the raiser over XMTP (v7; network from `VITE_XMTP_ENV`, "dev" by default); exporting the Give as a link is the fallback. Hand pages poll XMTP for direct replies, so a conversation can continue where the Hand lives. The giver's words are sealed into the Give under a fresh salt that rides only in the DM's proof link, never in the fallback link; the thank page marks a received note "sealed into the give" only when it opens that commitment (see [solution commitment](../30-architecture/sdk-and-link-protocol.md#solution-commitment)).
 
 ## Links and secrets
 

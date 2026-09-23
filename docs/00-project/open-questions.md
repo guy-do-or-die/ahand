@@ -4,7 +4,7 @@ Genuinely unresolved items. Settling one should update this file and, where load
 
 ## Base mainnet deployment
 
-The system runs on Base Sepolia. Whether and when to deploy to Base mainnet is open, along with the operational details: re-verifying Circle's mainnet USDC address at deployment time, choosing the policy admin and initial charity allowlist, and funding/liquidity for real rewards.
+The system runs on Base Sepolia. Whether and when to deploy to Base mainnet is open, along with the operational details: re-verifying Circle's mainnet USDC address at deployment time, choosing the policy admin and initial charity allowlist, funding/liquidity for real rewards, and moving Give delivery to XMTP `production` (`VITE_XMTP_ENV`), which leaves every `dev`-network identity and conversation behind.
 
 ## Gas sponsorship
 
