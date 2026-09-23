@@ -1,15 +1,7 @@
 /// <reference types="vite/client" />
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
-import { b64urlDecode, Discovery } from "../../lib/metadata";
-
-// All render assets are baked into the chunk: the SVG marks as ?raw imports,
-// the fonts as generated base64 (fonts.b64.ts) — runtime fs reads don't
-// survive serverless bundling, and the vinxi server build ignores both
-// ?inline and static new URL(..., import.meta.url) asset emission.
-import markLightSvg from "../../../public/ahand-mark-light.svg?raw";
-import markDarkSvg from "../../../public/ahand-mark-dark.svg?raw";
-import { SG400, SG700, NS400, NS700 } from "./fonts.b64";
+import { planOgCard } from "./plan";
 
 // All render assets are baked into the chunk: the SVG marks as ?raw imports,
 // the fonts as generated base64 (fonts.b64.ts) — runtime fs reads don't
@@ -20,10 +12,9 @@ import markDarkSvg from "../../../public/ahand-mark-dark.svg?raw";
 import { SG400, SG700, NS400, NS700 } from "./fonts.b64";
 
 /**
- * OG card renderer — 1200×630 PNG for /api/og/$id.png. Everything comes
- * from the `e` discovery doc in the URL (same source as the og:* meta
- * tags): chain-free, deterministic per URL, so responses cache forever.
- * Dark hands never carry ?e= and naturally get the generic card.
+ * OG card renderer — 1200×630 PNG for /api/og/$id.png. The text comes from
+ * the `e` discovery doc in the URL (same source as the og:* meta tags); what
+ * may be drawn and cached is decided by plan.ts (see there).
  * Fonts are vendored TTFs (OFL): Schibsted Grotesk + Noto Sans fallback
  * (broad script coverage — titles arrive in any language).
  */
@@ -156,21 +147,14 @@ function card(title: string, teaser: string | undefined, dark: boolean) {
   );
 }
 
-function decodePreview(e: string | null): { title: string; teaser?: string } {
-  const fallback = { title: "Someone needs a hand." };
-  if (!e) return fallback;
-  try {
-    const doc = Discovery.parse(JSON.parse(new TextDecoder().decode(b64urlDecode(e))));
-    return { title: doc.title, teaser: doc.teaser };
-  } catch {
-    return fallback;
-  }
-}
+const GENERIC_TITLE = "Someone needs a hand.";
 
-export async function renderOgResponse(request: Request): Promise<Response> {
+export async function renderOgResponse(request: Request, file: string): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const { title, teaser } = decodePreview(url.searchParams.get("e"));
+    const plan = await planOgCard(file, url.searchParams.get("e"), request.headers);
+    if (plan.status !== 200) return new Response(null, { status: plan.status });
+    const { title, teaser } = plan.preview ?? { title: GENERIC_TITLE };
     // Raiser's app theme at share time travels as ?th=d — scrapers have no
     // theme context of their own.
     const dark = url.searchParams.get("th") === "d";
@@ -183,11 +167,7 @@ export async function renderOgResponse(request: Request): Promise<Response> {
     const png = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
 
     return new Response(new Uint8Array(png), {
-      headers: {
-        "Content-Type": "image/png",
-        // the e param content-addresses the card — safe to cache hard
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
+      headers: { "Content-Type": "image/png", ...plan.headers },
     });
   } catch (err: any) {
     console.error("[og] render failed:", err);

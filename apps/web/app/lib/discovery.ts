@@ -14,6 +14,8 @@
  * and the caller gets an honest {pinned: false} to label availability with.
  */
 
+import { b64urlEncode, verifyDiscoveryParam, ZERO_HASH, type Discovery } from "./metadata";
+
 const CIDV1 = 0x01;
 const RAW_CODEC = 0x55;
 const SHA2_256 = 0x12;
@@ -125,6 +127,28 @@ export async function fetchDiscoveryByCommitment(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The discovery doc a hand page may show and forward to its OG card as ?e=:
+ * the link's own ?e= when it verifies against the commitment, else (no ?e=,
+ * e.g. open public links) the pinned doc fetched by it. Null for dark hands
+ * and for a ?e= that does not verify.
+ */
+export async function resolveHandDiscovery(
+  discoveryCommitment: `0x${string}`,
+  e: string | undefined,
+  timeoutMs?: number,
+): Promise<{ e: string; doc: Discovery } | null> {
+  if (discoveryCommitment === ZERO_HASH) return null;
+  let candidate = e;
+  if (!candidate) {
+    const fetched = await fetchDiscoveryByCommitment(discoveryCommitment, timeoutMs).catch(() => null);
+    if (fetched) candidate = b64urlEncode(fetched);
+  }
+  if (!candidate) return null;
+  const doc = await verifyDiscoveryParam(candidate, discoveryCommitment);
+  return doc ? { e: candidate, doc } : null;
 }
 
 export type PinProvider = "pinata" | "web3.storage";

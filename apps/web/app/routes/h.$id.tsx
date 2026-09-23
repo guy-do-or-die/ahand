@@ -5,8 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { formatUnits, createPublicClient, http } from "viem";
 import { AHandCoreAbi, DeployedAddresses } from "@ahand/abi";
 import { activeChain, APP_SHAKER_ADDRESS } from "../config/web3";
-import { Discovery, b64urlDecode, b64urlEncode, sha256hex, ZERO_HASH } from "../lib/metadata";
-import { fetchDiscoveryByCommitment } from "../lib/discovery";
+import { resolveHandDiscovery } from "../lib/discovery";
 import { mapHand, isReclaimable, type Hand, type HandAbiOutput } from "../lib/hand";
 import { useHandView, type HandRoute } from "../hooks/useHandView";
 import { useSettlement } from "../hooks/useSettlement";
@@ -67,49 +66,17 @@ export const Route = createFileRoute("/h/$id")({
 
     // Stateless SSR verification: ?e= carries the discovery doc, anchored by
     // the on-chain discoveryCommitment (zero for dark hands — nothing public).
-    // Open public links travel without ?e= — fetch the pinned doc by its
-    // commitment instead, and hand the verified bytes to the OG card as e.
-    let effectiveE = e;
-    if (!effectiveE && hand.discoveryCommitment !== ZERO_HASH) {
-      try {
-        const fetched = await fetchDiscoveryByCommitment(hand.discoveryCommitment, 3000);
-        if (fetched) effectiveE = b64urlEncode(fetched);
-      } catch {
-        /* generic card — the doc simply isn't reachable right now */
-      }
-    }
-    if (effectiveE && hand.discoveryCommitment !== ZERO_HASH) {
-      try {
-        const discoveryBytes = b64urlDecode(effectiveE);
-        const calcHash = await sha256hex(discoveryBytes);
-        if (calcHash === hand.discoveryCommitment) {
-          const doc = Discovery.parse(JSON.parse(new TextDecoder().decode(discoveryBytes)));
-          title = `✋ ${doc.title}`;
-          if (doc.teaser) {
-            desc = `${doc.teaser} · ${desc}`;
-          }
-        }
-      } catch (err) {
-        console.error("[SSR] Discovery validation failed, falling back to generic:", err);
+    // Open public links travel without ?e= — the pinned doc is fetched by its
+    // commitment instead. Only verified bytes are handed to the OG card as e.
+    const discovery = await resolveHandDiscovery(hand.discoveryCommitment, e, 3000);
+    if (discovery) {
+      title = `✋ ${discovery.doc.title}`;
+      if (discovery.doc.teaser) {
+        desc = `${discovery.doc.teaser} · ${desc}`;
       }
     }
 
-    return { id: params.id, title, desc, e: effectiveE, th };
-  },
-  meta: ({ loaderData }) => {
-    if (!loaderData) return [];
-
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://welcome-primate-specially.ngrok-free.app";
-    const ogImageUrl = loaderData.e
-      ? `${origin}/api/og/${loaderData.id}.png?e=${loaderData.e}`
-      : `${origin}/api/og/${loaderData.id}.png`;
-
-    return [
-      { title: loaderData.title },
-      { property: "og:title", content: loaderData.title },
-      { property: "og:description", content: loaderData.desc },
-      { property: "og:image", content: ogImageUrl },
-    ];
+    return { id: params.id, title, desc, e: discovery?.e, th };
   },
   component: HandComponent,
 });

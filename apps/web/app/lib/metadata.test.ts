@@ -6,6 +6,8 @@ import {
   b64urlDecode,
   assembleLink,
   parseLink,
+  sha256hex,
+  verifyDiscoveryParam,
   ZERO_HASH,
 } from "./metadata";
 
@@ -224,5 +226,36 @@ describe("metadata codec", () => {
       { metadataCommitment: res.metadataCommitment, discoveryCommitment: ZERO_HASH },
     );
     expect(zeroOk.ok).toBe(true);
+  });
+});
+
+describe("verifyDiscoveryParam", () => {
+  const enc = (s: string) => b64urlEncode(new TextEncoder().encode(s));
+  const forged = { title: "URGENT: claim your payout", teaser: "connect your wallet", nonce: "A".repeat(22) };
+
+  it("returns the doc when ?e= hashes to the commitment", async () => {
+    const res = await buildMetadata({ text: "Need a sofa\nmoving help", visibility: "preview" });
+    const doc = await verifyDiscoveryParam(res.discoveryB64, res.discoveryCommitment);
+    expect(doc?.title).toBe("Need a sofa");
+    expect(doc?.teaser).toBe("moving help");
+  });
+
+  it("rejects a well-formed doc that is not the committed one", async () => {
+    const res = await buildMetadata({ text: "Real title", visibility: "public" });
+    expect(await verifyDiscoveryParam(enc(JSON.stringify(forged)), res.discoveryCommitment)).toBeNull();
+  });
+
+  it("rejects everything for a dark hand's zero commitment", async () => {
+    const res = await buildMetadata({ text: "Dark title", visibility: "dark" });
+    expect(await verifyDiscoveryParam(res.discoveryB64, ZERO_HASH)).toBeNull();
+    expect(await verifyDiscoveryParam(enc(JSON.stringify(forged)), ZERO_HASH)).toBeNull();
+  });
+
+  it("rejects committed bytes that are not a discovery doc", async () => {
+    for (const raw of ["not json", JSON.stringify({ title: "", nonce: "short" })]) {
+      const bytes = new TextEncoder().encode(raw);
+      expect(await verifyDiscoveryParam(b64urlEncode(bytes), await sha256hex(bytes))).toBeNull();
+    }
+    expect(await verifyDiscoveryParam("%%%", `0x${"ab".repeat(32)}`)).toBeNull();
   });
 });

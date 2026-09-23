@@ -296,6 +296,25 @@ export async function verifyMetadata(
 }
 
 /**
+ * A server-visible ?e= checked against the on-chain discoveryCommitment: the
+ * parsed doc when its bytes hash to the anchor, null otherwise. Dark hands
+ * anchor ZERO_HASH, so nothing verifies for them.
+ */
+export async function verifyDiscoveryParam(
+  discoveryB64: string,
+  discoveryCommitment: `0x${string}`,
+): Promise<Discovery | null> {
+  if (discoveryCommitment === ZERO_HASH) return null;
+  try {
+    const bytes = b64urlDecode(discoveryB64);
+    if ((await sha256hex(bytes)) !== discoveryCommitment.toLowerCase()) return null;
+    return Discovery.parse(JSON.parse(new TextDecoder().decode(bytes)));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Rebuild link-shaped metadata parts from a fetched-and-verified PUBLIC
  * discovery doc that carries open-hand extras. The canonical envelope is
  * reconstructed deterministically (same canonicalize, same field set); the

@@ -6,8 +6,10 @@ import {
   verifyDiscoveryBytes,
   fetchDiscoveryByCommitment,
   publishDiscovery,
+  resolveHandDiscovery,
   type PinBackend,
 } from "./discovery";
+import { b64urlEncode, buildMetadata, ZERO_HASH } from "./metadata";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 
@@ -131,6 +133,52 @@ describe("fetchDiscoveryByCommitment", () => {
     expect(signals[0]).toBe(signals[1]);
     expect(signals[1].aborted).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("resolveHandDiscovery", () => {
+  const forged = b64urlEncode(bytes(JSON.stringify({ title: "URGENT: claim your payout", nonce: "A".repeat(22) })));
+
+  it("forwards a ?e= that matches the commitment", async () => {
+    const res = await buildMetadata({ text: "Need a ladder\nfor one day", visibility: "preview" });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const got = await resolveHandDiscovery(res.discoveryCommitment, res.discoveryB64);
+    expect(got?.e).toBe(res.discoveryB64);
+    expect(got?.doc.title).toBe("Need a ladder");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops a forged ?e= instead of forwarding it", async () => {
+    const res = await buildMetadata({ text: "Need a ladder", visibility: "preview" });
+    vi.stubGlobal("fetch", vi.fn());
+    expect(await resolveHandDiscovery(res.discoveryCommitment, forged)).toBeNull();
+  });
+
+  it("drops any ?e= on a dark hand", async () => {
+    const res = await buildMetadata({ text: "Dark ask", visibility: "dark" });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await resolveHandDiscovery(ZERO_HASH, res.discoveryB64)).toBeNull();
+    expect(await resolveHandDiscovery(ZERO_HASH, forged)).toBeNull();
+    expect(await resolveHandDiscovery(ZERO_HASH, undefined)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches the pinned doc by commitment when the link has no ?e=", async () => {
+    const res = await buildMetadata({ text: "Open ask", visibility: "public" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(res.discoveryBytes as BodyInit)));
+
+    const got = await resolveHandDiscovery(res.discoveryCommitment, undefined);
+    expect(got?.e).toBe(res.discoveryB64);
+    expect(got?.doc.title).toBe("Open ask");
+  });
+
+  it("returns null when the pinned doc is unreachable", async () => {
+    const res = await buildMetadata({ text: "Open ask", visibility: "public" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    expect(await resolveHandDiscovery(res.discoveryCommitment, undefined)).toBeNull();
   });
 });
 

@@ -41,7 +41,7 @@ At Raise, the client posts the canonical discovery bytes (under 2 KB) to the app
 
 When displaying a Hand, the app fetches the document through an IPFS gateway and verifies the bytes byte-for-byte against the commitment before using any field. Gateways and pinning providers are availability infrastructure, never trust anchors.
 
-Preview links additionally carry the discovery bytes in a `?e=` query parameter so server-side rendering can build previews without an IPFS round trip; the same commitment check applies. Open public links omit `?e=` (the doc embeds the route body and would balloon the URL) — server-side rendering fetches the pinned document by its commitment instead.
+Preview links additionally carry the discovery bytes in a `?e=` query parameter so server-side rendering can build previews without an IPFS round trip; the same commitment check applies. An `?e=` that does not hash to the on-chain `discoveryCommitment`, and any `?e=` on a Dark Hand, is dropped: it reaches neither the page's meta tags nor its OG image URL, and the OG image endpoint repeats the check against chain before drawing a title. Open public links omit `?e=` (the doc embeds the route body and would balloon the URL) — server-side rendering fetches the pinned document by its commitment instead.
 
 ## Integrity, availability, and confidentiality
 

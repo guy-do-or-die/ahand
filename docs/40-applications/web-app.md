@@ -18,7 +18,7 @@ Discovery reads use `https://gateway.pinata.cloud` by default. Set the public bu
 
 - `/api/pin` — pins discovery documents (under 4 KB) to IPFS using a server-held key (Pinata JWT or Web3.storage token); the key never reaches the client. The route computes the CID locally and returns `pinned: false` honestly when no key is configured.
 - `/api/app-hop` — signs aHand's first-Shaker hop for an open board Hand: the root→child Shake (with the root secret from the verified pinned doc) plus the app account's `ShakerAcceptance` (`APP_SHAKER_KEY`, server-held). Everything is re-derived from chain and the doc; nothing the caller sends is trusted. Without the key the endpoint reports unavailable and board joins fall back to the bare root capability.
-- `/api/og/$id` — Satori-rendered Open Graph images for Hand links.
+- `/api/og/$id` — Satori-rendered Open Graph images for Hand links (`/api/og/<handId>.png?e=…`). The card shows discovery text only when `e` hashes to the Hand's on-chain `discoveryCommitment`, read per render; only that card is cached immutably. Dark Hands, unverified documents, and requests without `e` get the generic card on a five-minute cache, and a failed chain read gets it uncached. `/api/og/draft.png` draws the raise page's not-yet-anchored draft for same-origin requests only (`Sec-Fetch-Site: same-origin`, or a same-host `Referer` from older browsers), uncached and `noindex`; other requests get 403, and any other path 404.
 - `/api/rpc` — RPC proxy for local development.
 - `/api/aa` — proxy to the Pimlico bundler/paymaster, or a local mock.
 
