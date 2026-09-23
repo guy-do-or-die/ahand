@@ -81,25 +81,20 @@ async function main() {
   const deployOutput = await new Response(deployProc.stdout).text();
   console.log(deployOutput);
 
-  // Parse addresses
+  // Parse addresses. Deploy.s.sol pads its labels to varying widths, so match
+  // the label and the address rather than a fixed number of spaces.
+  const LABELS: Record<string, string> = {
+    AHandCore: "AHandCore",
+    Signals: "AHandSignals",
+    Witness: "AHandWitness",
+    mockUSD: "mockUSD",
+    charity: "charity",
+    policyAdmin: "policyAdmin",
+  };
   const addresses: Record<string, string> = {};
-  const lines = deployOutput.split("\n");
-  for (const line of lines) {
-    if (line.includes("AHandCore :")) {
-      addresses.AHandCore = line.split("AHandCore :")[1].trim();
-    } else if (line.includes("Signals   :")) {
-      addresses.AHandSignals = line.split("Signals   :")[1].trim();
-    } else if (line.includes("Anchor    :")) {
-      addresses.StaticAnchor = line.split("Anchor    :")[1].trim();
-    } else if (line.includes("Witness   :")) {
-      addresses.AHandWitness = line.split("Witness   :")[1].trim();
-    } else if (line.includes("mockUSD   :")) {
-      addresses.mockUSD = line.split("mockUSD   :")[1].trim();
-    } else if (line.includes("charity   :")) {
-      addresses.charity = line.split("charity   :")[1].trim();
-    } else if (line.includes("maintainer:")) {
-      addresses.maintainer = line.split("maintainer   :")[1]?.trim() || line.split("maintainer:")[1].trim();
-    }
+  for (const line of deployOutput.split("\n")) {
+    const m = line.match(/^\s*(\w+)\s*:\s*(0x[0-9a-fA-F]{40})\s*$/);
+    if (m && LABELS[m[1]]) addresses[LABELS[m[1]]] = m[2];
   }
 
   console.log("Parsed Deployed Addresses:", addresses);
