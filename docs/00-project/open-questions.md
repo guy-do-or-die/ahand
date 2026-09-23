@@ -6,6 +6,10 @@ Genuinely unresolved items. Settling one should update this file and, where load
 
 The system runs on Base Sepolia. Whether and when to deploy to Base mainnet is open, along with the operational details: re-verifying Circle's mainnet USDC address at deployment time, choosing the policy admin and initial charity allowlist, and funding/liquidity for real rewards.
 
+## Gas sponsorship
+
+`/api/aa` sponsors only the app's own calls, but it does not know who is asking: any caller can get those calls sponsored for any sender. Open: whether to require a server-verified Privy session and bind the op's sender to that user's embedded wallet, which calls deserve sponsorship (for example `withdraw`, or receipt mints sent on someone else's behalf), and the Pimlico policy's global, per-user and per-op spend caps.
+
 ## Discovery-document pinning
 
 Discovery documents are pinned through a single server-held key (`/api/pin`, Pinata or Web3.storage). The on-chain commitment is an integrity anchor, not an availability guarantee: pinning redundancy, retention monitoring, and failure alerting are unresolved. When no key is configured the endpoint honestly returns `pinned: false`, which is fine for development but not a durability story.

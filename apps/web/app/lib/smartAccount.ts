@@ -108,9 +108,6 @@ export async function sendSponsoredBatch({
   const hash = await client.sendUserOperation({
     calls,
     ...(authorization ? { authorization } : {}),
-    ...(AA.sponsorshipPolicyId
-      ? { paymasterContext: { sponsorshipPolicyId: AA.sponsorshipPolicyId } }
-      : {}),
   });
   const uo = await client.waitForUserOperationReceipt({
     hash,

@@ -15,9 +15,9 @@ Details in [Contract boundaries](contract-boundaries.md).
 The one deployed application is the web app at `https://ahand.in` (see [web app](../40-applications/web-app.md)) — a TanStack Start client with routes for the landing page, `/raise`, the `/hands` public board, `/h/$id` Hand pages, `/h/$id/thank` settlement, and the `/pocket` dashboard. It uses:
 
 - **Privy** for auth (email, Google, passkey, Farcaster, Twitter → embedded wallet) alongside ordinary wagmi/viem external wallets;
-- **account abstraction** via permissionless.js: EntryPoint v0.8, EIP-7702 `Simple7702Account`, Pimlico bundler and paymaster, toggled by `VITE_AA_ENABLED`;
+- **account abstraction** via permissionless.js: EntryPoint v0.8, EIP-7702 `Simple7702Account`, Pimlico bundler and paymaster behind the server's `/api/aa` proxy, toggled by `VITE_AA_ENABLED`;
 - **XMTP** (v7 client, `dev` network) to deliver a Give directly to the raiser as a chat message; link export is the fallback;
-- server routes `/api/pin` (server-held IPFS pinning key), `/api/og/$id` (OG images), `/api/aa` (bundler/paymaster proxy), `/api/rpc` (local-dev RPC proxy).
+- server routes `/api/pin` (server-held IPFS pinning key), `/api/og/$id` (OG images), `/api/aa` (bundler/paymaster proxy that relays only the app's own sponsored calls), `/api/rpc` (anvil-only RPC proxy).
 
 The app reads chain state directly over RPC (`getHand`, `handsCount`, Signals `balanceOf`); it does not query the subgraph.
 

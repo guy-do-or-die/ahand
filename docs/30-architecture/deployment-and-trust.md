@@ -23,14 +23,14 @@ The deployed `AHandWitness` predates the blind/typed namespace split in `contrac
 ## Web app services
 
 - **Pinning** — `/api/pin` holds the provider key (`PINATA_JWT`, or `WEB3_STORAGE_TOKEN`) server-side; browsers never see it. Deliberately narrow: it accepts at most 2048 bytes of valid JSON (a discovery-doc pipe, not a file host). The CID is computed locally and the response reports `pinned: false` honestly when no provider confirmed it.
-- **Account abstraction** — Pimlico bundler and paymaster (`VITE_AA_BUNDLER_URL`, `VITE_AA_PAYMASTER_URL`, optional `VITE_AA_SPONSORSHIP_POLICY_ID`), EntryPoint v0.8 with EIP-7702 `Simple7702Account`; toggled by `VITE_AA_ENABLED`.
+- **Account abstraction** — Pimlico bundler and paymaster behind `/api/aa`, which holds the provider URL and key (`AA_UPSTREAM_URL`) and the sponsorship policy id (`AA_SPONSORSHIP_POLICY_ID`) server-side; EntryPoint v0.8 with EIP-7702 `Simple7702Account`; toggled by `VITE_AA_ENABLED`. The route relays one JSON-RPC request at a time, only for the bundler and paymaster methods the app calls, and only user operations built from the app's own calls: `raise`, `thank`, `reclaim` and `withdraw` on Core, `materializeRaised` and `materializeThank` on Signals, and the reward-token `approve` to Core (plus the faucet `mint` on anvil). Calls carry no value, an op carries at most three, execution gas stays under fixed ceilings, and an attached EIP-7702 authorization may name only the `Simple7702Account` implementation on this chain. Any paymaster context a caller sends is replaced with the server's policy. On a public chain without `AA_UPSTREAM_URL` the route answers 503. It does not bind an op to a signed-in user; per-user and spend caps are the Pimlico policy's job.
 - **Auth** — Privy (`VITE_PRIVY_APP_ID`) for social login and embedded wallets, next to ordinary external wallets.
 - **Give delivery** — XMTP, `dev` network.
 - **ENS display reads** — Ethereum mainnet RPC, overridable via `VITE_ENS_RPC` (see [ENS](ens.md)).
 
 ## Local development
 
-`infra/anvil/stand.ts` runs the full stack locally: anvil (chainId 31337), contract deployment via `Deploy.s.sol` with MockUSD, a Pimlico Alto bundler plus mock paymaster on `:4339` (reached through `/api/aa`, `AA_LOCAL_URL`), and addresses written into `packages/abi`. `infra/seed/seed.ts` seeds Base Sepolia itself with real pinned Hands for the public board, writing the share links (which contain root capability secrets) to a gitignored local file.
+`infra/anvil/stand.ts` runs the full stack locally: anvil (chainId 31337), contract deployment via `Deploy.s.sol` with MockUSD, a Pimlico Alto bundler plus mock paymaster on `:4339` (reached through `/api/aa`, `AA_LOCAL_URL`), and addresses written into `packages/abi`. The browser reaches anvil through `/api/rpc`, which exists only on chain 31337 and refuses anvil/EVM cheat codes, debug methods, and unlocked-account signing or sending. `infra/seed/seed.ts` seeds Base Sepolia itself with real pinned Hands for the public board, writing the share links (which contain root capability secrets) to a gitignored local file.
 
 ## Trust inventory
 

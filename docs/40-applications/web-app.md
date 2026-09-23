@@ -19,12 +19,12 @@ Discovery reads use `https://gateway.pinata.cloud` by default. Set the public bu
 - `/api/pin` — pins discovery documents (under 4 KB) to IPFS using a server-held key (Pinata JWT or Web3.storage token); the key never reaches the client. The route computes the CID locally and returns `pinned: false` honestly when no key is configured.
 - `/api/app-hop` — signs aHand's first-Shaker hop for an open board Hand: the root→child Shake (with the root secret from the verified pinned doc) plus the app account's `ShakerAcceptance` (`APP_SHAKER_KEY`, server-held). Everything is re-derived from chain and the doc; nothing the caller sends is trusted. Without the key the endpoint reports unavailable and board joins fall back to the bare root capability.
 - `/api/og/$id` — Satori-rendered Open Graph images for Hand links (`/api/og/<handId>.png?e=…`). The card shows discovery text only when `e` hashes to the Hand's on-chain `discoveryCommitment`, read per render; only that card is cached immutably. Dark Hands, unverified documents, and requests without `e` get the generic card on a five-minute cache, and a failed chain read gets it uncached. `/api/og/draft.png` draws the raise page's not-yet-anchored draft for same-origin requests only (`Sec-Fetch-Site: same-origin`, or a same-host `Referer` from older browsers), uncached and `noindex`; other requests get 403, and any other path 404.
-- `/api/rpc` — RPC proxy for local development.
-- `/api/aa` — proxy to the Pimlico bundler/paymaster, or a local mock.
+- `/api/rpc` — the browser's path to the local anvil node. It answers 404 on any other chain and refuses anvil/EVM cheat codes, debug methods, and unlocked-account signing or sending.
+- `/api/aa` — proxy to the Pimlico bundler/paymaster (or the local mock) that keeps the provider key and the sponsorship policy server-side. It relays only the methods the app's sponsored sends use, and only user operations made of the app's own calls; see [deployment and trust](../30-architecture/deployment-and-trust.md#web-app-services).
 
 ## Auth and wallets
 
-Privy handles social login (email, Google, passkey, Farcaster, Twitter) and provisions an embedded wallet; external wallets connect through wagmi/viem. Account abstraction sits behind the `VITE_AA_ENABLED` flag: permissionless.js with EntryPoint v0.8, the EIP-7702 `Simple7702Account` implementation, and Pimlico bundler and paymaster (optionally under a Pimlico gas-sponsorship policy).
+Privy handles social login (email, Google, passkey, Farcaster, Twitter) and provisions an embedded wallet; external wallets connect through wagmi/viem. Account abstraction sits behind the `VITE_AA_ENABLED` flag: permissionless.js with EntryPoint v0.8, the EIP-7702 `Simple7702Account` implementation, and Pimlico bundler and paymaster reached through `/api/aa` (under the server's Pimlico gas-sponsorship policy when `AA_SPONSORSHIP_POLICY_ID` is set).
 
 ## Signals receipts
 
