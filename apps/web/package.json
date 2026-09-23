@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vinxi dev",
     "build": "vinxi build",
-    "start": "vinxi start"
+    "start": "vinxi start",
+    "test": "vitest run app"
   },
   "dependencies": {
     "@ahand/abi": "workspace:*",
@@ -43,6 +44,7 @@
     "typescript": "^5.9.3",
     "vite": "^5.3.4",
     "tailwindcss": "^4.0.0-alpha.25",
-    "@tailwindcss/vite": "^4.0.0-alpha.25"
+    "@tailwindcss/vite": "^4.0.0-alpha.25",
+    "vitest": "^1.6.0"
   }
 }

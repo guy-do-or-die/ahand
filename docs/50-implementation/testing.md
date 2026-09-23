@@ -1,6 +1,6 @@
 # Testing
 
-Two suites cover the protocol: a Foundry suite for the contracts and a vitest suite for the SDK, tied together by generated cross-language signature vectors.
+Two suites cover the protocol: a Foundry suite for the contracts and a vitest suite for the SDK, tied together by generated cross-language signature vectors. A third vitest suite covers the web app's link, discovery, and give codecs and its server routes.
 
 ## Contract suite (`contracts/test`)
 
@@ -28,6 +28,19 @@ All suites build on a shared harness (`AHandTestBase.sol`) with mock tokens and 
 - `solution.test.ts` pins the salted solution-commitment layout with a golden vector, and covers edge-whitespace canonicalization, the salt evidence ref through the TerminalProof codec, swapped or missing salts failing closed, and the pre-salt fallback.
 - `provisional.test.ts` covers typed-data coherence, `handRef` and `routeHash` layout, EIP-2098 compact signatures, the LiveRoute and TerminalProof codecs (round-trips, secret stripping on forward, kind discrimination, size caps), and `verifyLiveRoute` / `verifyTerminalProof` — including signature-tampering cases: flipped signature bytes, raised claims, swapped shakers and givers, dropped hops, and replay against another Hand.
 
+## Web suite (`apps/web/app`)
+
+Tests sit beside the code they cover.
+
+- `server/aaProxy.test.ts` — the `/api/aa` screen: the method allowlist, the per-contract call allowlist (value-free, at most three calls), the gas and `preVerificationGas` ceilings, the fee ceiling against the upstream's fast price (and its brief cache), the sender binding (code already delegated to `Simple7702Account`, or a delegation the sender signed; contracts, other delegations, and forged or foreign authorizations refused), the server's sponsorship policy replacing any caller context, and fail-closed answers when the upstream, chain, or price is missing. Golden round trips send every sponsored flow the hooks build through viem/permissionless and the proxy, first op with the EIP-7702 delegation and already delegated.
+- `server/rpcProxy.test.ts` — `/api/rpc`: 404 off anvil, the read and signed-transaction allowlist, refusal of cheat codes, unlocked-account methods, and `eth_sendUnsignedTransaction`, batch screening, no echoed transport errors.
+- `server/og/plan.test.ts` — OG card planning: a verified `?e=` draws and caches for good, a forged, dark, or unraised one gets the generic card on a short TTL, failed chain reads are never cached, and the draft card is served only to the app's own page.
+- `lib/raise.test.ts` — the raise batch (approve only when short, never a Signals call), reading the hand id from Core's own `Raised` log, the best-effort RAISED receipt mint and its in-flight marker, and concurrent raises each landing their receipt on their own hand.
+- `lib/giveLink.test.ts` — the Give message codec (hostile-input bounds, last-link-wins) and the sealed solution note: a fresh salt per seal, the salt kept off the standalone link, edited words flagged.
+- `lib/metadata.test.ts`, `lib/link.test.ts` — the metadata layers and link packing, tamper detection, `?e=` verification against the discovery commitment, and an offline root → pass-on → terminal-proof journey.
+- `lib/discovery.test.ts`, `lib/openHands.test.ts` — discovery CIDs, gateway fallback and verification, forged `?e=` dropped before forwarding, and the open-hands board's honest failure and cache behaviour.
+- `config/xmtp.test.ts`, `lib/ens.test.ts` — the XMTP network switch and ENS display helpers.
+
 ## Running
 
 From the repo root:
@@ -41,6 +54,7 @@ Or directly per suite:
 ```sh
 cd contracts && forge test
 cd packages/sdk && bun run test    # vitest run
+cd apps/web && bun run test        # vitest run app
 ```
 
 Regenerate the cross-language vectors after changing the signing library:
@@ -49,4 +63,4 @@ Regenerate the cross-language vectors after changing the signing library:
 cd contracts && FOUNDRY_OUT=out-vec forge test --match-path 'test/GenVectors.t.sol' -vv
 ```
 
-The web app has no automated test script; it is exercised manually against the local stand (`bun run stand`).
+Beyond its suite, the web app is exercised by hand against the local stand (`bun run stand`).
