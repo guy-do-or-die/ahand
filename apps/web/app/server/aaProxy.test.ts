@@ -507,7 +507,7 @@ describe("the app's own sponsored sends pass the proxy", () => {
     ["raise with approval", raiseCalls({ allowance: 0n, params: PARAMS, discoveryRef: `0x${"ab".repeat(46)}` })],
     ["RAISED receipt", [raisedReceiptCall(7n)]],
     ["thank with its THANK receipt", [core("thank"), signals("materializeThank")]],
-    ["pocket receipt retry", [raisedReceiptCall(7n), signals("materializeThank")]],
+    ["THANK receipt retry", [signals("materializeThank")]],
     ["reclaim", [core("reclaim", [7n])]],
     ["withdraw", [core("withdraw", [DeployedAddresses.mockUSD, STRANGER])]],
   ];

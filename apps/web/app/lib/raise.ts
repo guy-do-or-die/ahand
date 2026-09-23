@@ -72,6 +72,24 @@ export function raisedReceiptCall(handId: bigint): SenderCall {
   };
 }
 
+// Hands whose RAISED mint this session has in flight, so the pocket does not
+// offer a retry that would race it (same account, same EntryPoint nonce).
+const minting = new Set<string>();
+const settledListeners = new Set<() => void>();
+
+/** Is this session minting the hand's RAISED receipt right now? */
+export function isRaisedReceiptMinting(handId: bigint | string): boolean {
+  return minting.has(String(handId));
+}
+
+/** Called whenever an in-flight RAISED mint lands or fails; returns the unsubscribe. */
+export function onRaisedReceiptSettled(listener: () => void): () => void {
+  settledListeners.add(listener);
+  return () => {
+    settledListeners.delete(listener);
+  };
+}
+
 /**
  * Mint the RAISED receipt for a hand that already exists. Best-effort: the
  * receipt is permissionless and idempotent, so a failure (someone minted it
@@ -81,11 +99,16 @@ export async function mintRaisedReceipt(
   send: (calls: SenderCall[]) => Promise<SendResult>,
   handId: bigint,
 ): Promise<boolean> {
+  const key = String(handId);
+  minting.add(key);
   try {
     await send([raisedReceiptCall(handId)]);
     return true;
   } catch (err) {
     console.warn(`[raise] RAISED receipt for hand #${handId} left pending:`, err);
     return false;
+  } finally {
+    minting.delete(key);
+    for (const listener of settledListeners) listener();
   }
 }

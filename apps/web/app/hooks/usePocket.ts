@@ -6,7 +6,7 @@ import { useSender, type SenderCall } from "./useSender";
 import { useClaims } from "./useClaims";
 import { humanizeChainError } from "../lib/errors";
 import { scanLogs } from "../lib/logs";
-import { raisedReceiptCall } from "../lib/raise";
+import { isRaisedReceiptMinting, onRaisedReceiptSettled, raisedReceiptCall } from "../lib/raise";
 
 export type PocketReceiptKind =
   | "gave" // GiverResidual credited to me
@@ -46,6 +46,23 @@ const ALLOCATION_KIND: PocketReceiptKind[] = ["charity", "passed", "gave", "refu
 
 const FROM_BLOCK = BigInt((DeployedAddresses as { deployBlock?: number }).deployBlock ?? 0);
 
+/** Does the hand still owe this Signals receipt? Read fresh from Signals. */
+async function owesReceipt(client: NonNullable<ReturnType<typeof usePublicClient>>, kind: "raised" | "thank", handId: string): Promise<boolean> {
+  const key = (await client.readContract({
+    address: DeployedAddresses.AHandSignals,
+    abi: AHandSignalsAbi,
+    functionName: kind === "raised" ? "raisedSourceKey" : "thankSourceKey",
+    args: [BigInt(handId)],
+  })) as `0x${string}`;
+  const processed = (await client.readContract({
+    address: DeployedAddresses.AHandSignals,
+    abi: AHandSignalsAbi,
+    functionName: "processedSource",
+    args: [key],
+  })) as boolean;
+  return !processed;
+}
+
 /**
  * Pocket = the viewer's balances + receipts, derived ONLY from chain events
  * for the connected address (stateless server, no storage). Receipts come
@@ -58,7 +75,10 @@ const FROM_BLOCK = BigInt((DeployedAddresses as { deployBlock?: number }).deploy
  * processedSource — and offers the permissionless retry: materializeThank
  * for settled hands (payload rebuilt from Settled + RouteHopSettled) and,
  * for a sponsored pocket, whose raises the app mints RAISED for,
- * materializeRaised.
+ * materializeRaised (except while this session's own mint for the hand is
+ * still in flight). The retry re-reads what is still owed, sends each
+ * receipt on its own so one minted meanwhile cannot sink the other, and
+ * rescans afterwards whether or not it succeeded.
  */
 export function usePocket() {
   const { address, isConnected } = useConnection();
@@ -72,6 +92,9 @@ export function usePocket() {
   const [materializing, setMaterializing] = useState<string | null>(null);
   const [materializeError, setMaterializeError] = useState("");
   const [scanNonce, setScanNonce] = useState(0);
+
+  // An in-flight RAISED mint from the raise flow landed or failed: rescan.
+  useEffect(() => onRaisedReceiptSettled(() => setScanNonce((n) => n + 1)), []);
 
   const { data: balanceRaw } = useReadContract({
     address: DeployedAddresses.mockUSD,
@@ -147,26 +170,17 @@ export function usePocket() {
         const checks = [
           ...[...settledHandIds].map((hid) => ({ hid, kind: "thank" as const })),
           ...(mode === "sponsored"
-            ? myHandIds.map((id) => ({ hid: String(id), kind: "raised" as const }))
+            ? myHandIds
+                .map((id) => String(id))
+                .filter((hid) => !isRaisedReceiptMinting(hid))
+                .map((hid) => ({ hid, kind: "raised" as const }))
             : []),
         ];
         const owed: Record<string, { raised: boolean; thank: boolean }> = {};
         await Promise.all(
           checks.map(async ({ hid, kind }) => {
             try {
-              const key = (await publicClient!.readContract({
-                address: DeployedAddresses.AHandSignals,
-                abi: AHandSignalsAbi,
-                functionName: kind === "raised" ? "raisedSourceKey" : "thankSourceKey",
-                args: [BigInt(hid)],
-              })) as `0x${string}`;
-              const processed = (await publicClient!.readContract({
-                address: DeployedAddresses.AHandSignals,
-                abi: AHandSignalsAbi,
-                functionName: "processedSource",
-                args: [key],
-              })) as boolean;
-              if (!processed) (owed[hid] ??= { raised: false, thank: false })[kind] = true;
+              if (await owesReceipt(publicClient!, kind, hid)) (owed[hid] ??= { raised: false, thank: false })[kind] = true;
             } catch {
               /* signals not reachable — no button, no noise */
             }
@@ -192,9 +206,15 @@ export function usePocket() {
       setMaterializing(handId);
       setMaterializeError("");
       try {
-        const calls: SenderCall[] = [];
-        if (owed.raised) calls.push(raisedReceiptCall(BigInt(handId)));
-        if (owed.thank) {
+        // Re-read what is still owed: the raise flow's own mint, or anyone
+        // else's, may have landed since the scan.
+        const [raised, thank] = await Promise.all([
+          owed.raised && !isRaisedReceiptMinting(handId) && owesReceipt(publicClient, "raised", handId),
+          owed.thank && owesReceipt(publicClient, "thank", handId),
+        ]);
+        const ops: (() => Promise<SenderCall[]>)[] = [];
+        if (raised) ops.push(async () => [raisedReceiptCall(BigInt(handId))]);
+        if (thank) ops.push(async () => {
           const core = DeployedAddresses.AHandCore;
           const [settled, hops] = await Promise.all([
             scanLogs(publicClient, FROM_BLOCK, (range) => publicClient.getLogs({ address: core, event: SETTLED, args: { handId: BigInt(handId) }, ...range })),
@@ -203,25 +223,38 @@ export function usePocket() {
           const settlement = settled[0];
           if (!settlement) throw new Error("settlement not found on chain");
           const ordered = [...hops].sort((a, b) => Number(a.args.position) - Number(b.args.position));
-          calls.push({
-            address: DeployedAddresses.AHandSignals,
-            abi: AHandSignalsAbi,
-            functionName: "materializeThank",
-            args: [
-              BigInt(handId),
-              settlement.args.giver!,
-              ordered.map((h) => h.args.shaker!),
-              ordered.map((h) => Number(h.args.parentClaimBps!) - Number(h.args.childClaimBps!)),
-            ],
-          });
+          return [
+            {
+              address: DeployedAddresses.AHandSignals,
+              abi: AHandSignalsAbi,
+              functionName: "materializeThank",
+              args: [
+                BigInt(handId),
+                settlement.args.giver!,
+                ordered.map((h) => h.args.shaker!),
+                ordered.map((h) => Number(h.args.parentClaimBps!) - Number(h.args.childClaimBps!)),
+              ],
+            },
+          ];
+        });
+        // One op per receipt: a receipt minted by someone else meanwhile
+        // reverts alone instead of taking the other one down with it.
+        let failure: unknown = null;
+        for (const build of ops) {
+          try {
+            await send(await build());
+          } catch (err) {
+            failure ??= err;
+          }
         }
-        await send(calls);
-        setScanNonce((n) => n + 1);
+        if (failure) throw failure;
       } catch (err: any) {
         console.error(err);
         setMaterializeError(humanizeChainError(err).message);
       } finally {
         setMaterializing(null);
+        // Rescan either way, so receipts minted meanwhile drop out of the list.
+        setScanNonce((n) => n + 1);
       }
     },
     [publicClient, send, pending],

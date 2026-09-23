@@ -8,7 +8,15 @@ import {
 } from "viem";
 import { AHandCoreAbi, MockUSDAbi, DeployedAddresses } from "@ahand/abi";
 import type { SenderCall, SendResult } from "../hooks/useSender";
-import { mintRaisedReceipt, raiseCalls, raisedHandId, raisedReceiptCall, type RaiseParamsArg } from "./raise";
+import {
+  isRaisedReceiptMinting,
+  mintRaisedReceipt,
+  onRaisedReceiptSettled,
+  raiseCalls,
+  raisedHandId,
+  raisedReceiptCall,
+  type RaiseParamsArg,
+} from "./raise";
 
 const ALICE = `0x${"a1".repeat(20)}` as Address;
 const BOB = `0x${"b2".repeat(20)}` as Address;
@@ -217,6 +225,41 @@ describe("mintRaisedReceipt", () => {
       throw new Error("AlreadyMaterialized()");
     });
     await expect(mintRaisedReceipt(send, 5n)).resolves.toBe(false);
+  });
+
+  it.each([
+    ["lands", async () => ({}) as SendResult],
+    [
+      "fails",
+      async (): Promise<SendResult> => {
+        throw new Error("AlreadyMaterialized()");
+      },
+    ],
+  ])("marks the hand in flight until the mint %s, then tells the pocket", async (_, outcome) => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const send = vi.fn(async () => {
+      await gate;
+      return outcome();
+    });
+    const settled = vi.fn();
+    const unsubscribe = onRaisedReceiptSettled(settled);
+
+    const minting = mintRaisedReceipt(send, 11n);
+    expect(isRaisedReceiptMinting(11n)).toBe(true);
+    expect(isRaisedReceiptMinting("11")).toBe(true);
+    expect(isRaisedReceiptMinting(12n)).toBe(false);
+    expect(settled).not.toHaveBeenCalled();
+
+    release();
+    await minting;
+    expect(isRaisedReceiptMinting(11n)).toBe(false);
+    expect(settled).toHaveBeenCalledOnce();
+
+    unsubscribe();
+    await mintRaisedReceipt(vi.fn(async () => ({}) as SendResult), 13n);
+    expect(settled).toHaveBeenCalledOnce();
   });
 });
 
