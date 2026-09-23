@@ -135,6 +135,7 @@ The EIP-712 domain binds `block.chainid` and the Core address; `handRef` binds c
 | `AHand.erc1271.t.sol` | contract signers across all four signature families |
 | `AHand.forksafety.t.sol` | cached versus recomputed `DOMAIN_SEPARATOR` across chain-id changes |
 | `AHand.invariant.t.sol` | stateful fuzz over a blacklist token: strict conservation with pushed and deferred value, claims ledger and withdraw, payout event pairing, lifecycle, Signals accounting |
+| `AHand.witness.t.sol` | blind vs typed witness namespaces (no pre-emption, fuzzed), per-namespace first-write-wins, signer attribution, signature rejection, `witnessGive` authorship-only lock |
 | `Signals.materialize.t.sol` | `materializeRaised` / `materializeThank` idempotence, commitment checks, sqrt curve, `SHAKEN` dedupe |
 | `GenVectors.t.sol` | generates the cross-language EIP-712 vectors consumed by `packages/sdk` |
 
