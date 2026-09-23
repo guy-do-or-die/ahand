@@ -65,6 +65,18 @@ contract AHandTestBase is Test {
         return new AHandCore(token, USD_SCALE, ch, policyAdmin);
     }
 
+    /// @dev Rebind the whole fixture (usd, core, signals, funded raiser) to a
+    ///      MockUSD-derived token such as BlacklistToken, so the ordinary route,
+    ///      give and thank helpers run against a core whose pushes can fail.
+    function useRewardToken(MockUSD token) internal {
+        usd = token;
+        core = deployCore(address(token));
+        signals = new AHandSignals(address(core));
+        token.mint(raiser, 1_000_000e6);
+        vm.prank(raiser);
+        token.approve(address(core), type(uint256).max);
+    }
+
     /*//////////////////// raise ////////////////////*/
 
     /// @dev Canonical valid params: Public, 10% charity, 50% giver floor, 30 days.

@@ -22,7 +22,7 @@ At every point:
 Core token balance >= Σ (creditedReward of Active Hands) + Σ (claims[token][beneficiary])
 ```
 
-Settlement and reclaim push most value out in the same transaction; each failed push converts exactly its share of escrow liability into claim liability; `withdraw` reduces the claim and the balance by the same amount. Unsolicited direct transfers are inert surplus attributed to neither liability class. `AHand.invariant.t.sol` fuzzes this statefully, with ghost accounting of pushed versus deferred value.
+Settlement and reclaim push most value out in the same transaction; each failed push converts exactly its share of escrow liability into claim liability; `withdraw` reduces the claim and the balance by the same amount. Unsolicited direct transfers are inert surplus attributed to neither liability class. `AHand.invariant.t.sol` fuzzes this statefully over a USDC-style blacklist token whose block list the fuzzer toggles across every payee, so pushes really defer; ghost accounting of pushed versus deferred value must match the balance exactly, including claims whose beneficiary stays blocked.
 
 ### Escrow isolation and terminality
 
@@ -52,6 +52,8 @@ Settlement and reclaim push most value out in the same transaction; each failed 
 - Each settlement push is bounded at `PUSH_GAS_STIPEND = 120_000` and never bubbles a revert: exactly one of `PayoutPushed` / `PayoutDeferred` follows each `PayoutAllocated`.
 - A failing push defers only its own share into `claims[token][beneficiary]`; it cannot roll back or delay settlement, and every other payout in the same transaction still lands.
 - `withdraw` zeroes the aggregate claim before its transfer, pays only the fixed beneficiary, and has no partial mode. Aggregate withdrawals carry no per-Hand attribution.
+
+The invariant handler checks the event pairing on every fuzzed `thank` and `reclaim`, and exact withdraw deltas (or an untouched claim when the beneficiary is still blocked) on every fuzzed `withdraw`. `AHand.deferral.t.sol` forces each allocation kind to defer, including a duplicate shaker and every recipient at once, withdraws beside live escrow and junk, and pins the push success shape: a `false` return or a transfer costing more than the stipend defers, and a transfer with no return data counts as delivered.
 
 ## Signals invariants
 
@@ -111,7 +113,7 @@ A compromised admin can damage future admission — disable the token, empty the
 
 ### Malicious tokens and recipients
 
-Core binds one known reward token, demands an exact deposit delta, and settles with gas-bounded pushes that defer instead of reverting: a hostile recipient wastes at most `PUSH_GAS_STIPEND` and strands only its own share. `withdraw` zeroes before transfer, and a failed withdrawal retries without altering history. Arbitrary-token compatibility is not claimed. `AHand.attacks.t.sol` exercises reentrancy and hostile-recipient scenarios.
+Core binds one known reward token, demands an exact deposit delta, and settles with gas-bounded pushes that defer instead of reverting: a hostile recipient wastes at most `PUSH_GAS_STIPEND` and strands only its own share. `withdraw` zeroes before transfer, and a failed withdrawal retries without altering history. Arbitrary-token compatibility is not claimed. `AHand.deferral.t.sol` exercises recipients that revert, tokens that return `false`, and transfers that exhaust the stipend; `AHand.erc1271.t.sol` covers a reentrant signature validator.
 
 ### Signature replay
 
@@ -126,12 +128,13 @@ The EIP-712 domain binds `block.chainid` and the Core address; `handRef` binds c
 | `AHand.acceptance.t.sol` | shaker consent modes and the settlement acceptance matrix |
 | `AHand.windows.t.sol` | expiry windows, disjoint thank/reclaim, artifact deadlines |
 | `AHand.routehash.t.sol` | route-hash binding: Give/route equality, hop reordering |
-| `AHand.attacks.t.sol` | reentrancy, route prefix/tail substitution, hostile recipients, cross-Hand isolation |
+| `AHand.attacks.t.sol` | route prefix/tail substitution, claim growth and floor violations, signature malleability, settle-once, cross-Hand isolation, force-send bookkeeping |
 | `AHand.conservation.t.sol` | exact per-Hand conservation across splits and rounding |
 | `AHand.withdraw.t.sol` | deferred-claim accounting and the fixed-destination drain |
+| `AHand.deferral.t.sol` | deferral of every allocation kind, `PayoutDeferred` events, withdraw beside live escrow, the push success shape |
 | `AHand.erc1271.t.sol` | contract signers across all four signature families |
 | `AHand.forksafety.t.sol` | cached versus recomputed `DOMAIN_SEPARATOR` across chain-id changes |
-| `AHand.invariant.t.sol` | stateful fuzz: solvency, conservation, push/defer ghost accounting |
+| `AHand.invariant.t.sol` | stateful fuzz over a blacklist token: strict conservation with pushed and deferred value, claims ledger and withdraw, payout event pairing, lifecycle, Signals accounting |
 | `Signals.materialize.t.sol` | `materializeRaised` / `materializeThank` idempotence, commitment checks, sqrt curve, `SHAKEN` dedupe |
 | `GenVectors.t.sol` | generates the cross-language EIP-712 vectors consumed by `packages/sdk` |
 

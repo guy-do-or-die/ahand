@@ -18,7 +18,12 @@ pragma solidity 0.8.35;
       I-2 terminal hands carry zero liability and creditedReward never
           mutates after raise (ghost snapshot comparison)
       I-3 claims move only through the mirrored credit sites and withdraw;
-          withdraw zeroes the claim and transfers exactly that amount
+          withdraw zeroes the claim and transfers exactly that amount, and a
+          withdraw to a blacklisted beneficiary reverts leaving claim and
+          balance untouched. The reward token is a BlacklistToken whose block
+          list the fuzzer toggles over every payee, so pushes really defer;
+          every PayoutAllocated is answered, in order, by exactly one
+          PayoutPushed or PayoutDeferred for the same beneficiary and amount
       I-4 Signals accounting: per-actor prevSqrt == floor(sqrt(cumulativeUsd)),
           watermark == earned-still-held + up-spent, balance == earned + received,
           totalSupply[UP] == sum of watermarks (up() conserves supply),
@@ -33,6 +38,7 @@ import "../src/AHandTypes.sol";
 import {AHandCore} from "../src/AHandCore.sol";
 import {AHandSignals} from "../src/AHandSignals.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
+import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {AHandTestBase} from "./AHandTestBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -58,6 +64,13 @@ contract AHandInvariantHandler is AHandTestBase {
     /// which keeps the supply invariants closed-form.
     address[] public signalActors; // [giver, shakerA, shakerB, raiser]
     uint256[] internal signalActorPks;
+
+    /// Reward token of the fuzzed core; `usd` points at the same contract.
+    BlacklistToken internal bl;
+    /// Every address a settlement or reclaim can pay: charity, raiser, the
+    /// giver pool, explicit shakers and the self-attributed hop keys E0..E5.
+    /// The core itself is never blocked, so raises always land.
+    address[] public payees;
 
     /*//////////////////// Hand tracking ////////////////////*/
     uint256[] public activeHands;  // swap-remove on settle/reclaim
@@ -99,8 +112,16 @@ contract AHandInvariantHandler is AHandTestBase {
     mapping(address => uint256) public ghostUpReceived; // UP landed via up()
     bytes32[] public ghostProcessedKeys;                // every source key we flipped
 
+    /*//////////////////// Coverage counters ////////////////////*/
+    uint256 public pushedCount;
+    uint256 public deferredCount;
+    uint256 public withdrawOkCount;
+    uint256 public withdrawBlockedCount;
+
     function setUp() public override {
         super.setUp();
+        bl = new BlacklistToken();
+        useRewardToken(bl);
         (, raiserPk) = makeAddrAndKey("raiser"); // same derivation as the base field
 
         signalActors.push(giver);
@@ -111,6 +132,16 @@ contract AHandInvariantHandler is AHandTestBase {
         signalActorPks.push(SHAKER_B_PK);
         signalActors.push(raiser);
         signalActorPks.push(raiserPk);
+
+        payees.push(charity);
+        payees.push(raiser);
+        payees.push(giver);
+        payees.push(shakerA);
+        payees.push(shakerB);
+        uint256[6] memory hopKeys = [E0, E1, E2, E3, E4, E5];
+        for (uint256 i; i < hopKeys.length; ++i) {
+            payees.push(vm.addr(hopKeys[i]));
+        }
     }
 
     /*//////////////////// Views for the invariant contract ////////////////////*/
@@ -146,6 +177,10 @@ contract AHandInvariantHandler is AHandTestBase {
         return ghostProcessedKeys.length;
     }
 
+    function payeeCount() external view returns (uint256) {
+        return payees.length;
+    }
+
     /*//////////////////// Internal bookkeeping ////////////////////*/
     function _transition(uint256 handId, Status from, Status to) internal {
         require(ghostStatus[handId] == from, "ghost: unexpected from-status");
@@ -164,8 +199,7 @@ contract AHandInvariantHandler is AHandTestBase {
     }
 
     /// @dev A DEFERRED allocation: the push failed and the amount parked as a
-    ///      withdrawable claim. With MockUSD this path is never taken (every
-    ///      push succeeds), but it is kept exact for a blacklist campaign.
+    ///      withdrawable claim.
     function _credit(address beneficiary, uint256 amount) internal {
         ghostClaims[beneficiary] += amount;
         ghostOutstanding += amount;
@@ -174,11 +208,51 @@ contract AHandInvariantHandler is AHandTestBase {
 
     /// @dev A PUSHED allocation: value left the contract straight to the
     ///      recipient. It never enters the claims ledger; the flow identity
-    ///      accounts for it via ghostDistributedOut. On MockUSD the recipient is
-    ///      an EOA or a plain-holding account, so transfer always succeeds.
+    ///      accounts for it via ghostDistributedOut.
     function _distribute(address beneficiary, uint256 amount) internal {
         ghostDistributedOut += amount;
         _track(beneficiary); // so the invariant still asserts claims==0 for it
+    }
+
+    /// @dev Mirror one core _pay with an oracle independent of the core: the
+    ///      push fails exactly when the token blacklists the recipient.
+    function _mirrorPay(address to, uint256 amount) internal {
+        if (bl.blocked(to)) _credit(to, amount);
+        else _distribute(to, amount);
+    }
+
+    /// @dev Pair the core's payout events of the call recorded since
+    ///      vm.recordLogs(): each non-zero PayoutAllocated is answered, in
+    ///      order, by exactly one PayoutPushed or PayoutDeferred for the same
+    ///      Hand, beneficiary and amount, on the branch the blacklist predicts.
+    function _checkPayoutEvents(uint256 handId) internal {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        address[] memory allocTo = new address[](logs.length);
+        uint256[] memory allocAmount = new uint256[](logs.length);
+        uint256 allocs;
+        uint256 outcomes;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter != address(core)) continue;
+            bytes32 sig = logs[i].topics[0];
+            if (sig == AHandCore.PayoutAllocated.selector) {
+                (,, uint96 amount) = abi.decode(logs[i].data, (uint8, uint8, uint96));
+                assertGt(amount, 0, "handler: zero PayoutAllocated");
+                allocTo[allocs] = address(uint160(uint256(logs[i].topics[3])));
+                allocAmount[allocs++] = amount;
+            } else if (sig == AHandCore.PayoutPushed.selector || sig == AHandCore.PayoutDeferred.selector) {
+                assertLt(outcomes, allocs, "handler: payout outcome without an allocation");
+                address to = address(uint160(uint256(logs[i].topics[3])));
+                assertEq(uint256(logs[i].topics[1]), handId, "handler: payout outcome for another hand");
+                assertEq(to, allocTo[outcomes], "handler: payout outcome beneficiary != allocation");
+                assertEq(abi.decode(logs[i].data, (uint96)), allocAmount[outcomes], "handler: payout outcome amount != allocation");
+                bool deferred = sig == AHandCore.PayoutDeferred.selector;
+                assertEq(deferred, bl.blocked(to), "handler: push/defer branch disagrees with the blacklist");
+                if (deferred) ++deferredCount;
+                else ++pushedCount;
+                ++outcomes;
+            }
+        }
+        assertEq(outcomes, allocs, "handler: allocation without exactly one push/defer");
     }
 
     function _removeActive(uint256 index) internal {
@@ -269,6 +343,7 @@ contract AHandInvariantHandler is AHandTestBase {
         uint256 giverIndex = giverSeed % signalActors.length;
         address giverAddr = signalActors[giverIndex];
         (Give memory g, bytes memory giveSig) = buildGive(handId, r, giverAddr, h.expiry);
+        vm.recordLogs();
         doThank(handId, r, g, giveSig, signStruct(signalActorPks[giverIndex], AHandSig.hashGiverAcceptance(AHandSig.hashGive(g))));
 
         // Mirror phase-B math: giver residual absorbs the dust, identity is exact.
@@ -278,14 +353,12 @@ contract AHandInvariantHandler is AHandTestBase {
         }
         uint96 giverAlloc = distributable - marginTotal;
 
-        // Hybrid push: MockUSD never defers, so every allocation leaves the
-        // contract straight to the recipient — tracked as distributed-out, not
-        // as a claim. Same floor math, different destination.
-        _distribute(h.charityRecipient, charityAlloc);
+        _checkPayoutEvents(handId);
+        _mirrorPay(h.charityRecipient, charityAlloc);
         for (uint256 i; i < hops; ++i) {
-            if (hopAllocs[i] != 0) _distribute(r.shakes[i].shaker, hopAllocs[i]);
+            if (hopAllocs[i] != 0) _mirrorPay(r.shakes[i].shaker, hopAllocs[i]);
         }
-        _distribute(giverAddr, giverAlloc);
+        _mirrorPay(giverAddr, giverAlloc);
 
         _removeActive(index);
         settledHands.push(handId);
@@ -310,37 +383,47 @@ contract AHandInvariantHandler is AHandTestBase {
             vm.warp(uint256(h.expiry) + (warpSeed % 3 days));
         }
 
+        vm.recordLogs();
         core.reclaim(handId); // permissionless — the handler itself finalizes
 
-        // Full refund is PUSHED to the raiser (MockUSD never defers).
-        _distribute(h.raiser, h.creditedReward); // zero charity cut on reclaim
+        _checkPayoutEvents(handId);
+        _mirrorPay(h.raiser, h.creditedReward); // full refund, zero charity cut
         _removeActive(index);
         _transition(handId, Status.Active, Status.Reclaimed);
     }
 
     /// @notice Withdraw the full claim of a random known beneficiary, asserting
-    ///         the exact-transfer / exact-zeroing contract of the pull ledger.
+    ///         the exact-transfer / exact-zeroing contract of the pull ledger —
+    ///         or, for a still-blacklisted beneficiary, a revert that leaves the
+    ///         claim and the core balance untouched.
     function withdraw(uint256 seed) external {
         uint256 count = beneficiaries.length;
         if (count == 0) return;
 
+        // Prefer a claimant the token will pay; fall back to a blacklisted one.
         address beneficiary;
-        uint256 amount;
         uint256 start = seed % count;
         for (uint256 i; i < count; ++i) {
             address candidate = beneficiaries[(start + i) % count];
-            uint256 claim = core.claims(address(usd), candidate);
-            if (claim != 0) {
-                beneficiary = candidate;
-                amount = claim;
-                break;
-            }
+            if (core.claims(address(usd), candidate) == 0) continue;
+            if (beneficiary == address(0) || bl.blocked(beneficiary)) beneficiary = candidate;
+            if (!bl.blocked(candidate)) break;
         }
         if (beneficiary == address(0)) return; // nothing outstanding anywhere
+        uint256 amount = core.claims(address(usd), beneficiary);
 
         assertEq(amount, ghostClaims[beneficiary], "handler: claims mirror diverged before withdraw");
         uint256 balBeneficiary = usd.balanceOf(beneficiary);
         uint256 balCore = usd.balanceOf(address(core));
+
+        if (bl.blocked(beneficiary)) {
+            vm.expectRevert(bytes("BLACKLISTED"));
+            core.withdraw(address(usd), beneficiary);
+            assertEq(core.claims(address(usd), beneficiary), amount, "handler: failed withdraw touched the claim");
+            assertEq(usd.balanceOf(address(core)), balCore, "handler: failed withdraw moved core funds");
+            ++withdrawBlockedCount;
+            return;
+        }
 
         core.withdraw(address(usd), beneficiary); // permissionless, fixed destination
 
@@ -351,6 +434,7 @@ contract AHandInvariantHandler is AHandTestBase {
         ghostClaims[beneficiary] = 0;
         ghostOutstanding -= amount;
         ghostWithdrawnTotal += amount;
+        ++withdrawOkCount;
     }
 
     /// @notice Materialize the RAISED receipt for any existing Hand — valid for
@@ -430,6 +514,12 @@ contract AHandInvariantHandler is AHandTestBase {
         ghostUpReceived[target] += amount;
     }
 
+    /// @notice Block or unblock a payee on the token's blacklist: pushes to a
+    ///         blocked payee defer to a claim, and withdrawing it reverts.
+    function toggleBlock(uint256 payeeSeed, bool isBlocked) external {
+        bl.setBlocked(payees[payeeSeed % payees.length], isBlocked);
+    }
+
     /// @notice Force-send tokens to the core outside any Hand. The strict
     ///         conservation invariant must account for every junk wei.
     function donateJunk(uint96 amountSeed) external {
@@ -463,7 +553,7 @@ contract AHandInvariantTest is Test {
         usd = handler.usdContract();
 
         targetContract(address(handler));
-        bytes4[] memory selectors = new bytes4[](9);
+        bytes4[] memory selectors = new bytes4[](10);
         selectors[0] = AHandInvariantHandler.raise.selector;
         selectors[1] = AHandInvariantHandler.thank.selector;
         selectors[2] = AHandInvariantHandler.reclaim.selector;
@@ -473,7 +563,50 @@ contract AHandInvariantTest is Test {
         selectors[6] = AHandInvariantHandler.up.selector;
         selectors[7] = AHandInvariantHandler.donateJunk.selector;
         selectors[8] = AHandInvariantHandler.warp.selector;
+        selectors[9] = AHandInvariantHandler.toggleBlock.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
+    }
+
+    /// @dev Per-run coverage of both payout branches and both withdraw outcomes.
+    function afterInvariant() public view {
+        console.log("payouts pushed / deferred:", handler.pushedCount(), handler.deferredCount());
+        console.log("withdraws paid / blocked:", handler.withdrawOkCount(), handler.withdrawBlockedCount());
+    }
+
+    /// Deterministic walk through the deferred path, so the campaign cannot
+    /// silently stop reaching it: blacklist every payee, settle one Hand and
+    /// reclaim another (every allocation defers), watch a blocked withdraw
+    /// revert in place, then unblock and drain every claim.
+    function test_Handler_DrivesDeferralAndWithdraw() public {
+        handler.raise(100e6, 30 days, 1_000, 5_000);
+        handler.raise(100e6, 30 days, 1_000, 5_000);
+        uint256 payees = handler.payeeCount();
+        for (uint256 i; i < payees; ++i) {
+            handler.toggleBlock(i, true);
+        }
+
+        handler.thank(0, 3, 1, 1, 0);
+        handler.reclaim(0, 1); // odd seed: warp past expiry, then reclaim
+        assertEq(handler.pushedCount(), 0, "every push hit the blacklist");
+        assertGe(handler.deferredCount(), 3, "charity, giver and refund deferred at least");
+        assertEq(handler.ghostOutstanding(), 200e6, "both deposits parked as claims");
+        assertEq(usd.balanceOf(address(core)), 200e6, "claims are fully backed");
+        invariant_strictConservation();
+
+        handler.withdraw(0);
+        assertEq(handler.withdrawBlockedCount(), 1, "blocked withdraw reverted in place");
+        assertEq(handler.ghostOutstanding(), 200e6, "failed withdraw kept the claim");
+
+        for (uint256 i; i < payees; ++i) {
+            handler.toggleBlock(i, false);
+        }
+        for (uint256 i; handler.ghostOutstanding() != 0; ++i) {
+            handler.withdraw(i);
+        }
+        assertGe(handler.withdrawOkCount(), 3, "each deferred beneficiary drained");
+        assertEq(handler.ghostWithdrawnTotal(), 200e6, "withdrawals paid every claim");
+        assertEq(usd.balanceOf(address(core)), 0, "nothing left behind");
+        invariant_strictConservation();
     }
 
     /// @custom:invariant I-1 strict conservation + I-3 claim-ledger integrity.
