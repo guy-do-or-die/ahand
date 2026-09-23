@@ -18,7 +18,7 @@ import { AHandCoreAbi, AHandSignalsAbi, MockUSDAbi, DeployedAddresses } from "@a
 import type { SenderCall } from "../hooks/useSender";
 import { raiseCalls, raisedReceiptCall } from "../lib/raise";
 import { getSmartAccountClient, sendSponsoredBatch } from "../lib/smartAccount";
-import { GAS_CEILINGS, aaUpstream, proxyAaRequest, screenAaRequest, type AaPolicy } from "./aaProxy";
+import { GAS_CEILINGS, aaUpstream, proxyAaRequest, screenAaRequest, type AaPolicy, type ReadCode } from "./aaProxy";
 
 vi.mock("../config/web3", async () => ({
   activeChain: (await import("viem/chains")).baseSepolia,
@@ -39,6 +39,10 @@ const IMPL = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as Address;
 const STRANGER = `0x${"de".repeat(20)}` as Address;
 const PAYMASTER = `0x${"7a".repeat(20)}` as Address;
 const USEROP_HASH = `0x${"44".repeat(32)}` as Hex;
+
+const DELEGATED = `0xef0100${IMPL.slice(2).toLowerCase()}` as Hex;
+/** The chain as the proxy's sender check sees it: every sender already delegated. */
+const delegatedChain: ReadCode = async () => DELEGATED;
 
 const POLICY: AaPolicy = {
   chainId: baseSepolia.id,
@@ -166,7 +170,7 @@ describe("screenAaRequest: sponsorship", () => {
   it("allows the faucet mint on anvil only", () => {
     const mint = [token("mint", [STRANGER, 1_000_000_000n])];
     const anvil = { ...POLICY, chainId: 31337 };
-    const op = userOp(mint, { eip7702Auth: { address: IMPL, chainId: toHex(31337) } });
+    const op = userOp(mint, { eip7702Auth: { ...userOp(mint).eip7702Auth, chainId: toHex(31337) } });
     expect(screenAaRequest(rpc("pm_getPaymasterData", [op, entryPoint08Address, toHex(31337), null]), anvil).ok).toBe(true);
   });
 
@@ -197,6 +201,15 @@ describe("screenAaRequest: sponsorship", () => {
 
   it("accepts the already-delegated shape (no marker, no authorization)", () => {
     expect(sponsor(userOp([RAISE], { factory: undefined, factoryData: undefined, eip7702Auth: undefined })).ok).toBe(true);
+  });
+
+  it.each([
+    ["the 7702 marker without its authorization", { eip7702Auth: undefined }],
+    ["an op without a sender", { sender: undefined }],
+    ["a malformed sender", { sender: "0x1234" }],
+    ["a delegation without a signature", { eip7702Auth: { address: IMPL, chainId: toHex(baseSepolia.id), nonce: "0x0" } }],
+  ])("refuses %s", (_, extra) => {
+    expect(refusal(sponsor(userOp([RAISE], extra))).status).toBe(403);
   });
 
   it("refuses another entry point or chain", () => {
@@ -264,7 +277,7 @@ describe("proxyAaRequest", () => {
     expect(aaUpstream({ AA_UPSTREAM_URL: "https://pimlico.test/rpc?apikey=k" }, baseSepolia.id)).toBe("https://pimlico.test/rpc?apikey=k");
 
     const send = vi.fn();
-    const res = await proxyAaRequest(post(rpc("eth_chainId", [])), { policy: POLICY, upstream: null, fetch: send });
+    const res = await proxyAaRequest(post(rpc("eth_chainId", [])), { policy: POLICY, upstream: null, readCode: delegatedChain, fetch: send });
     expect(res.status).toBe(503);
     expect(send).not.toHaveBeenCalled();
   });
@@ -274,6 +287,7 @@ describe("proxyAaRequest", () => {
     const res = await proxyAaRequest(post(rpc("pm_sponsorUserOperation", [userOp([RAISE]), entryPoint08Address])), {
       policy: POLICY,
       upstream: "https://upstream.test",
+      readCode: delegatedChain,
       fetch: send,
     });
     expect(res.status).toBe(403);
@@ -283,9 +297,96 @@ describe("proxyAaRequest", () => {
   it("does not echo upstream failures", async () => {
     const send = vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED https://pimlico.test/rpc?apikey=secret"));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const res = await proxyAaRequest(post(rpc("eth_chainId", [])), { policy: POLICY, upstream: "https://pimlico.test", fetch: send });
+    const res = await proxyAaRequest(post(rpc("eth_chainId", [])), {
+      policy: POLICY,
+      upstream: "https://pimlico.test",
+      readCode: delegatedChain,
+      fetch: send,
+    });
     expect(res.status).toBe(502);
     expect(await res.text()).not.toContain("apikey");
+  });
+});
+
+describe("proxyAaRequest: the sender must be an aHand account", () => {
+  const HOLDER = privateKeyToAccount(`0x${"c3".repeat(32)}`);
+  const OTHER = privateKeyToAccount(`0x${"d4".repeat(32)}`);
+  const rpcAuth = async (signer = HOLDER, address = IMPL) => {
+    const a = await signer.signAuthorization({ address, chainId: baseSepolia.id, nonce: 0 });
+    return { address: a.address, chainId: toHex(a.chainId), nonce: toHex(a.nonce), r: a.r, s: a.s, yParity: toHex(a.yParity ?? 0) };
+  };
+  const upstreamOk = () => vi.fn(async () => Response.json({ jsonrpc: "2.0", id: 7, result: {} }));
+  const relay = (op: unknown, readCode: ReadCode, send: typeof fetch) =>
+    proxyAaRequest(
+      new Request("https://app.test/api/aa", {
+        method: "POST",
+        body: rpc("pm_getPaymasterData", [op, entryPoint08Address, toHex(baseSepolia.id), null]),
+      }),
+      { policy: POLICY, upstream: "https://upstream.test", readCode, fetch: send },
+    );
+  const alreadyDelegated = { sender: HOLDER.address, factory: undefined, factoryData: undefined, eip7702Auth: undefined };
+
+  it.each([
+    ["a deployed contract", `0x6080604052${"00".repeat(40)}`],
+    ["an EOA delegated to another implementation", `0xef0100${"de".repeat(20)}`],
+    ["an EOA with no code", undefined],
+  ])("refuses allowlisted calls from %s", async (_, code) => {
+    const send = upstreamOk();
+    const res = await relay(userOp([RAISE], alreadyDelegated), async () => code as Hex | undefined, send as unknown as typeof fetch);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.message).toMatch(/not an aHand account/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("forwards an EOA already delegated to the implementation", async () => {
+    const send = upstreamOk();
+    const res = await relay(userOp([RAISE], alreadyDelegated), async () => DELEGATED, send as unknown as typeof fetch);
+    expect(res.status).toBe(200);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it("forwards a first op whose authorization the sender signed, without reading its code", async () => {
+    const send = upstreamOk();
+    const readCode = vi.fn(async () => undefined);
+    const res = await relay(userOp([RAISE], { sender: HOLDER.address, eip7702Auth: await rpcAuth() }), readCode, send as unknown as typeof fetch);
+    expect(res.status).toBe(200);
+    expect(readCode).not.toHaveBeenCalled();
+  });
+
+  it("refuses an authorization someone else signed", async () => {
+    const send = upstreamOk();
+    const res = await relay(userOp([RAISE], { sender: HOLDER.address, eip7702Auth: await rpcAuth(OTHER) }), delegatedChain, send as unknown as typeof fetch);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.message).toMatch(/not signed by the sender/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("refuses a forged authorization", async () => {
+    const send = upstreamOk();
+    const forged = { ...(await rpcAuth()), r: `0x${"01".repeat(32)}`, s: `0x${"01".repeat(32)}` };
+    const res = await relay(userOp([RAISE], { sender: HOLDER.address, eip7702Auth: forged }), delegatedChain, send as unknown as typeof fetch);
+    expect(res.status).toBe(403);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("screens bundler methods the same way", async () => {
+    const send = upstreamOk();
+    const res = await proxyAaRequest(
+      new Request("https://app.test/api/aa", { method: "POST", body: rpc("eth_sendUserOperation", [userOp([RAISE], alreadyDelegated), entryPoint08Address]) }),
+      { policy: POLICY, upstream: "https://upstream.test", readCode: async () => undefined, fetch: send as unknown as typeof fetch },
+    );
+    expect(res.status).toBe(403);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the chain cannot be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const send = upstreamOk();
+    const res = await relay(userOp([RAISE], alreadyDelegated), async () => {
+      throw new Error("rpc down");
+    }, send as unknown as typeof fetch);
+    expect(res.status).toBe(502);
+    expect(send).not.toHaveBeenCalled();
   });
 });
 
@@ -377,6 +478,7 @@ describe("the app's own sponsored sends pass the proxy", () => {
       return proxyAaRequest(new Request(url, { method: "POST", body: init.body as string }), {
         policy: POLICY,
         upstream: "https://upstream.test",
+        readCode: async (address) => (firstOp || address.toLowerCase() !== owner.address.toLowerCase() ? undefined : DELEGATED),
         fetch: upstreamFetch,
       });
     });

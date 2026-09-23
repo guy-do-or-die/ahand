@@ -8,7 +8,7 @@ The system runs on Base Sepolia. Whether and when to deploy to Base mainnet is o
 
 ## Gas sponsorship
 
-`/api/aa` sponsors only the app's own calls, but it does not know who is asking: any caller can get those calls sponsored for any sender. Open: whether to require a server-verified Privy session and bind the op's sender to that user's embedded wallet, which calls deserve sponsorship (for example `withdraw`, or receipt mints sent on someone else's behalf), and the Pimlico policy's global, per-user and per-op spend caps.
+`/api/aa` sponsors only the app's own calls from EIP-7702 `Simple7702Account` senders, but it does not know who is asking: any holder of such an account can get those calls sponsored, and an owner who submits the signed op themselves can swap the account's code in the same transaction. Open: whether to require a server-verified Privy session and bind the op's sender to that user's embedded wallet, which calls deserve sponsorship (for example `withdraw`, or receipt mints sent on someone else's behalf), and the Pimlico policy's global, per-user and per-op spend caps.
 
 ## Discovery-document pinning
 
