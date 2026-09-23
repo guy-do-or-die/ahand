@@ -704,7 +704,7 @@ function HelpSheet(props: {
   });
   const delivery = useGiveDelivery({
     raiser: props.raiser,
-    solveUrl: flow.solveUrl,
+    solveUrl: flow.noteUrl,
     solutionText: flow.solutionText,
   });
   const [copied, setCopied] = useState(false);
@@ -723,11 +723,11 @@ function HelpSheet(props: {
   // prepare() would still see the old, empty link).
   const autoSendRef = useRef(false);
   useEffect(() => {
-    if (autoSendRef.current && flow.solveUrl && direct && delivery.phase === "idle") {
+    if (autoSendRef.current && flow.noteUrl && direct && delivery.phase === "idle") {
       autoSendRef.current = false;
       void delivery.sendDirect();
     }
-  }, [flow.solveUrl, direct, delivery]);
+  }, [flow.noteUrl, direct, delivery]);
 
   const copy = async () => {
     if (!flow.solveUrl) return;

@@ -1,11 +1,12 @@
 # SDK and link protocol
 
-`packages/sdk` is a pure TypeScript protocol SDK — no chain access, no UI. It is the shared surface the web app builds its raise, pass, give, and thank flows on, and any compatible client can use it to import bytes created by another. Five modules, all re-exported from `index.ts`:
+`packages/sdk` is a pure TypeScript protocol SDK — no chain access, no UI. It is the shared surface the web app builds its raise, pass, give, and thank flows on, and any compatible client can use it to import bytes created by another. Six modules, all re-exported from `index.ts`:
 
 - **`types.ts`** — `HandRef`, `Shake`, `Give`, `ShakerAcceptance`, `GiverAcceptance`, `ShakerMode`, `Visibility` (zod schemas mirroring `AHandTypes.sol`; field order frozen), protocol constants (`BPS_DENOMINATOR`, `MIN_CHARITY_BPS`, `MAX_CHARITY_BPS`, `MAX_SHAKES`, `MAX_ENCODED_LINK_LENGTH`, `MAX_INLINE_BODY_BYTES`), and the EIP-712 domain: name `"aHand"`, version `"2"`, plus the frozen type strings that must byte-match `AHandSig`.
 - **`hash.ts`** — `domainSeparator`, the canonical `handRef` hash (`keccak256(abi.encode(chainId, core, handId))`), struct hashes and signing digests for Shake/Give and both acceptances, and `routeHash`/`routeHashOf` (ordered Shake struct hashes under the Hand reference).
 - **`sign.ts`** — `newCapability()` (fresh private key per hop), `signShake`/`signGive` with capability keys, `signShakerAcceptance`/`signGiverAcceptance` through a `TypedSigner` (the only artifacts user wallets sign), and EIP-2098 conversion (`toCompactSig`/`fromCompactSig`) — the codec stores every signature as 64 compact bytes.
 - **`payload.ts`** — the binary route container (below).
+- **`solution.ts`** — the salted solution commitment behind `Give.solutionHash` and the evidence ref that carries its salt (below).
 - **`verify.ts`** — `verifyLiveRoute`/`verifyTerminalProof`: pure verification that mirrors the contract's `thank` walk against caller-supplied `HandFacts` (root capability, expiry, `minGiverClaimBps`, commitments), so a client fails closed with the same judgement the chain would render. Failures accumulate with per-hop reasons (`capability-proof`, `claim-mismatch`, `claim-below-floor`, `anonymous-shaker-with-margin`, `expired`, …) instead of stopping at the first.
 
 The SDK has vitest suites including signature-tampering cases, and the contracts repo generates cross-language vectors (`GenVectors`) so TS hashing byte-matches Solidity.
@@ -51,6 +52,17 @@ The `LiveRoute` tail holds the codec's only structural secret slot, and `buildLi
 
 The `TerminalProof` has no secret slot at all. `buildTerminalProof` accepts only signed artifacts (`SignedGive`, `giverAcceptanceSig`, opaque evidence refs), so a viewer of a settled route — including the raiser — holds no competing-Give material. The two kinds have separate build/decode APIs plus `decodePayload`/`peekPayloadKind` dispatch on the kind byte, and importing one as the other throws `WrongPayloadKind`.
 
+### Solution commitment
+
+`Give.solutionHash` becomes public at Thank (`Settled`, the `thank` calldata, the subgraph), and Core treats it as opaque. So that a short note ("yes", a phone number, a handle) cannot be dictionary-enumerated, and identical replies do not link across Hands, the web app seals the giver's words under a fresh 32-byte salt per seal:
+
+```text
+solutionHash = keccak256(utf8("aHand/solution/v1") | salt (32) | utf8(canonicalSolutionText(note)))
+canonicalSolutionText(note) = note.trim()     # ECMAScript trim: edge whitespace and line terminators
+```
+
+The same canonical text is what gets delivered, so the bytes the raiser receives are the bytes that were hashed. The salt travels as a typed ref in the TerminalProof's unsigned evidence tail — `0x01 | salt (32)` (`solutionSaltRef`, read back with `solutionSalts`) — and only on the copy of the link that travels beside the note. `verifySolutionNote(note, solutionHash, evidence)` accepts a note that opens the commitment under any carried salt, or, for proofs sealed before salting, as a bare `keccak256(utf8(note))`. A missing, swapped, or forged salt only makes verification fail; opening the signed hash to different words would take a keccak preimage.
+
 ### Size limits
 
 - `MAX_ENCODED_LINK_LENGTH = 1_900` characters — enforced on the rendered fragment by `buildLiveRoute`, and by `decodeLiveRoute` before any parsing.
@@ -70,7 +82,7 @@ dark             https://ahand.in/h/<id>#<payload>
 
 The base64url payload — including any bearer capability secret — lives in the URL fragment, which browsers never send to the server. The `e=` query parameter carries only the public discovery doc so SSR can render a preview/OG card; Dark links forbid `?e=` and carry discovery inside the fragment instead (the marked-wrapper packing in `app/lib/link.ts`). `parseLink` rejects a link whose query discovery disagrees with the fragment, and tolerates a stripped `?e=` — the title is re-fetchable from the on-chain `discoveryRef`. Share screens render the link as a QR code.
 
-A Give travels as a plain-text message (`app/lib/giveLink.ts`): the giver's note, a blank line, then a `/h/<id>/thank#<terminal-proof>` link — readable in any XMTP client, and the URL alone carries the whole proof, so the raiser can settle even from a foreign client. `parseGiveMessage` structurally validates candidate links with the real `decodeTerminalProof` before the inbox shows them.
+A Give travels as a plain-text message (`app/lib/giveLink.ts`): the giver's canonical note, a blank line, then a `/h/<id>/thank#<terminal-proof>` link — readable in any XMTP client, and the URL alone carries the whole proof, so the raiser can settle even from a foreign client. `parseGiveMessage` structurally validates candidate links with the real `decodeTerminalProof` before the inbox shows them. `useSolveFlow` mints two encodings of the same signed proof: the one sent beside the note carries the solution salt ref, while the fallback link the giver copies or shares on its own carries none, so whoever relays it cannot enumerate the words. The thank page shows a note from the XMTP inbox as sealed only when `verifySolutionNote` opens the commitment.
 
 Two web-side constants mirror the codec budget (`app/lib/metadata.ts`): `MAX_LINK_CHARS = 1900` and `CHARS_PER_HOP = 116` (the approximate characters one hop adds to a rendered link, used for the hops-remaining counter).
 

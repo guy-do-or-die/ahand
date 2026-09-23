@@ -25,6 +25,7 @@ All suites build on a shared harness (`AHandTestBase.sol`) with mock tokens and 
 ## SDK suite (`packages/sdk/tests`)
 
 - `vectors.test.ts` replays the Foundry-generated vectors: domain separator, typehashes, struct hashes, digests, and signatures must reproduce byte-identically on both the raw and typed-data signing paths.
+- `solution.test.ts` pins the salted solution-commitment layout with a golden vector, and covers edge-whitespace canonicalization, the salt evidence ref through the TerminalProof codec, swapped or missing salts failing closed, and the pre-salt fallback.
 - `provisional.test.ts` covers typed-data coherence, `handRef` and `routeHash` layout, EIP-2098 compact signatures, the LiveRoute and TerminalProof codecs (round-trips, secret stripping on forward, kind discrimination, size caps), and `verifyLiveRoute` / `verifyTerminalProof` — including signature-tampering cases: flipped signature bytes, raised claims, swapped shakers and givers, dropped hops, and replay against another Hand.
 
 ## Running

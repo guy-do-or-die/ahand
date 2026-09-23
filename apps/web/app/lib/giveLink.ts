@@ -1,4 +1,4 @@
-import { decodeTerminalProof, ZERO_ADDRESS } from "@ahand/sdk";
+import { canonicalSolutionText, decodeTerminalProof, ZERO_ADDRESS } from "@ahand/sdk";
 import { b64urlDecode } from "./metadata";
 
 /**
@@ -19,9 +19,12 @@ export type GiveMessage = {
   note: string;
 };
 
-/** One thank-link per message: note first, link on its own line. */
+/**
+ * One thank-link per message: note first, link on its own line. The note is
+ * the canonical text the solution commitment sealed, so what arrives verifies.
+ */
 export function buildGiveMessage(args: { solveUrl: string; solutionText: string }): string {
-  const note = args.solutionText.trim();
+  const note = canonicalSolutionText(args.solutionText);
   return note ? `${note}\n\n${args.solveUrl}` : args.solveUrl;
 }
 

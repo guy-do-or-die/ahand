@@ -64,7 +64,7 @@ function ThankComponent() {
   const flow = useThankFlow(id);
   // The link carries only the sealed proof; the giver's words arrive over
   // XMTP — when this device has them, show them (verified against the seal).
-  const giveNote = useGiveNote(flow.proof?.give.give.solutionHash);
+  const giveNote = useGiveNote(flow.proof);
   const [talking, setTalking] = useState(false);
 
   // Pre-commit split preview: the same floor math the contract runs, from

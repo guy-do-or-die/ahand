@@ -62,6 +62,10 @@ Dark cannot prevent a legitimate recipient from copying the link; the security b
 
 For a zero-margin hop, `shaker = 0` is the protocol-level way to decline durable attribution: no `ShakerAcceptance`, no `SHAKEN`. It does not guarantee real-world anonymity — the capability signer, adjacent recipients, or transport channel may still identify the participant. A non-zero `shaker`, even at zero margin, deliberately opts into public settlement attribution.
 
+## Give notes
+
+A Give's `solutionHash` goes public at Thank — for Dark Hands too — while the giver's words travel only in the XMTP DM to the raiser. The web app therefore seals the words under a fresh random salt (see [solution commitment](../30-architecture/sdk-and-link-protocol.md#solution-commitment)), and the salt travels only beside the words: the DM's proof link carries it, the copy/share fallback link does not. Without the salt, the public hash cannot be dictionary-enumerated, and the same reply sealed twice yields unrelated hashes. Hands settled before salting keep their bare `keccak256(note)` on-chain permanently.
+
 ## Data minimization
 
 Discovery documents should be detailed enough for matching while excluding credentials, verification answers, precise locations where a coarse region suffices, complete serial numbers, and identity documents. Anything that must stay with one party belongs in local data, not in any published layer.

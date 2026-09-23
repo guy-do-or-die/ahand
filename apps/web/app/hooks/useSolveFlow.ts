@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { keccak256, toBytes } from "viem";
 import { useConnection, useWalletClient } from "wagmi";
 import {
   buildTerminalProof,
@@ -7,6 +6,9 @@ import {
   routeHashOf,
   signGive,
   signGiverAcceptance,
+  solutionCommitment,
+  solutionSaltRef,
+  SOLUTION_SALT_BYTES,
   BPS_DENOMINATOR,
   type Give,
   type TypedSigner,
@@ -20,6 +22,11 @@ import { t } from "../i18n";
  * work), and the wallet signs a GiverAcceptance over the exact giveHash —
  * consent to attribution and the residual payout. Both land in a compact
  * terminal proof (`/h/:id/thank#…`) that holds no capability secret at all.
+ *
+ * The words are sealed under a fresh salt (the Give's solutionHash goes
+ * public at Thank). The salt opens the seal, so it rides only in `noteUrl`,
+ * the link delivered beside the words; `solveUrl`, which is copied or shared
+ * on its own, leaves it out.
  *
  * Give binds the full route (routeHash), the terminal claim, and a deadline
  * equal to the Hand expiry. Building the proof is an explicit prepare() step
@@ -37,12 +44,14 @@ export function useSolveFlow(args: {
 
   const [solutionText, setSolutionText] = useState("");
   const [solveUrl, setSolveUrl] = useState("");
+  const [noteUrl, setNoteUrl] = useState("");
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState("");
 
   // Every edit voids the previous proof — the words are sealed by hash.
   useEffect(() => {
     setSolveUrl("");
+    setNoteUrl("");
     setError("");
   }, [solutionText, active, route, tampered]);
 
@@ -74,12 +83,13 @@ export function useSolveFlow(args: {
         shakes.length === 0
           ? BPS_DENOMINATOR
           : shakes[shakes.length - 1]!.shake.childClaimBps;
+      const salt = crypto.getRandomValues(new Uint8Array(SOLUTION_SALT_BYTES));
 
       const give: Give = {
         handId: handRef.handId,
         routeHash: routeHashOf(handRef, shakes.map((s) => s.shake)),
         giver: address as `0x${string}`,
-        solutionHash: keccak256(toBytes(solutionText)),
+        solutionHash: solutionCommitment(solutionText, salt),
         finalClaimBps,
         deadline: expiry, // never chosen — always the Hand expiry
       };
@@ -99,17 +109,19 @@ export function useSolveFlow(args: {
         handRef.core as `0x${string}`,
       );
 
-      const fragment = buildTerminalProof({
+      const proof = {
         handRef,
         expiry,
         rootCapability: route.ctx.rootCapability,
         shakes,
         give: { give, signature: giveSig },
         giverAcceptanceSig,
-      });
+      };
 
-      const url = `${window.location.origin}/h/${id}/thank#${fragment}`;
+      const base = `${window.location.origin}/h/${id}/thank#`;
+      const url = base + buildTerminalProof(proof);
       setSolveUrl(url);
+      setNoteUrl(base + buildTerminalProof({ ...proof, evidence: [solutionSaltRef(salt)] }));
       return url;
     } catch (err: any) {
       setError(t("Couldn't build the proof: {reason}", { reason: err.shortMessage || err.message }));
@@ -123,6 +135,7 @@ export function useSolveFlow(args: {
     solutionText,
     setSolutionText,
     solveUrl,
+    noteUrl,
     canPrepare,
     prepare,
     signing,

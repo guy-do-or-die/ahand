@@ -3,11 +3,15 @@ import { keccak256, stringToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   buildTerminalProof,
+  decodeTerminalProof,
   giveHash,
   newCapability,
   routeHashOf,
   signGive,
   signGiverAcceptance,
+  solutionCommitment,
+  solutionSaltRef,
+  verifySolutionNote,
   type Give,
 } from "@ahand/sdk";
 import { buildGiveMessage, parseGiveMessage, thankPathFor } from "./giveLink";
@@ -16,8 +20,12 @@ const CHAIN_ID = 31337n;
 const CORE = "0x5FbDB2315678afecb367f032d93F642f64180aa3" as `0x${string}`;
 const EXPIRY = 2_000_000_000n;
 
-/** A real zero-shake terminal proof, exactly as useSolveFlow mints one. */
-async function mintProof(handId: bigint): Promise<string> {
+/** A real zero-shake terminal proof. */
+async function mintProof(
+  handId: bigint,
+  solutionHash = keccak256(stringToHex("I can sublet you my flat in July.")),
+  evidence?: Uint8Array[],
+): Promise<string> {
   const root = newCapability();
   const giver = newCapability();
   const handRef = { chainId: CHAIN_ID, core: CORE, handId };
@@ -25,7 +33,7 @@ async function mintProof(handId: bigint): Promise<string> {
     handId,
     routeHash: routeHashOf(handRef, []),
     giver: giver.address,
-    solutionHash: keccak256(stringToHex("I can sublet you my flat in July.")),
+    solutionHash,
     finalClaimBps: 10_000,
     deadline: EXPIRY,
   };
@@ -43,6 +51,7 @@ async function mintProof(handId: bigint): Promise<string> {
     shakes: [],
     give: { give, signature: giveSig },
     giverAcceptanceSig,
+    evidence,
   });
 }
 
@@ -134,5 +143,62 @@ describe("give message codec", () => {
     const t0 = Date.now();
     expect(parseGiveMessage(hostile)).toBeNull();
     expect(Date.now() - t0).toBeLessThan(200);
+  });
+});
+
+describe("sealed words survive delivery", () => {
+  /** As useSolveFlow seals: fresh salt, salt ref only on the delivered link. */
+  async function seal(text: string) {
+    const salt = crypto.getRandomValues(new Uint8Array(32));
+    const hash = solutionCommitment(text, salt);
+    return {
+      hash,
+      noteUrl: `https://ahand.example/h/7/thank#${await mintProof(7n, hash, [solutionSaltRef(salt)])}`,
+      solveUrl: `https://ahand.example/h/7/thank#${await mintProof(7n, hash)}`,
+    };
+  }
+
+  /** What the raiser's thank page decides for a received message. */
+  function verdict(message: string): boolean {
+    const parsed = parseGiveMessage(message);
+    expect(parsed).not.toBeNull();
+    const proof = decodeTerminalProof(parsed!.fragment, {
+      handRef: { chainId: CHAIN_ID, core: CORE, handId: 7n },
+      expiry: EXPIRY,
+      rootCapability: "0x0000000000000000000000000000000000000001",
+    });
+    return verifySolutionNote(parsed!.note, proof.give.give.solutionHash, proof.evidence);
+  }
+
+  it.each([
+    ["plain", "I can help"],
+    ["trailing Enter", "I can help\n"],
+    ["leading spaces", "  I can help"],
+    ["mobile keyboard trailing space", "I can help "],
+    ["no-break space", "I can help\u00a0"],
+    ["CRLF inside and at the edge", "line one\r\nline two\r\n"],
+    ["emoji", "on my way 🙌 "],
+    ["NFD", "Cafe\u0301 at 5"],
+  ])("verifies a note typed with %s", async (_, text) => {
+    const { noteUrl } = await seal(text);
+    expect(verdict(buildGiveMessage({ solveUrl: noteUrl, solutionText: text }))).toBe(true);
+  });
+
+  it("gives the same words a different seal every time", async () => {
+    const a = await seal("yes");
+    const b = await seal("yes");
+    expect(a.hash).not.toBe(b.hash);
+    expect(a.hash).not.toBe(keccak256(stringToHex("yes")));
+  });
+
+  it("keeps the salt off the link that is copied or shared on its own", async () => {
+    const { solveUrl, noteUrl } = await seal("yes");
+    expect(noteUrl.length).toBeGreaterThan(solveUrl.length);
+    expect(verdict(buildGiveMessage({ solveUrl, solutionText: "yes" }))).toBe(false);
+  });
+
+  it("flags edited words as unverified", async () => {
+    const { noteUrl } = await seal("I can help");
+    expect(verdict(buildGiveMessage({ solveUrl: noteUrl, solutionText: "I can't help" }))).toBe(false);
   });
 });
