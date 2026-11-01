@@ -1,470 +1,414 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "./AHandTypes.sol";
-import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    AllocationKind,
+    AnonymousShakerWithMargin,
+    ArtifactExpired,
+    BoundsViolated,
+    CapabilityProof,
+    CharityNotAllowed,
+    ClaimBelowFloor,
+    ClaimMismatch,
+    ClaimMustNotGrow,
+    DeadlineExceedsExpiry,
+    ExpiryInPast,
+    Give,
+    GiverAcceptanceInvalid,
+    Hand,
+    HandExpired,
+    HandNotExpired,
+    Hop,
+    IAHandFacts,
+    InexactDeposit,
+    InsufficientGas,
+    InvalidVisibilityData,
+    MarginRoundsToZero,
+    NoChange,
+    NotActive,
+    NotPendingAdmin,
+    NotRaiser,
+    OnlyPolicyAdmin,
+    OnlySelf,
+    RaiseParams,
+    RouteHashMismatch,
+    Shake,
+    ShakerAcceptanceInvalid,
+    Status,
+    TagsInvalid,
+    Terminal,
+    TransferInexact,
+    UnexpectedAcceptance,
+    UnexpectedCharityRecipient,
+    Visibility,
+    WrongHand,
+    ZeroAddress,
+    ZeroCapability,
+    ZeroCharityAllocation,
+    ZeroClaim,
+    ZeroGiver,
+    ZeroPotTerms
+} from "./AHandTypes.sol";
+import {AHandSig} from "./AHandSig.sol";
+import {AHandMath, AHandSettlement} from "./AHandFacts.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title  AHandCore
 /// @author aHand
-/// @notice Escrow and settlement for the aHand protocol. A single immutable
-///         reward token, success-only charity, and consensual route attribution.
-///         thank settles a successful Hand and pays every party; reclaim refunds
-///         the raiser the full pool after expiry. Any payout a direct push cannot
-///         deliver (blacklisted or hostile recipient) is parked as a claim and
-///         drained later through the permissionless, fixed-destination withdraw.
-/// @dev    No receive() or fallback() by design. Settlement follows strict
-///         checks-effects-interactions: all verification is view-only (Phase A),
-///         all math is pure (Phase B), ALL state is finalized and events emitted
-///         (Phase C) BEFORE any token is moved — and the whole entry point is
-///         nonReentrant. The reward token is a known, hookless USDC-style token,
-///         so the trailing pushes cannot re-enter or observe a half-settled Hand.
-///         Signals coupling is one-way: Signals reads getHand(); Core never calls out.
-contract AHandCore is IAHandCoreView {
+/// @notice Escrow, route verification, settlement and facts for the aHand protocol.
+///         One immutable contract that does exactly four things with money —
+///         `raise`, `thank`, `reclaim`, `withdraw` — and one thing with facts: it
+///         records, in a form a later contract can verify without an indexer, what
+///         was escrowed, what was consented to and what was paid.
+/// @dev    Any ERC-20 per Hand in raw units; every deposit is measured as an exact
+///         delta on both the payer and custody; every push runs as an exact custody
+///         delta inside its own reverting frame (`pushExact`, self-only) behind a
+///         gas-starvation guard; a failing push parks exactly its own share as a
+///         claim. Core calls out only to the Hand's token, to signers via gas-capped
+///         `staticcall`, and to itself for the rollback frame. No receive, no
+///         fallback, no delegatecall, no approve, no pause, no rescue, no fee.
+///         Settlement is strict checks-effects-interactions: every Hand write and
+///         every fact event precedes the first token move. The four entry points
+///         share one transient reentrancy lock; the frame carries none on purpose.
+contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     /*//////////////////// Constitution ////////////////////*/
-    /// @notice Basis-point denominator: every bps value is out of 10000.
-    uint16  public constant BPS_DENOMINATOR   = 100_00;
-    /// @notice Minimum charity share of a raise, in bps (1%).
-    uint16  public constant MIN_CHARITY_BPS   = 1_00;
-    /// @notice Maximum charity share of a raise, in bps (30%).
-    uint16  public constant MAX_CHARITY_BPS   = 30_00;
-    /// @notice Maximum number of hops (Shakes) a single route may carry.
-    uint256 public constant MAX_SHAKES        = 6;
-    /// @notice Minimum lifetime of a Hand from raise to expiry.
-    uint40  public constant MIN_EXPIRY        = 1 days;
-    /// @notice Maximum lifetime of a Hand from raise to expiry.
-    uint40  public constant MAX_EXPIRY        = 180 days;
-    /// @notice Maximum number of public discovery tags on a raise.
-    uint256 public constant MAX_PUBLIC_TAGS   = 8;
-    /// @notice Maximum byte length of the off-chain discovery ref on a raise.
+
+    /// @notice Basis-point denominator: every bps value is out of 10 000.
+    uint16 public constant BPS_DENOMINATOR = AHandMath.BPS;
+    /// @notice Maximum charity share of a pool, in bps (30 %). No setter.
+    uint16 public constant MAX_CHARITY_BPS = 3_000;
+    /// @notice Maximum number of discovery tags on a raise (ADR-0005).
+    uint256 public constant MAX_PUBLIC_TAGS = 8;
+    /// @notice Maximum byte length of the discovery ref on a raise (ADR-0007).
     uint256 public constant MAX_DISCOVERY_REF = 128;
-    /// @dev Per-verification gas ceiling for ERC-1271 wallets. Worst thank:
-    ///      14 verifications (6 shakes + 6 acceptances + give + giver acceptance)
-    ///      x 350k ~= 4.9M gas ceiling — acceptable on Base.
-    uint256 public constant ERC1271_GAS       = 350_000;
-    /// @dev Gas forwarded to each settlement push. Enough for USDC's transfer
-    ///      (proxy delegatecall + blacklist check + balance writes, ~65k), bounded
-    ///      so a pathological recipient can waste at most this before we defer.
-    uint256 public constant PUSH_GAS_STIPEND  = 120_000;
+    /// @notice Gas cap per ERC-1271 verification: a hostile validator costs the
+    ///         submitter at most this per signature and never blocks settlement.
+    uint256 public constant ERC1271_GAS = 350_000;
+    /// @notice Gas budget of one push frame (`pushExact`): a hostile token or
+    ///         recipient wastes at most this per allocation and harms only its share.
+    uint256 public constant PUSH_GAS = 200_000;
+    /// @notice Gas the parent keeps after a frame: a cold claims SSTORE, the payout
+    ///         event and the call overhead, so a passing guard also records the outcome.
+    uint256 public constant PUSH_RESERVE = 30_000;
 
-    /// @notice The ERC-1271 `isValidSignature(bytes32,bytes)` selector.
-    /// @dev The selector doubles as the required magic return value on success.
-    bytes4 private constant ERC1271_MAGIC = 0x1626ba7e; // isValidSignature(bytes32,bytes)
-
-    /*//////////////////// Immutables ////////////////////*/
-    /// @notice The single token every Hand escrows; enforced at raise.
-    address public immutable rewardToken;
-    /// @notice Token units -> 1e18-scaled USD, snapshot into each Hand at raise.
-    uint64  public immutable usdScale; // == 10**(18 - rewardToken.decimals())
-
-    /// @dev Chain id captured at deployment; the domain separator cache is only
-    ///      trusted while block.chainid still equals this (fork safety).
-    uint256 private immutable _deploymentChainId;
-    /// @dev Domain separator cached at deployment; recomputed on a forked chain.
-    bytes32 private immutable _deploymentDomainSeparator;
+    /// @dev `bytes4(IERC1271.isValidSignature.selector)` as a word: the only accepted
+    ///      ERC-1271 answer. A `bytes4` constant is not referenceable inside Yul.
+    uint256 private constant ERC1271_MAGIC_WORD = 0x1626ba7e;
 
     /*//////////////////// Storage (order frozen) ////////////////////*/
-    /// @notice Monotonic Hand counter; also the id of the most recent Hand.
+
+    /// @notice Monotonic Hand counter; ids start at 1 and never repeat.
     uint256 public handsCount;
-    /// @notice The bounded admin: may flip the token switch and edit the charity allowlist.
+    /// @notice The bounded admin: edits the prospective charity allowlist, nothing else.
     address public policyAdmin;
-    /// @notice Nominated next admin awaiting acceptPolicyAdmin; zero when none pending.
+    /// @notice Nominated next admin awaiting `acceptPolicyAdmin`; zero when none pending.
     address public pendingPolicyAdmin;
-    /// @notice Prospective-only switch: gates new raises, never live Hands or withdrawals.
-    bool    public tokenEnabled;
-    /// @notice Bumped on every policy mutation; snapshot into Raised for provenance.
-    uint64  public policyRevision;
-    /// @dev The Hand store, keyed by handId; exposed read-only via getHand().
+    /// @notice Count of real policy changes; snapshotted into `Raised` for provenance.
+    uint64 public policyRevision;
+    /// @dev The Hand store, exposed read-only through `facts` and `getHand`.
     mapping(uint256 => Hand) private _hands;
-    /// @notice Charity allowlist snapshotted at raise; prospective-only edits.
+    /// @notice Prospective charity allowlist; never contains zero or this contract.
     mapping(address => bool) public charityAllowed;
-    /// @notice Pull-payment ledger: claims[token][beneficiary] aggregates across Hands.
+    /// @notice Pull-payment ledger: `claims[token][beneficiary]`, aggregated across Hands.
     mapping(address => mapping(address => uint256)) public claims;
 
     /*//////////////////// Events ////////////////////*/
-    /// @notice A new Hand entered escrow. Carries the full immutable policy snapshot
-    ///         (plus policyRevision for provenance) so indexers need no extra reads.
+
+    /// @notice A Hand entered escrow. The full immutable snapshot plus the policy
+    ///         revision in force, so an indexer needs no extra read.
     /// @param handId              The new Hand id.
-    /// @param raiser              The account that raised and funded the Hand.
-    /// @param token               The reward token escrowed (always the immutable rewardToken).
-    /// @param credited            The exact deposited amount now escrowed.
-    /// @param usdScaleAtRaise     The USD scale snapshot for this Hand.
-    /// @param policyRevision      The policy counter value at raise time.
-    /// @param expiry              The Hand expiry timestamp.
-    /// @param rootCapability      The route's root capability address.
+    /// @param raiser              The funder: thank authority and refund destination.
+    /// @param token               The escrowed token (zero for a zero-pot Hand).
+    /// @param pool                The exact escrowed amount in raw units.
+    /// @param expiry              The final expiry timestamp.
+    /// @param rootCapability      The route's first signer.
     /// @param visibility          The discovery posture.
-    /// @param metadataCommitment  Mandatory metadata commitment.
-    /// @param discoveryCommitment Discovery commitment (zero only in Dark mode).
-    /// @param discoveryRef        Off-chain discovery ref bytes (empty in Dark mode).
-    /// @param minGiverClaimBps    The floor a child claim may not go below.
-    /// @param charityRecipient    The allowlisted charity recipient.
+    /// @param metadataCommitment  The mandatory per-Hand envelope.
+    /// @param discoveryCommitment The discovery envelope (zero in Dark).
+    /// @param discoveryRef        The off-chain discovery ref bytes (empty in Dark).
+    /// @param minGiverClaimBps    The floor no child claim may go below.
+    /// @param charityRecipient    The snapshotted charity (zero when charityBps is zero).
     /// @param charityBps          The charity share in bps.
+    /// @param policyRevision      The revision under which the charity check passed.
     event Raised(
         uint256 indexed handId,
         address indexed raiser,
         address indexed token,
-        uint96     credited,
-        uint64     usdScaleAtRaise,
-        uint64     policyRevision,
-        uint40     expiry,
-        address    rootCapability,
+        uint256 pool,
+        uint40 expiry,
+        address rootCapability,
         Visibility visibility,
-        bytes32    metadataCommitment,
-        bytes32    discoveryCommitment,
-        bytes      discoveryRef,
-        uint16     minGiverClaimBps,
-        address    charityRecipient,
-        uint16     charityBps
+        bytes32 metadataCommitment,
+        bytes32 discoveryCommitment,
+        bytes discoveryRef,
+        uint16 minGiverClaimBps,
+        address charityRecipient,
+        uint16 charityBps,
+        uint64 policyRevision
     );
 
-    /// @notice The public discovery tags attached to a raise (emitted only if non-empty).
+    /// @notice The discovery tags of a raise (emitted only when non-empty; never in Dark).
     /// @param handId The Hand id.
     /// @param raiser The raiser.
-    /// @param tagIds The strictly-ascending tag ids.
+    /// @param tagIds The strictly ascending tag ids.
     event HandTagged(uint256 indexed handId, address indexed raiser, bytes32[] tagIds);
 
-    /// @notice A Hand settled successfully via thank. Summarizes the pool split.
+    /// @notice A Hand settled through `thank`: the pool split and every identity a reader needs.
     /// @param handId            The settled Hand id.
     /// @param giver             The terminal giver.
-    /// @param solutionHash      The giver's solution commitment.
+    /// @param token             The Hand's token.
+    /// @param pool              P: the full escrowed pool.
+    /// @param charityRecipient  The charity paid (zero when charityBps is zero).
+    /// @param charityAllocation C = floor(P · charityBps / 10 000).
+    /// @param distributable     D = P − C.
+    /// @param giverAllocation   G = D − Σ hop allocations (absorbs all dust).
     /// @param routeHash         The verified route identity.
-    /// @param giveHash          The EIP-712 hash of the accepted Give.
-    /// @param token             The reward token.
-    /// @param creditedPool      P — the full escrowed pool.
-    /// @param distributablePool D = P − charity — the routed portion.
-    /// @param giverAllocation   The giver's residual share (absorbs flooring dust).
-    /// @param charityRecipient  The charity paid.
-    /// @param charityAllocation C = floor(P * charityBps / 1e4).
-    /// @param usdScale          The Hand's USD scale snapshot.
-    /// @param charityUsd        charityAllocation * usdScale (1e18-scaled USD).
+    /// @param giveHash          The EIP-712 struct hash of the accepted Give.
+    /// @param solutionHash      The giver's solution commitment, now public.
+    /// @param settlementHash    The stored settlement commitment (equals storage).
+    /// @param hopCount          The number of hops, hence of `RouteHopSettled` events.
+    /// @param closedAt          The settlement timestamp (equals storage).
     event Settled(
         uint256 indexed handId,
         address indexed giver,
-        bytes32 solutionHash,
+        address token,
+        uint256 pool,
+        address charityRecipient,
+        uint256 charityAllocation,
+        uint256 distributable,
+        uint256 giverAllocation,
         bytes32 routeHash,
         bytes32 giveHash,
-        address token,
-        uint96  creditedPool,
-        uint96  distributablePool,
-        uint96  giverAllocation,
-        address charityRecipient,
-        uint96  charityAllocation,
-        uint64  usdScale,
-        uint256 charityUsd
+        bytes32 solutionHash,
+        bytes32 settlementHash,
+        uint256 hopCount,
+        uint40 closedAt
     );
 
-    /// @notice One per route hop, including anonymous and zero-margin occurrences.
+    /// @notice One per route hop, in route order, including anonymous and zero-margin
+    ///         hops. Self-contained: no chaining is needed if a log is missed.
     /// @param handId           The settled Hand id.
     /// @param routeHash        The verified route identity.
-    /// @param position         Zero-based hop index in route order.
-    /// @param parentCapability The capability that delegated into this hop.
+    /// @param position         Zero-based hop index.
+    /// @param parentCapability The capability that signed this hop.
     /// @param childCapability  The capability this hop delegated to.
-    /// @param parentClaimBps   The parent's claim entering the hop.
-    /// @param childClaimBps    The child's claim leaving the hop.
+    /// @param parentClaimBps   The claim entering the hop.
+    /// @param childClaimBps    The claim leaving the hop.
     /// @param shaker           The attributed shaker (zero = anonymous).
-    /// @param shakeHash        The EIP-712 hash of the hop's Shake.
-    /// @param hopDataHash      The app-opaque hop commitment.
-    /// @param marginAllocation The token amount credited for this hop's margin (zero if none).
+    /// @param shakeHash        The EIP-712 struct hash of the Shake.
+    /// @param hopDataHash      The app-opaque hop envelope.
+    /// @param marginAllocation A_i: the token units this hop's margin earned (zero if none).
     event RouteHopSettled(
         uint256 indexed handId,
         bytes32 indexed routeHash,
-        uint8   position,
+        uint256 position,
         address parentCapability,
         address childCapability,
-        uint16  parentClaimBps,
-        uint16  childClaimBps,
+        uint16 parentClaimBps,
+        uint16 childClaimBps,
         address shaker,
         bytes32 shakeHash,
         bytes32 hopDataHash,
-        uint96  marginAllocation
+        uint256 marginAllocation
     );
 
-    /// @notice A Hand was refunded to its raiser after expiry.
+    /// @notice A Hand was refunded in full to its raiser after expiry.
     /// @param handId The reclaimed Hand id.
-    /// @param raiser The refunded raiser.
-    /// @param token  The reward token.
-    /// @param refund The full refunded pool.
-    event Reclaimed(uint256 indexed handId, address indexed raiser, address token, uint96 refund);
+    /// @param raiser The refund destination.
+    /// @param token  The Hand's token.
+    /// @param refund The full pool.
+    event Reclaimed(uint256 indexed handId, address indexed raiser, address token, uint256 refund);
 
-    /// @notice One per non-zero claim credit; routePosition meaningful for ShakerMargin only.
-    /// @param handId        The Hand the allocation belongs to.
-    /// @param token         The reward token.
-    /// @param beneficiary   The credited party.
-    /// @param kind          Why the allocation was made.
-    /// @param routePosition Hop index (meaningful for ShakerMargin; zero otherwise).
-    /// @param amount        The allocated token amount.
+    /// @notice One per non-zero allocation: the grant ledger. Order within a thank is
+    ///         Charity, ShakerMargin in route order, GiverResidual; RaiserRefund alone.
+    /// @param handId      The Hand the allocation belongs to.
+    /// @param token       The Hand's token.
+    /// @param beneficiary The granted party.
+    /// @param kind        Why the allocation was made.
+    /// @param position    The hop index for ShakerMargin; zero otherwise.
+    /// @param amount      The allocated amount.
     event PayoutAllocated(
         uint256 indexed handId,
         address indexed token,
         address indexed beneficiary,
         AllocationKind kind,
-        uint8   routePosition,
-        uint96  amount
+        uint256 position,
+        uint256 amount
     );
 
-    /// @notice A settlement allocation delivered straight to the beneficiary's wallet.
+    /// @notice An allocation was delivered to the beneficiary's wallet, exactly.
     /// @param handId      The Hand the payout belongs to.
-    /// @param token       The reward token.
-    /// @param beneficiary The recipient the push reached.
+    /// @param token       The Hand's token.
+    /// @param beneficiary The recipient reached.
+    /// @param kind        The allocation's kind (pairs with `PayoutAllocated`).
+    /// @param position    The allocation's position (pairs with `PayoutAllocated`).
     /// @param amount      The pushed amount.
-    event PayoutPushed(uint256 indexed handId, address indexed token, address indexed beneficiary, uint96 amount);
-    /// @notice A settlement allocation the push could not deliver (e.g. a blacklisted
-    ///         or reverting recipient); parked as a claim, withdrawable by anyone.
-    /// @param handId      The Hand the payout belongs to.
-    /// @param token       The reward token.
-    /// @param beneficiary The recipient whose funds were deferred to a claim.
-    /// @param amount      The deferred amount now credited to claims[token][beneficiary].
-    event PayoutDeferred(uint256 indexed handId, address indexed token, address indexed beneficiary, uint96 amount);
+    event PayoutPushed(
+        uint256 indexed handId,
+        address indexed token,
+        address indexed beneficiary,
+        AllocationKind kind,
+        uint256 position,
+        uint256 amount
+    );
 
-    /// @notice A deferred claim was drained to its beneficiary via withdraw.
-    /// @param token       The reward token.
-    /// @param beneficiary The fixed destination the claim paid.
-    /// @param amount      The withdrawn aggregate.
+    /// @notice An allocation the push frame could not deliver; parked as a claim,
+    ///         withdrawable by anyone to the same beneficiary.
+    /// @param handId      The Hand the payout belongs to.
+    /// @param token       The Hand's token.
+    /// @param beneficiary The recipient whose share was parked.
+    /// @param kind        The allocation's kind (pairs with `PayoutAllocated`).
+    /// @param position    The allocation's position (pairs with `PayoutAllocated`).
+    /// @param amount      The amount now added to `claims[token][beneficiary]`.
+    event PayoutDeferred(
+        uint256 indexed handId,
+        address indexed token,
+        address indexed beneficiary,
+        AllocationKind kind,
+        uint256 position,
+        uint256 amount
+    );
+
+    /// @notice A claim was drained to its beneficiary through `withdraw`.
+    /// @param token       The token.
+    /// @param beneficiary The fixed destination paid.
+    /// @param amount      The whole aggregate claim.
     event PayoutWithdrawn(address indexed token, address indexed beneficiary, uint256 amount);
 
-    /// @notice The prospective token switch was flipped.
-    /// @param token          The reward token.
-    /// @param enabled        The new enabled state (gates new raises only).
-    /// @param policyRevision The policy counter after the change.
-    event TokenPolicyUpdated(address indexed token, bool enabled, uint64 policyRevision);
-    /// @notice A charity was added to or removed from the allowlist (prospective-only).
-    /// @param charity        The charity address.
-    /// @param allowed        The new allowlist state.
-    /// @param policyRevision The policy counter after the change.
+    /// @notice A charity was added to or removed from the prospective allowlist.
+    /// @param charity        The charity.
+    /// @param allowed        The new state.
+    /// @param policyRevision The revision after the change (1 for constructor seeds).
     event CharityPolicyUpdated(address indexed charity, bool allowed, uint64 policyRevision);
-    /// @notice A two-step admin handover was initiated (or cancelled, if newAdmin is zero).
-    /// @param previousAdmin The current admin that initiated the handover.
-    /// @param newAdmin      The nominated admin (zero cancels a pending handover).
+
+    /// @notice A two-step admin handover was started; `newAdmin == 0` is the cancel.
+    /// @param previousAdmin The current admin.
+    /// @param newAdmin      The nominee, or zero.
     event PolicyAdminTransferStarted(address indexed previousAdmin, address indexed newAdmin);
-    /// @notice The admin role was transferred (also emitted at construction from the zero address).
+
+    /// @notice The admin role changed hands (also at construction, from zero).
     /// @param previousAdmin The prior admin.
     /// @param newAdmin      The new admin.
     event PolicyAdminTransferred(address indexed previousAdmin, address indexed newAdmin);
 
     /*//////////////////// Modifiers ////////////////////*/
-    /// @dev Restricts a call to the current policyAdmin.
+
+    /// @dev Restricts a call to the current `policyAdmin`.
     modifier onlyPolicyAdmin() {
         if (msg.sender != policyAdmin) revert OnlyPolicyAdmin();
         _;
     }
 
-    /// @dev Transient storage-based reentrancy guard (Cancun target). Guards raise,
-    ///      thank, reclaim and withdraw; the lock is set on entry and cleared on
-    ///      exit within the same transaction, so the settlement pushes cannot
-    ///      re-enter any guarded entry point.
-    modifier nonReentrant() {
-        bytes32 slot = 0xb7a1c4371fbfb1e7fa8f6cdb642ec34b9d038fa8d390a78622f99092ec0b6389; // keccak256("AHandCore.reentrancy.slot")
-        bool locked;
-        assembly {
-            locked := tload(slot)
-            tstore(slot, 1)
-        }
-        if (locked) revert Reentrancy();
-        _;
-        assembly {
-            tstore(slot, 0)
-        }
-    }
-
     /*//////////////////// Construction ////////////////////*/
-    /// @notice Deploys the escrow: pins the reward token and its USD scale, seeds
-    ///         the charity allowlist, and installs the initial policy admin.
-    /// @dev    Validates usdScale_ against the token's on-chain decimals and caches
-    ///         the domain separator. Seeds tokenEnabled = true and policyRevision = 1.
-    /// @param token       The single reward token (enforced against every raise).
-    /// @param usdScale_   Must equal 10**(18 - token.decimals()); snapshot per Hand.
-    /// @param charities   Genesis charity allowlist; all non-zero.
-    /// @param policyAdmin_ Bounded admin: token switch + charity allowlist only.
-    constructor(address token, uint64 usdScale_, address[] memory charities, address policyAdmin_) {
-        if (token == address(0) || policyAdmin_ == address(0)) revert ZeroAddress();
-        uint8 dec = IERC20Minimal(token).decimals();
-        if (dec > 18 || uint256(usdScale_) != 10 ** (18 - uint256(dec))) revert BoundsViolated();
 
-        rewardToken = token;
-        usdScale = usdScale_;
-        _deploymentChainId = block.chainid;
-        _deploymentDomainSeparator = AHandSig.domainSeparator(address(this));
-
+    /// @notice Deploys the escrow: seeds the charity allowlist and installs the policy admin.
+    /// @dev    Domain: EIP-712 name "aHand", version "3". `policyRevision` is 1 after
+    ///         construction; every seed is logged under revision 1. Seeds must be
+    ///         non-zero, not this contract and not repeated.
+    /// @param  charities    The genesis charity allowlist.
+    /// @param  policyAdmin_ The bounded admin; non-zero.
+    constructor(address[] memory charities, address policyAdmin_) EIP712("aHand", "3") {
+        if (policyAdmin_ == address(0)) revert ZeroAddress(); // I-20
         policyAdmin = policyAdmin_;
         emit PolicyAdminTransferred(address(0), policyAdmin_);
-
-        tokenEnabled = true;
         policyRevision = 1;
-        emit TokenPolicyUpdated(token, true, 1);
         for (uint256 i; i < charities.length; ++i) {
-            if (charities[i] == address(0)) revert ZeroAddress();
-            charityAllowed[charities[i]] = true;
-            emit CharityPolicyUpdated(charities[i], true, 1);
+            _setCharityAllowed(charities[i], true, 1);
         }
-    }
-
-    /// @notice The EIP-712 domain separator every aHand signature is bound to.
-    /// @dev    Returns the cached value on the deployment chain and recomputes it
-    ///         from live block.chainid on a fork, so signatures never silently
-    ///         become valid across a chain split.
-    /// @return The current domain separator for this contract.
-    function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        if (block.chainid == _deploymentChainId) return _deploymentDomainSeparator;
-        return AHandSig.domainSeparator(address(this)); // fork-safe recompute
-    }
-
-    /// @notice Full Hand snapshot; the read surface Signals materialization depends on.
-    /// @param  handId The Hand id to read.
-    /// @return The Hand struct by value (zeroed if the Hand was never raised).
-    function getHand(uint256 handId) external view returns (Hand memory) {
-        return _hands[handId];
-    }
-
-    /*//////////////////// Policy (prospective-only) ////////////////////*/
-    /// @notice Gates NEW raises only; live Hands settle and withdraw regardless.
-    /// @dev    Bumps policyRevision so the change is provable from event history.
-    /// @param  enabled Whether new raises are permitted going forward.
-    function setTokenEnabled(bool enabled) external onlyPolicyAdmin {
-        tokenEnabled = enabled;
-        uint64 revision = ++policyRevision;
-        emit TokenPolicyUpdated(rewardToken, enabled, revision);
-    }
-
-    /// @notice Prospective-only: a Hand raised under an allowed charity settles to it
-    ///         even if the charity is later removed.
-    /// @dev    Bumps policyRevision. Live Hands keep their snapshotted recipient.
-    /// @param  charity The charity address to toggle.
-    /// @param  allowed Whether the charity may be chosen by future raises.
-    function setCharityAllowed(address charity, bool allowed) external onlyPolicyAdmin {
-        if (charity == address(0)) revert ZeroAddress();
-        charityAllowed[charity] = allowed;
-        uint64 revision = ++policyRevision;
-        emit CharityPolicyUpdated(charity, allowed, revision);
-    }
-
-    /// @notice Initiates the two-step admin handover; zero cancels a pending one.
-    /// @dev    By design, passing address(0) intentionally cancels any pending
-    ///         handover: it sets pendingPolicyAdmin to zero, which acceptPolicyAdmin
-    ///         can never satisfy because a zero msg.sender is impossible — so a
-    ///         zero pendingPolicyAdmin is unacceptable by construction and safe.
-    /// @param  newAdmin The nominated next admin, or address(0) to cancel.
-    function transferPolicyAdmin(address newAdmin) external onlyPolicyAdmin {
-        pendingPolicyAdmin = newAdmin;
-        emit PolicyAdminTransferStarted(policyAdmin, newAdmin);
-    }
-
-    /// @notice Claims the admin role. Must be called by the pending admin.
-    /// @dev    Reverts NotPendingOwner for any caller other than the current
-    ///         pendingPolicyAdmin; since that value is zero when no handover is
-    ///         pending, and no account is address(0), an empty nomination can never
-    ///         be accepted. Clears the nomination on success.
-    function acceptPolicyAdmin() external {
-        if (msg.sender != pendingPolicyAdmin) revert NotPendingOwner();
-        emit PolicyAdminTransferred(policyAdmin, msg.sender);
-        policyAdmin = msg.sender;
-        pendingPolicyAdmin = address(0);
     }
 
     /*//////////////////////////////////////////////////////////
-        raise — deposit enters escrow.
-        Balance-delta accounting with STRICT equality: fee-on-transfer
-        and rebasing surprises are rejected, not absorbed.
+        raise — the deposit enters escrow.
     //////////////////////////////////////////////////////////*/
-    /// @notice Raise a new Hand: escrow `p.amount` of the reward token under a
-    ///         fixed policy snapshot and return its id.
-    /// @dev    Validation runs in a fixed order (token identity, participants, bps
-    ///         bounds, split viability, expiry window, visibility coherence, tags),
-    ///         then the deposit, then effects+events.
-    ///
-    ///         Reentrancy note (audit HIGH "state change after external call" is a
-    ///         FALSE POSITIVE here): the only external call before storage is the
-    ///         balance-delta transferFrom. It is measured, not trusted — the
-    ///         subsequent balanceOf minus balBefore MUST equal p.amount exactly
-    ///         (InexactDeposit otherwise), and the Hand is only written after that
-    ///         check passes. A reentrant callback during the transfer cannot forge
-    ///         the delta, and the whole function is nonReentrant, so no state read
-    ///         before the transfer can be corrupted by it. The reward token is a
-    ///         known hookless USDC-style token with no transfer callback anyway.
-    /// @param  p            The raise parameters (token, amount, policy, commitments).
-    /// @param  discoveryRef Off-chain discovery ref bytes (empty in Dark mode).
-    /// @param  publicTags   Strictly-ascending, unique, non-zero discovery tags.
-    /// @return handId       The id of the newly created Hand.
-    function raise(RaiseParams calldata p, bytes calldata discoveryRef, bytes32[] calldata publicTags)
+
+    /// @notice Raise a Hand: escrow exactly `p.amount` of `p.token` under a fixed
+    ///         policy snapshot and return its id. `msg.sender` becomes the raiser:
+    ///         the only thank authority and the only refund destination.
+    /// @dev    Validation order is fixed: (1) root capability, (2) zero-pot terms,
+    ///         (3) bps bounds, (4) charity coherence, (5) expiry, (6) visibility,
+    ///         (7) tags, then the policy revision snapshot, then (8) the measured
+    ///         deposit, then effects. A zero `amount` makes no token call. Both the
+    ///         payer's debit and Core's receipt must equal `amount`.
+    /// @param  p            The raise parameters.
+    /// @param  discoveryRef Off-chain discovery ref bytes (1..128 bytes; empty in Dark).
+    /// @param  tags         Discovery tags, strictly ascending (at most 8; none in Dark).
+    /// @return handId       The id of the new Hand.
+    function raise(RaiseParams calldata p, bytes calldata discoveryRef, bytes32[] calldata tags)
         external
         nonReentrant
         returns (uint256 handId)
     {
-        // (1) token identity + prospective policy
-        if (p.token != rewardToken) revert TokenMismatch();
-        if (!tokenEnabled) revert TokenNotEnabled();
-
-        // (2) non-degenerate participants
-        if (p.amount == 0) revert ZeroAmount();
+        // (1) the route must start somewhere
         if (p.rootCapability == address(0)) revert ZeroAddress();
-        if (!charityAllowed[p.charityRecipient]) revert CharityNotWhitelisted();
-
-        // (3) constitutional bps bounds
-        if (p.charityBps < MIN_CHARITY_BPS || p.charityBps > MAX_CHARITY_BPS) revert BoundsViolated();
-        if (p.minGiverClaimBps == 0 || p.minGiverClaimBps > BPS_DENOMINATOR) revert BoundsViolated();
-
-        // (4) settlement must be able to pay both charity and route
-        uint256 charityAllocation = (uint256(p.amount) * p.charityBps) / BPS_DENOMINATOR;
-        if (charityAllocation == 0) revert ZeroCharityAllocation();
-        if (uint256(p.amount) - charityAllocation == 0) revert ZeroDistributable();
-
-        // (5) expiry window
-        if (p.expiry < block.timestamp + MIN_EXPIRY || p.expiry > block.timestamp + MAX_EXPIRY) {
+        // (2) I-21: a zero pot has no token, a funded pot has one
+        if ((p.amount == 0) != (p.token == address(0))) revert ZeroPotTerms();
+        // (3) I-22: the only product bounds that exist
+        if (p.charityBps > MAX_CHARITY_BPS || p.minGiverClaimBps == 0 || p.minGiverClaimBps > BPS_DENOMINATOR) {
             revert BoundsViolated();
         }
-
-        // (6) visibility coherence; metadata commitment is mandatory in every mode
+        // (4) I-21: charity coherence — no recipient without a share, no share without
+        //     an allowlisted recipient, and a declared donation pays at least one unit
+        if (p.charityBps == 0) {
+            if (p.charityRecipient != address(0)) revert UnexpectedCharityRecipient();
+        } else {
+            if (!charityAllowed[p.charityRecipient]) revert CharityNotAllowed();
+            if (AHandMath.cut(p.amount, p.charityBps) == 0) revert ZeroCharityAllocation();
+        }
+        // (5) I-2: a Hand must open a thank window
+        if (p.expiry <= block.timestamp) revert ExpiryInPast();
+        // (6) visibility coherence; the metadata envelope is mandatory in every mode
         if (p.metadataCommitment == bytes32(0)) revert InvalidVisibilityData();
         if (p.visibility == Visibility.Dark) {
-            if (discoveryRef.length != 0 || p.discoveryCommitment != bytes32(0) || publicTags.length != 0) {
+            if (discoveryRef.length != 0 || p.discoveryCommitment != bytes32(0) || tags.length != 0) {
                 revert InvalidVisibilityData();
             }
-        } else {
-            if (discoveryRef.length == 0 || discoveryRef.length > MAX_DISCOVERY_REF || p.discoveryCommitment == bytes32(0)) {
-                revert InvalidVisibilityData();
-            }
+        } else if (
+            discoveryRef.length == 0 || discoveryRef.length > MAX_DISCOVERY_REF || p.discoveryCommitment == bytes32(0)
+        ) {
+            revert InvalidVisibilityData();
         }
-
-        // (7) tags: bound + strictly ascending — order, uniqueness and non-zero in one pass
-        if (publicTags.length > MAX_PUBLIC_TAGS) revert TagsInvalid();
-        bytes32 prevTag;
-        for (uint256 i; i < publicTags.length; ++i) {
-            if (publicTags[i] <= prevTag) revert TagsInvalid();
-            prevTag = publicTags[i];
+        // (7) tags: bounded and strictly ascending — unique and non-zero in one pass
+        if (tags.length > MAX_PUBLIC_TAGS) revert TagsInvalid();
+        bytes32 previousTag = bytes32(0);
+        for (uint256 i; i < tags.length; ++i) {
+            if (tags[i] <= previousTag) revert TagsInvalid();
+            previousTag = tags[i];
         }
+        // The revision under which (4) passed, read before any token call: a hook that
+        // reaches setCharityAllowed mid-deposit cannot make Raised name a later one.
+        uint64 revision = policyRevision;
+        // (8) I-5: exact entry on both sides; a zero pot makes no token call
+        if (p.amount != 0) _pullExact(p.token, msg.sender, p.amount);
 
-        // (8) exact-delta deposit; the balance is never read again after this
-        uint256 balBefore = IERC20(p.token).balanceOf(address(this));
-        IERC20(p.token).safeTransferFrom(msg.sender, address(this), p.amount);
-        if (IERC20(p.token).balanceOf(address(this)) - balBefore != uint256(p.amount)) revert InexactDeposit();
-
-        // (9) effects + events
-        handId = ++handsCount;
-        _hands[handId] = Hand({
-            raiser: msg.sender,
-            expiry: p.expiry,
-            charityBps: p.charityBps,
-            minGiverClaimBps: p.minGiverClaimBps,
-            visibility: p.visibility,
-            status: Status.Active,
-            rewardToken: p.token,
-            creditedReward: p.amount,
-            charityRecipient: p.charityRecipient,
-            usdScaleAtRaise: usdScale,
-            rootCapability: p.rootCapability,
-            metadataCommitment: p.metadataCommitment,
-            discoveryCommitment: p.discoveryCommitment,
-            thankSignalSourceHash: bytes32(0)
-        });
+        // effects — field by field, skipping zero fields (a zero-over-zero SSTORE is not free)
+        handId = ++handsCount; // I-1: ids monotonic from 1
+        Hand storage h = _hands[handId];
+        h.raiser = msg.sender;
+        h.expiry = p.expiry;
+        h.visibility = p.visibility;
+        h.status = Status.Active;
+        h.token = p.token;
+        h.charityBps = p.charityBps;
+        h.minGiverClaimBps = p.minGiverClaimBps;
+        if (p.amount != 0) h.pool = p.amount;
+        if (p.charityBps != 0) h.charityRecipient = p.charityRecipient;
+        h.rootCapability = p.rootCapability;
+        h.metadataCommitment = p.metadataCommitment;
+        if (p.discoveryCommitment != bytes32(0)) h.discoveryCommitment = p.discoveryCommitment;
 
         emit Raised(
             handId,
             msg.sender,
             p.token,
             p.amount,
-            usdScale,
-            policyRevision,
             p.expiry,
             p.rootCapability,
             p.visibility,
@@ -473,243 +417,101 @@ contract AHandCore is IAHandCoreView {
             discoveryRef,
             p.minGiverClaimBps,
             p.charityRecipient,
-            p.charityBps
+            p.charityBps,
+            revision
         );
-        if (publicTags.length != 0) emit HandTagged(handId, msg.sender, publicTags);
+        if (tags.length != 0) emit HandTagged(handId, msg.sender, tags);
     }
 
     /*//////////////////////////////////////////////////////////
-        thank — success settlement. Three phases:
-        A verification (staticcalls only), B floor math, C effects then
-        interactions. Allocations are pushed to recipients directly; any push
-        that fails defers only that share to a withdrawable claim.
+        thank — one atomic settlement in four phases.
+        A verify (view) · B math (pure) · C effects and fact events ·
+        D pushes, each in its own isolated frame behind the starvation guard.
     //////////////////////////////////////////////////////////*/
-    /// @notice Settle a successful Hand: verify the whole route and Give, split the
-    ///         pool (charity + per-hop margins + giver residual) and pay every party.
-    ///         Only the raiser may thank, and only while the Hand is Active and
+
+    /// @notice Settle a Hand: verify the whole route and the Give, split the pool
+    ///         (charity, per-hop margins, giver residual), commit the facts and pay
+    ///         every party. Only the raiser may thank, only while Active, only
     ///         strictly before expiry.
-    /// @dev    Thin wrapper over _settle with msg.sender as the raiser authority.
-    ///
-    ///         Reentrancy note (audit HIGH is a FALSE POSITIVE): all external calls
-    ///         are the trailing _pay pushes in Phase C, which run AFTER status is
-    ///         set to Settled, the source commitment is stored, and every event is
-    ///         emitted — strict checks-effects-interactions. The entry point is
-    ///         nonReentrant and the reward token is the immutable hookless USDC, so
-    ///         a push can neither re-enter thank nor observe a half-settled Hand.
-    ///         See _settle for the phase-by-phase invariant.
-    /// @param  handId             The Active Hand to settle.
-    /// @param  shakes             The route hops in order (at most MAX_SHAKES).
-    /// @param  shakeSigs          Positional Shake signatures, one per hop.
-    /// @param  shakerAcceptances  Positional with shakes: entry i is the ShakerAcceptance
-    ///                            signature for hop i when the shaker is an explicit distinct
-    ///                            account, and MUST be empty bytes for anonymous or
-    ///                            self-attributed hops.
-    /// @param  give               The terminal Give claim.
-    /// @param  giveSig            The Give signature by the terminal capability.
-    /// @param  giverAcceptanceSig The giver's acceptance signature (always required).
-    function thank(
-        uint256 handId,
-        Shake[] calldata shakes,
-        bytes[] calldata shakeSigs,
-        bytes[] calldata shakerAcceptances,
-        Give calldata give,
-        bytes calldata giveSig,
-        bytes calldata giverAcceptanceSig
-    ) external nonReentrant {
-        _settle(msg.sender, handId, shakes, shakeSigs, shakerAcceptances, give, giveSig, giverAcceptanceSig);
-    }
-
-    /*//////////////////////////////////////////////////////////
-        reclaim — expiry settlement. Permissionless: anyone may finalize,
-        the refund can only ever be credited to the raiser.
-        Success-only charity: the FULL pool refunds, zero charity cut.
-    //////////////////////////////////////////////////////////*/
-    /// @notice Refund an expired, unsettled Hand to its raiser in full (no charity
-    ///         cut on failure). Permissionless — anyone may finalize — but the
-    ///         refund destination is fixed to the raiser.
-    /// @dev    Requires Active and now >= expiry; the thank and reclaim windows are
-    ///         disjoint (thank is strictly before expiry). creditedReward is left
-    ///         intact — the liability is retired by moving status to Reclaimed.
-    ///
-    ///         Reentrancy note (audit HIGH is a FALSE POSITIVE): status, event and
-    ///         allocation are all committed BEFORE the single _pay push, which is
-    ///         the only external call. Combined with nonReentrant and the hookless
-    ///         reward token, the push cannot re-enter or see a half-finalized Hand.
-    /// @param  handId The Active, expired Hand to reclaim.
-    function reclaim(uint256 handId) external nonReentrant {
+    /// @dev    All-or-nothing on verification: the first invalid hop reverts the
+    ///         whole call with its index (`hops.length` names the Give). Every Hand
+    ///         write and every fact event precedes the first token move. Each push
+    ///         either delivers exactly its allocation or parks exactly that share as
+    ///         a claim; it can neither re-enter an entry point nor observe a
+    ///         half-settled Hand.
+    /// @param  handId The Active Hand to settle.
+    /// @param  hops   The route hops in order, each with its proofs (any length).
+    /// @param  t      The terminal Give with its proofs.
+    function thank(uint256 handId, Hop[] calldata hops, Terminal calldata t) external nonReentrant {
         Hand storage h = _hands[handId];
-        if (h.status != Status.Active) revert NotActive();
-        if (block.timestamp < h.expiry) revert NotExpired(); // thank window is strictly before
 
-        h.status = Status.Reclaimed; // creditedReward stays intact — liability keys on status
-
-        address token = h.rewardToken;
+        // Phase A — checks and verification: storage reads, pure hashing, ECDSA and
+        // gas-capped staticcalls; zero mutation.
+        if (h.status != Status.Active) revert NotActive(); // I-1
+        if (block.timestamp >= h.expiry) revert HandExpired(); // I-2: expiry itself belongs to reclaim
         address raiser = h.raiser;
-        uint96 refund = h.creditedReward;
+        if (msg.sender != raiser) revert NotRaiser(); // I-10
+        uint256 pool = h.pool;
+        uint256 charity = AHandMath.cut(pool, h.charityBps); // I-3: charity first, from P
+        uint256 distributable = pool - charity;
+        RouteFacts memory r = _verifyRoute(h, handId, hops, distributable);
+        _verifyGive(h, handId, t, r);
 
-        emit Reclaimed(handId, raiser, token, refund);
-        emit PayoutAllocated(handId, token, raiser, AllocationKind.RaiserRefund, 0, refund);
-        _pay(handId, token, raiser, refund); // push the refund; defers to a claim on failure
-    }
+        // Phase B — pure: the giver takes the residual, so P == C + Σ A_i + G exactly.
+        uint256 residual = distributable - r.marginTotal; // I-3, I-4
 
-    /*//////////////////////////////////////////////////////////
-        withdraw — the exit for DEFERRED value: allocations a settlement push
-        could not deliver land as claims here. Permissionless with a fixed
-        destination: anyone can pay the gas, nobody can redirect the funds.
-        No tokenEnabled gate — accrued claims survive policy changes.
-    //////////////////////////////////////////////////////////*/
-    /// @notice Drain the aggregate claim credited to `beneficiary` for `token`,
-    ///         paying it to `beneficiary`. Permissionless (anyone may trigger and
-    ///         pay the gas) but the destination is fixed to the beneficiary.
-    /// @dev    Fixed-destination is a deliberate anti-theft choice: because the
-    ///         recipient is never a caller-supplied redirect, no one can sweep
-    ///         another party's claim to themselves.
-    ///
-    ///         KNOWN LIMITATION (audit Low #3, documented not fixed): a claim whose
-    ///         original push failed because the reward token blocks transfers TO the
-    ///         beneficiary (e.g. a USDC blacklist) is effectively unwithdrawable —
-    ///         withdraw retries the same fixed-destination transfer, which fails for
-    ///         the same reason. This is accepted in v1: adding a redirect would
-    ///         reintroduce exactly the theft vector the fixed destination prevents,
-    ///         so blacklisted-recipient funds are intentionally not rescuable here.
-    ///
-    ///         No tokenEnabled gate: disabling a token never strands already-accrued
-    ///         claims. safeTransfer reverts on failure, so a failed drain simply
-    ///         leaves the claim in place to retry.
-    /// @param  token       The token whose claim to drain (typically the reward token).
-    /// @param  beneficiary The party whose claim is paid; also the fixed destination.
-    function withdraw(address token, address beneficiary) external nonReentrant {
-        uint256 amount = claims[token][beneficiary];
-        if (amount == 0) revert ZeroClaim(); // covers beneficiary == 0: nothing is ever credited there
-        claims[token][beneficiary] = 0;
-        IERC20(token).safeTransfer(beneficiary, amount);
-        emit PayoutWithdrawn(token, beneficiary, amount);
-    }
-
-    /*//////////////////// Settlement internals ////////////////////*/
-
-    /// @dev Memory carrier for verified-route facts; keeps frames shallow and
-    ///      lets a future thankWithPermit reuse the whole pipeline via _settle.
-    ///      Populated by _verifyRoute/_verifyGive, consumed by _settle Phases B/C.
-    ///      Conservation holds by construction: P == charityAllocation +
-    ///      sum(hopAllocations) + giverAllocation, with the giver absorbing dust.
-    struct RouteFacts {
-        bytes32 routeHash;
-        bytes32 giveHash;
-        address terminalCapability;
-        uint16  finalClaimBps;
-        uint96  charityAllocation;   // C = floor(P * charityBps / 1e4)
-        uint96  distributable;       // D = P - C
-        uint96  giverAllocation;     // D - sum(hopAllocations): residual absorbs dust
-        bytes32[] shakeHashes;
-        uint96[]  hopAllocations;    // floor(D * margin_i / 1e4); zero for zero-margin hops
-        address[] occShakers;        // route order, anonymous zeros preserved
-        uint16[]  occClaimDeltas;    // route order margins
-    }
-
-    /// @dev Full settlement body, structured as three strict phases:
-    ///      A verification (view-only staticcalls, zero mutation), B floor math
-    ///      (pure), C effects then interactions. All state — status, source
-    ///      commitment, every event — is finalized in Phase C BEFORE the first
-    ///      _pay push, which is the ONLY external call and the point the audit
-    ///      HIGH flags. The invariant that makes it safe: at the first push the
-    ///      Hand is already Settled and fully accounted, the function holds the
-    ///      transient nonReentrant lock, and the reward token is the immutable
-    ///      hookless USDC — so no push can re-enter or read partial state.
-    ///      `raiserAuthority` is the account whose consent authorizes settlement —
-    ///      msg.sender for thank, a recovered signer for a future thankWithPermit.
-    /// @param raiserAuthority   The consenting account (must equal the Hand's raiser).
-    /// @param handId            The Active Hand to settle.
-    /// @param shakes            The route hops in order.
-    /// @param shakeSigs         Positional Shake signatures.
-    /// @param shakerAcceptances Positional ShakerAcceptance signatures (empty where not required).
-    /// @param give              The terminal Give claim.
-    /// @param giveSig           The Give signature by the terminal capability.
-    /// @param giverAcceptanceSig The giver's always-required acceptance signature.
-    function _settle(
-        address raiserAuthority,
-        uint256 handId,
-        Shake[] calldata shakes,
-        bytes[] calldata shakeSigs,
-        bytes[] calldata shakerAcceptances,
-        Give calldata give,
-        bytes calldata giveSig,
-        bytes calldata giverAcceptanceSig
-    ) internal {
-        Hand storage h = _hands[handId];
-
-        // Phase A — verification. View-only: staticcalls, zero state mutation.
-        if (h.status != Status.Active) revert NotActive();
-        if (block.timestamp >= h.expiry) revert Expired(); // strict: expiry belongs to reclaim
-        if (raiserAuthority != h.raiser) revert NotRaiser();
-        if (shakes.length > MAX_SHAKES) revert RouteTooLong();
-        if (shakeSigs.length != shakes.length || shakerAcceptances.length != shakes.length) revert LengthMismatch();
-
-        RouteFacts memory r;
-        {
-            // Pool split precomputed: MarginRoundsToZero needs D during the walk.
-            uint96 pool = h.creditedReward;
-            r.charityAllocation = uint96((uint256(pool) * h.charityBps) / BPS_DENOMINATOR);
-            r.distributable = pool - r.charityAllocation; // > 0 by raise bounds
-        }
-
-        _verifyRoute(h, handId, shakes, shakeSigs, shakerAcceptances, r);
-        _verifyGive(h, handId, give, giveSig, giverAcceptanceSig, r);
-
-        // Phase B — floor math. Giver takes the residual, so by construction
-        // P == C + sum(hopAllocations) + giverAllocation: conservation is exact.
-        {
-            uint96 marginTotal;
-            for (uint256 i; i < shakes.length; ++i) {
-                marginTotal += r.hopAllocations[i];
-            }
-            r.giverAllocation = r.distributable - marginTotal;
-        }
-
-        // Phase C — effects, then interactions (checks-effects-interactions).
-        // ALL state is finalized before any token transfer, and the whole
-        // function is nonReentrant, so the stipended pushes below cannot
-        // observe or corrupt a half-settled hand.
-        h.status = Status.Settled; // creditedReward stays intact — Signals rereads it
-
-        address token = h.rewardToken;
-
-        // Commit the settlement facts Signals later verifies against.
-        h.thankSignalSourceHash = AHandSource.thankCommitment(
+        // Phase C — effects: every Hand write and every fact event before the first push.
+        uint40 closedAt = SafeCast.toUint40(block.timestamp);
+        h.status = Status.Settled; // I-1: terminal once
+        h.closedAt = closedAt; // same slot as status
+        address token = h.token;
+        address charityRecipient = h.charityRecipient;
+        bytes32 settlementHash = AHandSettlement.commitment(
             address(this),
-            handId,
-            h.raiser,
-            give.giver,
-            r.charityAllocation,
-            h.usdScaleAtRaise,
-            r.occShakers,
-            r.occClaimDeltas
+            AHandSettlement.SettlementPreimage({
+                handId: handId,
+                raiser: raiser,
+                giver: t.give.giver,
+                token: token,
+                charityRecipient: charityRecipient,
+                pool: pool,
+                charityAllocation: charity,
+                giverAllocation: residual,
+                routeHash: r.routeHash,
+                giveHash: r.giveHash,
+                solutionHash: t.give.solutionHash,
+                closedAt: closedAt,
+                occShakers: r.occShakers,
+                occClaimDeltas: r.occClaimDeltas,
+                occAllocations: r.hopAllocations
+            })
         );
+        h.settlementHash = settlementHash; // I-23: the one authenticated settlement fact
 
         emit Settled(
             handId,
-            give.giver,
-            give.solutionHash,
+            t.give.giver,
+            token,
+            pool,
+            charityRecipient,
+            charity,
+            distributable,
+            residual,
             r.routeHash,
             r.giveHash,
-            token,
-            h.creditedReward,
-            r.distributable,
-            r.giverAllocation,
-            h.charityRecipient,
-            r.charityAllocation,
-            h.usdScaleAtRaise,
-            uint256(r.charityAllocation) * h.usdScaleAtRaise
+            t.give.solutionHash,
+            settlementHash,
+            hops.length,
+            closedAt
         );
-
-        address parentCap = h.rootCapability;
-        for (uint256 i; i < shakes.length; ++i) {
-            Shake calldata s = shakes[i];
+        address parentCapability = h.rootCapability;
+        for (uint256 i; i < hops.length; ++i) {
+            Shake calldata s = hops[i].shake;
             emit RouteHopSettled(
                 handId,
                 r.routeHash,
-                uint8(i),
-                parentCap,
+                i,
+                parentCapability,
                 s.childCapability,
                 s.parentClaimBps,
                 s.childClaimBps,
@@ -718,207 +520,383 @@ contract AHandCore is IAHandCoreView {
                 s.hopDataHash,
                 r.hopAllocations[i]
             );
-            parentCap = s.childCapability;
+            parentCapability = s.childCapability;
         }
-
-        emit PayoutAllocated(handId, token, h.charityRecipient, AllocationKind.Charity, 0, r.charityAllocation);
-        for (uint256 i; i < shakes.length; ++i) {
-            if (r.hopAllocations[i] != 0) {
-                emit PayoutAllocated(
-                    handId, token, shakes[i].shaker, AllocationKind.ShakerMargin, uint8(i), r.hopAllocations[i]
-                );
+        // I-8: the grant ledger — one PayoutAllocated per non-zero allocation, in the
+        // order the pushes follow: Charity, ShakerMargin per hop, GiverResidual.
+        if (charity != 0) emit PayoutAllocated(handId, token, charityRecipient, AllocationKind.Charity, 0, charity);
+        for (uint256 i; i < hops.length; ++i) {
+            uint256 allocation = r.hopAllocations[i];
+            if (allocation != 0) {
+                emit PayoutAllocated(handId, token, hops[i].shake.shaker, AllocationKind.ShakerMargin, i, allocation);
             }
         }
-        emit PayoutAllocated(handId, token, give.giver, AllocationKind.GiverResidual, 0, r.giverAllocation);
+        if (residual != 0) emit PayoutAllocated(handId, token, t.give.giver, AllocationKind.GiverResidual, 0, residual);
 
-        // Interactions — deliver each allocation. A recipient that reverts
-        // (blacklist, hostile contract) only defers ITS OWN share to a claim;
-        // every other payout still lands in the same transaction.
-        _pay(handId, token, h.charityRecipient, r.charityAllocation);
-        for (uint256 i; i < shakes.length; ++i) {
-            if (r.hopAllocations[i] != 0) {
-                _pay(handId, token, shakes[i].shaker, r.hopAllocations[i]);
-            }
+        // Phase D — interactions: one guarded, isolated frame per allocation.
+        _pay(handId, token, charityRecipient, AllocationKind.Charity, 0, charity);
+        for (uint256 i; i < hops.length; ++i) {
+            uint256 allocation = r.hopAllocations[i];
+            if (allocation != 0) _pay(handId, token, hops[i].shake.shaker, AllocationKind.ShakerMargin, i, allocation);
         }
-        _pay(handId, token, give.giver, r.giverAllocation);
+        _pay(handId, token, t.give.giver, AllocationKind.GiverResidual, 0, residual);
     }
 
-    /// @dev Deliver a settlement allocation: try a gas-bounded push, and on any
-    ///      failure park the amount as a claim withdrawable by anyone. Amount is
-    ///      always non-zero at the call sites that matter, but guarded for safety.
-    ///      A recipient that reverts defers only ITS OWN share; every other payout
-    ///      in the same settlement still lands.
-    /// @param handId The Hand being settled (for the emitted event).
-    /// @param token  The reward token to move.
-    /// @param to     The recipient of the allocation.
-    /// @param amt    The token amount to deliver (no-op if zero).
-    function _pay(uint256 handId, address token, address to, uint96 amt) internal {
-        if (amt == 0) return;
-        if (_tryPush(token, to, amt)) {
-            emit PayoutPushed(handId, token, to, amt);
-        } else {
-            claims[token][to] += amt;
-            emit PayoutDeferred(handId, token, to, amt);
-        }
+    /*//////////////////////////////////////////////////////////
+        reclaim — expiry settlement. Permissionless; the refund can only
+        ever go to the raiser. Success-only charity: the full pool refunds.
+    //////////////////////////////////////////////////////////*/
+
+    /// @notice Refund an expired, unsettled Hand in full to its raiser. Anyone may
+    ///         call; the destination is fixed in storage.
+    /// @dev    Requires Active and `now ≥ expiry`; the thank window is strictly
+    ///         before expiry, so the two terminal transitions never overlap. The
+    ///         pool stays recorded; the liability is retired by the status change.
+    ///         A zero-pot Hand flips status and `closedAt` only.
+    /// @param  handId The Active, expired Hand.
+    function reclaim(uint256 handId) external nonReentrant {
+        Hand storage h = _hands[handId];
+        if (h.status != Status.Active) revert NotActive(); // I-1
+        if (block.timestamp < h.expiry) revert HandNotExpired(); // I-2
+
+        h.status = Status.Reclaimed; // I-1: terminal once
+        h.closedAt = SafeCast.toUint40(block.timestamp); // same slot as status
+        (address token, address raiser, uint256 pool) = (h.token, h.raiser, h.pool);
+
+        emit Reclaimed(handId, raiser, token, pool);
+        if (pool != 0) emit PayoutAllocated(handId, token, raiser, AllocationKind.RaiserRefund, 0, pool);
+        _pay(handId, token, raiser, AllocationKind.RaiserRefund, 0, pool); // I-10: destination fixed
     }
 
-    /// @dev Bounded-gas ERC20 transfer that never bubbles a revert. Returns true
-    ///      only on a call that succeeded AND returned either nothing or `true`
-    ///      (the SafeERC20 success shape, inlined so failure is catchable). Capped
-    ///      at PUSH_GAS_STIPEND so a hostile recipient can waste at most the stipend
-    ///      before its share is deferred to a claim.
-    /// @param token The reward token to transfer.
-    /// @param to    The recipient.
-    /// @param amt   The amount to transfer.
-    /// @return ok   True if the transfer succeeded per the SafeERC20 success shape.
-    function _tryPush(address token, address to, uint96 amt) internal returns (bool ok) {
-        bytes memory cd = abi.encodeCall(IERC20.transfer, (to, amt));
-        assembly ("memory-safe") {
-            let success := call(PUSH_GAS_STIPEND, token, 0, add(cd, 0x20), mload(cd), 0x00, 0x20)
-            ok := and(success, or(iszero(returndatasize()), and(gt(returndatasize(), 31), mload(0x00))))
-        }
+    /*//////////////////////////////////////////////////////////
+        withdraw — the exit for deferred value. Permissionless with a fixed
+        destination: anyone pays the gas, nobody redirects the funds.
+    //////////////////////////////////////////////////////////*/
+
+    /// @notice Drain the whole claim of `beneficiary` in `token`, paying it to
+    ///         `beneficiary`. Anyone may call and pay the gas.
+    /// @dev    The claim is zeroed before the transfer and the transfer must be
+    ///         exact; any failure reverts the whole call, which restores the claim.
+    ///         Never gated by policy. A token that blocks the beneficiary leaves the
+    ///         claim stranded; there is no redirect by design.
+    /// @param  token       The token of the claim.
+    /// @param  beneficiary The claimant and the fixed destination.
+    function withdraw(address token, address beneficiary) external nonReentrant {
+        uint256 amount = claims[token][beneficiary];
+        if (amount == 0) revert ZeroClaim(); // covers beneficiary == 0 and unknown tokens
+        claims[token][beneficiary] = 0;
+        _transferExact(token, beneficiary, amount); // I-7: exact or the whole call reverts
+        emit PayoutWithdrawn(token, beneficiary, amount);
     }
 
-    /// @dev Walks the delegation chain from the root capability, verifying each
-    ///      hop's signature, telescopic claims, deadlines and shaker consent, and
-    ///      filling r with the per-hop facts (hashes, allocations, occurrences).
-    ///
-    ///      By design the loop is ATOMIC — all-or-nothing: the first invalid hop
-    ///      reverts the entire thank, so a route is either fully valid and settles
-    ///      as one unit or is rejected wholesale. There is no partial acceptance of
-    ///      a route prefix; this is intentional, not a missing early-exit path.
-    /// @param h                 The Hand being settled (root capability, floor, expiry).
-    /// @param handId            The Hand id each hop must reference.
-    /// @param shakes            The route hops in order.
-    /// @param shakeSigs         Positional Shake signatures.
-    /// @param shakerAcceptances Positional ShakerAcceptance signatures.
-    /// @param r                 The RouteFacts carrier to populate (mutated in place).
-    function _verifyRoute(
-        Hand storage h,
-        uint256 handId,
-        Shake[] calldata shakes,
-        bytes[] calldata shakeSigs,
-        bytes[] calldata shakerAcceptances,
-        RouteFacts memory r
-    ) internal view {
-        uint256 n = shakes.length;
+    /*//////////////////////////////////////////////////////////
+        pushExact — the self-only rollback frame.
+    //////////////////////////////////////////////////////////*/
+
+    /// @notice The rollback frame of one push: moves exactly `amount` of `token` to
+    ///         `to` or reverts. Callable solely by this contract.
+    /// @dev    Exists because the EVM has no sub-transaction other than a call
+    ///         frame: a transfer that does not move exactly `amount` units must leave
+    ///         no trace, and only a reverted frame guarantees that. Writes no Core
+    ///         storage. Carries NO `nonReentrant` on purpose: the transient lock is
+    ///         transaction-scoped, so a reflexive modifier would revert every frame
+    ///         and silently park every payout as a claim.
+    /// @param  token  The token to move.
+    /// @param  to     The recipient.
+    /// @param  amount The exact amount.
+    function pushExact(address token, address to, uint256 amount) external {
+        if (msg.sender != address(this)) revert OnlySelf(); // I-17: reachable from no external account
+        _transferExact(token, to, amount);
+    }
+
+    /*//////////////////// Policy (prospective only) ////////////////////*/
+
+    /// @notice Add or remove a charity for FUTURE donation Hands. Live Hands keep
+    ///         their snapshotted recipient; no claim, deadline or formula is touched.
+    /// @dev    Bumps `policyRevision` by exactly one per real change. Zero and this
+    ///         contract can never be allowlisted. Moves no money, so no lock.
+    /// @param  charity The charity.
+    /// @param  allowed The new state; must differ from the current one.
+    function setCharityAllowed(address charity, bool allowed) external onlyPolicyAdmin {
+        _setCharityAllowed(charity, allowed, ++policyRevision); // the bump is undone with any revert below
+    }
+
+    /// @notice Start the two-step admin handover; nominating zero cancels a pending one.
+    /// @dev    Re-nominating the current nominee (including zero over zero) is `NoChange`.
+    ///         No revision bump: the policy itself does not change.
+    /// @param  newAdmin The nominee, or zero to cancel.
+    // forge-lint: disable-next-line(missing-zero-check) — zero is the cancel by design
+    function transferPolicyAdmin(address newAdmin) external onlyPolicyAdmin {
+        if (newAdmin == pendingPolicyAdmin) revert NoChange();
+        pendingPolicyAdmin = newAdmin;
+        emit PolicyAdminTransferStarted(policyAdmin, newAdmin);
+    }
+
+    /// @notice Accept the admin role. Only the pending admin may call.
+    /// @dev    A zero nomination can never be accepted: no account is the zero address.
+    function acceptPolicyAdmin() external {
+        if (msg.sender != pendingPolicyAdmin) revert NotPendingAdmin(); // I-20
+        emit PolicyAdminTransferred(policyAdmin, msg.sender);
+        policyAdmin = msg.sender;
+        pendingPolicyAdmin = address(0);
+    }
+
+    /*//////////////////// Facts (view; no external calls) ////////////////////*/
+
+    /// @inheritdoc IAHandFacts
+    function facts(uint256 handId) external view returns (HandFacts memory) {
+        Hand storage h = _hands[handId];
+        // I-25: every stored field, in the frozen interface shape
+        return HandFacts({
+            status: h.status,
+            raiser: h.raiser,
+            token: h.token,
+            pool: h.pool,
+            charityBps: h.charityBps,
+            charityRecipient: h.charityRecipient,
+            minGiverClaimBps: h.minGiverClaimBps,
+            rootCapability: h.rootCapability,
+            expiry: h.expiry,
+            closedAt: h.closedAt,
+            visibility: h.visibility,
+            metadataCommitment: h.metadataCommitment,
+            discoveryCommitment: h.discoveryCommitment,
+            settlementHash: h.settlementHash
+        });
+    }
+
+    /// @notice The full Hand snapshot for apps, the SDK and tests.
+    /// @dev    ABI-coupled to THIS Core's layout; contracts bind to `facts` instead.
+    /// @param  handId The Hand id.
+    /// @return The Hand by value (all zero if never raised).
+    function getHand(uint256 handId) external view returns (Hand memory) {
+        return _hands[handId];
+    }
+
+    /// @notice The EIP-712 domain separator every aHand signature is bound to.
+    /// @dev    Cached at deployment and recomputed when the chain id or this address
+    ///         differs (fork safety). `eip712Domain()` (ERC-5267) exposes the fields.
+    /// @return The current domain separator.
+    // forge-lint: disable-next-line(mixed-case-function)
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+        return _domainSeparatorV4();
+    }
+
+    /*//////////////////// Settlement internals ////////////////////*/
+
+    /// @dev Memory carrier of the verified-route facts: filled by `_verifyRoute`,
+    ///      completed by `_verifyGive`, consumed by thank's Phases B–D.
+    struct RouteFacts {
+        bytes32 routeHash;
+        bytes32 giveHash;
+        address terminalCapability; // the root itself on a zero-shake route
+        uint16 finalClaimBps; // the claim the route leaves to the giver
+        uint256 marginTotal; // Σ hopAllocations
+        bytes32[] shakeHashes; // per hop
+        uint256[] hopAllocations; // per hop: A_i = cut(D, δ_i); zero for zero-margin hops
+        address[] occShakers; // per hop: attributed shaker, anonymous zeros preserved
+        uint16[] occClaimDeltas; // per hop: δ_i
+    }
+
+    /// @dev Walks the delegation chain from the stored root capability at 10 000 bps:
+    ///      verifies every hop's signature, claim telescoping, deadlines and shaker
+    ///      consent, and records the per-hop facts. Atomic by design: the first
+    ///      invalid hop reverts the whole thank with its index.
+    /// @param h             The Hand (root, floor, expiry).
+    /// @param handId        The Hand id every hop must reference.
+    /// @param hops          The route hops in order.
+    /// @param distributable D = P − C, the base every margin is floored from.
+    /// @return r            The route facts (`giveHash` still unset).
+    function _verifyRoute(Hand storage h, uint256 handId, Hop[] calldata hops, uint256 distributable)
+        private
+        view
+        returns (RouteFacts memory r)
+    {
+        uint256 n = hops.length;
         r.shakeHashes = new bytes32[](n);
-        r.hopAllocations = new uint96[](n);
+        r.hopAllocations = new uint256[](n);
         r.occShakers = new address[](n);
         r.occClaimDeltas = new uint16[](n);
 
-        bytes32 ds = DOMAIN_SEPARATOR();
-        address expectedCap = h.rootCapability;
+        bytes32 ds = _domainSeparatorV4();
+        address expectedCapability = h.rootCapability; // I-11: the chain starts at the stored root
         uint16 expectedClaim = BPS_DENOMINATOR;
         uint40 expiry = h.expiry;
         uint16 floorBps = h.minGiverClaimBps;
 
         for (uint256 i; i < n; ++i) {
-            Shake calldata s = shakes[i];
-            if (s.handId != handId) revert WrongHand();
-
+            Hop calldata hop = hops[i];
+            Shake calldata s = hop.shake;
+            if (s.handId != handId) revert WrongHand(i); // I-14
+            if (s.childCapability == address(0)) revert ZeroCapability(i); // I-11
             bytes32 shakeHash = AHandSig.hashShake(s);
-            if (!_isValidSig(expectedCap, AHandSig.digest(ds, shakeHash), shakeSigs[i])) revert CapabilityProof();
-            if (s.parentClaimBps != expectedClaim) revert ClaimMismatch();
-            if (s.childClaimBps > s.parentClaimBps) revert ClaimMustNotGrow();
-            if (s.childClaimBps < floorBps) revert ClaimBelowFloor();
-            if (block.timestamp > s.deadline) revert TicketExpired();
-            if (s.deadline > expiry) revert DeadlineExceedsExpiry();
+            if (!_isValidSig(expectedCapability, AHandSig.digest(ds, shakeHash), hop.capabilitySig)) {
+                revert CapabilityProof(i); // I-11: signer_i == child_{i−1}
+            }
+            if (s.parentClaimBps != expectedClaim) revert ClaimMismatch(i); // I-11
+            if (s.childClaimBps > s.parentClaimBps) revert ClaimMustNotGrow(i); // I-11
+            if (s.childClaimBps < floorBps) revert ClaimBelowFloor(i); // I-4
+            if (block.timestamp > s.deadline) revert ArtifactExpired(i); // I-2
+            if (s.deadline > expiry) revert DeadlineExceedsExpiry(i); // I-2
 
             uint16 margin = s.parentClaimBps - s.childClaimBps;
+            uint256 allocation = 0;
             if (margin != 0) {
-                // A paid hop must have a payable, attributed shaker.
-                if (s.shaker == address(0)) revert AnonymousShakerWithMargin();
-                uint96 alloc = uint96((uint256(r.distributable) * margin) / BPS_DENOMINATOR);
-                if (alloc == 0) revert MarginRoundsToZero();
-                r.hopAllocations[i] = alloc;
+                // I-12: a paid hop names its payee — attribution is a fact even when money is not
+                if (s.shaker == address(0)) revert AnonymousShakerWithMargin(i);
+                allocation = AHandMath.cut(distributable, margin); // I-3, I-27: each hop floored from D
+                if (allocation == 0 && distributable != 0) revert MarginRoundsToZero(i); // I-21
             }
-
-            // Consent matrix: an explicit shaker — a distinct attributed account —
-            // must co-sign the ShakerAcceptance; anonymous and self-attributed
-            // hops MUST NOT carry acceptance bytes.
-            if (s.shaker != address(0) && s.shaker != expectedCap) {
-                if (
-                    !_isValidSig(
-                        s.shaker, AHandSig.digest(ds, AHandSig.hashShakerAcceptance(shakeHash)), shakerAcceptances[i]
-                    )
-                ) revert ShakerAcceptanceInvalid();
-            } else if (shakerAcceptances[i].length != 0) {
-                revert UnexpectedAcceptance();
+            // I-12: the consent matrix — explicit shakers prove consent through their own
+            // verifier; anonymous and self-attributed hops carry no acceptance bytes
+            if (s.shaker != address(0) && s.shaker != expectedCapability) {
+                bytes32 acceptanceDigest = AHandSig.digest(ds, AHandSig.hashShakerAcceptance(shakeHash));
+                if (!_isValidSig(s.shaker, acceptanceDigest, hop.shakerAcceptanceSig)) {
+                    revert ShakerAcceptanceInvalid(i);
+                }
+            } else if (hop.shakerAcceptanceSig.length != 0) {
+                revert UnexpectedAcceptance(i);
             }
 
             r.shakeHashes[i] = shakeHash;
             r.occShakers[i] = s.shaker;
             r.occClaimDeltas[i] = margin;
-            expectedCap = s.childCapability;
+            r.hopAllocations[i] = allocation;
+            r.marginTotal += allocation;
+            expectedCapability = s.childCapability;
             expectedClaim = s.childClaimBps;
         }
 
-        r.terminalCapability = expectedCap; // root itself on a zero-shake route
+        r.terminalCapability = expectedCapability;
         r.finalClaimBps = expectedClaim;
-        // Signature bytes deliberately excluded from the route identity —
-        // malleability cannot rename a route.
-        r.routeHash = AHandSig.hashRoute(AHandSig.handRef(address(this), handId), r.shakeHashes);
+        r.routeHash = AHandSig.hashRoute(AHandSig.handRef(address(this), handId), r.shakeHashes); // I-14
     }
 
     /// @dev Binds the Give to the verified route and checks both terminal
-    ///      signatures: the capability's Give and the giver's acceptance. The
-    ///      routeHash equality is what forbids tail substitution — a Give may only
-    ///      claim the exact route that was verified.
-    /// @param h                  The Hand being settled (expiry bound).
-    /// @param handId             The Hand id the Give must reference.
-    /// @param give               The terminal Give claim.
-    /// @param giveSig            The Give signature by the terminal capability.
-    /// @param giverAcceptanceSig The giver's always-required acceptance signature.
-    /// @param r                  The RouteFacts from _verifyRoute; r.giveHash is set here.
-    function _verifyGive(
-        Hand storage h,
-        uint256 handId,
-        Give calldata give,
-        bytes calldata giveSig,
-        bytes calldata giverAcceptanceSig,
-        RouteFacts memory r
-    ) internal view {
-        if (give.handId != handId) revert WrongHand();
-        if (give.routeHash != r.routeHash) revert RouteHashMismatch(); // no tail substitution
-        if (give.finalClaimBps != r.finalClaimBps) revert ClaimMismatch();
-        if (give.giver == address(0)) revert ZeroAddress();
-        if (block.timestamp > give.deadline) revert TicketExpired();
-        if (give.deadline > h.expiry) revert DeadlineExceedsExpiry();
+    ///      signatures: the terminal capability's Give and the giver's acceptance.
+    ///      Every indexed error names the Give as position `hops.length`.
+    /// @param h      The Hand (expiry).
+    /// @param handId The Hand id the Give must reference.
+    /// @param t      The terminal Give with its proofs.
+    /// @param r      The route facts; `giveHash` is set here.
+    function _verifyGive(Hand storage h, uint256 handId, Terminal calldata t, RouteFacts memory r) private view {
+        uint256 n = r.shakeHashes.length;
+        Give calldata g = t.give;
+        if (g.handId != handId) revert WrongHand(n); // I-14
+        if (g.routeHash != r.routeHash) revert RouteHashMismatch(); // I-13: the exact route, no substitution
+        if (g.finalClaimBps != r.finalClaimBps) revert ClaimMismatch(n); // I-13
+        if (g.giver == address(0)) revert ZeroGiver(); // I-13
+        if (block.timestamp > g.deadline) revert ArtifactExpired(n); // I-2
+        if (g.deadline > h.expiry) revert DeadlineExceedsExpiry(n); // I-2
 
-        bytes32 ds = DOMAIN_SEPARATOR();
-        bytes32 giveHash = AHandSig.hashGive(give);
-        if (!_isValidSig(r.terminalCapability, AHandSig.digest(ds, giveHash), giveSig)) revert CapabilityProof();
-        // Giver acceptance is ALWAYS required — attribution and residual are consensual.
-        if (!_isValidSig(give.giver, AHandSig.digest(ds, AHandSig.hashGiverAcceptance(giveHash)), giverAcceptanceSig)) {
-            revert GiverAcceptanceInvalid();
+        bytes32 ds = _domainSeparatorV4();
+        bytes32 giveHash = AHandSig.hashGive(g);
+        if (!_isValidSig(r.terminalCapability, AHandSig.digest(ds, giveHash), t.capabilitySig)) {
+            revert CapabilityProof(n); // I-11
         }
+        // I-12: the giver's consent is always required, even when giver == terminal capability
+        bytes32 acceptanceDigest = AHandSig.digest(ds, AHandSig.hashGiverAcceptance(giveHash));
+        if (!_isValidSig(g.giver, acceptanceDigest, t.giverAcceptanceSig)) revert GiverAcceptanceInvalid();
         r.giveHash = giveHash;
     }
 
-    /// @dev One verifier for all four signature families (Shake, ShakerAcceptance,
-    ///      Give, GiverAcceptance). ECDSA first; if the signer has code, fall back
-    ///      to ERC-1271 via a MANUAL staticcall — mutation-proof by construction —
-    ///      capped at ERC1271_GAS so a hostile wallet cannot gas-bomb settlement.
-    /// @param signer The expected signer (EOA or ERC-1271 contract wallet).
-    /// @param digest The EIP-712 signing digest to validate against.
-    /// @param sig    The signature bytes.
-    /// @return True iff `sig` is a valid signature of `digest` by `signer`.
-    function _isValidSig(address signer, bytes32 digest, bytes memory sig) internal view returns (bool) {
-        (address recovered,,) = ECDSA.tryRecover(digest, sig);
-        if (recovered != address(0) && recovered == signer) return true;
+    /// @dev One verifier for all four signature families. ECDSA first (65 bytes,
+    ///      low-s, valid v; empty bytes never recover); then, only for a signer with
+    ///      code, a gas-capped, mutation-proof ERC-1271 `staticcall` with a fixed
+    ///      32-byte out buffer: the only accepted answer is the magic word.
+    /// @param signer The expected signer (EOA or contract).
+    /// @param digest The EIP-712 digest.
+    /// @param sig    The signature bytes (whatever the signer's verifier accepts).
+    /// @return ok    True iff `signer` validates `sig` over `digest`.
+    function _isValidSig(address signer, bytes32 digest, bytes calldata sig) private view returns (bool ok) {
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, sig);
+        if (err == ECDSA.RecoverError.NoError && recovered == signer) return true;
         if (signer.code.length == 0) return false;
-
-        bytes memory callData = abi.encodeWithSelector(ERC1271_MAGIC, digest, sig);
-        bool ok;
+        // I-15: staticcall, ≤ ERC1271_GAS, fixed out buffer, strict magic word
+        bytes memory cd = abi.encodeCall(IERC1271.isValidSignature, (digest, sig));
         assembly ("memory-safe") {
-            let success := staticcall(ERC1271_GAS, signer, add(callData, 0x20), mload(callData), 0x00, 0x20)
-            if and(success, gt(returndatasize(), 0x1f)) {
-                // Literal equals the ERC1271_MAGIC constant (0x1626ba7e); inlined
-                // here because a bytes4 constant is not referenceable inside Yul.
-                ok := eq(shr(224, mload(0x00)), 0x1626ba7e) // ERC-1271 magic value
-            }
+            let success := staticcall(ERC1271_GAS, signer, add(cd, 0x20), mload(cd), 0x00, 0x20)
+            ok := and(success, and(gt(returndatasize(), 0x1f), eq(shr(224, mload(0x00)), ERC1271_MAGIC_WORD)))
         }
-        return ok;
+    }
+
+    /*//////////////////// Delivery internals ////////////////////*/
+
+    /// @dev Deliver one allocation: a guarded push in an isolated frame, parking
+    ///      exactly `amount` as a claim if the frame fails. A zero amount is a no-op
+    ///      (zero-pot Hands, 0 % donation, zero residual).
+    /// @param handId   The Hand (for the event).
+    /// @param token    The token.
+    /// @param to       The recipient.
+    /// @param kind     The allocation kind.
+    /// @param position The allocation position.
+    /// @param amount   The allocation; no-op if zero.
+    function _pay(uint256 handId, address token, address to, AllocationKind kind, uint256 position, uint256 amount)
+        private
+    {
+        if (amount == 0) return;
+        // I-9: EIP-150 forwards at most 63/64 of what is left, so guarantee the frame its
+        // full budget — a caller cannot under-fund gas to park someone's share as a claim.
+        if (gasleft() < PUSH_GAS * 64 / 63 + PUSH_RESERVE) revert InsufficientGas();
+        if (_pushFrame(token, to, amount)) {
+            emit PayoutPushed(handId, token, to, kind, position, amount);
+        } else {
+            claims[token][to] += amount; // I-8: exactly this share, nothing else
+            emit PayoutDeferred(handId, token, to, kind, position, amount);
+        }
+    }
+
+    /// @dev The outer call of the frame, with `out = 0`: the parent never copies
+    ///      returndata, so a returndata bomb cannot inflate the parent's cost.
+    /// @param token  The token.
+    /// @param to     The recipient.
+    /// @param amount The exact amount.
+    /// @return ok    True iff the frame moved exactly `amount`.
+    function _pushFrame(address token, address to, uint256 amount) private returns (bool ok) {
+        bytes memory cd = abi.encodeCall(this.pushExact, (token, to, amount));
+        assembly ("memory-safe") {
+            ok := call(PUSH_GAS, address(), 0, add(cd, 0x20), mload(cd), 0, 0)
+        }
+    }
+
+    /// @dev Exit: the OpenZeppelin `safeTransfer` return rule (a reverting token
+    ///      bubbles its own data; a false, short or odd return reverts
+    ///      `SafeERC20FailedOperation`) AND an exact custody debit.
+    /// @param token  The token.
+    /// @param to     The recipient.
+    /// @param amount The exact amount.
+    function _transferExact(address token, address to, uint256 amount) private {
+        uint256 before = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(to, amount);
+        if (IERC20(token).balanceOf(address(this)) + amount != before) revert TransferInexact(); // I-7
+    }
+
+    /// @dev Entry (raise only): both the payer's debit and Core's receipt must equal
+    ///      `amount`, so sender-side fees or burns are rejected at the door and not
+    ///      discovered at every exit.
+    /// @param token  The token.
+    /// @param from   The payer.
+    /// @param amount The exact amount.
+    function _pullExact(address token, address from, uint256 amount) private {
+        uint256 fromBefore = IERC20(token).balanceOf(from);
+        uint256 coreBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransferFrom(from, address(this), amount);
+        if (IERC20(token).balanceOf(address(this)) != coreBefore + amount) revert InexactDeposit(); // I-5: receipt
+        if (IERC20(token).balanceOf(from) + amount != fromBefore) revert InexactDeposit(); // I-5: debit
+    }
+
+    /*//////////////////// Policy internals ////////////////////*/
+
+    /// @dev The one door into the allowlist, shared by the constructor and the
+    ///      setter: never zero, never this contract, never a no-op.
+    /// @param charity  The charity.
+    /// @param allowed  The new state.
+    /// @param revision The revision to log.
+    function _setCharityAllowed(address charity, bool allowed, uint64 revision) private {
+        if (charity == address(0)) revert ZeroAddress(); // I-20
+        if (charity == address(this)) revert CharityNotAllowed(); // I-20: Core never pays itself
+        if (charityAllowed[charity] == allowed) revert NoChange(); // I-20: revision counts real changes
+        charityAllowed[charity] = allowed;
+        emit CharityPolicyUpdated(charity, allowed, revision);
     }
 }

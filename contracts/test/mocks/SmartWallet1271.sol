@@ -24,11 +24,12 @@ contract SmartWallet1271 {
 /// @notice Burns every unit of gas it is handed — probes the verifier's
 ///         fixed 1271 gas cap. Callers without a cap never return.
 contract GasBomb1271 {
-    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
+    function isValidSignature(bytes32, bytes calldata) external view returns (bytes4) {
         uint256 spin;
-        while (true) {
+        while (gasleft() != 0) {
             spin = uint256(keccak256(abi.encode(spin)));
         }
+        return 0xffffffff; // never reached: the loop runs out of gas first
     }
 }
 

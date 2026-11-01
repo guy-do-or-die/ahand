@@ -2,433 +2,288 @@
 pragma solidity 0.8.35;
 
 /*//////////////////////////////////////////////////////////////
-                        aHand — Types
+                        aHand Core v2 — Types
 //////////////////////////////////////////////////////////////*/
 
 /// @title  AHandTypes
 /// @author aHand
-/// @notice Shared type surface for the aHand protocol: the enums, structs,
-///         errors and EIP-712 helpers that Core, Signals, the SDK and the
-///         indexers all agree on. No behaviour lives here — these are the
-///         frozen data shapes and the canonical hashing rules built on them.
-/// @dev    Struct field order and the EIP-712 type strings are FROZEN: the
-///         storage layout, the ABI and the off-chain signers all depend on
-///         them byte-for-byte. Changing a field order or a type string forks
-///         every signature ever produced.
+/// @notice The shared type surface of aHand Core v2: the enums, structs, errors and
+///         the narrow facts interface that Core, every reader, every signer, the SDK
+///         and the indexers agree on. No behaviour lives here.
+/// @dev    Enum order, struct field order and the `IAHandFacts` shape are FROZEN:
+///         enums are stored and compared numerically, the signed structs feed the
+///         EIP-712 type strings in `AHandSig`, `Hand` is the storage layout of this
+///         Core, and `HandFacts` is the layout-independent view a later Core must keep.
 
-/// @notice Lifecycle of a Hand. Enum order is FROZEN (values are stored on-chain
-///         and compared numerically).
-/// @dev    `None` is the zero default for an unraised slot; the three live states
-///         are mutually exclusive terminal-or-active. Transitions are one-way:
-///         None -> Active -> {Settled | Reclaimed}. `Settled` and `Reclaimed` are
-///         both terminal; Settled means a Thank paid the route, Reclaimed means
-///         the raiser was refunded after expiry.
+/*//////////////////////////////////////////////////////////////
+                              Enums
+//////////////////////////////////////////////////////////////*/
+
+/// @notice Lifecycle of a Hand. One-way: None → Active → {Settled | Reclaimed}.
+/// @dev    `None` is the zero default of an unraised id. `Settled` means a thank
+///         paid the route; `Reclaimed` means the raiser was refunded after expiry.
+///         Both are terminal and a Hand reaches exactly one of them, once.
 enum Status { None, Active, Settled, Reclaimed }
 
 /// @notice Discovery posture, frozen per Hand at raise.
-/// @dev    `Public`/`Preview` require a discovery ref + commitment; `Dark`
-///         forbids both and forbids tags. Enforced in AHandCore.raise.
+/// @dev    `Public` and `Preview` require a discovery ref and commitment; `Dark`
+///         forbids both and forbids tags. Core cannot tell Public from Preview.
 enum Visibility { Public, Preview, Dark }
 
-/// @notice Reason a claim was credited; carried by PayoutAllocated.
-/// @dev    `Charity` and `GiverResidual` fire once per settlement; `ShakerMargin`
-///         once per paid hop (routePosition meaningful); `RaiserRefund` once on reclaim.
+/// @notice The reason tag carried by every payout event.
+/// @dev    `Charity` and `GiverResidual` at most once per thank; `ShakerMargin` once
+///         per paid hop (the event position is the hop index); `RaiserRefund` once per
+///         reclaim. No member is ever added: new payout shapes live outside Core.
 enum AllocationKind { Charity, ShakerMargin, GiverResidual, RaiserRefund }
 
-/// @notice A single delegation hop, signed under EIP-712 by the parent capability.
-/// @dev    Field order is FROZEN (feeds SHAKE_TYPEHASH and hashShake). One Shake
-///         proves the parent handed a share down to `childCapability`; the margin
-///         it keeps is `parentClaimBps - childClaimBps`.
+/*//////////////////////////////////////////////////////////////
+                  Signed artifacts (EIP-712 structs)
+//////////////////////////////////////////////////////////////*/
+
+/// @notice One delegation hop, signed by the parent capability (the root capability
+///         for hop 0, then the previous hop's `childCapability`).
+/// @dev    Field order feeds `AHandSig.SHAKE_TYPEHASH`. Core cannot tell a bearer key
+///         from a personal wallet from a contract: a capability is any address that
+///         can sign. The hop keeps `parentClaimBps − childClaimBps` as its margin.
 struct Shake {
-    uint256 handId;
-    address childCapability; // bearer: fresh ephemeral key; personal: wallet of the recipient
-    address shaker;          // stable attributed account; zero = anonymous (zero-margin only)
-    uint16  parentClaimBps;  // = childClaim of the previous hop (honest display during signing)
-    uint16  childClaimBps;   // hop margin = parent − child
-    bytes32 hopDataHash;     // app-opaque commitment; zero = none
-    uint40  deadline;        // explicit, never past the Hand expiry
+    uint256 handId;           // the Hand this hop belongs to
+    address childCapability;  // the capability this hop delegates to; never zero
+    address shaker;           // attributed account; zero = anonymous (zero margin only)
+    uint16  parentClaimBps;   // == childClaimBps of the previous hop (10 000 at the root)
+    uint16  childClaimBps;    // margin = parent − child; never grows, never below the floor
+    bytes32 hopDataHash;      // app-opaque typed envelope; zero = none
+    uint40  deadline;         // now ≤ deadline ≤ Hand expiry at settlement
 }
 
-/// @notice Consent signed by a distinct attributed Shaker account, agreeing to
-///         its attribution and payout on a specific hop.
-/// @dev    Only the single `shakeHash` field is signed (see SHAKER_ACCEPTANCE_TYPEHASH);
-///         the deadline is inherited from the referenced Shake. Required only for an
-///         explicit shaker (distinct, non-zero, not the parent capability itself).
+/// @notice Consent of an explicit shaker to its attribution and payout on one hop.
+/// @dev    Required only when `shaker` is distinct from the signing capability and
+///         non-zero. Signs the Shake's struct hash, so it is bound to that exact hop.
 struct ShakerAcceptance {
-    bytes32 shakeHash;       // EIP-712 struct hash of the accepted Shake
+    bytes32 shakeHash;        // EIP-712 struct hash of the accepted Shake
 }
 
-/// @notice The terminal claim on a Hand, signed under EIP-712 by the last
-///         capability of the route.
-/// @dev    Field order is FROZEN (feeds GIVE_TYPEHASH and hashGive). `routeHash`
-///         pins the exact accepted route so no prefix of hops can be substituted,
-///         and `finalClaimBps` pins the giver's terminal share.
+/// @notice The terminal claim on a Hand, signed by the last capability of the route.
+/// @dev    Field order feeds `AHandSig.GIVE_TYPEHASH`. `routeHash` pins the exact
+///         route (no prefix or tail substitution); `finalClaimBps` pins the terminal
+///         claim; `solutionHash` is an off-chain salted commitment Core never reads.
 struct Give {
-    uint256 handId;
-    bytes32 routeHash;       // binds the complete accepted route — no tail substitution
-    address giver;
-    bytes32 solutionHash;
-    uint16  finalClaimBps;   // binds the giver signature to their terminal share
-    uint40  deadline;        // never past the Hand expiry
+    uint256 handId;           // the Hand this Give settles
+    bytes32 routeHash;        // hashRoute(handRef, ordered shakeHashes) of the exact route
+    address giver;            // the payee of the residual; never zero
+    bytes32 solutionHash;     // salted solution commitment, computed off-chain
+    uint16  finalClaimBps;    // == the terminal claim the route leaves
+    uint40  deadline;         // now ≤ deadline ≤ Hand expiry at settlement
 }
 
-/// @notice Consent signed by the Giver account, agreeing to its attribution and
-///         residual payout. ALWAYS required at settlement.
-/// @dev    Only the single `giveHash` field is signed (see GIVER_ACCEPTANCE_TYPEHASH);
-///         the deadline is inherited from the referenced Give.
+/// @notice Consent of the giver to its attribution and residual. ALWAYS required,
+///         even when the giver is the terminal capability itself.
+/// @dev    Signs the Give's struct hash, so it is bound to that exact Give.
 struct GiverAcceptance {
-    bytes32 giveHash;        // EIP-712 struct hash of the accepted Give
+    bytes32 giveHash;         // EIP-712 struct hash of the accepted Give
 }
 
-/// @notice Calldata inputs to AHandCore.raise. The policy fields snapshot into the
-///         Hand and are immutable for its entire life.
-/// @dev    Not a storage struct; passed by the raiser. `charityBps` must sit within
-///         [MIN_CHARITY_BPS, MAX_CHARITY_BPS] and `metadataCommitment` must be non-zero.
+/*//////////////////////////////////////////////////////////////
+                        Calldata carriers
+//////////////////////////////////////////////////////////////*/
+
+/// @notice One route hop as submitted to `thank`: the Shake and its proofs.
+/// @dev    `shakerAcceptanceSig` MUST be empty for anonymous and self-attributed hops;
+///         for an explicit shaker it is whatever that shaker's verifier accepts (an
+///         EOA needs a 65-byte signature; a contract decides, possibly on empty bytes).
+struct Hop {
+    Shake shake;
+    bytes capabilitySig;        // by the expected capability of this hop
+    bytes shakerAcceptanceSig;  // by the explicit shaker; empty otherwise
+}
+
+/// @notice The terminal of a route as submitted to `thank`: the Give and its proofs.
+struct Terminal {
+    Give  give;
+    bytes capabilitySig;        // by the terminal capability
+    bytes giverAcceptanceSig;   // by `give.giver`, always
+}
+
+/// @notice Inputs of `raise`. Every field is frozen into the Hand for its whole life.
+/// @dev    `token` is any ERC-20 and is zero iff `amount` is zero (a zero-pot Hand).
+///         `charityRecipient` is zero iff `charityBps` is zero; otherwise it must be
+///         allowlisted at raise time. `discoveryCommitment` is zero iff Dark.
 struct RaiseParams {
-    address    token;
-    uint96     amount;
-    uint40     expiry;
-    address    charityRecipient;
-    uint16     charityBps;        // within [MIN_CHARITY_BPS, MAX_CHARITY_BPS]
-    uint16     minGiverClaimBps;
-    address    rootCapability;
+    address    token;               // any ERC-20; address(0) iff amount == 0
+    uint256    amount;              // raw token units escrowed; no cap
+    uint40     expiry;              // > block.timestamp; final, never extended
+    address    charityRecipient;    // allowlisted iff charityBps > 0; zero iff charityBps == 0
+    uint16     charityBps;          // 0 ≤ bps ≤ MAX_CHARITY_BPS
+    uint16     minGiverClaimBps;    // 1 ≤ floor ≤ 10 000
+    address    rootCapability;      // non-zero; the route's first signer at 10 000 bps
     Visibility visibility;
-    bytes32    metadataCommitment;
-    bytes32    discoveryCommitment;
+    bytes32    metadataCommitment;  // mandatory per-Hand typed envelope
+    bytes32    discoveryCommitment; // zero iff Dark
 }
 
-/// @notice The full on-chain state of one Hand: escrow, policy snapshot and the
-///         settlement commitment Signals later verifies against.
-/// @dev    Storage layout is FROZEN and hand-packed into 7 slots (comments mark
-///         the boundaries) — the contract is deployed, so field order and widths
-///         must not change. `creditedReward` is written once at raise and NEVER
-///         zeroed (Signals rereads it after settlement); the outstanding liability
-///         is derived from `status`, not from zeroing the amount.
+/*//////////////////////////////////////////////////////////////
+                           Hand storage
+//////////////////////////////////////////////////////////////*/
+
+/// @notice The full on-chain state of one Hand, hand-packed into eight slots.
+/// @dev    Layout is FROZEN for this Core (apps and tests bind to `getHand`; contracts
+///         bind to `IAHandFacts` instead). `pool` is written once at raise and never
+///         zeroed: the liability keys on `status`. `closedAt` shares the status word,
+///         so recording the terminal time costs no extra slot. `settlementHash` is
+///         non-zero iff Settled; `closedAt` is non-zero iff terminal.
 struct Hand {
-    // slot 0
-    address    raiser;
-    uint40     expiry;
-    uint16     charityBps;
-    uint16     minGiverClaimBps;
+    // slot 0 — identity and lifecycle word (256 bits exactly)
+    address    raiser;              // funder, thank authority, refund destination
+    uint40     expiry;              // final
+    uint40     closedAt;            // 0 while Active; timestamp of thank or reclaim
     Visibility visibility;
     Status     status;
-    // slot 1 — creditedReward is a snapshot, never mutated; liability keys on status
-    address    rewardToken;
-    uint96     creditedReward;
+    // slot 1 — money terms (192 bits; the remaining 64 bits are unused forever)
+    address    token;               // per Hand; address(0) iff pool == 0
+    uint16     charityBps;          // 0..MAX_CHARITY_BPS
+    uint16     minGiverClaimBps;    // 1..10 000
     // slot 2
+    uint256    pool;                // P: the exact measured deposit; never zeroed
+    // slot 3 — never written when charityBps == 0
     address    charityRecipient;
-    uint64     usdScaleAtRaise;
-    // slot 3
+    // slot 4
     address    rootCapability;
-    // slots 4–6
-    bytes32    metadataCommitment;
+    // slot 5
+    bytes32    metadataCommitment;  // mandatory
+    // slot 6 — never written in Dark
     bytes32    discoveryCommitment;
-    bytes32    thankSignalSourceHash; // zero until Thank; stays zero on Reclaim
-}
-
-/// @notice Optional context attached to a voluntary Up. It enriches the emitted
-///         event only; it is never a balance dimension and cannot change amounts.
-/// @dev    At least one field must be non-zero (AHandSignals.up reverts ZeroContext
-///         otherwise). `handId` zero means "none"; when set it implicitly references
-///         HandRef(chainid, sourceCore, handId).
-struct UpContext {
-    uint256 handId;          // zero = none; implicitly HandRef(chainid, sourceCore, handId)
-    bytes32 reasonTag;
-    bytes32 evidenceHash;
+    // slot 7 — written once by thank; stays zero on reclaim
+    bytes32    settlementHash;
 }
 
 /*//////////////////////////////////////////////////////////////
-                            Errors
+                              Errors
 //////////////////////////////////////////////////////////////*/
 
-/// @notice A reentrant call was detected by the transient-storage guard.
-error Reentrancy();
-/// @notice A required address argument was the zero address.
+// ---- raise ----
+
+/// @notice A required address was the zero address (root capability, policy admin, charity).
 error ZeroAddress();
-/// @notice A signal burn/spend exceeded the holder's balance.
-error InsufficientBalance();
-/// @notice An Up spend exceeded the caller's spendable (earned) balance.
-error InsufficientEarned();
-/// @notice Two positional arrays that must match length did not.
-error LengthMismatch();
-/// @notice acceptPolicyAdmin was called by an account that is not the pending admin.
-error NotPendingOwner();
-
-/// @notice A signed artifact references a different Hand than the one being settled.
-error WrongHand();
-/// @notice A signature did not recover to (or ERC-1271-validate as) the expected capability.
-error CapabilityProof();          // signature not from the expected capability
-/// @notice A hop's parentClaimBps did not equal the previous hop's childClaimBps.
-error ClaimMismatch();            // parentClaim != childClaim of the previous hop
-/// @notice A hop's child claim exceeded its parent claim (margins must telescope down).
-error ClaimMustNotGrow();         // telescopic margins
-/// @notice A hop's child claim fell below the Hand's minGiverClaimBps floor.
-error ClaimBelowFloor();          // < minGiverClaimBps
-/// @notice A Shake or Give deadline had already passed at settlement time.
-error TicketExpired();
-/// @notice A Shake or Give deadline was set later than the Hand's own expiry.
-error DeadlineExceedsExpiry();
-/// @notice The submitted route carried more than MAX_SHAKES hops.
-error RouteTooLong();             // > MAX_SHAKES
-/// @notice thank was authorized by an account other than the Hand's raiser.
-error NotRaiser();
-/// @notice The Hand is not Active (already settled, reclaimed, or never raised).
-error NotActive();                // settle-once
-/// @notice reclaim was called before the Hand's expiry.
-error NotExpired();
-/// @notice thank was called at or after the Hand's expiry (that window is reclaim's).
-error Expired();                  // thank at or after expiry
-/// @notice The chosen charity recipient is not on the allowlist.
-error CharityNotWhitelisted();
-/// @notice A zero amount was supplied where a positive value is required.
-error ZeroAmount();
-/// @notice A parameter fell outside the constitutional bounds (bps, expiry, decimals).
-error BoundsViolated();           // parameters outside of the constitutional boundaries
-
-/// @notice A policy-only function was called by an account other than policyAdmin.
-error OnlyPolicyAdmin();
-/// @notice A new raise was attempted while the reward token is disabled.
-error TokenNotEnabled();
-/// @notice RaiseParams.token did not equal the single immutable reward token.
-error TokenMismatch();
-/// @notice The measured deposit delta did not equal the declared amount (fee-on-transfer rejected).
-error InexactDeposit();           // received delta != declared amount (fee-on-transfer rejected)
-/// @notice The charity split floored to zero — the charity would receive nothing.
+/// @notice `amount` and `token` disagree about being zero: a zero pot has no token and vice versa.
+error ZeroPotTerms();
+/// @notice `charityBps` exceeds MAX_CHARITY_BPS, or `minGiverClaimBps` is outside 1..10 000.
+error BoundsViolated();
+/// @notice A charity recipient was supplied although `charityBps` is zero.
+error UnexpectedCharityRecipient();
+/// @notice The charity recipient is not on the allowlist (also: it can never be zero or Core).
+error CharityNotAllowed();
+/// @notice A declared donation would pay nothing: floor(amount · charityBps / 10 000) == 0.
 error ZeroCharityAllocation();
-/// @notice The distributable pool (amount − charity) floored to zero — nothing left to route.
-error ZeroDistributable();
-/// @notice A paid hop (margin > 0) carried an anonymous (zero) shaker.
-error AnonymousShakerWithMargin();
-/// @notice An explicit shaker's ShakerAcceptance signature was missing or invalid.
-error ShakerAcceptanceInvalid();
-/// @notice An anonymous or self-attributed hop carried acceptance bytes it must not.
-error UnexpectedAcceptance();     // self/anonymous entry carrying acceptance bytes
-/// @notice A hop's margin floored to a zero token allocation (dust hop).
-error MarginRoundsToZero();
-/// @notice Give.routeHash did not match the hash of the verified route.
-error RouteHashMismatch();
-/// @notice The Giver's acceptance signature was missing or invalid.
-error GiverAcceptanceInvalid();
-/// @notice The discovery ref / commitment / tags were inconsistent with the visibility.
+/// @notice `expiry` is not strictly in the future.
+error ExpiryInPast();
+/// @notice The metadata commitment, discovery ref, discovery commitment and tags are
+///         inconsistent with the chosen visibility.
 error InvalidVisibilityData();
-/// @notice Public tags were not strictly ascending, unique, non-zero, or within bound.
+/// @notice More than MAX_PUBLIC_TAGS tags, or tags not strictly ascending (hence not unique/non-zero).
 error TagsInvalid();
-/// @notice A withdraw found no claim credited to (token, beneficiary).
+/// @notice The measured deposit did not move exactly `amount` on both the payer and Core.
+error InexactDeposit();
+
+// ---- thank / reclaim: Hand state ----
+
+/// @notice The Hand is not Active (never raised, already settled, or already reclaimed).
+error NotActive();
+/// @notice `thank` was called at or after expiry (that window belongs to reclaim).
+error HandExpired();
+/// @notice `reclaim` was called before expiry.
+error HandNotExpired();
+/// @notice `thank` was called by an account other than the Hand's raiser.
+error NotRaiser();
+
+// ---- thank: route walk (position = hop index; hops.length names the Give) ----
+
+/// @notice The artifact at `position` references a different Hand.
+error WrongHand(uint256 position);
+/// @notice The Shake at `position` delegates to the zero address (a dead end).
+error ZeroCapability(uint256 position);
+/// @notice The artifact at `position` was not signed by the expected capability.
+error CapabilityProof(uint256 position);
+/// @notice The claim entering `position` does not equal the claim the previous hop left
+///         (or, for the Give, the terminal claim of the route).
+error ClaimMismatch(uint256 position);
+/// @notice The child claim at `position` exceeds its parent claim.
+error ClaimMustNotGrow(uint256 position);
+/// @notice The child claim at `position` is below the Hand's giver floor.
+error ClaimBelowFloor(uint256 position);
+/// @notice The artifact at `position` has a deadline already in the past.
+error ArtifactExpired(uint256 position);
+/// @notice The artifact at `position` has a deadline later than the Hand's expiry.
+error DeadlineExceedsExpiry(uint256 position);
+/// @notice The hop at `position` keeps a margin but names no shaker.
+error AnonymousShakerWithMargin(uint256 position);
+/// @notice The hop at `position` keeps a margin that floors to zero token units.
+error MarginRoundsToZero(uint256 position);
+/// @notice The explicit shaker at `position` did not validate its ShakerAcceptance.
+error ShakerAcceptanceInvalid(uint256 position);
+/// @notice An anonymous or self-attributed hop at `position` carried acceptance bytes.
+error UnexpectedAcceptance(uint256 position);
+
+// ---- thank: Give ----
+
+/// @notice `Give.routeHash` is not the hash of the verified route.
+error RouteHashMismatch();
+/// @notice `Give.giver` is the zero address.
+error ZeroGiver();
+/// @notice The giver did not validate its GiverAcceptance.
+error GiverAcceptanceInvalid();
+
+// ---- delivery ----
+
+/// @notice Too little gas remains to give a push frame its full budget (the whole
+///         transaction reverts so a caller can never starve a push into deferral).
+error InsufficientGas();
+/// @notice A transfer did not debit Core's custody by exactly `amount`.
+error TransferInexact();
+/// @notice `pushExact` was called by an account other than Core itself.
+error OnlySelf();
+/// @notice `withdraw` found no claim for (token, beneficiary).
 error ZeroClaim();
 
-// Signals
-/// @notice materializeThank was called for a Hand that is not in the Settled state.
-error NotSettled();
-/// @notice The source key for this materialization was already processed.
-error AlreadyMaterialized();
-/// @notice Rebuilt commitment did not match the Hand's stored thankSignalSourceHash.
-error SourceCommitmentMismatch();
-/// @notice An Up targeted the caller itself.
-error SelfTarget();
-/// @notice An Up supplied a UpContext with every field zero.
-error ZeroContext();
+// ---- policy ----
+
+/// @notice A policy function was called by an account other than `policyAdmin`.
+error OnlyPolicyAdmin();
+/// @notice `acceptPolicyAdmin` was called by an account other than `pendingPolicyAdmin`.
+error NotPendingAdmin();
+/// @notice The policy call would change nothing (same allowlist value, same nomination).
+error NoChange();
 
 /*//////////////////////////////////////////////////////////////
-        EIP-712 — shared between core, SDK and tests
+                       The stable facts interface
 //////////////////////////////////////////////////////////////*/
 
-/// @title  AHandSig
+/// @title  IAHandFacts
 /// @author aHand
-/// @notice The canonical EIP-712 hashing rules for aHand's four signature
-///         families (Shake, ShakerAcceptance, Give, GiverAcceptance) plus the
-///         route and Hand identities they build on.
-/// @dev    The type strings are FROZEN literals and MUST byte-match the SDK and
-///         the tests — the type hash is keccak256 of the exact string, so a single
-///         character change forks every signature. The domain uses name "aHand",
-///         version "2".
-library AHandSig {
-    /// @dev EIP-712 typeHash for the Shake struct. Frozen literal — must byte-match the SDK.
-    bytes32 internal constant SHAKE_TYPEHASH = keccak256(
-        "Shake(uint256 handId,address childCapability,address shaker,uint16 parentClaimBps,uint16 childClaimBps,bytes32 hopDataHash,uint40 deadline)"
-    );
-    /// @dev EIP-712 typeHash for the ShakerAcceptance struct.
-    bytes32 internal constant SHAKER_ACCEPTANCE_TYPEHASH = keccak256(
-        "ShakerAcceptance(bytes32 shakeHash)"
-    );
-    /// @dev EIP-712 typeHash for the Give struct. Frozen literal — must byte-match the SDK.
-    bytes32 internal constant GIVE_TYPEHASH = keccak256(
-        "Give(uint256 handId,bytes32 routeHash,address giver,bytes32 solutionHash,uint16 finalClaimBps,uint40 deadline)"
-    );
-    /// @dev EIP-712 typeHash for the GiverAcceptance struct.
-    bytes32 internal constant GIVER_ACCEPTANCE_TYPEHASH = keccak256(
-        "GiverAcceptance(bytes32 giveHash)"
-    );
-    /// @dev Reserved for the relayed-submission extension; no entry point consumes it yet.
-    bytes32 internal constant THANK_PERMIT_TYPEHASH = keccak256(
-        "ThankPermit(uint256 handId,bytes32 routeHash,bytes32 giveHash,uint256 nonce,uint40 deadline)"
-    );
-
-    /// @notice The EIP-712 domain separator binding signatures to this chain and core.
-    /// @dev    Recomputed from live block.chainid, so callers can cache it while
-    ///         staying fork-safe (see AHandCore.DOMAIN_SEPARATOR).
-    /// @param  core The verifying contract address to bind into the domain.
-    /// @return The domain separator for (name "aHand", version "2", chainId, core).
-    function domainSeparator(address core) internal view returns (bytes32) {
-        return keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256(bytes("aHand")),
-            keccak256(bytes("2")),
-            block.chainid,
-            core
-        ));
+/// @notice The STABLE read interface contracts bind to. It carries every Raise-time
+///         fact and both terminal facts (`closedAt`, `settlementHash`), so a reader
+///         never needs the layout-coupled `getHand`. A later Core may re-layout
+///         `Hand` and still implement this interface unchanged.
+/// @dev    Implemented by `AHandCore.facts`. Pure storage read; no external calls.
+interface IAHandFacts {
+    /// @notice Every authenticated fact of one Hand. Frozen shape.
+    struct HandFacts {
+        Status     status;
+        address    raiser;
+        address    token;
+        uint256    pool;
+        uint16     charityBps;
+        address    charityRecipient;
+        uint16     minGiverClaimBps;
+        address    rootCapability;
+        uint40     expiry;
+        uint40     closedAt;
+        Visibility visibility;
+        bytes32    metadataCommitment;
+        bytes32    discoveryCommitment;
+        bytes32    settlementHash;
     }
 
-    /// @notice EIP-712 struct hash of a Shake (the shakeHash used everywhere).
-    /// @dev    Deliberately excludes signature bytes — this is the identity a
-    ///         ShakerAcceptance and the route hash reference.
-    /// @param  s The Shake to hash.
-    /// @return The EIP-712 hashStruct(Shake).
-    function hashShake(Shake memory s) internal pure returns (bytes32) {
-        return keccak256(abi.encode(
-            SHAKE_TYPEHASH, s.handId, s.childCapability, s.shaker,
-            s.parentClaimBps, s.childClaimBps, s.hopDataHash, s.deadline
-        ));
-    }
-
-    /// @notice EIP-712 struct hash of a ShakerAcceptance over a given shakeHash.
-    /// @param  shakeHash The hashStruct(Shake) the shaker consents to.
-    /// @return The EIP-712 hashStruct(ShakerAcceptance).
-    function hashShakerAcceptance(bytes32 shakeHash) internal pure returns (bytes32) {
-        return keccak256(abi.encode(SHAKER_ACCEPTANCE_TYPEHASH, shakeHash));
-    }
-
-    /// @notice EIP-712 struct hash of a Give (the giveHash used everywhere).
-    /// @param  g The Give to hash.
-    /// @return The EIP-712 hashStruct(Give).
-    function hashGive(Give memory g) internal pure returns (bytes32) {
-        return keccak256(abi.encode(
-            GIVE_TYPEHASH, g.handId, g.routeHash, g.giver,
-            g.solutionHash, g.finalClaimBps, g.deadline
-        ));
-    }
-
-    /// @notice EIP-712 struct hash of a GiverAcceptance over a given giveHash.
-    /// @param  giveHash The hashStruct(Give) the giver consents to.
-    /// @return The EIP-712 hashStruct(GiverAcceptance).
-    function hashGiverAcceptance(bytes32 giveHash) internal pure returns (bytes32) {
-        return keccak256(abi.encode(GIVER_ACCEPTANCE_TYPEHASH, giveHash));
-    }
-
-    /// @notice Canonical Hand reference — one identity across contracts, SDK and indexers.
-    /// @dev    Binds chain and core so the same handId on another chain/core is a
-    ///         distinct reference. Feeds hashRoute and the Signals source keys.
-    /// @param  core   The core contract that owns the Hand.
+    /// @notice The facts of `handId` (an all-zero struct with `status == None` if never raised).
     /// @param  handId The Hand id.
-    /// @return keccak256(abi.encode(chainId, core, handId)).
-    function handRef(address core, uint256 handId) internal view returns (bytes32) {
-        return keccak256(abi.encode(block.chainid, core, handId));
-    }
-
-    /// @notice Route identity: ordered shake struct hashes under the Hand reference.
-    ///         Signature bytes deliberately excluded — malleability cannot rename a route.
-    /// @dev    An empty `shakeHashes` array is valid: the zero-shake (direct) route.
-    /// @param  handRef_    The canonical Hand reference from handRef.
-    /// @param  shakeHashes The ordered list of hashStruct(Shake), route order.
-    /// @return keccak256(abi.encode(handRef_, shakeHashes)).
-    function hashRoute(bytes32 handRef_, bytes32[] memory shakeHashes) internal pure returns (bytes32) {
-        return keccak256(abi.encode(handRef_, shakeHashes));
-    }
-
-    /// @notice EIP-712 signing digest: the 0x1901 envelope over a struct hash.
-    /// @param  ds         The domain separator.
-    /// @param  structHash The EIP-712 hashStruct of the signed artifact.
-    /// @return keccak256(0x1901 || ds || structHash) — the value that is signed/recovered.
-    function digest(bytes32 ds, bytes32 structHash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", ds, structHash));
-    }
-}
-
-/*//////////////////////////////////////////////////////////////
-        Signals source domains — typed, collision-free keys
-//////////////////////////////////////////////////////////////*/
-
-/// @title  AHandSource
-/// @author aHand
-/// @notice The domain-tagged keys and commitment Signals uses to pull settled
-///         facts out of Core. Keeping the keys typed and chain/core-bound makes a
-///         source key mean exactly one event forever.
-/// @dev    `thankCommitment` is computed identically by Core at settlement (stored
-///         in Hand.thankSignalSourceHash) and by Signals at materialization
-///         (recomputed and compared) — the two call sites MUST stay in lockstep.
-library AHandSource {
-    /// @dev Domain tag for the RAISED receipt source key.
-    bytes32 internal constant RAISED_SOURCE = keccak256("aHand.signals.source.raised.v1");
-    /// @dev Domain tag for the THANK settlement source key and commitment.
-    bytes32 internal constant THANK_SOURCE  = keccak256("aHand.signals.source.thank.v1");
-
-    /// @notice Idempotence key for the RAISED materialization of a Hand.
-    /// @param  core   The source core address.
-    /// @param  handId The Hand id.
-    /// @return keccak256(abi.encode(RAISED_SOURCE, chainId, core, handId)).
-    function raisedKey(address core, uint256 handId) internal view returns (bytes32) {
-        return keccak256(abi.encode(RAISED_SOURCE, block.chainid, core, handId));
-    }
-
-    /// @notice Idempotence key for the THANK materialization of a Hand.
-    /// @param  core   The source core address.
-    /// @param  handId The Hand id.
-    /// @return keccak256(abi.encode(THANK_SOURCE, chainId, core, handId)).
-    function thankKey(address core, uint256 handId) internal view returns (bytes32) {
-        return keccak256(abi.encode(THANK_SOURCE, block.chainid, core, handId));
-    }
-
-    /// @notice Commitment binding the Thank settlement facts Signals later verifies.
-    ///         Occurrence arrays keep route order and preserve anonymous zeros.
-    /// @dev    Core stores the result in Hand.thankSignalSourceHash at settlement;
-    ///         Signals recomputes it from the same inputs and requires equality
-    ///         (SourceCommitmentMismatch). Anonymous hops are encoded as zero
-    ///         addresses so route order and length round-trip exactly.
-    /// @param  core               The source core address.
-    /// @param  handId             The Hand id.
-    /// @param  raiser             The Hand's raiser.
-    /// @param  giver              The settled giver.
-    /// @param  charityTokenAmount The floored charity allocation in token units.
-    /// @param  usdScaleAtRaise    The raise-time USD scale snapshot.
-    /// @param  occShakers         Per-hop attributed shaker, route order (zero = anonymous).
-    /// @param  occClaimDeltas     Per-hop margin bps, route order.
-    /// @return The Thank source commitment hash.
-    function thankCommitment(
-        address core,
-        uint256 handId,
-        address raiser,
-        address giver,
-        uint96  charityTokenAmount,
-        uint64  usdScaleAtRaise,
-        address[] memory occShakers,
-        uint16[]  memory occClaimDeltas
-    ) internal view returns (bytes32) {
-        return keccak256(abi.encode(
-            THANK_SOURCE, block.chainid, core, handId,
-            raiser, giver, charityTokenAmount, usdScaleAtRaise,
-            keccak256(abi.encodePacked(occShakers)),
-            keccak256(abi.encodePacked(occClaimDeltas))
-        ));
-    }
-}
-
-/// @notice The minimal ERC-20 surface Core needs from the reward token.
-/// @dev    `decimals` is read once at construction to validate `usdScale`; the
-///         value transfer paths use OpenZeppelin SafeERC20 over the full IERC20.
-interface IERC20Minimal {
-    function transfer(address to, uint256 amt) external returns (bool);
-    function transferFrom(address from, address to, uint256 amt) external returns (bool);
-    function balanceOf(address a) external view returns (uint256);
-    function decimals() external view returns (uint8);
-}
-
-/// @notice Read surface Signals depends on; an explicit struct getter avoids
-///         the auto-getter tuple fragility that positional decoding invites.
-/// @dev    Implemented by AHandCore.getHand. Signals holds only this view
-///         interface over an immutable core address — the coupling is one-way
-///         and read-only, so Signals can never touch escrowed value.
-interface IAHandCoreView {
-    /// @notice The full Hand snapshot for `handId` (zeroed struct if never raised).
-    /// @param  handId The Hand id to read.
-    /// @return The Hand storage struct by value.
-    function getHand(uint256 handId) external view returns (Hand memory);
+    /// @return The frozen facts snapshot.
+    function facts(uint256 handId) external view returns (HandFacts memory);
 }
