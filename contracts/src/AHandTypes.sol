@@ -161,7 +161,7 @@ struct Hand {
 
 // ---- raise ----
 
-/// @notice A required address was the zero address (root capability, policy admin, charity).
+/// @notice A required address was the zero address (in Core: root capability, policy admin, charity).
 error ZeroAddress();
 /// @notice `amount` and `token` disagree about being zero: a zero pot has no token and vice versa.
 error ZeroPotTerms();

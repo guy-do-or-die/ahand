@@ -80,6 +80,12 @@ contract AHandSignalsV2 {
     /// @notice One whole Up in base units.
     uint256 public constant ONE_UP = 1e9;
 
+    /// @dev Level rings of `levelOf` in whole Up held: the D39 option text, interim.
+    uint256 private constant LEVEL_1_UP = 1;
+    uint256 private constant LEVEL_2_UP = 5;
+    uint256 private constant LEVEL_3_UP = 25;
+    uint256 private constant LEVEL_4_UP = 100;
+
     /// @notice Role bit of a Raiser credit in `EarnedUpMaterialized.roleMask`.
     uint8 public constant ROLE_RAISER = 1 << 0;
     /// @notice Role bit of a Giver credit in `EarnedUpMaterialized.roleMask`.
@@ -340,8 +346,11 @@ contract AHandSignalsV2 {
     /// @notice Give `target` a Down, voluntarily burning `amount` base units of the
     ///         caller's own earned Up (zero allowed). Mints one DOWN to the target.
     /// @dev    Open to any Thank participant: the caller must hold at least one
-    ///         THANKED, GIVEN or SHAKEN receipt. The burned amount is the issuer's
-    ///         stake behind the Down; apps weigh a zero-burn Down as they see fit.
+    ///         THANKED, GIVEN or SHAKEN receipt (the §16 #33 interim, binding for this
+    ///         deployment). The gate is nominal — a receipt costs only the gas of a
+    ///         zero-pot Hand its raiser thanks to itself — so it marks the caller as a
+    ///         participant, not as trustworthy. The burned amount is the issuer's
+    ///         stake behind the Down; apps weigh a zero-burn Down as they see fit (D14).
     /// @param  target The account receiving the Down: not zero, not the caller.
     /// @param  amount Earned Up to burn, in base units; may be zero.
     /// @param  ctx    Context; at least one field non-zero.
@@ -399,17 +408,21 @@ contract AHandSignalsV2 {
             || _balances[SIGNAL_SHAKEN][account] != 0;
     }
 
-    /// @notice The level ring of an account by its whole Up held (earned and received):
-    ///         0 below 1 Up, then rings at 1, 5, 25 and 100 Up. The display surface
-    ///         of D39: roles and levels, never the raw number.
+    /// @notice The level ring of an account by its whole Up held, earned and received:
+    ///         0 below `LEVEL_1_UP`, then one ring per `LEVEL_n_UP` threshold. The
+    ///         display surface of D39 — roles and levels, never the raw number — and a
+    ///         provenance display only: received Up counts, and the floor-sqrt curve is
+    ///         sub-additive per account, so one donation split across many giver
+    ///         accounts lifts a target further than one giver could (S18). Apps must
+    ///         not present a level as a sybil-resistant score.
     /// @param  account The account.
     /// @return level 0..4.
     function levelOf(address account) external view returns (uint8 level) {
         uint256 wholeUp = _balances[SIGNAL_UP][account] / ONE_UP;
-        if (wholeUp >= 100) return 4;
-        if (wholeUp >= 25) return 3;
-        if (wholeUp >= 5) return 2;
-        if (wholeUp >= 1) return 1;
+        if (wholeUp >= LEVEL_4_UP) return 4;
+        if (wholeUp >= LEVEL_3_UP) return 3;
+        if (wholeUp >= LEVEL_2_UP) return 2;
+        if (wholeUp >= LEVEL_1_UP) return 1;
         return 0;
     }
 
