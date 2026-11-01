@@ -99,8 +99,9 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
     ///         event and the call overhead, so a passing guard also records the outcome.
     uint256 public constant PUSH_RESERVE = 30_000;
 
-    /// @dev `bytes4(IERC1271.isValidSignature.selector)` as a word: the only accepted
-    ///      ERC-1271 answer. A `bytes4` constant is not referenceable inside Yul.
+    /// @dev `IERC1271.isValidSignature.selector` as a right-aligned word, so the verifier
+    ///      compares `shr(224, returnword)` against it without a second shift. The only
+    ///      accepted ERC-1271 answer.
     uint256 private constant ERC1271_MAGIC_WORD = 0x1626ba7e;
 
     /*//////////////////// Storage (order frozen) ////////////////////*/
@@ -570,7 +571,9 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
 
         h.status = Status.Reclaimed; // I-1: terminal once
         h.closedAt = SafeCast.toUint40(block.timestamp); // same slot as status
-        (address token, address raiser, uint256 pool) = (h.token, h.raiser, h.pool);
+        address token = h.token;
+        address raiser = h.raiser;
+        uint256 pool = h.pool;
 
         emit Reclaimed(handId, raiser, token, pool);
         if (pool != 0) emit PayoutAllocated(handId, token, raiser, AllocationKind.RaiserRefund, 0, pool);
