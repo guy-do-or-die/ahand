@@ -1536,6 +1536,21 @@ contract AHandV2SignalsTest is AHandTestBase {
         assertEq(uint8(statusOf(h3)), uint8(Status.Reclaimed));
     }
 
+    /// Signals' runtime calls out through STATICCALL alone — the Core's `facts`, once per
+    /// materializer — and holds no CALL, DELEGATECALL, CALLCODE, CREATE, CREATE2 or
+    /// SELFDESTRUCT: nothing in the periphery can move a token or reach Core's mutators.
+    /// (`decimals()` is read in the constructor, which is not in the runtime.)
+    function test_I26_RuntimeOpcodes_StaticcallOnly() public view {
+        bytes memory code = address(signals).code;
+        assertEq(opcodeCount(code, 0xf1), 0, "CALL");
+        assertEq(opcodeCount(code, 0xf4), 0, "DELEGATECALL");
+        assertEq(opcodeCount(code, 0xf2), 0, "CALLCODE");
+        assertEq(opcodeCount(code, 0xf0), 0, "CREATE");
+        assertEq(opcodeCount(code, 0xf5), 0, "CREATE2");
+        assertEq(opcodeCount(code, 0xff), 0, "SELFDESTRUCT");
+        assertEq(opcodeCount(code, 0xfa), 2, "STATICCALL: facts() in materializeRaised and materializeThank");
+    }
+
     function test_I26_UnbuildableSignalsDoesNotBlockSettlement() public {
         // a profile that cannot be deployed over this token changes nothing for the Hand
         NoDecimalsToken nd = new NoDecimalsToken();

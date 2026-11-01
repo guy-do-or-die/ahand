@@ -78,6 +78,10 @@ contract AHandV2SurfaceTest is AHandTestBase {
     uint256 constant SLOT_CLAIMS = 7;
     uint256 constant HAND_SLOTS = 8;
 
+    /*──────────────── I-18 opcode fingerprint of the frozen build (cast disassemble, metadata stripped) ────────────────*/
+    uint256 constant CORE_CALL_SITES = 6;
+    uint256 constant CORE_STATICCALL_SITES = 8;
+
     /*──────────────── Appendix A selector inventory (forge inspect AHandCore methodIdentifiers) ────────────────*/
     string[25] SURFACE = [
         "BPS_DENOMINATOR()",
@@ -1398,6 +1402,28 @@ contract AHandV2SurfaceTest is AHandTestBase {
     }
 
     /*//////////////////////////////////////////////////////////
+                11. H2' statically (I-18): the opcode inventory of the runtime
+    //////////////////////////////////////////////////////////*/
+
+    /// Every path, not one thank: Core's runtime holds no DELEGATECALL, CALLCODE, CREATE,
+    /// CREATE2 or SELFDESTRUCT, and exactly the CALL / STATICCALL sites of the call-graph
+    /// inventory (token `transfer`/`transferFrom` and the self frame; token `balanceOf`,
+    /// `ecrecover` and signer `isValidSignature`). via-IR duplicates the SafeERC20 and
+    /// `balanceOf` bodies per caller, so the counts are a fingerprint of the frozen build
+    /// (solc 0.8.35, via-IR, 200 runs): a changed count is a new or moved call site and
+    /// the inventory is re-done before it is accepted.
+    function test_I18_RuntimeOpcodes_NoForbiddenCalls_CallSitesPinned() public view {
+        bytes memory code = address(core).code;
+        assertEq(opcodeCount(code, 0xf4), 0, "DELEGATECALL");
+        assertEq(opcodeCount(code, 0xf2), 0, "CALLCODE");
+        assertEq(opcodeCount(code, 0xf0), 0, "CREATE");
+        assertEq(opcodeCount(code, 0xf5), 0, "CREATE2");
+        assertEq(opcodeCount(code, 0xff), 0, "SELFDESTRUCT");
+        assertEq(opcodeCount(code, 0xf1), CORE_CALL_SITES, "CALL sites");
+        assertEq(opcodeCount(code, 0xfa), CORE_STATICCALL_SITES, "STATICCALL sites");
+    }
+
+    /*//////////////////////////////////////////////////////////
                                 helpers
     //////////////////////////////////////////////////////////*/
 
@@ -1440,11 +1466,7 @@ contract AHandV2SurfaceTest is AHandTestBase {
     /// Opcode walk over runtime code (metadata stripped): every `PUSH4 x` immediately
     /// followed by `EQ` is a selector comparison of the dispatcher. Distinct values.
     function _dispatchTable(bytes memory code) internal pure returns (bytes4[] memory table) {
-        uint256 end = code.length;
-        if (end >= 2) {
-            uint256 metaLen = (uint256(uint8(code[end - 2])) << 8) | uint256(uint8(code[end - 1]));
-            if (metaLen + 2 <= end) end -= metaLen + 2;
-        }
+        uint256 end = runtimeEnd(code);
         bytes4[] memory found = new bytes4[](end / 6 + 1);
         uint256 n;
         uint256 i;

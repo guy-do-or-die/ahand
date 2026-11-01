@@ -638,4 +638,27 @@ contract AHandTestBase is Test {
         }
         out[arr.length] = hop;
     }
+
+    /*//////////////////// runtime bytecode (I-18 static gates) ////////////////////*/
+
+    /// @dev Length of `code` without its trailing CBOR metadata (whose last two bytes hold its length).
+    function runtimeEnd(bytes memory code) internal pure returns (uint256 end) {
+        end = code.length;
+        if (end >= 2) {
+            uint256 metaLen = (uint256(uint8(code[end - 2])) << 8) | uint256(uint8(code[end - 1]));
+            if (metaLen + 2 <= end) end -= metaLen + 2;
+        }
+    }
+
+    /// @dev Occurrences of opcode `op` in the runtime `code`: a linear walk that skips
+    ///      PUSH immediates and the metadata, so every byte counted is an instruction.
+    function opcodeCount(bytes memory code, uint8 op) internal pure returns (uint256 n) {
+        uint256 end = runtimeEnd(code);
+        uint256 i;
+        while (i < end) {
+            uint8 current = uint8(code[i]);
+            if (current == op) ++n;
+            i += (current >= 0x60 && current <= 0x7f) ? 1 + (current - 0x5f) : 1;
+        }
+    }
 }
