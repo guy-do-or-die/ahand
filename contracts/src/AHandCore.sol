@@ -455,14 +455,16 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
         // Phase A — checks and verification: storage reads, pure hashing, ECDSA and
         // gas-capped staticcalls; zero mutation.
         if (h.status != Status.Active) revert NotActive(); // I-1
-        if (block.timestamp >= h.expiry) revert HandExpired(); // I-2: expiry itself belongs to reclaim
+        uint40 expiry = h.expiry;
+        if (block.timestamp >= expiry) revert HandExpired(); // I-2: expiry itself belongs to reclaim
         address raiser = h.raiser;
         if (msg.sender != raiser) revert NotRaiser(); // I-10
         uint256 pool = h.pool;
         uint256 charity = AHandMath.cut(pool, h.charityBps); // I-3: charity first, from P
         uint256 distributable = pool - charity;
-        RouteFacts memory r = _verifyRoute(h, handId, hops, distributable);
-        _verifyGive(h, handId, t, r);
+        address rootCapability = h.rootCapability;
+        RouteFacts memory r = _verifyRoute(handId, hops, distributable, rootCapability, h.minGiverClaimBps, expiry);
+        _verifyGive(handId, t, r, expiry);
 
         // Phase B — pure: the giver takes the residual, so P == C + Σ A_i + G exactly.
         uint256 residual = distributable - r.marginTotal; // I-3, I-4
@@ -511,7 +513,7 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
             hops.length,
             closedAt
         );
-        address parentCapability = h.rootCapability;
+        address parentCapability = rootCapability;
         for (uint256 i; i < hops.length; ++i) {
             Shake calldata s = hops[i].shake;
             emit RouteHopSettled(
@@ -694,6 +696,7 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
     /// @dev Memory carrier of the verified-route facts: filled by `_verifyRoute`,
     ///      completed by `_verifyGive`, consumed by thank's Phases B–D.
     struct RouteFacts {
+        bytes32 ds; // the domain separator the walk verified under, reused by the Give check
         bytes32 routeHash;
         bytes32 giveHash;
         address terminalCapability; // the root itself on a zero-shake route
@@ -705,20 +708,26 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
         uint16[] occClaimDeltas; // per hop: δ_i
     }
 
-    /// @dev Walks the delegation chain from the stored root capability at 10 000 bps:
+    /// @dev Walks the delegation chain from the Hand's root capability at 10 000 bps:
     ///      verifies every hop's signature, claim telescoping, deadlines and shaker
     ///      consent, and records the per-hop facts. Atomic by design: the first
-    ///      invalid hop reverts the whole thank with its index.
-    /// @param h             The Hand (root, floor, expiry).
-    /// @param handId        The Hand id every hop must reference.
-    /// @param hops          The route hops in order.
-    /// @param distributable D = P − C, the base every margin is floored from.
-    /// @return r            The route facts (`giveHash` still unset).
-    function _verifyRoute(Hand storage h, uint256 handId, Hop[] calldata hops, uint256 distributable)
-        private
-        view
-        returns (RouteFacts memory r)
-    {
+    ///      invalid hop reverts the whole thank with its index. Reads no storage: the
+    ///      three Hand scalars it needs arrive as arguments.
+    /// @param handId         The Hand id every hop must reference.
+    /// @param hops           The route hops in order.
+    /// @param distributable  D = P − C, the base every margin is floored from.
+    /// @param rootCapability The Hand's root capability: the signer of hop 0.
+    /// @param floorBps       The Hand's giver floor no child claim may go below.
+    /// @param expiry         The Hand's expiry no artifact deadline may exceed.
+    /// @return r             The route facts (`giveHash` still unset).
+    function _verifyRoute(
+        uint256 handId,
+        Hop[] calldata hops,
+        uint256 distributable,
+        address rootCapability,
+        uint16 floorBps,
+        uint40 expiry
+    ) private view returns (RouteFacts memory r) {
         uint256 n = hops.length;
         r.shakeHashes = new bytes32[](n);
         r.hopAllocations = new uint256[](n);
@@ -726,10 +735,9 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
         r.occClaimDeltas = new uint16[](n);
 
         bytes32 ds = _domainSeparatorV4();
-        address expectedCapability = h.rootCapability; // I-11: the chain starts at the stored root
+        r.ds = ds;
+        address expectedCapability = rootCapability; // I-11: the chain starts at the stored root
         uint16 expectedClaim = BPS_DENOMINATOR;
-        uint40 expiry = h.expiry;
-        uint16 floorBps = h.minGiverClaimBps;
 
         for (uint256 i; i < n; ++i) {
             Hop calldata hop = hops[i];
@@ -782,11 +790,11 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
     /// @dev Binds the Give to the verified route and checks both terminal
     ///      signatures: the terminal capability's Give and the giver's acceptance.
     ///      Every indexed error names the Give as position `hops.length`.
-    /// @param h      The Hand (expiry).
     /// @param handId The Hand id the Give must reference.
     /// @param t      The terminal Give with its proofs.
     /// @param r      The route facts; `giveHash` is set here.
-    function _verifyGive(Hand storage h, uint256 handId, Terminal calldata t, RouteFacts memory r) private view {
+    /// @param expiry The Hand's expiry the Give's deadline may not exceed.
+    function _verifyGive(uint256 handId, Terminal calldata t, RouteFacts memory r, uint40 expiry) private view {
         uint256 n = r.shakeHashes.length;
         Give calldata g = t.give;
         if (g.handId != handId) revert WrongHand(n); // I-14
@@ -794,15 +802,14 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
         if (g.finalClaimBps != r.finalClaimBps) revert ClaimMismatch(n); // I-13
         if (g.giver == address(0)) revert ZeroGiver(); // I-13
         if (block.timestamp > g.deadline) revert ArtifactExpired(n); // I-2
-        if (g.deadline > h.expiry) revert DeadlineExceedsExpiry(n); // I-2
+        if (g.deadline > expiry) revert DeadlineExceedsExpiry(n); // I-2
 
-        bytes32 ds = _domainSeparatorV4();
         bytes32 giveHash = AHandSig.hashGive(g);
-        if (!_isValidSig(r.terminalCapability, AHandSig.digest(ds, giveHash), t.capabilitySig)) {
+        if (!_isValidSig(r.terminalCapability, AHandSig.digest(r.ds, giveHash), t.capabilitySig)) {
             revert CapabilityProof(n); // I-11
         }
         // I-12: the giver's consent is always required, even when giver == terminal capability
-        bytes32 acceptanceDigest = AHandSig.digest(ds, AHandSig.hashGiverAcceptance(giveHash));
+        bytes32 acceptanceDigest = AHandSig.digest(r.ds, AHandSig.hashGiverAcceptance(giveHash));
         if (!_isValidSig(g.giver, acceptanceDigest, t.giverAcceptanceSig)) revert GiverAcceptanceInvalid();
         r.giveHash = giveHash;
     }
