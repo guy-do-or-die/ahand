@@ -280,6 +280,19 @@ contract AHandV2SettlementTest is AHandTestBase {
         assertEq(q.amount, amount, "payout amount");
     }
 
+    /// @dev Where `checkPayoutStream` is in the log stream: indices of the ordering
+    ///      landmarks and the running sums (a memory struct keeps the walk under the
+    ///      via-IR stack limit).
+    struct StreamCursor {
+        uint256 nextAllocated;
+        uint256 nextOutcome;
+        uint256 sum;
+        uint256 lastFact;
+        uint256 lastAllocated;
+        uint256 firstAllocated;
+        uint256 firstOutcome;
+    }
+
     /// @dev I-8 / §11: every Core payout log of one transaction. Checks the frozen
     ///      order (facts → PayoutAllocated × k → one Pushed|Deferred per allocation,
     ///      same (beneficiary, kind, position, amount), same order) and that the
@@ -289,49 +302,42 @@ contract AHandV2SettlementTest is AHandTestBase {
         pure
         returns (Payout[] memory allocated, bool[] memory pushed)
     {
-        uint256 nAllocated;
-        uint256 nOutcomes;
-        for (uint256 i; i < logs.length; ++i) {
-            if (logs[i].emitter != emitter) continue;
-            bytes32 sig = logs[i].topics[0];
-            if (sig == AHandCore.PayoutAllocated.selector) ++nAllocated;
-            else if (sig == AHandCore.PayoutPushed.selector || sig == AHandCore.PayoutDeferred.selector) ++nOutcomes;
-        }
+        uint256 nAllocated = countLogs(logs, emitter, AHandCore.PayoutAllocated.selector);
+        uint256 nOutcomes = countLogs(logs, emitter, AHandCore.PayoutPushed.selector)
+            + countLogs(logs, emitter, AHandCore.PayoutDeferred.selector);
         assertEq(nOutcomes, nAllocated, "exactly one Pushed|Deferred per PayoutAllocated");
         allocated = new Payout[](nAllocated);
         pushed = new bool[](nAllocated);
 
-        uint256 a;
-        uint256 o;
-        uint256 sum;
-        uint256 lastFact;
-        uint256 lastAllocated;
-        uint256 firstAllocated = type(uint256).max;
-        uint256 firstOutcome = type(uint256).max;
+        StreamCursor memory c;
+        c.firstAllocated = type(uint256).max;
+        c.firstOutcome = type(uint256).max;
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].emitter != emitter) continue;
             bytes32 sig = logs[i].topics[0];
             if (sig == AHandCore.Settled.selector || sig == AHandCore.RouteHopSettled.selector) {
-                lastFact = i;
+                c.lastFact = i;
             } else if (sig == AHandCore.PayoutAllocated.selector) {
-                allocated[a] = decodePayout(logs[i]);
-                sum += allocated[a].amount;
-                ++a;
-                if (firstAllocated == type(uint256).max) firstAllocated = i;
-                lastAllocated = i;
+                allocated[c.nextAllocated] = decodePayout(logs[i]);
+                c.sum += allocated[c.nextAllocated].amount;
+                ++c.nextAllocated;
+                if (c.firstAllocated == type(uint256).max) c.firstAllocated = i;
+                c.lastAllocated = i;
             } else if (sig == AHandCore.PayoutPushed.selector || sig == AHandCore.PayoutDeferred.selector) {
-                Payout memory q = decodePayout(logs[i]);
-                assertPayout(q, allocated[o].beneficiary, AllocationKind(allocated[o].kind), allocated[o].position, allocated[o].amount);
-                pushed[o] = sig == AHandCore.PayoutPushed.selector;
-                ++o;
-                if (firstOutcome == type(uint256).max) firstOutcome = i;
+                Payout memory expected = allocated[c.nextOutcome];
+                assertPayout(
+                    decodePayout(logs[i]), expected.beneficiary, AllocationKind(expected.kind), expected.position, expected.amount
+                );
+                pushed[c.nextOutcome] = sig == AHandCore.PayoutPushed.selector;
+                ++c.nextOutcome;
+                if (c.firstOutcome == type(uint256).max) c.firstOutcome = i;
             }
         }
         if (nAllocated != 0) {
-            assertLt(lastFact, firstAllocated, "every fact event precedes the first PayoutAllocated");
-            assertLt(lastAllocated, firstOutcome, "every PayoutAllocated precedes the first push outcome");
+            assertLt(c.lastFact, c.firstAllocated, "every fact event precedes the first PayoutAllocated");
+            assertLt(c.lastAllocated, c.firstOutcome, "every PayoutAllocated precedes the first push outcome");
         }
-        assertEq(sum, pool, "sum of PayoutAllocated == pool");
+        assertEq(c.sum, pool, "sum of PayoutAllocated == pool");
     }
 
     function countLogs(Vm.Log[] memory logs, address emitter, bytes32 sig) internal pure returns (uint256 n) {
