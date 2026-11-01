@@ -9,8 +9,8 @@ optimizer_runs = 200
 via_ir = true
 fs_permissions = [
     { access = "read-write", path = "../packages/sdk/tests" },
-    # gas series of test/AHandV2.settlement.t.sol (${OUT}/gas-series.txt, DESIGN §17.2)
-    { access = "read-write", path = "/tmp/claude-1001/-home-guy-do-or-die-workspace-ahand/623ee448-3599-4496-b448-9b7b8bdea6c5/scratchpad/corev2" },
+    # gas series of test/AHandV2.settlement.t.sol (DESIGN §17.2): out/gas/gas-series.txt unless OUT says otherwise
+    { access = "read-write", path = "out/gas" },
 ]
 
 [fuzz]

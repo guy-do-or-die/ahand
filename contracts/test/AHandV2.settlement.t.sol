@@ -115,9 +115,9 @@ contract AHandV2SettlementTest is AHandTestBase {
     uint256 constant SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
     /// @dev A keyed raiser for the raiser == giver case.
     uint256 constant KEYED_RAISER_PK = 0x6Baa;
-    /// @dev Where the gas series lands unless OUT says otherwise (the workflow's scratchpad).
-    string constant DEFAULT_OUT =
-        "/tmp/claude-1001/-home-guy-do-or-die-workspace-ahand/623ee448-3599-4496-b448-9b7b8bdea6c5/scratchpad/corev2";
+    /// @dev Where the gas series lands unless OUT says otherwise: a build artifact under
+    ///      `out/` (gitignored, wiped by `forge clean`), the one path foundry.toml grants it.
+    string constant DEFAULT_OUT = "out/gas";
 
     enum Signer {
         EOA,
@@ -170,11 +170,13 @@ contract AHandV2SettlementTest is AHandTestBase {
         uint256 marginAllocation;
     }
 
+    string gasSeriesDir;
     string gasSeriesPath;
 
     function setUp() public override {
         super.setUp();
-        gasSeriesPath = string.concat(vm.envOr("OUT", DEFAULT_OUT), "/gas-series.txt");
+        gasSeriesDir = vm.envOr("OUT", DEFAULT_OUT);
+        gasSeriesPath = string.concat(gasSeriesDir, "/gas-series.txt");
     }
 
     /// @dev Deterministic capability key `i` (key 0 is a route's root).
@@ -1549,6 +1551,7 @@ contract AHandV2SettlementTest is AHandTestBase {
     //////////////////////////////////////////////////////////////*/
 
     function record(string memory line) internal {
+        vm.createDir(gasSeriesDir, true); // mkdir -p: `out/` exists after a build, `out/gas` may not yet
         vm.writeLine(gasSeriesPath, line);
     }
 
