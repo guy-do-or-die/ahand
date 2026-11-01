@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "./AHandTestBase.sol";
-import {VmSafe} from "forge-std/Vm.sol";
+import {Vm, VmSafe} from "forge-std/Vm.sol";
+import {AHandTestBase} from "./AHandTestBase.sol";
+import {AHandCore} from "../src/AHandCore.sol";
+import {AHandSig} from "../src/AHandSig.sol";
+import {AHandMath} from "../src/AHandFacts.sol";
 import {
     AllocationKind,
     AnonymousShakerWithMargin,
@@ -19,6 +22,8 @@ import {
     Hand,
     HandExpired,
     HandNotExpired,
+    Hop,
+    IAHandFacts,
     InexactDeposit,
     InsufficientGas,
     InvalidVisibilityData,
@@ -29,12 +34,17 @@ import {
     NotRaiser,
     OnlyPolicyAdmin,
     OnlySelf,
+    RaiseParams,
     RouteHashMismatch,
+    Shake,
     ShakerAcceptanceInvalid,
+    Status,
     TagsInvalid,
+    Terminal,
     TransferInexact,
     UnexpectedAcceptance,
     UnexpectedCharityRecipient,
+    Visibility,
     WrongHand,
     ZeroAddress,
     ZeroCapability,
@@ -45,14 +55,8 @@ import {
 } from "../src/AHandTypes.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {HookToken} from "./mocks/HookToken.sol";
-
-/// @dev A contract account that forwards to `pushExact`: the self-only frame must
-///      refuse a contract caller exactly as it refuses an EOA (I-17).
-contract PushExactCaller {
-    function poke(AHandCore c, address token_, address to, uint256 amount) external {
-        c.pushExact(token_, to, amount);
-    }
-}
+import {SmartWallet1271} from "./mocks/SmartWallet1271.sol";
+import {PushExactCaller} from "./mocks/PushExactCaller.sol";
 
 /*//////////////////////////////////////////////////////////////
         SUITE: surface and facts — DESIGN §3.4, §3.6, §10, §11,
@@ -283,7 +287,7 @@ contract AHandV2SurfaceTest is AHandTestBase {
 
         PushExactCaller caller = new PushExactCaller();
         vm.expectRevert(OnlySelf.selector);
-        caller.poke(core, address(usd), address(caller), DEPOSIT);
+        caller.push(core, address(usd), address(caller), DEPOSIT);
 
         // zero amount is no loophole either
         vm.expectRevert(OnlySelf.selector);

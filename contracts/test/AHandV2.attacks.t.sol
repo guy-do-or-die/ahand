@@ -37,7 +37,6 @@ import {
 } from "../src/AHandTypes.sol";
 import {AHandSig} from "../src/AHandSig.sol";
 import {AHandCore} from "../src/AHandCore.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {PausableToken} from "./mocks/PausableToken.sol";
 import {LateSenderFeeToken} from "./mocks/FeeTokens.sol";
@@ -78,8 +77,9 @@ import {AlwaysValid1271, ReturndataBombValidator, Reentrant1271} from "./mocks/S
 
 /// @notice One contract actor for every hostile role — capability, shaker,
 ///         giver, charity or Raiser (controller). It validates every signature
-///         (so it can wear a consenting role with empty bytes), and its token
-///         hook can burn gas, re-enter a target or observe Core mid-push.
+///         (so it can wear a consenting role with empty bytes) until `setAcceptAll`
+///         withdraws that — the toggle is why it is not an `AlwaysValid1271` — and
+///         its token hook can burn gas, re-enter a target or observe Core mid-push.
 ///         `exec` lets it act as a contract Raiser and bubbles the callee's revert.
 contract HostileAccount is IHookRecipient {
     enum Hook {
@@ -179,19 +179,6 @@ contract AHandV2AttacksTest is AHandTestBase {
 
     function assertStatus(uint256 h, Status s) internal view {
         assertEq(uint8(statusOf(h)), uint8(s), "status");
-    }
-
-    function err(bytes4 selector) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(selector);
-    }
-
-    /// @dev The transient lock's revert data.
-    function locked() internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-    }
-
-    function err(bytes4 selector, uint256 position) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(selector, position);
     }
 
     /// @dev Re-sign a (mutated) terminal with the route tail and `giverPk`.

@@ -683,7 +683,7 @@ contract AHandV2InvariantHandler is AHandTestBase {
         RouteBuild memory r = _rootedRoute(handId, g);
         Terminal memory t = buildTerminal(r, giver, GIVER_PK, DEFAULT_SOLUTION, g.expiry);
         if (g.rootKind == CapKind.Policy) t.capabilitySig = g.rootPolicy.encodeGive(t.give, t.capabilitySig);
-        expectThankRevert(abi.encodeWithSelector(HandExpired.selector), r, t);
+        expectThankRevert(err(HandExpired.selector), r, t);
         assertTrue(core.facts(handId).status == Status.Active, "probe: late thank changed status");
         ++probeCount;
     }

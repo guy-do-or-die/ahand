@@ -67,20 +67,20 @@ contract AHandV2ReviewTest is AHandTestBase {
         uint256 h1 = makeRaise();
         RouteBuild memory r1 = newRoute(h1);
         addHop(r1, E1, address(core), 0, 9_000, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(ShakerAcceptanceInvalid.selector, 0), r1, buildTerminal(r1));
+        expectThankRevert(err(ShakerAcceptanceInvalid.selector, 0), r1, buildTerminal(r1));
 
         // giver: the GiverAcceptance is always required and Core cannot give it
         uint256 h2 = makeRaise();
         RouteBuild memory r2 = newRoute(h2);
         Terminal memory t2 = buildTerminal(r2, address(core), 0, DEFAULT_SOLUTION, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r2, t2);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r2, t2);
 
         // root capability: a Hand rooted at Core can never be settled (reclaim only)
         RaiseParams memory p = defaultParams();
         p.rootCapability = address(core);
         uint256 h3 = makeRaise(p);
         RouteBuild memory r3 = newRoute(h3);
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 0), r3, buildTerminal(r3));
+        expectThankRevert(err(CapabilityProof.selector, 0), r3, buildTerminal(r3));
 
         assertEq(claimOf(address(usd), address(core)), 0, "Core never accrues a claim on itself");
         assertEq(uint8(statusOf(h1)), uint8(Status.Active));

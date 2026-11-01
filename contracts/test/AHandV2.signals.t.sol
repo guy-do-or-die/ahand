@@ -34,13 +34,14 @@ import {
     UnsupportedDecimals
 } from "../src/AHandSignalsV2.sol";
 import {NoDecimalsToken, Token30Decimals} from "./mocks/DecimalsTokens.sol";
+import {AlwaysValid1271} from "./mocks/Signers1271.sol";
 import {FiatTokenLikeV1} from "./mocks/FiatTokenLike.sol";
 
 /// @dev A contract actor that loudly rejects every ERC-1155 receiver hook — so a
 ///      successful mint to it proves Signals never calls one — and accepts any
 ///      ERC-1271 signature, so it can be a giver (empty acceptance bytes) and a
 ///      raiser (Core needs no signature from the raiser).
-contract RevertingReceiver1155 {
+contract RevertingReceiver1155 is AlwaysValid1271 {
     function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
         revert("hook called");
     }
@@ -51,10 +52,6 @@ contract RevertingReceiver1155 {
         returns (bytes4)
     {
         revert("hook called");
-    }
-
-    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
-        return 0x1626ba7e;
     }
 }
 
@@ -137,7 +134,7 @@ contract AHandV2SignalsTest is AHandTestBase {
 
     /// @dev The mixed route of the mutation matrix: self hop, explicit shakerA,
     ///      anonymous zero-margin hop, shakerA again (two SHAKEN, no dedup).
-    function mixedRoute(uint256 handId) internal view returns (RouteBuild memory r) {
+    function fourHopRepeatShakerRoute(uint256 handId) internal view returns (RouteBuild memory r) {
         r = newRoute(handId);
         addSelfHop(r, E1, 9_000);
         addExplicitHop(r, E2, shakerA, SHAKER_A_PK, 8_000);
@@ -148,7 +145,7 @@ contract AHandV2SignalsTest is AHandTestBase {
     /// @dev A settled mixed route whose preimage is NOT yet materialized.
     function settledMixed() internal returns (uint256 handId, AHandSettlement.SettlementPreimage memory p) {
         handId = makeRaise();
-        RouteBuild memory r = mixedRoute(handId);
+        RouteBuild memory r = fourHopRepeatShakerRoute(handId);
         vm.recordLogs();
         settle(r);
         p = preimageFromLogsOn(core, vm.getRecordedLogs(), handId);
@@ -585,7 +582,7 @@ contract AHandV2SignalsTest is AHandTestBase {
 
     function test_Thank_Shaken_PerOccurrenceNoDedup_AnonymousMintsNothing() public {
         uint256 h = makeRaise();
-        RouteBuild memory r = mixedRoute(h);
+        RouteBuild memory r = fourHopRepeatShakerRoute(h);
         vm.recordLogs();
         AHandSettlement.SettlementPreimage memory p = settleAndMaterialize(r);
         Vm.Log[] memory logs = vm.getRecordedLogs();

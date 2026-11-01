@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test, Vm} from "forge-std/Test.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Give, Hop, IAHandFacts, RaiseParams, Shake, Status, Terminal, Visibility} from "../src/AHandTypes.sol";
 import {AHandSig} from "../src/AHandSig.sol";
 import {AHandMath, AHandSettlement} from "../src/AHandFacts.sol";
@@ -191,15 +192,15 @@ contract AHandTestBase is Test {
         handId = c.raise(p, discoveryRef, tags);
     }
 
-    function expectRaiseRevert(bytes4 err, RaiseParams memory p) internal {
-        expectRaiseRevert(err, p, DEFAULT_REF, noTags());
+    function expectRaiseRevert(bytes4 selector, RaiseParams memory p) internal {
+        expectRaiseRevert(selector, p, DEFAULT_REF, noTags());
     }
 
-    function expectRaiseRevert(bytes4 err, RaiseParams memory p, bytes memory discoveryRef, bytes32[] memory tags)
+    function expectRaiseRevert(bytes4 selector, RaiseParams memory p, bytes memory discoveryRef, bytes32[] memory tags)
         internal
     {
         vm.prank(raiser);
-        vm.expectRevert(err);
+        vm.expectRevert(selector);
         core.raise(p, discoveryRef, tags);
     }
 
@@ -409,11 +410,26 @@ contract AHandTestBase is Test {
         r.core.thank(r.handId, r.hops, t);
     }
 
-    /// @dev `thank` by the raiser expecting `err` (abi-encoded error, args included).
-    function expectThankRevert(bytes memory err, RouteBuild memory r, Terminal memory t) internal {
+    /// @dev `thank` by the raiser expecting `revertData` (abi-encoded error, args included).
+    function expectThankRevert(bytes memory revertData, RouteBuild memory r, Terminal memory t) internal {
         vm.prank(raiser);
-        vm.expectRevert(err);
+        vm.expectRevert(revertData);
         r.core.thank(r.handId, r.hops, t);
+    }
+
+    /// @dev The abi-encoded revert data of an argument-less protocol error.
+    function err(bytes4 selector) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(selector);
+    }
+
+    /// @dev The abi-encoded revert data of a hop-indexed protocol error (`hops.length` names the Give).
+    function err(bytes4 selector, uint256 position) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(selector, position);
+    }
+
+    /// @dev The transient lock's revert data.
+    function locked() internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
     }
 
     /// @dev Full consensual settlement of the built route to the default giver.

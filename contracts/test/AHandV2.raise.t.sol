@@ -123,9 +123,9 @@ contract AHandV2RaiseTest is AHandTestBase {
     }
 
     /// @dev Raise expecting an abi-encoded error (for errors that carry arguments).
-    function expectRaiseRevertBytes(bytes memory err, RaiseParams memory p) internal {
+    function expectRaiseRevertBytes(bytes memory revertData, RaiseParams memory p) internal {
         vm.prank(raiser);
-        vm.expectRevert(err);
+        vm.expectRevert(revertData);
         core.raise(p, DEFAULT_REF, noTags());
     }
 
@@ -829,7 +829,7 @@ contract AHandV2RaiseTest is AHandTestBase {
         assertFalse(hook.lastReentryOk(), "the nested raise failed");
         assertEq(
             hook.lastReentryReturn(),
-            abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector),
+            locked(),
             "with the lock's error"
         );
         assertEq(h, 1);
@@ -856,22 +856,20 @@ contract AHandV2RaiseTest is AHandTestBase {
         useToken(address(hook));
         fund(address(hook), raiser, 1_000e6);
         RaiseParams memory p = defaultParams();
-        bytes memory locked = abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-
         hook.setReentry(address(core), abi.encodeCall(core.reclaim, (1)), true, false, false);
         makeRaise(p);
         assertFalse(hook.lastReentryOk());
-        assertEq(hook.lastReentryReturn(), locked, "reclaim locked");
+        assertEq(hook.lastReentryReturn(), locked(), "reclaim locked");
 
         hook.setReentry(address(core), abi.encodeCall(core.withdraw, (address(hook), raiser)), true, false, false);
         makeRaise(p);
         assertFalse(hook.lastReentryOk());
-        assertEq(hook.lastReentryReturn(), locked, "withdraw locked");
+        assertEq(hook.lastReentryReturn(), locked(), "withdraw locked");
 
         hook.setReentry(address(core), abi.encodeCall(core.pushExact, (address(hook), raiser, 1)), true, false, false);
         makeRaise(p);
         assertFalse(hook.lastReentryOk());
-        assertEq(hook.lastReentryReturn(), abi.encodeWithSelector(OnlySelf.selector), "the frame is self-only");
+        assertEq(hook.lastReentryReturn(), err(OnlySelf.selector), "the frame is self-only");
 
         assertEq(core.handsCount(), 3);
         assertEq(hook.balanceOf(address(core)), 3 * DEPOSIT, "three exact deposits, nothing else moved");

@@ -66,11 +66,6 @@ contract AHandV2RoutingTest is AHandTestBase {
 
     /*//////////////////// local helpers ////////////////////*/
 
-    /// @dev abi-encoded hop-indexed error.
-    function atHop(bytes4 selector, uint256 position) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(selector, position);
-    }
-
     /// @dev A Shake extending the route's tail with the default deadline and no hop data.
     function shakeOf(RouteBuild memory r, address child, address shaker, uint16 childClaim)
         internal
@@ -119,9 +114,9 @@ contract AHandV2RoutingTest is AHandTestBase {
         pushRaw(r, hop.shake, hop.capabilitySig, hop.shakerAcceptanceSig, E1);
     }
 
-    /// @dev `thank` by the raiser expecting `err`, with the default terminal built over `r`.
-    function expectWalkRevert(bytes memory err, RouteBuild memory r) internal {
-        expectThankRevert(err, r, buildTerminal(r));
+    /// @dev `thank` by the raiser expecting `revertData`, with the default terminal built over `r`.
+    function expectWalkRevert(bytes memory revertData, RouteBuild memory r) internal {
+        expectThankRevert(revertData, r, buildTerminal(r));
     }
 
     /// @dev Deep copy — a memory struct assignment would alias the submitted Give.
@@ -192,17 +187,17 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise();
         RouteBuild memory r = newRouteOn(core, h, E1); // E1 is not the Hand's root
         addSelfHop(r, E2, 9_000);
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), r);
+        expectWalkRevert(err(CapabilityProof.selector, 0), r);
     }
 
     /// signer_i == child_{i−1}: a hop signed by any other key fails at its own index.
-    function test_HopSignedByWrongCapability_CapabilityProofAtThatHop() public {
+    function test_HopSignedByWrongCapability_CapabilityProofAtTherr() public {
         uint256 h = makeRaise();
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_500); // E0 → E1, fine
         r.parentPk = E0; // forge a hop "from" E1 signed by E0
         addSelfHop(r, E2, 9_000);
-        expectWalkRevert(atHop(CapabilityProof.selector, 1), r);
+        expectWalkRevert(err(CapabilityProof.selector, 1), r);
     }
 
     /// Capability authority is bearer: whoever holds the child key continues the
@@ -226,7 +221,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addSelfHop(r, E1, 9_500);
         Shake memory s = shakeOf(r, address(0), address(0), 9_500);
         pushRaw(r, s, hex"deadbeef", "", E2); // garbage signature too: ZeroCapability wins
-        expectWalkRevert(atHop(ZeroCapability.selector, 1), r);
+        expectWalkRevert(err(ZeroCapability.selector, 1), r);
     }
 
     /// Telescoping: parent_i must equal child_{i−1} exactly.
@@ -237,7 +232,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         Shake memory s = shakeOf(r, vm.addr(E2), address(0), 9_000);
         s.parentClaimBps = 9_600; // signed, but discontinuous
         pushSigned(r, s, E2, "");
-        expectWalkRevert(atHop(ClaimMismatch.selector, 1), r);
+        expectWalkRevert(err(ClaimMismatch.selector, 1), r);
     }
 
     /// child ≤ parent: a claim may never grow along the route.
@@ -246,7 +241,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_000);
         pushSigned(r, shakeOf(r, vm.addr(E2), address(0), 9_001), E2, "");
-        expectWalkRevert(atHop(ClaimMustNotGrow.selector, 1), r);
+        expectWalkRevert(err(ClaimMustNotGrow.selector, 1), r);
     }
 
     /// child ≥ floor binds EVERY hop: an interior dip below minGiverClaimBps
@@ -256,7 +251,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 4_999);
         addSelfHop(r, E2, 4_999);
-        expectWalkRevert(atHop(ClaimBelowFloor.selector, 0), r);
+        expectWalkRevert(err(ClaimBelowFloor.selector, 0), r);
 
         RouteBuild memory ok = newRoute(h);
         addSelfHop(ok, E1, 5_000); // exactly the floor is legal
@@ -272,7 +267,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise(p);
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_999);
-        expectWalkRevert(atHop(ClaimBelowFloor.selector, 0), r);
+        expectWalkRevert(err(ClaimBelowFloor.selector, 0), r);
     }
 
     /// Hop deadlines: now ≤ deadline (ArtifactExpired) and deadline ≤ expiry
@@ -284,12 +279,12 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory late = newRoute(h);
         addHop(late, E1, address(0), 0, 10_000, uint40(block.timestamp)); // valid at `now`
         addHop(late, E2, address(0), 0, 10_000, uint40(block.timestamp - 1)); // already past
-        expectWalkRevert(atHop(ArtifactExpired.selector, 1), late);
+        expectWalkRevert(err(ArtifactExpired.selector, 1), late);
 
         RouteBuild memory far = newRoute(h);
         addHop(far, E1, address(0), 0, 10_000, expiry); // deadline == expiry is legal for the artifact
         addHop(far, E2, address(0), 0, 10_000, expiry + 1);
-        expectWalkRevert(atHop(DeadlineExceedsExpiry.selector, 1), far);
+        expectWalkRevert(err(DeadlineExceedsExpiry.selector, 1), far);
     }
 
     /// The walk order of hop checks (DESIGN §6.2), proven by peeling one
@@ -313,31 +308,31 @@ contract AHandV2RoutingTest is AHandTestBase {
         });
         Hop memory hop = Hop({shake: s, capabilitySig: hex"deadbeef", shakerAcceptanceSig: ""});
 
-        expectWalkRevert(atHop(WrongHand.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(WrongHand.selector, 0), oneHop(h, hop));
         hop.shake.handId = h;
-        expectWalkRevert(atHop(ZeroCapability.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(ZeroCapability.selector, 0), oneHop(h, hop));
         hop.shake.childCapability = vm.addr(E1);
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(CapabilityProof.selector, 0), oneHop(h, hop));
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(ClaimMismatch.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(ClaimMismatch.selector, 0), oneHop(h, hop));
         hop.shake.parentClaimBps = 10_000;
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(ClaimMustNotGrow.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(ClaimMustNotGrow.selector, 0), oneHop(h, hop));
         hop.shake.childClaimBps = 4_999;
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(ClaimBelowFloor.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(ClaimBelowFloor.selector, 0), oneHop(h, hop));
         hop.shake.childClaimBps = 9_000;
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(ArtifactExpired.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(ArtifactExpired.selector, 0), oneHop(h, hop));
         hop.shake.deadline = expiry + 1;
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(DeadlineExceedsExpiry.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(DeadlineExceedsExpiry.selector, 0), oneHop(h, hop));
         hop.shake.deadline = expiry;
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(AnonymousShakerWithMargin.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(AnonymousShakerWithMargin.selector, 0), oneHop(h, hop));
         hop.shake.shaker = shakerA;
         hop.capabilitySig = signShake(E0, hop.shake);
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), oneHop(h, hop));
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), oneHop(h, hop));
         hop.shakerAcceptanceSig = signShakerAcceptance(SHAKER_A_PK, AHandSig.hashShake(hop.shake));
         RouteBuild memory r = oneHop(h, hop);
         settle(r);
@@ -353,7 +348,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addAnonymousHop(r, E2, 9_500);
         addExplicitHop(r, E3, shakerA, SHAKER_A_PK, 9_000);
         r.hops[2].shakerAcceptanceSig = hex"00";
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 2), r);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 2), r);
     }
 
     /// Positive margins telescope: each A_i is floored from D independently and
@@ -420,12 +415,12 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise();
         RouteBuild memory r = newRoute(h);
         addAnonymousHop(r, E1, 9_000);
-        expectWalkRevert(atHop(AnonymousShakerWithMargin.selector, 0), r);
+        expectWalkRevert(err(AnonymousShakerWithMargin.selector, 0), r);
 
         uint256 z = makeRaise(zeroPotParams());
         RouteBuild memory rz = newRoute(z);
         addAnonymousHop(rz, E1, 9_000);
-        expectWalkRevert(atHop(AnonymousShakerWithMargin.selector, 0), rz);
+        expectWalkRevert(err(AnonymousShakerWithMargin.selector, 0), rz);
     }
 
     /// Acceptance bytes on an anonymous hop are malformed input, whatever they hold.
@@ -434,7 +429,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory r = newRoute(h);
         addAnonymousHop(r, E1, 10_000);
         r.hops[0].shakerAcceptanceSig = hex"01";
-        expectWalkRevert(atHop(UnexpectedAcceptance.selector, 0), r);
+        expectWalkRevert(err(UnexpectedAcceptance.selector, 0), r);
     }
 
     /// Self: the Shake signature is the consent; the margin flows to the signer.
@@ -466,7 +461,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_000);
         r.hops[0].shakerAcceptanceSig = signShakerAcceptance(E0, AHandSig.hashShake(r.hops[0].shake));
-        expectWalkRevert(atHop(UnexpectedAcceptance.selector, 0), r);
+        expectWalkRevert(err(UnexpectedAcceptance.selector, 0), r);
     }
 
     /// "Self" means the capability that SIGNED the hop. The child named as shaker
@@ -475,7 +470,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise();
         RouteBuild memory r = newRoute(h);
         addHop(r, E1, vm.addr(E1), 0, 9_000, defaultDeadline());
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), r);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), r);
 
         RouteBuild memory ok = newRoute(h);
         addHop(ok, E1, vm.addr(E1), E1, 9_000, defaultDeadline());
@@ -498,7 +493,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise();
         RouteBuild memory r = newRoute(h);
         addHop(r, E1, shakerA, 0, 10_000, defaultDeadline());
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), r);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), r);
 
         RouteBuild memory ok = newRoute(h);
         addExplicitHop(ok, E1, shakerA, SHAKER_A_PK, 10_000);
@@ -516,29 +511,29 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory garbage = newRoute(h);
         addExplicitHop(garbage, E1, shakerA, SHAKER_A_PK, 9_000);
         garbage.hops[0].shakerAcceptanceSig = hex"deadbeef";
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), garbage);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), garbage);
 
         RouteBuild memory wrongKey = newRoute(h);
         addHop(wrongKey, E1, shakerA, SHAKER_B_PK, 9_000, defaultDeadline());
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), wrongKey);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), wrongKey);
 
         RouteBuild memory wrongShake = newRoute(h);
         addExplicitHop(wrongShake, E1, shakerA, SHAKER_A_PK, 9_000);
         wrongShake.hops[0].shakerAcceptanceSig = signShakerAcceptance(SHAKER_A_PK, keccak256("not this shake"));
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), wrongShake);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), wrongShake);
 
         RouteBuild memory r1 = newRoute(h);
         addExplicitHop(r1, E1, shakerA, SHAKER_A_PK, 9_000);
         RouteBuild memory crossHand = newRoute(h2);
         addExplicitHop(crossHand, E1, shakerA, SHAKER_A_PK, 9_000);
         crossHand.hops[0].shakerAcceptanceSig = r1.hops[0].shakerAcceptanceSig; // structurally identical hop, other Hand
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), crossHand);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), crossHand);
 
         RouteBuild memory crossHop = newRoute(h);
         addExplicitHop(crossHop, E1, shakerA, SHAKER_A_PK, 9_500);
         addExplicitHop(crossHop, E2, shakerA, SHAKER_A_PK, 9_000);
         crossHop.hops[1].shakerAcceptanceSig = crossHop.hops[0].shakerAcceptanceSig; // same shaker, same Hand, other hop
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 1), crossHop);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 1), crossHop);
     }
 
     /// A positive margin that floors to zero token units is rejected at its hop
@@ -550,7 +545,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise(p);
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_000); // 1 000 bps → floor(9 · 1000 / 10 000) == 0
-        expectWalkRevert(atHop(MarginRoundsToZero.selector, 0), r);
+        expectWalkRevert(err(MarginRoundsToZero.selector, 0), r);
 
         uint256 z = makeRaise(zeroPotParams());
         RouteBuild memory rz = newRoute(z);
@@ -591,7 +586,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise();
         RouteBuild memory r = newRoute(h); // zero-shake: terminal == root E0
         Terminal memory t = buildTerminal(r, vm.addr(E0), 0, DEFAULT_SOLUTION, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
 
         Terminal memory ok = buildTerminal(r, vm.addr(E0), E0, DEFAULT_SOLUTION, defaultDeadline());
         doThank(r, ok);
@@ -607,22 +602,22 @@ contract AHandV2RoutingTest is AHandTestBase {
         bytes memory good = t.giverAcceptanceSig;
 
         t.giverAcceptanceSig = "";
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
         t.giverAcceptanceSig = hex"33";
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
         t.giverAcceptanceSig = signGiverAcceptance(SHAKER_A_PK, t.give); // not the giver's key
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
         Give memory other = cloneGive(t.give);
         other.solutionHash = keccak256("a different solution");
         t.giverAcceptanceSig = signGiverAcceptance(GIVER_PK, other); // right key, wrong giveHash
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
 
         uint256 h2 = makeRaise();
         RouteBuild memory r2 = newRoute(h2);
         addSelfHop(r2, E1, 10_000);
         Terminal memory t2 = buildTerminal(r2);
         t2.giverAcceptanceSig = good; // acceptance of h's Give on h2's
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r2, t2);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r2, t2);
 
         t.giverAcceptanceSig = good;
         doThank(r, t);
@@ -654,23 +649,23 @@ contract AHandV2RoutingTest is AHandTestBase {
         t.capabilitySig = hex"deadbeef";
         t.giverAcceptanceSig = hex"deadbeef";
 
-        expectThankRevert(atHop(WrongHand.selector, n), r, t);
+        expectThankRevert(err(WrongHand.selector, n), r, t);
         t.give.handId = h;
-        expectThankRevert(abi.encodeWithSelector(RouteHashMismatch.selector), r, t);
+        expectThankRevert(err(RouteHashMismatch.selector), r, t);
         t.give.routeHash = routeHashOf(r);
-        expectThankRevert(atHop(ClaimMismatch.selector, n), r, t);
+        expectThankRevert(err(ClaimMismatch.selector, n), r, t);
         t.give.finalClaimBps = 9_500;
-        expectThankRevert(abi.encodeWithSelector(ZeroGiver.selector), r, t);
+        expectThankRevert(err(ZeroGiver.selector), r, t);
         t.give.giver = giver;
-        expectThankRevert(atHop(ArtifactExpired.selector, n), r, t);
+        expectThankRevert(err(ArtifactExpired.selector, n), r, t);
         t.give.deadline = expiry + 1;
-        expectThankRevert(atHop(DeadlineExceedsExpiry.selector, n), r, t);
+        expectThankRevert(err(DeadlineExceedsExpiry.selector, n), r, t);
         t.give.deadline = expiry;
-        expectThankRevert(atHop(CapabilityProof.selector, n), r, t);
+        expectThankRevert(err(CapabilityProof.selector, n), r, t);
         t.capabilitySig = signGive(E1, t.give); // E0 is not the terminal: still CapabilityProof
-        expectThankRevert(atHop(CapabilityProof.selector, n), r, t);
+        expectThankRevert(err(CapabilityProof.selector, n), r, t);
         t.capabilitySig = signGive(E2, t.give);
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
         t.giverAcceptanceSig = signGiverAcceptance(GIVER_PK, t.give);
         doThank(r, t);
         assertEq(uint8(statusOf(h)), uint8(Status.Settled));
@@ -691,16 +686,16 @@ contract AHandV2RoutingTest is AHandTestBase {
         addSelfHop(tailSwap, E1, 9_500);
         addSelfHop(tailSwap, E3, 9_000); // validly signed by E1, different child
         assertTrue(routeHashOf(tailSwap) != t.give.routeHash, "distinct tails, distinct identities");
-        expectThankRevert(abi.encodeWithSelector(RouteHashMismatch.selector), tailSwap, t);
+        expectThankRevert(err(RouteHashMismatch.selector), tailSwap, t);
 
         RouteBuild memory prefix = newRoute(h);
         addSelfHop(prefix, E1, 9_500); // E1 is the terminal now; the Give was for E2's route
-        expectThankRevert(abi.encodeWithSelector(RouteHashMismatch.selector), prefix, t);
+        expectThankRevert(err(RouteHashMismatch.selector), prefix, t);
 
         RouteBuild memory reordered = newRoute(h);
         addRawHop(reordered, routeA.hops[1]);
         addRawHop(reordered, routeA.hops[0]); // the chain itself rejects it first: hop 0 is not signed by the root
-        expectThankRevert(atHop(CapabilityProof.selector, 0), reordered, t);
+        expectThankRevert(err(CapabilityProof.selector, 0), reordered, t);
 
         doThank(routeA, t);
         assertEq(uint8(statusOf(h)), uint8(Status.Settled), "the bound route settles");
@@ -764,12 +759,12 @@ contract AHandV2RoutingTest is AHandTestBase {
         uint256 h = makeRaise();
         RouteBuild memory empty = newRoute(h);
         addHop(empty, E1, shakerA, 0, 9_000, defaultDeadline());
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), empty);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), empty);
 
         RouteBuild memory garbage = newRoute(h);
         addExplicitHop(garbage, E1, shakerA, SHAKER_A_PK, 9_000);
         garbage.hops[0].shakerAcceptanceSig = hex"deadbeef";
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), garbage);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), garbage);
 
         RouteBuild memory valid = newRoute(h);
         addExplicitHop(valid, E1, shakerA, SHAKER_A_PK, 9_000);
@@ -805,14 +800,14 @@ contract AHandV2RoutingTest is AHandTestBase {
 
         RouteBuild memory notApproved = newRoute(h);
         addHop(notApproved, E1, address(safe), 0, 9_500, defaultDeadline());
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), notApproved);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), notApproved);
 
         bytes32 shakeHash = AHandSig.hashShake(notApproved.hops[0].shake);
         bytes32 acceptanceDigest = digestOf(AHandSig.hashShakerAcceptance(shakeHash));
 
         RouteBuild memory rawOwnerSig = newRoute(h);
         addHop(rawOwnerSig, E1, address(safe), OWNER_PK, 9_500, defaultDeadline()); // ECDSA over the raw digest
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), rawOwnerSig);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), rawOwnerSig);
 
         RouteBuild memory wrapped = newRoute(h);
         addHop(wrapped, E1, address(safe), 0, 9_500, defaultDeadline());
@@ -855,7 +850,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory r1 = newRoute(h1);
         addSelfHop(r1, E1, 10_000);
         expectThankRevert(
-            abi.encodeWithSelector(GiverAcceptanceInvalid.selector),
+            err(GiverAcceptanceInvalid.selector),
             r1,
             buildTerminal(r1, giver, 0, DEFAULT_SOLUTION, defaultDeadline())
         );
@@ -871,7 +866,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         RouteBuild memory r2 = newRoute(h2);
         addSelfHop(r2, E1, 10_000);
         Terminal memory t2 = buildTerminal(r2, address(safe), 0, DEFAULT_SOLUTION, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r2, t2);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r2, t2);
         safeApprove(safe, OWNER_B_PK, digestOf(AHandSig.hashGiverAcceptance(AHandSig.hashGive(t2.give))));
         doThank(r2, t2);
         assertEq(balanceOf(address(usd), address(safe)), 90e6, "Safe giver by approved hash");
@@ -892,7 +887,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         bytes32 shakeHash = AHandSig.hashShake(s);
         pushRaw(r, s, "", "", E1);
         Terminal memory t = buildTerminal(r);
-        expectThankRevert(atHop(CapabilityProof.selector, 0), r, t); // nothing approved yet
+        expectThankRevert(err(CapabilityProof.selector, 0), r, t); // nothing approved yet
 
         safeApprove(safe, OWNER_PK, digestOf(shakeHash));
         settle(r);
@@ -904,7 +899,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         r2.parentCap = address(safe);
         Terminal memory t2 = buildTerminal(r2);
         t2.capabilitySig = "";
-        expectThankRevert(atHop(CapabilityProof.selector, 0), r2, t2);
+        expectThankRevert(err(CapabilityProof.selector, 0), r2, t2);
         safeApprove(safe, OWNER_PK, digestOf(AHandSig.hashGive(t2.give)));
         doThank(r2, t2);
         assertEq(uint8(statusOf(h2)), uint8(Status.Settled), "Safe terminal signs the Give by approved hash");
@@ -929,7 +924,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addHop(r2, E1, address(hostage), OWNER_PK, 9_000, defaultDeadline());
         Terminal memory t2 = buildTerminal(r2);
         hostage.setRevoked(true);
-        expectThankRevert(atHop(ShakerAcceptanceInvalid.selector, 0), r2, t2);
+        expectThankRevert(err(ShakerAcceptanceInvalid.selector, 0), r2, t2);
         assertEq(uint8(statusOf(h2)), uint8(Status.Active), "the Hand is not held hostage, only the branch");
 
         RouteBuild memory fresh = newRoute(h2); // E0 signs a fresh child without the hostage
@@ -948,7 +943,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addHop(r, E1, address(wallet), OWNER_PK, 9_000, defaultDeadline());
         Terminal memory t = buildTerminal(r);
         wallet.rotateOwner(vm.addr(OWNER_B_PK));
-        expectThankRevert(atHop(ShakerAcceptanceInvalid.selector, 0), r, t);
+        expectThankRevert(err(ShakerAcceptanceInvalid.selector, 0), r, t);
         r.hops[0].shakerAcceptanceSig = signShakerAcceptance(OWNER_B_PK, AHandSig.hashShake(r.hops[0].shake)); // the new owner consents
         doThank(r, t);
         assertEq(balanceOf(address(usd), address(wallet)), 9e6);
@@ -963,7 +958,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addSelfHop(r, E1, 10_000);
         Terminal memory t = buildTerminal(r, address(hostage), OWNER_PK, DEFAULT_SOLUTION, defaultDeadline());
         hostage.setRevoked(true);
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
 
         uint256 before = balanceOf(address(usd), raiser);
         warpToExpiry(h);
@@ -1313,8 +1308,8 @@ contract AHandV2RoutingTest is AHandTestBase {
         Terminal memory tZero = buildTerminal(zero); // handRef @ HOME_CHAIN
 
         vm.chainId(FORK_CHAIN);
-        expectThankRevert(atHop(CapabilityProof.selector, 0), pre, tPre);
-        expectThankRevert(abi.encodeWithSelector(RouteHashMismatch.selector), zero, tZero);
+        expectThankRevert(err(CapabilityProof.selector, 0), pre, tPre);
+        expectThankRevert(err(RouteHashMismatch.selector), zero, tZero);
 
         RouteBuild memory live = newRoute(h);
         addSelfHop(live, E1, 10_000); // helpers read DOMAIN_SEPARATOR() live
@@ -1322,11 +1317,11 @@ contract AHandV2RoutingTest is AHandTestBase {
         bytes memory liveGiveSig = t.capabilitySig;
         bytes memory liveAcceptance = t.giverAcceptanceSig;
         t.capabilitySig = signStructWithDomain(E1, staleDs, AHandSig.hashGive(t.give));
-        expectThankRevert(atHop(CapabilityProof.selector, 1), live, t);
+        expectThankRevert(err(CapabilityProof.selector, 1), live, t);
         t.capabilitySig = liveGiveSig;
         t.giverAcceptanceSig =
             signStructWithDomain(GIVER_PK, staleDs, AHandSig.hashGiverAcceptance(AHandSig.hashGive(t.give)));
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), live, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), live, t);
         t.giverAcceptanceSig = liveAcceptance;
         doThank(live, t);
         assertEq(uint8(statusOf(h)), uint8(Status.Settled), "fork settles fresh artifacts");
@@ -1349,7 +1344,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addRawHop(onH2, r1.hops[0]); // h1's hop verbatim
         onH2.parentPk = E1;
         onH2.parentCap = vm.addr(E1);
-        expectWalkRevert(atHop(WrongHand.selector, 0), onH2);
+        expectWalkRevert(err(WrongHand.selector, 0), onH2);
 
         RouteBuild memory retargeted = newRoute(h2);
         Hop memory hop = r1.hops[0];
@@ -1357,11 +1352,11 @@ contract AHandV2RoutingTest is AHandTestBase {
         addRawHop(retargeted, hop);
         retargeted.parentPk = E1;
         retargeted.parentCap = vm.addr(E1);
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), retargeted);
+        expectWalkRevert(err(CapabilityProof.selector, 0), retargeted);
 
         RouteBuild memory r2 = newRoute(h2);
         addSelfHop(r2, E1, 9_000);
-        expectThankRevert(atHop(WrongHand.selector, 1), r2, t1);
+        expectThankRevert(err(WrongHand.selector, 1), r2, t1);
     }
 
     /// Across Cores on one chain: the same handId on a second Core is another
@@ -1379,7 +1374,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         addExplicitHop(onA, E1, shakerA, SHAKER_A_PK, 9_000);
         Terminal memory tA = buildTerminal(onA);
         vm.prank(raiser);
-        vm.expectRevert(atHop(CapabilityProof.selector, 0));
+        vm.expectRevert(err(CapabilityProof.selector, 0));
         core2.thank(h2, onA.hops, tA);
 
         RouteBuild memory onB = newRouteOn(core2, h2, E0);
@@ -1387,14 +1382,14 @@ contract AHandV2RoutingTest is AHandTestBase {
         onB.hops[0].shakerAcceptanceSig = onA.hops[0].shakerAcceptanceSig; // consent given on Core A
         Terminal memory tB = buildTerminal(onB);
         vm.prank(raiser);
-        vm.expectRevert(atHop(ShakerAcceptanceInvalid.selector, 0));
+        vm.expectRevert(err(ShakerAcceptanceInvalid.selector, 0));
         core2.thank(h2, onB.hops, tB);
 
         RouteBuild memory zeroA = newRoute(h);
         Terminal memory tZeroA = buildTerminal(zeroA);
         RouteBuild memory zeroB = newRouteOn(core2, h2, E0);
         vm.prank(raiser);
-        vm.expectRevert(abi.encodeWithSelector(RouteHashMismatch.selector));
+        vm.expectRevert(err(RouteHashMismatch.selector));
         core2.thank(h2, zeroB.hops, tZeroA);
 
         // Each Core settles its own artifacts.
@@ -1423,11 +1418,11 @@ contract AHandV2RoutingTest is AHandTestBase {
         assertEq(ecrecover(shakeDigest, tv, tr, ts), vm.addr(E0), "the precompile accepts the twin");
         bytes memory original = r.hops[0].capabilitySig;
         r.hops[0].capabilitySig = twin;
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), r);
+        expectWalkRevert(err(CapabilityProof.selector, 0), r);
 
         r.hops[0].capabilitySig = original;
         r.hops[0].shakerAcceptanceSig = highSTwin(r.hops[0].shakerAcceptanceSig);
-        expectWalkRevert(atHop(ShakerAcceptanceInvalid.selector, 0), r);
+        expectWalkRevert(err(ShakerAcceptanceInvalid.selector, 0), r);
     }
 
     /// Only 65-byte (r ‖ s ‖ v) with v ∈ {27, 28} is ECDSA to the verifier: a bad
@@ -1440,11 +1435,11 @@ contract AHandV2RoutingTest is AHandTestBase {
         (bytes32 sr, bytes32 ss, uint8 sv) = splitSig(good);
 
         r.hops[0].capabilitySig = abi.encodePacked(sr, ss, uint8(29));
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), r);
+        expectWalkRevert(err(CapabilityProof.selector, 0), r);
         r.hops[0].capabilitySig = abi.encodePacked(sr, bytes32(uint256(ss) | (uint256(sv - 27) << 255))); // EIP-2098
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), r);
+        expectWalkRevert(err(CapabilityProof.selector, 0), r);
         r.hops[0].capabilitySig = "";
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), r);
+        expectWalkRevert(err(CapabilityProof.selector, 0), r);
         r.hops[0].capabilitySig = good;
         settle(r);
         assertEq(uint8(statusOf(h)), uint8(Status.Settled));
@@ -1461,7 +1456,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         r.parentCap = bare;
         addAnonymousHop(r, E1, 10_000);
         r.hops[0].capabilitySig = abi.encode(keccak256("session-key-proof"), uint64(7), keccak256("attestation"));
-        expectWalkRevert(atHop(CapabilityProof.selector, 0), r);
+        expectWalkRevert(err(CapabilityProof.selector, 0), r);
     }
 
     /// EIP-7702 profile: an EOA that has code is still its raw key's account.
@@ -1481,7 +1476,7 @@ contract AHandV2RoutingTest is AHandTestBase {
         bytes memory ownKey = r.hops[1].capabilitySig;
 
         r.hops[1].capabilitySig = signShake(JUNK_PK, r.hops[1].shake); // recovers a stranger → code decides → rejects
-        expectThankRevert(atHop(CapabilityProof.selector, 1), r, t);
+        expectThankRevert(err(CapabilityProof.selector, 1), r, t);
 
         r.hops[1].capabilitySig = ownKey;
         doThank(r, t);

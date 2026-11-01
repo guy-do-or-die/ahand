@@ -51,7 +51,8 @@ import {GovernorSuccessor} from "./probes/GovernorSuccessor.sol";
 import {GiveTimestamper, LateDeliveryReader} from "./probes/GiveTimestamper.sol";
 import {EnvelopeVerifier} from "./probes/EnvelopeVerifier.sol";
 import {SafeLikeSigner} from "./mocks/SafeLikeSigner.sol";
-import {SmartWallet1271, ERC1271_MAGIC} from "./mocks/SmartWallet1271.sol";
+import {SmartWallet1271} from "./mocks/SmartWallet1271.sol";
+import {AlwaysValid1271} from "./mocks/Signers1271.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {HookToken, IHookRecipient} from "./mocks/HookToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -59,15 +60,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @dev A consenting-but-hostile contract shaker: accepts any acceptance bytes
 ///      (its consent lives elsewhere) and, while armed, reverts the token hook that
 ///      pays it — so its own share parks while everyone else is paid.
-contract HostileHookShaker is IHookRecipient {
+contract HostileHookShaker is IHookRecipient, AlwaysValid1271 {
     bool public armed = true;
 
     function setArmed(bool isArmed) external {
         armed = isArmed;
-    }
-
-    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
-        return ERC1271_MAGIC;
     }
 
     function onTokenReceived(address, uint256) external view {
@@ -273,14 +270,14 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         // a bigger margin for the shaker: the capability's signature no longer covers the Shake
         r.hops[0].shake.childClaimBps = 8_000;
         vm.prank(decisionMaker);
-        vm.expectRevert(abi.encodeWithSelector(CapabilityProof.selector, 0));
+        vm.expectRevert(err(CapabilityProof.selector, 0));
         ctl.decide(r.hops, t, 0);
         r.hops[0].shake.childClaimBps = 9_000;
 
         // a different giver: the terminal capability's Give signature no longer covers it
         t.give.giver = stranger;
         vm.prank(decisionMaker);
-        vm.expectRevert(abi.encodeWithSelector(CapabilityProof.selector, 1));
+        vm.expectRevert(err(CapabilityProof.selector, 1));
         ctl.decide(r.hops, t, 0);
         t.give.giver = giver;
 
@@ -567,7 +564,7 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         // over-reach into the giver's floor: the hop is refused at its index
         RouteBuild memory r = newRoute(h);
         addHopTo(r, address(agent), AGENT_PK, address(agent), AGENT_PK, 4_900, bytes32(0), defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(ClaimBelowFloor.selector, 0), r, buildTerminal(r));
+        expectThankRevert(err(ClaimBelowFloor.selector, 0), r, buildTerminal(r));
 
         // no fixed position: the Raiser settles another route and the agent's signed hop is simply not it
         RouteBuild memory human = newRoute(h);
@@ -623,7 +620,7 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         PolicyCapability cap = newPolicyCap(uint40(block.timestamp + 2 days));
         uint256 h = makeRaise();
         RouteBuild memory r = delegatedRoute(h, cap, vm.addr(E2), 501, defaultDeadline(), AGENT_PK);
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), r, buildTerminal(r));
+        expectThankRevert(err(CapabilityProof.selector, 1), r, buildTerminal(r));
     }
 
     function test_PolicyCapability_RefusesADisallowedChild() public {
@@ -632,14 +629,14 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         RouteBuild memory r = delegatedRoute(h, cap, vm.addr(E3), 500, defaultDeadline(), AGENT_PK);
         r.parentPk = E3;
         r.parentCap = vm.addr(E3);
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), r, buildTerminal(r));
+        expectThankRevert(err(CapabilityProof.selector, 1), r, buildTerminal(r));
     }
 
     function test_PolicyCapability_RefusesADeadlineBeyondItsWindow() public {
         PolicyCapability cap = newPolicyCap(uint40(block.timestamp + 2 hours));
         uint256 h = makeRaise();
         RouteBuild memory r = delegatedRoute(h, cap, vm.addr(E2), 500, defaultDeadline(), AGENT_PK); // now + 1 day
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), r, buildTerminal(r));
+        expectThankRevert(err(CapabilityProof.selector, 1), r, buildTerminal(r));
         // the same hop inside the window settles
         RouteBuild memory ok = delegatedRoute(h, cap, vm.addr(E2), 500, uint40(block.timestamp + 1 hours), AGENT_PK);
         settle(ok);
@@ -651,15 +648,15 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         uint256 h = makeRaise();
         // the policy passes but the owner's signature is somebody else's
         RouteBuild memory r = delegatedRoute(h, cap, vm.addr(E2), 500, defaultDeadline(), SHAKER_A_PK);
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), r, buildTerminal(r));
+        expectThankRevert(err(CapabilityProof.selector, 1), r, buildTerminal(r));
         // garbage bytes revert inside Core's staticcall and count as invalid
         RouteBuild memory g = delegatedRoute(h, cap, vm.addr(E2), 500, defaultDeadline(), AGENT_PK);
         g.hops[1].capabilitySig = hex"deadbeef";
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), g, buildTerminal(g));
+        expectThankRevert(err(CapabilityProof.selector, 1), g, buildTerminal(g));
         // a plain ECDSA signature by the agent is not the capability's envelope either
         RouteBuild memory e = delegatedRoute(h, cap, vm.addr(E2), 500, defaultDeadline(), AGENT_PK);
         e.hops[1].capabilitySig = signShake(AGENT_PK, e.hops[1].shake);
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), e, buildTerminal(e));
+        expectThankRevert(err(CapabilityProof.selector, 1), e, buildTerminal(e));
     }
 
     function test_PolicyCapability_AsTerminalCapability_SignsTheGiveWithinItsWindow() public {
@@ -671,7 +668,7 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         // beyond the window → the Give (position hops.length == 1) is refused
         Terminal memory late = buildTerminal(r, giver, GIVER_PK, DEFAULT_SOLUTION, defaultDeadline());
         late.capabilitySig = cap.encodeGive(late.give, signStruct(AGENT_PK, AHandSig.hashGive(late.give)));
-        expectThankRevert(abi.encodeWithSelector(CapabilityProof.selector, 1), r, late);
+        expectThankRevert(err(CapabilityProof.selector, 1), r, late);
         // inside the window → settles; the capability keeps no margin here, the giver takes D − A_0
         Terminal memory t = buildTerminal(r, giver, GIVER_PK, DEFAULT_SOLUTION, uint40(block.timestamp + 1 hours));
         t.capabilitySig = cap.encodeGive(t.give, signStruct(AGENT_PK, AHandSig.hashGive(t.give)));
@@ -725,9 +722,9 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_000);
         Terminal memory wrongKey = buildTerminal(r, address(splitter), GIVER_PK, DEFAULT_SOLUTION, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, wrongKey);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, wrongKey);
         Terminal memory empty = buildTerminal(r, address(splitter), 0, DEFAULT_SOLUTION, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, empty);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, empty);
         assertEq(uint8(statusOf(h)), uint8(Status.Active));
     }
 
@@ -794,7 +791,7 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         RouteBuild memory r = newRoute(h);
         addExplicitHop(r, E1, address(safe), 0, 9_000); // empty acceptance bytes
         Terminal memory t = buildTerminal(r);
-        expectThankRevert(abi.encodeWithSelector(ShakerAcceptanceInvalid.selector, 0), r, t);
+        expectThankRevert(err(ShakerAcceptanceInvalid.selector, 0), r, t);
         safeApprove(safe, SAFE_PK, digestOf(AHandSig.hashShakerAcceptance(shakeHashesOf(r)[0])));
         doThank(r, t);
         assertEq(usd.balanceOf(address(safe)), 9e6, "the Safe's margin");
@@ -806,7 +803,7 @@ contract AHandV2ExtensionsTest is ExtensionsFixture {
         RouteBuild memory r = newRoute(h);
         addSelfHop(r, E1, 9_000);
         Terminal memory t = buildTerminal(r, address(safe), 0, DEFAULT_SOLUTION, defaultDeadline());
-        expectThankRevert(abi.encodeWithSelector(GiverAcceptanceInvalid.selector), r, t);
+        expectThankRevert(err(GiverAcceptanceInvalid.selector), r, t);
         safeApprove(safe, SAFE_PK, digestOf(AHandSig.hashGiverAcceptance(AHandSig.hashGive(t.give))));
         doThank(r, t);
         assertEq(usd.balanceOf(address(safe)), 81e6, "the Safe's residual");

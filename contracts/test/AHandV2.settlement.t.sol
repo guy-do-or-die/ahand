@@ -35,7 +35,9 @@ import {GasHogRecipient, PartialReturnRecipient} from "./mocks/HookRecipients.so
 import {ReturndataBombToken} from "./mocks/ReturndataBombToken.sol";
 import {TransferThenFalseToken} from "./mocks/ReturnShapeTokens.sol";
 import {FiatTokenLikeV1} from "./mocks/FiatTokenLike.sol";
-import {SmartWallet1271, ERC1271_MAGIC} from "./mocks/SmartWallet1271.sol";
+import {SmartWallet1271} from "./mocks/SmartWallet1271.sol";
+import {AlwaysValid1271} from "./mocks/Signers1271.sol";
+import {PushExactCaller} from "./mocks/PushExactCaller.sol";
 
 /*//////////////////////////////////////////////////////////////
         SUITE: settlement — thank, the split, the pushes, the commitment.
@@ -48,15 +50,11 @@ import {SmartWallet1271, ERC1271_MAGIC} from "./mocks/SmartWallet1271.sol";
 
 /// @dev A hook recipient that records the gas it sees inside the push frame and
 ///      accepts any signature, so it can be the giver of a zero-shake route.
-contract GasProbeRecipient is IHookRecipient {
+contract GasProbeRecipient is IHookRecipient, AlwaysValid1271 {
     uint256 public observedGas;
 
     function onTokenReceived(address, uint256) external {
         observedGas = gasleft();
-    }
-
-    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
-        return ERC1271_MAGIC;
     }
 }
 
@@ -98,13 +96,6 @@ contract SettledStateObserver is IHookRecipient {
         catch (bytes memory err) {
             reclaimError = bytes4(err);
         }
-    }
-}
-
-/// @dev A contract caller of the frame: must be refused like any EOA.
-contract PushExactCaller {
-    function push(AHandCore core, address token, address to, uint256 amount) external {
-        core.pushExact(token, to, amount);
     }
 }
 
@@ -562,7 +553,7 @@ contract AHandV2SettlementTest is AHandTestBase {
         uint256 h = makeRaise(p);
         RouteBuild memory r = newRoute(h);
         addExplicitHop(r, E1, shakerA, SHAKER_A_PK, 9_000);
-        expectThankRevert(abi.encodeWithSelector(MarginRoundsToZero.selector, 0), r, buildTerminal(r));
+        expectThankRevert(err(MarginRoundsToZero.selector, 0), r, buildTerminal(r));
     }
 
     /// I-27 on the formula itself: splitting one margin across two hops never
@@ -640,7 +631,7 @@ contract AHandV2SettlementTest is AHandTestBase {
         uint256 h2 = makeRaise(zeroPotParams());
         RouteBuild memory r2 = newRoute(h2);
         addAnonymousHop(r2, E1, 9_000);
-        expectThankRevert(abi.encodeWithSelector(AnonymousShakerWithMargin.selector, 0), r2, buildTerminal(r2));
+        expectThankRevert(err(AnonymousShakerWithMargin.selector, 0), r2, buildTerminal(r2));
     }
 
     /// The raiser may be its own giver: it thanks, consents as giver and receives
@@ -1157,13 +1148,13 @@ contract AHandV2SettlementTest is AHandTestBase {
     /// @dev One attempt at `thank` with exactly `gas`; the state change is the caller's to keep or revert.
     function tryThankWithGas(RouteBuild memory r, Terminal memory t, uint256 gas)
         internal
-        returns (bool ok, bytes memory err)
+        returns (bool ok, bytes memory revertData)
     {
         vm.prank(raiser);
         try r.core.thank{gas: gas}(r.handId, r.hops, t) {
             ok = true;
         } catch (bytes memory e) {
-            err = e;
+            revertData = e;
         }
     }
 
@@ -1210,9 +1201,9 @@ contract AHandV2SettlementTest is AHandTestBase {
         uint256 guard = core.PUSH_GAS() * 64 / 63 + core.PUSH_RESERVE();
         assertGt(least, guard, "the guard threshold sits below the least settling gas");
 
-        (bool ok, bytes memory err) = tryThankWithGas(r, t, least - 1);
+        (bool ok, bytes memory revertData) = tryThankWithGas(r, t, least - 1);
         assertFalse(ok);
-        assertEq(err, abi.encodeWithSelector(InsufficientGas.selector), "one unit short: InsufficientGas, not a deferral");
+        assertEq(revertData, err(InsufficientGas.selector), "one unit short: InsufficientGas, not a deferral");
         assertEq(uint8(statusOf(h)), uint8(Status.Active), "whole transaction reverted");
         assertEq(claimOf(address(hk), address(probe)), 0, "nothing parked");
         assertEq(probe.observedGas(), 0, "the frame never ran");
@@ -1248,9 +1239,9 @@ contract AHandV2SettlementTest is AHandTestBase {
         Terminal memory t = buildTerminal(r);
 
         uint256 least = minThankGas(r, t);
-        (bool ok, bytes memory err) = tryThankWithGas(r, t, least - 1);
+        (bool ok, bytes memory revertData) = tryThankWithGas(r, t, least - 1);
         assertFalse(ok);
-        assertEq(err, abi.encodeWithSelector(InsufficientGas.selector), "the guard, not the parent, is what fails");
+        assertEq(revertData, err(InsufficientGas.selector), "the guard, not the parent, is what fails");
         assertEq(uint8(statusOf(h)), uint8(Status.Active));
 
         vm.prank(raiser);
@@ -1275,7 +1266,7 @@ contract AHandV2SettlementTest is AHandTestBase {
 
     /// @dev Explicit, anonymous and self hops in one route: the preimage shape with a
     ///      zero in the middle (32-byte-padded array hashing, §3.5).
-    function mixedRoute(uint256 h) internal view returns (RouteBuild memory r) {
+    function threeHopMixedRoute(uint256 h) internal view returns (RouteBuild memory r) {
         r = newRoute(h);
         addExplicitHop(r, E1, shakerA, SHAKER_A_PK, 9_000);
         addAnonymousHop(r, E2, 9_000);
@@ -1286,7 +1277,7 @@ contract AHandV2SettlementTest is AHandTestBase {
     /// RouteHopSettled, and of the preimage computed from the known route.
     function test_SettlementHash_RoundTripsFromEvents() public {
         uint256 h = makeRaise();
-        RouteBuild memory r = mixedRoute(h);
+        RouteBuild memory r = threeHopMixedRoute(h);
         vm.recordLogs();
         Terminal memory t = settle(r);
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1319,7 +1310,7 @@ contract AHandV2SettlementTest is AHandTestBase {
     /// preimage matches again after each probe.
     function test_SettlementHash_MutationMatrix() public {
         uint256 h = makeRaise();
-        RouteBuild memory r = mixedRoute(h);
+        RouteBuild memory r = threeHopMixedRoute(h);
         vm.recordLogs();
         settle(r);
         AHandSettlement.SettlementPreimage memory p = preimageFromLogsOn(core, vm.getRecordedLogs(), h);
@@ -1504,7 +1495,7 @@ contract AHandV2SettlementTest is AHandTestBase {
         }
         Terminal memory t2 = buildTerminal(r2);
         t2.give.finalClaimBps = 9_999;
-        expectThankRevert(abi.encodeWithSelector(ClaimMismatch.selector, 257), r2, t2);
+        expectThankRevert(err(ClaimMismatch.selector, 257), r2, t2);
     }
 
     /// A settled Hand is terminal: the identical bundle replays to `NotActive`, and
@@ -1513,7 +1504,7 @@ contract AHandV2SettlementTest is AHandTestBase {
         uint256 h = makeRaise();
         (RouteBuild memory r, Terminal memory t) = settleSimple(h);
         bytes32 stored = core.facts(h).settlementHash;
-        expectThankRevert(abi.encodeWithSelector(NotActive.selector), r, t);
+        expectThankRevert(err(NotActive.selector), r, t);
         warpToExpiry(h);
         vm.expectRevert(NotActive.selector);
         core.reclaim(h);
@@ -1542,7 +1533,7 @@ contract AHandV2SettlementTest is AHandTestBase {
         assertEq(core.facts(h).closedAt, expiry - 1);
 
         vm.warp(expiry);
-        expectThankRevert(abi.encodeWithSelector(HandExpired.selector), r2, t2);
+        expectThankRevert(err(HandExpired.selector), r2, t2);
         assertEq(uint8(statusOf(h2)), uint8(Status.Active), "expiry belongs to reclaim");
     }
 
