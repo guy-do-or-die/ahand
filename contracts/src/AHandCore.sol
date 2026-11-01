@@ -388,18 +388,25 @@ contract AHandCore is IAHandFacts, EIP712, ReentrancyGuardTransient {
         // (8) I-5: exact entry on both sides; a zero pot makes no token call
         if (p.amount != 0) _pullExact(p.token, msg.sender, p.amount);
 
-        // effects — field by field, skipping zero fields (a zero-over-zero SSTORE is not free)
+        // effects — field by field, skipping zero fields (a zero-over-zero SSTORE is not free).
+        // The calldata fields of each packed word are bound first: a calldata read carries its
+        // own validation branch, and stores on either side of one never merge into one SSTORE.
         handId = ++handsCount; // I-1: ids monotonic from 1
         Hand storage h = _hands[handId];
+        uint40 expiry = p.expiry;
+        Visibility visibility = p.visibility;
         h.raiser = msg.sender;
-        h.expiry = p.expiry;
-        h.visibility = p.visibility;
+        h.expiry = expiry;
+        h.visibility = visibility;
         h.status = Status.Active;
-        h.token = p.token;
-        h.charityBps = p.charityBps;
-        h.minGiverClaimBps = p.minGiverClaimBps;
+        address token = p.token;
+        uint16 charityBps = p.charityBps;
+        uint16 minGiverClaimBps = p.minGiverClaimBps;
+        h.token = token;
+        h.charityBps = charityBps;
+        h.minGiverClaimBps = minGiverClaimBps;
         if (p.amount != 0) h.pool = p.amount;
-        if (p.charityBps != 0) h.charityRecipient = p.charityRecipient;
+        if (charityBps != 0) h.charityRecipient = p.charityRecipient;
         h.rootCapability = p.rootCapability;
         h.metadataCommitment = p.metadataCommitment;
         if (p.discoveryCommitment != bytes32(0)) h.discoveryCommitment = p.discoveryCommitment;

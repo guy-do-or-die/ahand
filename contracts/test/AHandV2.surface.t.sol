@@ -970,6 +970,29 @@ contract AHandV2SurfaceTest is AHandTestBase {
         }
     }
 
+    /// `raise` writes the counter and then each of its seven Hand slots exactly once, in
+    /// layout order: the packed words' calldata fields are bound before the stores, so no
+    /// validator branch splits a word into two SSTOREs. `thank` writes two: the status
+    /// word and `settlementHash`.
+    function test_Layout_WritesPerSlot_RaiseOnceThankTwo() public {
+        vm.record();
+        uint256 h = makeRaise();
+        (, bytes32[] memory writes) = vm.accesses(address(core));
+        assertEq(writes.length, 8, "counter + seven Hand slots (settlementHash is thank's)");
+        assertEq(uint256(writes[0]), SLOT_HANDS_COUNT);
+        uint256 base = _handBase(h);
+        for (uint256 i; i < 7; ++i) {
+            assertEq(uint256(writes[1 + i]), base + i, "one write per slot, in layout order");
+        }
+
+        vm.record();
+        settleSimple(h);
+        (, writes) = vm.accesses(address(core));
+        assertEq(writes.length, 2, "status word + settlementHash");
+        assertEq(uint256(writes[0]), base);
+        assertEq(uint256(writes[1]), base + 7);
+    }
+
     /// `charityAllowed` at keccak(charity, 6); `claims` at keccak(beneficiary, keccak(token, 7)).
     function test_Layout_Mappings() public {
         assertEq(_word(uint256(keccak256(abi.encode(charity, SLOT_CHARITY_ALLOWED)))), 1, "charityAllowed[charity]");
