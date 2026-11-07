@@ -5,15 +5,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title  AHandCore
-/// @notice A Hand is a pot of one ERC-20 locked until a fixed moment. After that
-///         moment anyone can send it back to the raiser, and nothing else can move it.
+/// @notice A Hand is a pot of one ERC-20 locked until a fixed moment. Before that
+///         moment the raiser can pay it to whoever helped; from that moment anyone can
+///         send it back to the raiser. Nothing else can move it.
 contract AHandCore {
     using SafeERC20 for IERC20;
 
     enum Status {
         None,
         Active,
-        Reclaimed
+        Reclaimed,
+        Thanked
     }
 
     struct Hand {
@@ -26,10 +28,14 @@ contract AHandCore {
 
     event Raised(uint256 indexed handId, address indexed raiser, address indexed token, uint256 amount, uint40 expiry);
     event Reclaimed(uint256 indexed handId);
+    event Thanked(uint256 indexed handId, address indexed giver);
 
     error ExpiryNotInFuture();
     error NotActive();
     error NotExpired();
+    error NotRaiser();
+    error GiverIsRaiser();
+    error Expired();
     error InexactTransfer();
 
     uint256 public handsCount;
@@ -52,6 +58,21 @@ contract AHandCore {
         if (IERC20(token).balanceOf(address(this)) != coreBefore + amount) revert InexactTransfer();
     }
 
+    /// @notice Pays the whole pot to `giver`, who is never the raiser. Only the raiser,
+    ///         only before expiry.
+    function thank(uint256 handId, address giver) external {
+        Hand storage hand = hands[handId];
+        if (hand.status != Status.Active) revert NotActive();
+        if (msg.sender != hand.raiser) revert NotRaiser();
+        if (giver == msg.sender) revert GiverIsRaiser();
+        if (block.timestamp >= hand.expiry) revert Expired();
+
+        hand.status = Status.Thanked;
+        emit Thanked(handId, giver);
+
+        _pay(hand, giver);
+    }
+
     /// @notice Refunds an expired Hand to its raiser. Anyone may call.
     function reclaim(uint256 handId) external {
         Hand storage hand = hands[handId];
@@ -61,11 +82,15 @@ contract AHandCore {
         hand.status = Status.Reclaimed;
         emit Reclaimed(handId);
 
-        // Custody is shared per token, so a refund that debits more than this Hand's
-        // pot would be paid with another Hand's money.
+        _pay(hand, hand.raiser);
+    }
+
+    /// @dev Custody is shared per token, so a payment that debits more than this Hand's
+    ///      pot would be paid with another Hand's money.
+    function _pay(Hand storage hand, address to) private {
         IERC20 token = IERC20(hand.token);
         uint256 coreBefore = token.balanceOf(address(this));
-        token.safeTransfer(hand.raiser, hand.amount);
+        token.safeTransfer(to, hand.amount);
         if (token.balanceOf(address(this)) + hand.amount != coreBefore) revert InexactTransfer();
     }
 }

@@ -5,15 +5,16 @@ import {Test} from "forge-std/Test.sol";
 import {AHandCore} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 
-/// Random raises, reclaims and time jumps by three actors over two tokens.
+/// Random raises, thanks, reclaims and time jumps by three actors over two tokens.
 contract Handler is Test {
     AHandCore public core;
     MockUSD[2] public tokens;
     address[3] public actors = [address(0xA11CE), address(0xB0B), address(0xCA401)];
 
     mapping(address => uint256) public open; // token => sum of Active pots, kept independently of Core
-    mapping(address => mapping(address => uint256)) public paidIn; // actor => token => deposits
-    mapping(address => mapping(address => uint256)) public paidOut; // actor => token => refunds
+    mapping(address => uint256) public paidIn; // token => all deposits
+    mapping(address => uint256) public paidOut; // token => all payments and refunds
+    uint256 public closed; // Hands this handler closed
 
     constructor(AHandCore core_, MockUSD a, MockUSD b) {
         core = core_;
@@ -30,18 +31,36 @@ contract Handler is Test {
         core.raise(address(token), amount, uint40(block.timestamp + bound(ahead, 1, 90 days)));
         vm.stopPrank();
         open[address(token)] += amount;
-        paidIn[actor][address(token)] += amount;
+        paidIn[address(token)] += amount;
     }
 
     function reclaim(uint256 seed) external {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        (address raiser, uint40 expiry, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
+        (, uint40 expiry, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
         if (status != AHandCore.Status.Active || block.timestamp < expiry) return;
         core.reclaim(id);
+        _closed(token, amount);
+    }
+
+    function thank(uint256 seed, uint256 to) external {
+        uint256 count = core.handsCount();
+        if (count == 0) return;
+        uint256 id = seed % count + 1;
+        (address raiser, uint40 expiry, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
+        if (status != AHandCore.Status.Active || block.timestamp >= expiry) return;
+        address giver = actors[to % 3];
+        if (giver == raiser) giver = actors[(to % 3 + 1) % 3];
+        vm.prank(raiser);
+        core.thank(id, giver);
+        _closed(token, amount);
+    }
+
+    function _closed(address token, uint256 amount) private {
         open[token] -= amount;
-        paidOut[raiser][token] += amount;
+        paidOut[token] += amount;
+        ++closed;
     }
 
     function warp(uint256 by) external {
@@ -69,12 +88,19 @@ contract CoreInvariantTest is Test {
         assertEq(b.balanceOf(address(core)), handler.open(address(b)));
     }
 
-    /// Nobody ever gets back more than they put in.
-    function invariant_nobodyProfits() public view {
-        for (uint256 i; i < 3; ++i) {
-            address actor = handler.actors(i);
-            assertLe(handler.paidOut(actor, address(a)), handler.paidIn(actor, address(a)));
-            assertLe(handler.paidOut(actor, address(b)), handler.paidIn(actor, address(b)));
+    /// Every unit that came in is either still held or left exactly once.
+    function invariant_moneyIsConserved() public view {
+        assertEq(handler.paidIn(address(a)), handler.paidOut(address(a)) + a.balanceOf(address(core)));
+        assertEq(handler.paidIn(address(b)), handler.paidOut(address(b)) + b.balanceOf(address(core)));
+    }
+
+    /// A closed Hand stays closed: Core counts exactly the Hands the handler closed.
+    function invariant_closedHandsStayClosed() public view {
+        uint256 closed;
+        for (uint256 id = 1; id <= core.handsCount(); ++id) {
+            (,, AHandCore.Status status,,) = core.hands(id);
+            if (status != AHandCore.Status.Active) ++closed;
         }
+        assertEq(closed, handler.closed());
     }
 }

@@ -19,6 +19,7 @@ interface IMintable {
 contract CoreTest is Test {
     event Raised(uint256 indexed handId, address indexed raiser, address indexed token, uint256 amount, uint40 expiry);
     event Reclaimed(uint256 indexed handId);
+    event Thanked(uint256 indexed handId, address indexed giver);
 
     uint256 constant POT = 100e6;
 
@@ -26,6 +27,7 @@ contract CoreTest is Test {
     MockUSD usd;
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
+    address carol = makeAddr("carol");
     uint40 expiry;
 
     function setUp() public {
@@ -187,6 +189,126 @@ contract CoreTest is Test {
         core.reclaim(0);
     }
 
+    /*//////////////////////////// thank ////////////////////////////*/
+
+    function test_thank_paysTheWholePotToTheGiver() public {
+        uint256 id = _raise(alice, address(usd), POT);
+
+        vm.expectEmit(address(core));
+        emit Thanked(id, carol);
+        vm.prank(alice);
+        core.thank(id, carol);
+
+        assertEq(usd.balanceOf(carol), POT);
+        assertEq(usd.balanceOf(address(core)), 0);
+        (,, AHandCore.Status status,,) = core.hands(id);
+        assertEq(uint8(status), uint8(AHandCore.Status.Thanked));
+    }
+
+    function test_thank_onlyTheRaiser() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        vm.prank(carol);
+        vm.expectRevert(AHandCore.NotRaiser.selector);
+        core.thank(id, carol);
+    }
+
+    function test_thank_windowClosesExactlyAtExpiry() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        vm.warp(expiry);
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.Expired.selector);
+        core.thank(id, carol);
+    }
+
+    function test_thank_worksOneSecondBeforeExpiry() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        vm.warp(expiry - 1);
+        vm.prank(alice);
+        core.thank(id, carol);
+        assertEq(usd.balanceOf(carol), POT);
+    }
+
+    function test_thank_onlyOnce() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        _raise(bob, address(usd), POT); // money a second thank would steal
+        vm.startPrank(alice);
+        core.thank(id, carol);
+        vm.expectRevert(AHandCore.NotActive.selector);
+        core.thank(id, carol);
+        vm.stopPrank();
+        assertEq(usd.balanceOf(address(core)), POT);
+    }
+
+    function test_thank_unknownHand() public {
+        vm.expectRevert(AHandCore.NotActive.selector);
+        core.thank(1, carol);
+    }
+
+    function test_thank_closesReclaim() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        _raise(bob, address(usd), POT);
+        vm.prank(alice);
+        core.thank(id, carol);
+        vm.warp(expiry);
+        vm.expectRevert(AHandCore.NotActive.selector);
+        core.reclaim(id);
+    }
+
+    /// Nobody helps themselves: the pot leaves only to someone else, or back by reclaim.
+    function test_thank_raiserCannotBeTheGiver() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.GiverIsRaiser.selector);
+        core.thank(id, alice);
+        (,, AHandCore.Status status,,) = core.hands(id);
+        assertEq(uint8(status), uint8(AHandCore.Status.Active));
+    }
+
+    function test_thank_zeroPot() public {
+        uint256 id = _raise(alice, address(usd), 0);
+        vm.prank(alice);
+        core.thank(id, carol);
+        (,, AHandCore.Status status,,) = core.hands(id);
+        assertEq(uint8(status), uint8(AHandCore.Status.Thanked));
+    }
+
+    /// Core as the giver would close the Hand and strand the pot as unowned surplus.
+    function test_thank_coreCannotBeTheGiver() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.thank(id, address(core));
+    }
+
+    /// A giver who cannot be paid changes nothing: the raiser can pick another or wait for expiry.
+    function test_thank_blockedGiverLeavesTheHandOpen() public {
+        BlacklistToken t = new BlacklistToken();
+        _fund(address(t), alice);
+        uint256 id = _raise(alice, address(t), POT);
+        t.setBlocked(carol, true);
+
+        vm.startPrank(alice);
+        vm.expectRevert();
+        core.thank(id, carol);
+        core.thank(id, bob);
+        vm.stopPrank();
+        assertEq(t.balanceOf(bob), POT);
+    }
+
+    function test_thank_lateFeeCannotEatAnotherHand() public {
+        LateSenderFeeToken t = new LateSenderFeeToken();
+        _fund(address(t), alice);
+        _fund(address(t), bob);
+        uint256 a = _raise(alice, address(t), POT);
+        _raise(bob, address(t), POT);
+        t.setFeeOn(true);
+
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.thank(a, carol);
+        assertEq(t.balanceOf(address(core)), 2 * POT);
+    }
+
     /*//////////////////////////// awkward tokens ////////////////////////////*/
 
     function test_token_noReturnValueWorks() public {
@@ -305,6 +427,26 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(address(core)), POT);
     }
 
+    /// The token is its own raiser here, so it can re-enter `thank` with full authority.
+    function test_reentry_thankInsideItsOwnPaymentPaysOnce() public {
+        HookToken t = new HookToken();
+        _fund(address(t), bob);
+        t.mint(address(t), POT);
+        vm.prank(address(t));
+        t.approve(address(core), POT);
+        uint256 id = _raise(address(t), address(t), POT);
+        _raise(bob, address(t), POT);
+        t.setReentry(address(core), abi.encodeCall(core.thank, (id, carol)), false, true, false);
+
+        vm.prank(address(t));
+        core.thank(id, carol);
+
+        assertFalse(t.lastReentryOk());
+        assertEq(bytes4(t.lastReentryReturn()), AHandCore.NotActive.selector);
+        assertEq(t.balanceOf(carol), POT);
+        assertEq(t.balanceOf(address(core)), POT);
+    }
+
     /*//////////////////////////// fuzz ////////////////////////////*/
 
     function testFuzz_raiseThenReclaimReturnsExactlyThePot(uint256 amount, uint40 ahead, uint40 late) public {
@@ -320,6 +462,22 @@ contract CoreTest is Test {
         vm.warp(uint256(e) + bound(late, 0, 3650 days));
         core.reclaim(id);
         assertEq(usd.balanceOf(alice), before);
+        assertEq(usd.balanceOf(address(core)), 0);
+    }
+
+    function testFuzz_thankPaysExactlyThePot(uint256 amount, uint40 ahead, uint40 at) public {
+        amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
+        uint256 span = bound(ahead, 1, 3650 days);
+        uint40 e = uint40(block.timestamp + span);
+        usd.mint(alice, amount);
+
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), amount, e);
+
+        vm.warp(block.timestamp + bound(at, 0, span - 1));
+        vm.prank(alice);
+        core.thank(id, carol);
+        assertEq(usd.balanceOf(carol), amount);
         assertEq(usd.balanceOf(address(core)), 0);
     }
 }
