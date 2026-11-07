@@ -31,7 +31,7 @@ contract Handler is Test {
         token.mint(actor, amount);
         vm.startPrank(actor);
         token.approve(address(core), amount);
-        core.raise(address(token), amount, uint40(block.timestamp + bound(ahead, 1, 90 days)));
+        core.raise(address(token), amount, uint40(block.timestamp + bound(ahead, 1, 90 days)), bytes32(amount));
         vm.stopPrank();
         open[address(token)] += amount;
         paidIn[address(token)] += amount;
@@ -41,7 +41,7 @@ contract Handler is Test {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        (, uint40 expiry, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
+        (, uint40 expiry, AHandCore.Status status, address token, uint256 amount,) = core.hands(id);
         if (status != AHandCore.Status.Active || block.timestamp < expiry) return;
         core.reclaim(id);
         _closed(token, amount);
@@ -51,7 +51,7 @@ contract Handler is Test {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        (address raiser, uint40 expiry, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
+        (address raiser, uint40 expiry, AHandCore.Status status, address token, uint256 amount,) = core.hands(id);
         if (status != AHandCore.Status.Active || block.timestamp >= expiry) return;
         uint256 pick = to % 3;
         if (actors[pick] == raiser) pick = (pick + 1) % 3;
@@ -103,7 +103,7 @@ contract CoreInvariantTest is Test {
     function invariant_closedHandsStayClosed() public view {
         uint256 closed;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            (,, AHandCore.Status status,,) = core.hands(id);
+            (,, AHandCore.Status status,,,) = core.hands(id);
             if (status != AHandCore.Status.Active) ++closed;
         }
         assertEq(closed, handler.closed());

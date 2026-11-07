@@ -27,9 +27,17 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         Status status;
         address token;
         uint256 amount;
+        bytes32 metadataHash;
     }
 
-    event Raised(uint256 indexed handId, address indexed raiser, address indexed token, uint256 amount, uint40 expiry);
+    event Raised(
+        uint256 indexed handId,
+        address indexed raiser,
+        address indexed token,
+        uint256 amount,
+        uint40 expiry,
+        bytes32 metadataHash
+    );
     event Reclaimed(uint256 indexed handId);
     event Thanked(uint256 indexed handId, address indexed giver, bytes32 solutionHash);
 
@@ -49,13 +57,18 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
     constructor() EIP712("aHand", "core") {}
 
-    /// @notice Locks `amount` of `token` from the caller until `expiry`.
-    function raise(address token, uint256 amount, uint40 expiry) external nonReentrant returns (uint256 handId) {
+    /// @notice Locks `amount` of `token` from the caller until `expiry`. `metadataHash` is
+    ///         a commitment Core never reads: the application owns the text and its schema.
+    function raise(address token, uint256 amount, uint40 expiry, bytes32 metadataHash)
+        external
+        nonReentrant
+        returns (uint256 handId)
+    {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
 
         handId = ++handsCount;
-        hands[handId] = Hand(msg.sender, expiry, Status.Active, token, amount);
-        emit Raised(handId, msg.sender, token, amount, expiry);
+        hands[handId] = Hand(msg.sender, expiry, Status.Active, token, amount, metadataHash);
+        emit Raised(handId, msg.sender, token, amount, expiry, metadataHash);
 
         // Both sides are measured: a token that moves any other amount is refused here,
         // not discovered when the money has to leave.

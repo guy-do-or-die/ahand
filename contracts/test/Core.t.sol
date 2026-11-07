@@ -21,18 +21,26 @@ interface IMintable {
 contract TwoInARow {
     function go(AHandCore core, MockUSD token, uint256 amount, uint40 expiry) external {
         token.approve(address(core), 2 * amount);
-        core.raise(address(token), amount, expiry);
-        core.raise(address(token), amount, expiry);
+        core.raise(address(token), amount, expiry, bytes32(0));
+        core.raise(address(token), amount, expiry, bytes32(0));
     }
 }
 
 contract CoreTest is Test {
-    event Raised(uint256 indexed handId, address indexed raiser, address indexed token, uint256 amount, uint40 expiry);
+    event Raised(
+        uint256 indexed handId,
+        address indexed raiser,
+        address indexed token,
+        uint256 amount,
+        uint40 expiry,
+        bytes32 metadataHash
+    );
     event Reclaimed(uint256 indexed handId);
     event Thanked(uint256 indexed handId, address indexed giver, bytes32 solutionHash);
 
     uint256 constant POT = 100e6;
     bytes32 constant SOLUTION = keccak256("the salted solution");
+    bytes32 constant METADATA = keccak256("what the raiser asks for");
 
     AHandCore core;
     MockUSD usd;
@@ -63,7 +71,7 @@ contract CoreTest is Test {
 
     function _raise(address who, address token, uint256 amount) internal returns (uint256) {
         vm.prank(who);
-        return core.raise(token, amount, expiry);
+        return core.raise(token, amount, expiry, METADATA);
     }
 
     function _sign(address to, uint256 key, uint256 handId, bytes32 solutionHash) internal view returns (bytes memory) {
@@ -81,7 +89,7 @@ contract CoreTest is Test {
         uint256 before = usd.balanceOf(alice);
 
         vm.expectEmit(address(core));
-        emit Raised(1, alice, address(usd), POT, expiry);
+        emit Raised(1, alice, address(usd), POT, expiry, METADATA);
         uint256 id = _raise(alice, address(usd), POT);
 
         assertEq(id, 1);
@@ -89,12 +97,14 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), POT);
         assertEq(usd.balanceOf(alice), before - POT);
 
-        (address raiser, uint40 exp, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
+        (address raiser, uint40 exp, AHandCore.Status status, address token, uint256 amount, bytes32 metadataHash) =
+            core.hands(id);
         assertEq(raiser, alice);
         assertEq(exp, expiry);
         assertEq(uint8(status), uint8(AHandCore.Status.Active));
         assertEq(token, address(usd));
         assertEq(amount, POT);
+        assertEq(metadataHash, METADATA);
     }
 
     function test_raise_idsGrowFromOne() public {
@@ -111,19 +121,42 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
+    /// Core does not judge the hash: an empty one is the raiser's and the application's business.
+    function test_raise_zeroMetadataIsAllowed() public {
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), POT, expiry, bytes32(0));
+        (,,,,, bytes32 metadataHash) = core.hands(id);
+        assertEq(metadataHash, bytes32(0));
+    }
+
+    /// The hash outlives the Hand, so it can still be read once the Hand is closed.
+    function test_raise_metadataStaysAfterTheHandCloses() public {
+        uint256 thanked = _raise(alice, address(usd), POT);
+        uint256 reclaimed = _raise(alice, address(usd), POT);
+        vm.prank(alice);
+        core.thank(thanked, carol, SOLUTION, _sig(thanked, carolKey));
+        vm.warp(expiry);
+        core.reclaim(reclaimed);
+
+        (,,,,, bytes32 afterThank) = core.hands(thanked);
+        (,,,,, bytes32 afterReclaim) = core.hands(reclaimed);
+        assertEq(afterThank, METADATA);
+        assertEq(afterReclaim, METADATA);
+    }
+
     function test_raise_rejectsExpiryNotInTheFuture() public {
         vm.startPrank(alice);
         vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
-        core.raise(address(usd), POT, uint40(block.timestamp));
+        core.raise(address(usd), POT, uint40(block.timestamp), METADATA);
         vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
-        core.raise(address(usd), POT, uint40(block.timestamp - 1));
+        core.raise(address(usd), POT, uint40(block.timestamp - 1), METADATA);
         vm.stopPrank();
         assertEq(core.handsCount(), 0);
     }
 
     function test_raise_acceptsExpiryOneSecondAhead() public {
         vm.prank(alice);
-        core.raise(address(usd), POT, uint40(block.timestamp + 1));
+        core.raise(address(usd), POT, uint40(block.timestamp + 1), METADATA);
         assertEq(core.handsCount(), 1);
     }
 
@@ -132,14 +165,14 @@ contract CoreTest is Test {
         usd.approve(address(core), 0);
         vm.prank(alice);
         vm.expectRevert();
-        core.raise(address(usd), POT, expiry);
+        core.raise(address(usd), POT, expiry, METADATA);
         assertEq(core.handsCount(), 0);
     }
 
     function test_raise_revertsOnAddressWithoutCode() public {
         vm.prank(alice);
         vm.expectRevert();
-        core.raise(makeAddr("not a token"), POT, expiry);
+        core.raise(makeAddr("not a token"), POT, expiry, METADATA);
         assertEq(core.handsCount(), 0);
     }
 
@@ -148,7 +181,7 @@ contract CoreTest is Test {
         _fund(address(t), alice);
         vm.prank(alice);
         vm.expectRevert(AHandCore.InexactTransfer.selector);
-        core.raise(address(t), POT, expiry);
+        core.raise(address(t), POT, expiry, METADATA);
     }
 
     function test_raise_rejectsReceiverSideFee() public {
@@ -156,7 +189,7 @@ contract CoreTest is Test {
         _fund(address(t), alice);
         vm.prank(alice);
         vm.expectRevert(AHandCore.InexactTransfer.selector);
-        core.raise(address(t), POT, expiry);
+        core.raise(address(t), POT, expiry, METADATA);
     }
 
     /*//////////////////////////// reclaim ////////////////////////////*/
@@ -172,7 +205,7 @@ contract CoreTest is Test {
 
         assertEq(usd.balanceOf(alice), before);
         assertEq(usd.balanceOf(address(core)), 0);
-        (,, AHandCore.Status status,,) = core.hands(id);
+        (,, AHandCore.Status status,,,) = core.hands(id);
         assertEq(uint8(status), uint8(AHandCore.Status.Reclaimed));
     }
 
@@ -227,7 +260,7 @@ contract CoreTest is Test {
 
         assertEq(usd.balanceOf(carol), POT);
         assertEq(usd.balanceOf(address(core)), 0);
-        (,, AHandCore.Status status,,) = core.hands(id);
+        (,, AHandCore.Status status,,,) = core.hands(id);
         assertEq(uint8(status), uint8(AHandCore.Status.Thanked));
     }
 
@@ -286,7 +319,7 @@ contract CoreTest is Test {
         vm.prank(alice);
         vm.expectRevert(AHandCore.GiverIsRaiser.selector);
         core.thank(id, alice, SOLUTION, _sig(id, aliceKey));
-        (,, AHandCore.Status status,,) = core.hands(id);
+        (,, AHandCore.Status status,,,) = core.hands(id);
         assertEq(uint8(status), uint8(AHandCore.Status.Active));
     }
 
@@ -294,7 +327,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), 0);
         vm.prank(alice);
         core.thank(id, carol, SOLUTION, _sig(id, carolKey));
-        (,, AHandCore.Status status,,) = core.hands(id);
+        (,, AHandCore.Status status,,,) = core.hands(id);
         assertEq(uint8(status), uint8(AHandCore.Status.Thanked));
     }
 
@@ -422,7 +455,7 @@ contract CoreTest is Test {
 
         vm.expectRevert();
         core.reclaim(id);
-        (,, AHandCore.Status status,,) = core.hands(id);
+        (,, AHandCore.Status status,,,) = core.hands(id);
         assertEq(uint8(status), uint8(AHandCore.Status.Active));
 
         t.setRefuses(alice, false);
@@ -511,7 +544,7 @@ contract CoreTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        core.raise(address(t), POT, expiry + 1);
+        core.raise(address(t), POT, expiry + 1, METADATA);
 
         assertEq(core.handsCount(), 1);
         assertEq(t.balanceOf(address(core)), POT);
@@ -554,7 +587,7 @@ contract CoreTest is Test {
 
         vm.prank(address(t));
         vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        core.raise(address(t), POT, expiry);
+        core.raise(address(t), POT, expiry, METADATA);
 
         assertEq(t.balanceOf(carol), 0);
         assertEq(t.balanceOf(address(core)), POT);
@@ -579,7 +612,7 @@ contract CoreTest is Test {
         uint256 before = usd.balanceOf(alice);
 
         vm.prank(alice);
-        uint256 id = core.raise(address(usd), amount, e);
+        uint256 id = core.raise(address(usd), amount, e, METADATA);
         assertEq(usd.balanceOf(address(core)), amount);
 
         vm.warp(uint256(e) + bound(late, 0, 3650 days));
@@ -595,13 +628,20 @@ contract CoreTest is Test {
         usd.mint(alice, amount);
 
         vm.prank(alice);
-        uint256 id = core.raise(address(usd), amount, e);
+        uint256 id = core.raise(address(usd), amount, e, METADATA);
 
         vm.warp(block.timestamp + bound(at, 0, span - 1));
         vm.prank(alice);
         core.thank(id, carol, SOLUTION, _sig(id, carolKey));
         assertEq(usd.balanceOf(carol), amount);
         assertEq(usd.balanceOf(address(core)), 0);
+    }
+
+    function testFuzz_raiseKeepsAnyMetadata(bytes32 metadataHash) public {
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), POT, expiry, metadataHash);
+        (,,,,, bytes32 stored) = core.hands(id);
+        assertEq(stored, metadataHash);
     }
 
     function testFuzz_giveFromAnyKeyForAnySolution(uint256 key, bytes32 solution) public {
