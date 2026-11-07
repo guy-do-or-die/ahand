@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AHandCore} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {SenderFeeToken, LateSenderFeeToken, ReceiverFeeToken} from "./mocks/FeeTokens.sol";
@@ -15,6 +16,14 @@ interface IMintable {
     function mint(address to, uint256 amount) external;
     function approve(address spender, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+}
+
+contract TwoInARow {
+    function go(AHandCore core, MockUSD token, uint256 amount, uint40 expiry) external {
+        token.approve(address(core), 2 * amount);
+        core.raise(address(token), amount, expiry);
+        core.raise(address(token), amount, expiry);
+    }
 }
 
 contract CoreTest is Test {
@@ -477,7 +486,6 @@ contract CoreTest is Test {
 
     /*//////////////////////////// reentrancy ////////////////////////////*/
 
-    /// There is no lock: these two tests are why none is needed yet.
     function test_reentry_reclaimInsideItsOwnRefundPaysOnce() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
@@ -490,7 +498,7 @@ contract CoreTest is Test {
         core.reclaim(id);
 
         assertFalse(t.lastReentryOk());
-        assertEq(bytes4(t.lastReentryReturn()), AHandCore.NotActive.selector);
+        assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
         assertEq(t.balanceOf(address(core)), POT);
     }
 
@@ -502,7 +510,7 @@ contract CoreTest is Test {
         t.setReentry(address(core), abi.encodeCall(core.reclaim, (old)), true, false, true);
 
         vm.prank(alice);
-        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
         core.raise(address(t), POT, expiry + 1);
 
         assertEq(core.handsCount(), 1);
@@ -526,7 +534,7 @@ contract CoreTest is Test {
         core.thank(id, carol, SOLUTION, _sig(id, carolKey));
 
         assertFalse(t.lastReentryOk());
-        assertEq(bytes4(t.lastReentryReturn()), AHandCore.NotActive.selector);
+        assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
         assertEq(t.balanceOf(carol), POT);
         assertEq(t.balanceOf(address(core)), POT);
     }
@@ -545,12 +553,21 @@ contract CoreTest is Test {
         );
 
         vm.prank(address(t));
-        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
         core.raise(address(t), POT, expiry);
 
         assertEq(t.balanceOf(carol), 0);
         assertEq(t.balanceOf(address(core)), POT);
         assertEq(core.handsCount(), 1);
+    }
+
+    /// The lock stops nesting, not sequence: a contract raiser may call Core many times in a row.
+    function test_reentry_lockAllowsCallsInARow() public {
+        TwoInARow raiser = new TwoInARow();
+        usd.mint(address(raiser), 2 * POT);
+        raiser.go(core, usd, POT, expiry);
+        assertEq(core.handsCount(), 2);
+        assertEq(usd.balanceOf(address(core)), 2 * POT);
     }
 
     /*//////////////////////////// fuzz ////////////////////////////*/

@@ -5,12 +5,13 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 /// @title  AHandCore
 /// @notice A Hand is a pot of one ERC-20 locked until a fixed moment. Before that
 ///         moment the raiser can pay it to a giver who signed for this Hand; from that
 ///         moment anyone can send it back to the raiser. Nothing else can move it.
-contract AHandCore is EIP712 {
+contract AHandCore is EIP712, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     enum Status {
@@ -49,7 +50,7 @@ contract AHandCore is EIP712 {
     constructor() EIP712("aHand", "core") {}
 
     /// @notice Locks `amount` of `token` from the caller until `expiry`.
-    function raise(address token, uint256 amount, uint40 expiry) external returns (uint256 handId) {
+    function raise(address token, uint256 amount, uint40 expiry) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
 
         handId = ++handsCount;
@@ -68,7 +69,10 @@ contract AHandCore is EIP712 {
     /// @notice Pays the whole pot to `giver`, who signed a Give for this Hand and is never
     ///         the raiser. Only the raiser, only before expiry. `solutionHash` is a
     ///         commitment Core never reads: it is signed, logged and nothing else.
-    function thank(uint256 handId, address giver, bytes32 solutionHash, bytes calldata signature) external {
+    function thank(uint256 handId, address giver, bytes32 solutionHash, bytes calldata signature)
+        external
+        nonReentrant
+    {
         Hand storage hand = hands[handId];
         if (hand.status != Status.Active) revert NotActive();
         if (msg.sender != hand.raiser) revert NotRaiser();
@@ -87,7 +91,7 @@ contract AHandCore is EIP712 {
     }
 
     /// @notice Refunds an expired Hand to its raiser. Anyone may call.
-    function reclaim(uint256 handId) external {
+    function reclaim(uint256 handId) external nonReentrant {
         Hand storage hand = hands[handId];
         if (hand.status != Status.Active) revert NotActive();
         if (block.timestamp < hand.expiry) revert NotExpired();
