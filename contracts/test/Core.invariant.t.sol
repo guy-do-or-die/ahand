@@ -4,12 +4,14 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std/Test.sol";
 import {AHandCore} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
+import {giveDigest} from "./Give.sol";
 
 /// Random raises, thanks, reclaims and time jumps by three actors over two tokens.
 contract Handler is Test {
     AHandCore public core;
     MockUSD[2] public tokens;
-    address[3] public actors = [address(0xA11CE), address(0xB0B), address(0xCA401)];
+    uint256[3] keys = [0xA11CE, 0xB0B, 0xCA401];
+    address[3] public actors;
 
     mapping(address => uint256) public open; // token => sum of Active pots, kept independently of Core
     mapping(address => uint256) public paidIn; // token => all deposits
@@ -19,6 +21,7 @@ contract Handler is Test {
     constructor(AHandCore core_, MockUSD a, MockUSD b) {
         core = core_;
         tokens = [a, b];
+        actors = [vm.addr(keys[0]), vm.addr(keys[1]), vm.addr(keys[2])];
     }
 
     function raise(uint256 who, uint256 which, uint256 amount, uint256 ahead) external {
@@ -50,10 +53,12 @@ contract Handler is Test {
         uint256 id = seed % count + 1;
         (address raiser, uint40 expiry, AHandCore.Status status, address token, uint256 amount) = core.hands(id);
         if (status != AHandCore.Status.Active || block.timestamp >= expiry) return;
-        address giver = actors[to % 3];
-        if (giver == raiser) giver = actors[(to % 3 + 1) % 3];
+        uint256 pick = to % 3;
+        if (actors[pick] == raiser) pick = (pick + 1) % 3;
+        bytes32 solution = keccak256(abi.encode(seed));
+        (uint8 v, bytes32 r, bytes32 sv) = vm.sign(keys[pick], giveDigest(address(core), id, solution));
         vm.prank(raiser);
-        core.thank(id, giver);
+        core.thank(id, actors[pick], solution, abi.encodePacked(r, sv, v));
         _closed(token, amount);
     }
 
