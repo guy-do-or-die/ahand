@@ -14,20 +14,20 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 contract AHandCore is EIP712, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
-    enum Status {
-        None,
-        Active,
-        Reclaimed,
-        Thanked
-    }
-
+    /// @dev Field order is the storage packing. A Hand is open while both outcome
+    ///      times are zero; it exists if `raisedAt` is not zero.
     struct Hand {
+        // slot 0: set by raise
         address raiser;
         uint40 expiry;
-        Status status;
+        uint40 raisedAt;
+        // slot 1: the token, then the outcome — exactly one of the two times is ever set
         address token;
+        uint40 thankedAt;
+        uint40 reclaimedAt;
+        // set by raise
         uint256 amount;
-        bytes32 metadataHash;
+        bytes32 dataHash;
     }
 
     event Raised(
@@ -36,10 +36,10 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         address indexed token,
         uint256 amount,
         uint40 expiry,
-        bytes32 metadataHash
+        bytes32 dataHash
     );
     event Reclaimed(uint256 indexed handId);
-    event Thanked(uint256 indexed handId, address indexed giver, bytes32 solutionHash);
+    event Thanked(uint256 indexed handId, address indexed giver, bytes32 dataHash);
 
     error ExpiryNotInFuture();
     error NotActive();
@@ -50,16 +50,16 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     error Expired();
     error InexactTransfer();
 
-    bytes32 private constant GIVE_TYPEHASH = keccak256("Give(uint256 handId,bytes32 solutionHash)");
+    bytes32 private constant GIVE_TYPEHASH = keccak256("Give(uint256 handId,bytes32 dataHash)");
 
     uint256 public handsCount;
     mapping(uint256 => Hand) public hands;
 
     constructor() EIP712("aHand", "core") {}
 
-    /// @notice Locks `amount` of `token` from the caller until `expiry`. `metadataHash` is
-    ///         a commitment Core never reads: the application owns the text and its schema.
-    function raise(address token, uint256 amount, uint40 expiry, bytes32 metadataHash)
+    /// @notice Locks `amount` of `token` from the caller until `expiry`. `dataHash` is
+    ///         a commitment Core never reads: the application owns the data and its schema.
+    function raise(address token, uint256 amount, uint40 expiry, bytes32 dataHash)
         external
         nonReentrant
         returns (uint256 handId)
@@ -67,8 +67,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
 
         handId = ++handsCount;
-        hands[handId] = Hand(msg.sender, expiry, Status.Active, token, amount, metadataHash);
-        emit Raised(handId, msg.sender, token, amount, expiry, metadataHash);
+        hands[handId] = Hand(msg.sender, expiry, uint40(block.timestamp), token, 0, 0, amount, dataHash);
+        emit Raised(handId, msg.sender, token, amount, expiry, dataHash);
 
         // Both sides are measured: a token that moves any other amount is refused here,
         // not discovered when the money has to leave.
@@ -80,39 +80,45 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     }
 
     /// @notice Pays the whole pot to `giver`, who signed a Give for this Hand and is never
-    ///         the raiser. Only the raiser, only before expiry. `solutionHash` is a
+    ///         the raiser. Only the raiser, only before expiry. `dataHash` is a
     ///         commitment Core never reads: it is signed, logged and nothing else.
-    function thank(uint256 handId, address giver, bytes32 solutionHash, bytes calldata signature)
+    function thank(uint256 handId, address giver, bytes32 dataHash, bytes calldata signature)
         external
         nonReentrant
+        whenOpen(handId)
     {
         Hand storage hand = hands[handId];
-        if (hand.status != Status.Active) revert NotActive();
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (giver == msg.sender) revert GiverIsRaiser();
         if (block.timestamp >= hand.expiry) revert Expired();
 
         // The expected signer is passed in and compared: recovery alone returns some
         // address for any input, so a wrong signature would pay a stranger.
-        bytes32 give = keccak256(abi.encode(GIVE_TYPEHASH, handId, solutionHash));
+        bytes32 give = keccak256(abi.encode(GIVE_TYPEHASH, handId, dataHash));
         if (ECDSA.recoverCalldata(_hashTypedDataV4(give), signature) != giver) revert InvalidGive();
 
-        hand.status = Status.Thanked;
-        emit Thanked(handId, giver, solutionHash);
+        hand.thankedAt = uint40(block.timestamp);
+        emit Thanked(handId, giver, dataHash);
 
         _pay(hand, giver);
     }
 
     /// @notice Refunds an expired Hand to its raiser. Anyone may call.
-    function reclaim(uint256 handId) external nonReentrant {
+    function reclaim(uint256 handId) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
-        if (hand.status != Status.Active) revert NotActive();
         if (block.timestamp < hand.expiry) revert NotExpired();
 
-        hand.status = Status.Reclaimed;
+        hand.reclaimedAt = uint40(block.timestamp);
         emit Reclaimed(handId);
 
         _pay(hand, hand.raiser);
+    }
+
+    /// @dev Raised and neither thanked nor reclaimed.
+    modifier whenOpen(uint256 handId) {
+        Hand storage hand = hands[handId];
+        if (hand.raisedAt == 0 || hand.thankedAt != 0 || hand.reclaimedAt != 0) revert NotActive();
+        _;
     }
 
     /// @dev Custody is shared per token, so a payment that debits more than this Hand's

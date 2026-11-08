@@ -41,25 +41,40 @@ contract Handler is Test {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        (, uint40 expiry, AHandCore.Status status, address token, uint256 amount,) = core.hands(id);
-        if (status != AHandCore.Status.Active || block.timestamp < expiry) return;
+        View memory h = _view(id);
+        if (!h.open || block.timestamp < h.expiry) return;
         core.reclaim(id);
-        _closed(token, amount);
+        _closed(h.token, h.amount);
     }
 
     function thank(uint256 seed, uint256 to) external {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        (address raiser, uint40 expiry, AHandCore.Status status, address token, uint256 amount,) = core.hands(id);
-        if (status != AHandCore.Status.Active || block.timestamp >= expiry) return;
+        View memory h = _view(id);
+        if (!h.open || block.timestamp >= h.expiry) return;
         uint256 pick = to % 3;
-        if (actors[pick] == raiser) pick = (pick + 1) % 3;
-        bytes32 solution = keccak256(abi.encode(seed));
-        (uint8 v, bytes32 r, bytes32 sv) = vm.sign(keys[pick], giveDigest(address(core), id, solution));
-        vm.prank(raiser);
-        core.thank(id, actors[pick], solution, abi.encodePacked(r, sv, v));
-        _closed(token, amount);
+        if (actors[pick] == h.raiser) pick = (pick + 1) % 3;
+        bytes32 data = keccak256(abi.encode(seed));
+        (uint8 v, bytes32 r, bytes32 sv) = vm.sign(keys[pick], giveDigest(address(core), id, data));
+        vm.prank(h.raiser);
+        core.thank(id, actors[pick], data, abi.encodePacked(r, sv, v));
+        _closed(h.token, h.amount);
+    }
+
+    struct View {
+        address raiser;
+        uint40 expiry;
+        address token;
+        bool open;
+        uint256 amount;
+    }
+
+    function _view(uint256 id) private view returns (View memory h) {
+        uint40 thankedAt;
+        uint40 reclaimedAt;
+        (h.raiser, h.expiry,, h.token, thankedAt, reclaimedAt, h.amount,) = core.hands(id);
+        h.open = thankedAt == 0 && reclaimedAt == 0;
     }
 
     function _closed(address token, uint256 amount) private {
@@ -99,12 +114,21 @@ contract CoreInvariantTest is Test {
         assertEq(handler.paidIn(address(b)), handler.paidOut(address(b)) + b.balanceOf(address(core)));
     }
 
+    /// Every raised Hand has its raise time; no Hand is both thanked and reclaimed.
+    function invariant_timesAreConsistent() public view {
+        for (uint256 id = 1; id <= core.handsCount(); ++id) {
+            (,, uint40 raisedAt,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
+            assertGt(raisedAt, 0);
+            assertFalse(thankedAt != 0 && reclaimedAt != 0);
+        }
+    }
+
     /// A closed Hand stays closed: Core counts exactly the Hands the handler closed.
     function invariant_closedHandsStayClosed() public view {
         uint256 closed;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            (,, AHandCore.Status status,,,) = core.hands(id);
-            if (status != AHandCore.Status.Active) ++closed;
+            (,,,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
+            if (thankedAt != 0 || reclaimedAt != 0) ++closed;
         }
         assertEq(closed, handler.closed());
     }
