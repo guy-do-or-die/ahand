@@ -6,6 +6,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Memory} from "@openzeppelin/contracts/utils/Memory.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 /// @notice One hand-over: the holder of the current key passes the Hand on to `nextKey`
@@ -282,6 +283,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 routeHash = bytes32(0); // a route without Shakes hashes to zero
 
         for (uint256 i; i < shakes.length; ++i) {
+            Memory.Pointer freeMemory = Memory.getFreeMemoryPointer();
             Shake calldata shake = shakes[i].shake;
 
             if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(i);
@@ -295,6 +297,9 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
             key = shake.nextKey;
             claim = shake.nextClaimBps;
+
+            // Nothing this pass put in memory outlives it; handing it back keeps every Shake's price the same.
+            Memory.unsafeSetFreeMemoryPointer(freeMemory);
         }
 
         if (give.claimBps != claim) revert InvalidClaim(shakes.length);

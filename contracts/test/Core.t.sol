@@ -959,6 +959,34 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
+    /// Gas Core spends in `thank` on a route of `n` Shakes that keep nothing, on a Hand without
+    /// a reward, so that only the route itself is paid for. Called through `this`, so that every
+    /// route is measured from a fresh call: read inside one long test, the number also grew with
+    /// the test's own memory.
+    function routeGas(uint256 n) external returns (uint256) {
+        vm.prank(alice);
+        uint256 id = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
+        SignedShake[] memory shakes = new SignedShake[](n);
+        uint256 key = ROOT_PK;
+        for (uint256 i; i < n; ++i) {
+            uint256 nextKey = NEXT_PK + i;
+            shakes[i].shake = Shake(vm.addr(nextKey), address(0), 10_000, 10_000, SHAKE_DATA);
+            shakes[i].keySig = _signShake(key, id, shakes[i].shake);
+            key = nextKey;
+        }
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, key, carolKey);
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        return vm.lastCallGas().gasTotalUsed;
+    }
+
+    /// Every Shake costs the same, however long the route: the hundredth adds exactly what the
+    /// second does.
+    function test_route_everyShakeCostsTheSame() public {
+        uint256 second = this.routeGas(2) - this.routeGas(1);
+        uint256 hundredth = this.routeGas(100) - this.routeGas(99);
+        assertEq(hundredth, second);
+    }
+
     /*//////////////////////////// awkward tokens ////////////////////////////*/
 
     function test_token_noReturnValueWorks() public {
