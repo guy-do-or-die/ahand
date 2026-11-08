@@ -11,6 +11,8 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 /// @notice A Hand is a pot of one ERC-20 locked until a fixed moment. Before that
 ///         moment the raiser can pay it to a giver who signed for this Hand; from that
 ///         moment anyone can send it back to the raiser. Nothing else can move it.
+///         Every payment is tried on its own: one that fails stays pending for its payee
+///         and can be withdrawn later, so no single payee can block the others.
 contract AHandCore is EIP712, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
@@ -21,8 +23,10 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         address raiser;
         uint40 expiry;
         uint40 raisedAt;
-        // slot 1: the token, then the outcome — exactly one of the two times is ever set
+        // slot 1: the token and the gas each payment may use, in thousands, set by raise;
+        // then the outcome — exactly one of the two times is ever set
         address token;
+        uint16 payoutGasK;
         uint40 thankedAt;
         uint40 reclaimedAt;
         // set by raise
@@ -36,10 +40,14 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         address indexed token,
         uint256 amount,
         uint40 expiry,
+        uint16 payoutGasK,
         bytes32 dataHash
     );
     event Reclaimed(uint256 indexed handId);
     event Thanked(uint256 indexed handId, address indexed giver, bytes32 dataHash);
+    event Paid(address indexed token, address indexed payee, uint256 amount);
+    event Pending(address indexed token, address indexed payee, uint256 amount);
+    event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
 
     error ExpiryNotInFuture();
     error NotActive();
@@ -49,17 +57,23 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     error InvalidGive();
     error Expired();
     error InexactTransfer();
+    error NotCore();
+    error NotPayee();
+    error NothingPending();
 
     bytes32 private constant GIVE_TYPEHASH = keccak256("Give(uint256 handId,bytes32 dataHash)");
 
     uint256 public handsCount;
     mapping(uint256 => Hand) public hands;
+    /// @notice What waits for each payee per token, after a payment that could not be made.
+    mapping(address token => mapping(address payee => uint256)) public pending;
 
     constructor() EIP712("aHand", "core") {}
 
-    /// @notice Locks `amount` of `token` from the caller until `expiry`. `dataHash` is
-    ///         a commitment Core never reads: the application owns the data and its schema.
-    function raise(address token, uint256 amount, uint40 expiry, bytes32 dataHash)
+    /// @notice Locks `amount` of `token` from the caller until `expiry`. Each payment of
+    ///         this Hand may use `payoutGasK` thousand gas. `dataHash` is a commitment Core
+    ///         never reads: the application owns the data and its schema.
+    function raise(address token, uint256 amount, uint40 expiry, uint16 payoutGasK, bytes32 dataHash)
         external
         nonReentrant
         returns (uint256 handId)
@@ -67,8 +81,9 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
 
         handId = ++handsCount;
-        hands[handId] = Hand(msg.sender, expiry, uint40(block.timestamp), token, 0, 0, amount, dataHash);
-        emit Raised(handId, msg.sender, token, amount, expiry, dataHash);
+        hands[handId] = Hand(msg.sender, expiry, uint40(block.timestamp), token, payoutGasK, 0, 0, amount, dataHash);
+        emit Raised(handId, msg.sender, token, amount, expiry, payoutGasK, dataHash);
+        if (amount == 0) return handId; // a Hand without a reward never touches a token
 
         // Both sides are measured: a token that moves any other amount is refused here,
         // not discovered when the money has to leave.
@@ -100,7 +115,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         hand.thankedAt = uint40(block.timestamp);
         emit Thanked(handId, giver, dataHash);
 
-        _pay(hand, giver);
+        _tryPay(hand.token, giver, hand.amount, hand.payoutGasK);
     }
 
     /// @notice Refunds an expired Hand to its raiser. Anyone may call.
@@ -111,7 +126,28 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         hand.reclaimedAt = uint40(block.timestamp);
         emit Reclaimed(handId);
 
-        _pay(hand, hand.raiser);
+        _tryPay(hand.token, hand.raiser, hand.amount, hand.payoutGasK);
+    }
+
+    /// @notice Sends what is pending for `payee` in `token` to `to`. Anyone may send it to
+    ///         the payee; only the payee may send it elsewhere, for example away from an
+    ///         address the token has blocked.
+    function withdraw(address token, address payee, address to) external nonReentrant {
+        if (to != payee && msg.sender != payee) revert NotPayee();
+        uint256 amount = pending[token][payee];
+        if (amount == 0) revert NothingPending();
+
+        pending[token][payee] = 0;
+        emit Withdrawn(token, payee, to, amount);
+
+        _transferExact(token, to, amount);
+    }
+
+    /// @notice Core calls this on itself, so that each payment runs in a frame of its own
+    ///         and a failing one undoes only itself. Nobody else may call it.
+    function pay(address token, address to, uint256 amount) external {
+        if (msg.sender != address(this)) revert NotCore();
+        _transferExact(token, to, amount);
     }
 
     /// @dev Raised and neither thanked nor reclaimed.
@@ -121,12 +157,26 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         _;
     }
 
-    /// @dev Custody is shared per token, so a payment that debits more than this Hand's
-    ///      pot would be paid with another Hand's money.
-    function _pay(Hand storage hand, address to) private {
-        IERC20 token = IERC20(hand.token);
-        uint256 coreBefore = token.balanceOf(address(this));
-        token.safeTransfer(to, hand.amount);
-        if (token.balanceOf(address(this)) + hand.amount != coreBefore) revert InexactTransfer();
+    /// @dev A payment that fails for any reason — a blocked or refusing payee, a paused or
+    ///      broken token, the Hand's payout gas running out — stays pending for the same
+    ///      payee instead. The Hand is closed either way. A zero amount touches no token.
+    ///      Sent with too little gas on purpose, a payment that itself needs a lot of gas
+    ///      can end up pending too; it is never lost, and anyone can withdraw it to the payee.
+    function _tryPay(address token, address payee, uint256 amount, uint16 payoutGasK) private {
+        if (amount == 0) return;
+        try this.pay{gas: uint256(payoutGasK) * 1_000}(token, payee, amount) {
+            emit Paid(token, payee, amount);
+        } catch {
+            pending[token][payee] += amount;
+            emit Pending(token, payee, amount);
+        }
+    }
+
+    /// @dev One token balance serves every Hand in that token, so a payment that takes more
+    ///      than it pays out would be paid from other Hands' pots.
+    function _transferExact(address token, address to, uint256 amount) private {
+        uint256 coreBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(to, amount);
+        if (IERC20(token).balanceOf(address(this)) + amount != coreBefore) revert InexactTransfer();
     }
 }

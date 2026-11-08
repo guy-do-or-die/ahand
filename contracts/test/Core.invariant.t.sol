@@ -4,9 +4,11 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std/Test.sol";
 import {AHandCore} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
+import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {giveDigest} from "./Give.sol";
 
-/// Random raises, thanks, reclaims and time jumps by three actors over two tokens.
+/// Random raises, thanks, reclaims, blocks, withdrawals and time jumps by three actors over two
+/// tokens; the second token can block any actor, so payments stay pending and get withdrawn.
 contract Handler is Test {
     AHandCore public core;
     MockUSD[2] public tokens;
@@ -15,7 +17,6 @@ contract Handler is Test {
 
     mapping(address => uint256) public open; // token => sum of Active pots, kept independently of Core
     mapping(address => uint256) public paidIn; // token => all deposits
-    mapping(address => uint256) public paidOut; // token => all payments and refunds
     uint256 public closed; // Hands this handler closed
 
     constructor(AHandCore core_, MockUSD a, MockUSD b) {
@@ -31,7 +32,7 @@ contract Handler is Test {
         token.mint(actor, amount);
         vm.startPrank(actor);
         token.approve(address(core), amount);
-        core.raise(address(token), amount, uint40(block.timestamp + bound(ahead, 1, 90 days)), bytes32(amount));
+        core.raise(address(token), amount, uint40(block.timestamp + bound(ahead, 1, 90 days)), 200, bytes32(amount));
         vm.stopPrank();
         open[address(token)] += amount;
         paidIn[address(token)] += amount;
@@ -73,14 +74,40 @@ contract Handler is Test {
     function _view(uint256 id) private view returns (View memory h) {
         uint40 thankedAt;
         uint40 reclaimedAt;
-        (h.raiser, h.expiry,, h.token, thankedAt, reclaimedAt, h.amount,) = core.hands(id);
+        (h.raiser, h.expiry,, h.token,, thankedAt, reclaimedAt, h.amount,) = core.hands(id);
         h.open = thankedAt == 0 && reclaimedAt == 0;
     }
 
     function _closed(address token, uint256 amount) private {
         open[token] -= amount;
-        paidOut[token] += amount;
         ++closed;
+    }
+
+    function block_(uint256 who, bool blocked) external {
+        BlacklistToken(address(tokens[1])).setBlocked(actors[who % 3], blocked);
+    }
+
+    function withdraw_(uint256 who, uint256 which, uint256 dest, uint256 by) external {
+        MockUSD token = tokens[which % 2];
+        address payee = actors[who % 3];
+        if (core.pending(address(token), payee) == 0) return;
+        address to = actors[dest % 3];
+        if (which % 2 == 1 && BlacklistToken(address(token)).blocked(to)) return;
+        // anyone may send what is pending to its payee; only the payee may send it elsewhere
+        vm.prank(to == payee ? actors[by % 3] : payee);
+        core.withdraw(address(token), payee, to);
+    }
+
+    function pendingTotal(address token) public view returns (uint256 sum) {
+        for (uint256 i; i < 3; ++i) {
+            sum += core.pending(token, actors[i]);
+        }
+    }
+
+    function held(address token) public view returns (uint256 sum) {
+        for (uint256 i; i < 3; ++i) {
+            sum += MockUSD(token).balanceOf(actors[i]);
+        }
     }
 
     function warp(uint256 by) external {
@@ -97,27 +124,28 @@ contract CoreInvariantTest is Test {
     function setUp() public {
         core = new AHandCore();
         a = new MockUSD();
-        b = new MockUSD();
+        b = new BlacklistToken();
         handler = new Handler(core, a, b);
         targetContract(address(handler));
     }
 
-    /// Core holds exactly the open pots of each token: not a unit more, not a unit less.
-    function invariant_custodyEqualsOpenPots() public view {
-        assertEq(a.balanceOf(address(core)), handler.open(address(a)));
-        assertEq(b.balanceOf(address(core)), handler.open(address(b)));
+    /// Core's balance of each token is exactly its open pots plus what is pending: not a unit
+    /// more or less.
+    function invariant_balanceEqualsOpenPotsPlusPending() public view {
+        assertEq(a.balanceOf(address(core)), handler.open(address(a)) + handler.pendingTotal(address(a)));
+        assertEq(b.balanceOf(address(core)), handler.open(address(b)) + handler.pendingTotal(address(b)));
     }
 
-    /// Every unit that came in is either still held or left exactly once.
+    /// Nothing is created or lost: every deposited unit is in Core or with an actor.
     function invariant_moneyIsConserved() public view {
-        assertEq(handler.paidIn(address(a)), handler.paidOut(address(a)) + a.balanceOf(address(core)));
-        assertEq(handler.paidIn(address(b)), handler.paidOut(address(b)) + b.balanceOf(address(core)));
+        assertEq(handler.paidIn(address(a)), a.balanceOf(address(core)) + handler.held(address(a)));
+        assertEq(handler.paidIn(address(b)), b.balanceOf(address(core)) + handler.held(address(b)));
     }
 
     /// Every raised Hand has its raise time; no Hand is both thanked and reclaimed.
     function invariant_timesAreConsistent() public view {
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            (,, uint40 raisedAt,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
+            (,, uint40 raisedAt,,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
             assertGt(raisedAt, 0);
             assertFalse(thankedAt != 0 && reclaimedAt != 0);
         }
@@ -127,7 +155,7 @@ contract CoreInvariantTest is Test {
     function invariant_closedHandsStayClosed() public view {
         uint256 closed;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            (,,,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
+            (,,,,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
             if (thankedAt != 0 || reclaimedAt != 0) ++closed;
         }
         assertEq(closed, handler.closed());
