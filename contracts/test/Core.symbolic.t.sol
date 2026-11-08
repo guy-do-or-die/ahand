@@ -14,6 +14,7 @@ contract CoreSymbolic is Test {
     BlacklistToken token;
     address constant RAISER = address(0xA11CE);
     address constant OTHER = address(0xB0B);
+    address constant NO_KEY = address(0xDEAD); // no route is followed in these checks
     uint40 clock; // the time these checks move to, kept here so it is read once
 
     function setUp() public {
@@ -28,7 +29,7 @@ contract CoreSymbolic is Test {
         token.mint(who, amount);
         vm.startPrank(who);
         token.approve(address(core), amount);
-        uint256 id = core.raise(address(token), amount, ++clock, 200, bytes32(0));
+        uint256 id = core.raise(address(token), amount, ++clock, NO_KEY, 0, 200, bytes32(0));
         vm.stopPrank();
         token.setBlocked(who, true);
         vm.warp(clock);
@@ -59,12 +60,12 @@ contract CoreSymbolic is Test {
         }
     }
 
-    /// Nobody but Core itself can move Core's tokens through `pay`.
-    function check_payOnlyFromCore(address caller, address to, uint256 amount) public {
+    /// Nobody but Core itself can move Core's tokens through `transferOut`.
+    function check_transferOutOnlyFromCore(address caller, address to, uint256 amount) public {
         _leavePending(RAISER, 1);
         vm.assume(caller != address(core));
         vm.prank(caller);
-        try core.pay(address(token), to, amount) {
+        try core.transferOut(address(token), to, amount) {
             assert(false);
         } catch {}
     }
@@ -77,7 +78,7 @@ contract CoreSymbolic is Test {
         token.mint(RAISER, amount);
         vm.startPrank(RAISER);
         token.approve(address(core), amount);
-        uint256 id = core.raise(address(token), amount, ++clock, 200, bytes32(0));
+        uint256 id = core.raise(address(token), amount, ++clock, NO_KEY, 0, 200, bytes32(0));
         vm.stopPrank();
         token.setBlocked(RAISER, blocked);
         vm.warp(clock);
@@ -96,7 +97,7 @@ contract CoreSymbolic is Test {
         token.mint(RAISER, amount);
         vm.startPrank(RAISER);
         token.approve(address(core), amount);
-        uint256 id = core.raise(address(token), amount, ++clock, 200, bytes32(0));
+        uint256 id = core.raise(address(token), amount, ++clock, NO_KEY, 0, 200, bytes32(0));
         vm.stopPrank();
         token.setBlocked(RAISER, blocked);
         vm.warp(clock);

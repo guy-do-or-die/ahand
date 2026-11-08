@@ -2,18 +2,21 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
-import {AHandCore} from "../src/AHandCore.sol";
+import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
-import {giveDigest} from "./Give.sol";
+import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Helpers.sol";
 
-/// Random raises, thanks, reclaims, blocks, withdrawals and time jumps by three actors over two
-/// tokens; the second token can block any actor, so payments stay pending and get withdrawn.
+/// Random raises, thanks (direct or through one Shake with a random margin), reclaims, blocks,
+/// withdrawals and time jumps by three actors over two tokens; the second token can block any
+/// actor, so payments stay pending and get withdrawn.
 contract Handler is Test {
     AHandCore public core;
     MockUSD[2] public tokens;
     uint256[3] keys = [0xA11CE, 0xB0B, 0xCA401];
     address[3] public actors;
+    uint256 constant ROOT_PK = 0xA0A0; // every Hand's link starts here
+    uint256 constant NEXT_PK = 0xB0B0; // the key a Shake passes the Hand to
 
     mapping(address => uint256) public open; // token => sum of Active pots, kept independently of Core
     mapping(address => uint256) public paidIn; // token => all deposits
@@ -32,7 +35,15 @@ contract Handler is Test {
         token.mint(actor, amount);
         vm.startPrank(actor);
         token.approve(address(core), amount);
-        core.raise(address(token), amount, uint40(block.timestamp + bound(ahead, 1, 90 days)), 200, bytes32(amount));
+        core.raise(
+            address(token),
+            amount,
+            uint40(block.timestamp + bound(ahead, 1, 90 days)),
+            vm.addr(ROOT_PK),
+            0,
+            200,
+            bytes32(amount)
+        );
         vm.stopPrank();
         open[address(token)] += amount;
         paidIn[address(token)] += amount;
@@ -42,40 +53,51 @@ contract Handler is Test {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        View memory h = _view(id);
-        if (!h.open || block.timestamp < h.expiry) return;
+        HandView memory h = handOf(core, id);
+        if (!_open(h) || block.timestamp < h.expiry) return;
         core.reclaim(id);
         _closed(h.token, h.amount);
     }
 
-    function thank(uint256 seed, uint256 to) external {
+    /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
+    function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external {
         uint256 count = core.handsCount();
         if (count == 0) return;
         uint256 id = seed % count + 1;
-        View memory h = _view(id);
-        if (!h.open || block.timestamp >= h.expiry) return;
+        HandView memory h = handOf(core, id);
+        if (!_open(h) || block.timestamp >= h.expiry) return;
         uint256 pick = to % 3;
         if (actors[pick] == h.raiser) pick = (pick + 1) % 3;
-        bytes32 data = keccak256(abi.encode(seed));
-        (uint8 v, bytes32 r, bytes32 sv) = vm.sign(keys[pick], giveDigest(address(core), id, data));
+
+        SignedShake[] memory shakes;
+        bytes32 routeHash;
+        uint16 claim = 10_000;
+        uint256 lastKey = ROOT_PK;
+        if (via % 2 == 1) {
+            claim = uint16(bound(next, 0, 10_000));
+            shakes = new SignedShake[](1);
+            shakes[0].shake = Shake(vm.addr(NEXT_PK), actors[via % 3], 10_000, claim, bytes32(seed));
+            bytes32 shakeHash = shakeStructHash(id, shakes[0].shake);
+            shakes[0].keySig = _sign(ROOT_PK, digestOf(address(core), shakeHash));
+            routeHash = keccak256(abi.encode(bytes32(0), shakeHash));
+            lastKey = NEXT_PK;
+        }
+        Give memory g = Give(routeHash, actors[pick], actors[pick], claim, keccak256(abi.encode(seed)));
+        bytes32 digest = digestOf(address(core), giveStructHash(id, g));
+        bytes memory keySig = _sign(lastKey, digest);
+        bytes memory giverSig = _sign(keys[pick], digest);
         vm.prank(h.raiser);
-        core.thank(id, actors[pick], data, abi.encodePacked(r, sv, v));
+        core.thank(id, shakes, g, keySig, giverSig);
         _closed(h.token, h.amount);
     }
 
-    struct View {
-        address raiser;
-        uint40 expiry;
-        address token;
-        bool open;
-        uint256 amount;
+    function _sign(uint256 key, bytes32 digest) private pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 sv) = vm.sign(key, digest);
+        return abi.encodePacked(r, sv, v);
     }
 
-    function _view(uint256 id) private view returns (View memory h) {
-        uint40 thankedAt;
-        uint40 reclaimedAt;
-        (h.raiser, h.expiry,, h.token,, thankedAt, reclaimedAt, h.amount,) = core.hands(id);
-        h.open = thankedAt == 0 && reclaimedAt == 0;
+    function _open(HandView memory h) private pure returns (bool) {
+        return h.thankedAt == 0 && h.reclaimedAt == 0;
     }
 
     function _closed(address token, uint256 amount) private {
@@ -145,9 +167,9 @@ contract CoreInvariantTest is Test {
     /// Every raised Hand has its raise time; no Hand is both thanked and reclaimed.
     function invariant_timesAreConsistent() public view {
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            (,, uint40 raisedAt,,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
-            assertGt(raisedAt, 0);
-            assertFalse(thankedAt != 0 && reclaimedAt != 0);
+            HandView memory h = handOf(core, id);
+            assertGt(h.raisedAt, 0);
+            assertFalse(h.thankedAt != 0 && h.reclaimedAt != 0);
         }
     }
 
@@ -155,8 +177,8 @@ contract CoreInvariantTest is Test {
     function invariant_closedHandsStayClosed() public view {
         uint256 closed;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            (,,,,, uint40 thankedAt, uint40 reclaimedAt,,) = core.hands(id);
-            if (thankedAt != 0 || reclaimedAt != 0) ++closed;
+            HandView memory h = handOf(core, id);
+            if (h.thankedAt != 0 || h.reclaimedAt != 0) ++closed;
         }
         assertEq(closed, handler.closed());
     }

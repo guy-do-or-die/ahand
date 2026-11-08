@@ -5,12 +5,42 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
+/// @notice One hand-over: the holder of the current key passes the Hand on to `nextKey`
+///         and keeps `claimBps - nextClaimBps` of the pot for `payee`. `claimBps` is the
+///         share that reached this hand-over, `nextClaimBps` the share passed on.
+struct Shake {
+    address nextKey;
+    address payee;
+    uint16 claimBps;
+    uint16 nextClaimBps;
+    bytes32 dataHash;
+}
+
+/// @notice The giver's acceptance of a route: the share that reached its end, `claimBps`,
+///         goes to `payee`. Signed by the last key of the route and by `signer`, the giver.
+struct Give {
+    bytes32 routeHash;
+    address signer;
+    address payee;
+    uint16 claimBps;
+    bytes32 dataHash;
+}
+
+/// @notice A Shake and the signature of the key it comes from.
+struct SignedShake {
+    Shake shake;
+    bytes keySig;
+}
+
 /// @title  AHandCore
-/// @notice A Hand is a pot of one ERC-20 locked until a fixed moment. Before that
-///         moment the raiser can pay it to a giver who signed for this Hand; from that
-///         moment anyone can send it back to the raiser. Nothing else can move it.
+/// @notice A Hand is a pot of one ERC-20 locked until a fixed moment. Its link starts at a
+///         root key, and each holder may pass it on with a signed Shake, keeping a margin.
+///         Before that moment the raiser can pay the pot along a route to a giver who signed
+///         a Give at its end: every shaker gets its margin, the giver the rest. From that moment
+///         anyone can send the pot back to the raiser. Nothing else can move it.
 ///         Every payment is tried on its own: one that fails stays pending for its payee
 ///         and can be withdrawn later, so no single payee can block the others.
 contract AHandCore is EIP712, ReentrancyGuardTransient {
@@ -22,6 +52,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         // slot 0: set by raise
         address raiser;
         uint40 expiry;
+        uint16 minGiverClaimBps;
         uint40 raisedAt;
         // slot 1: the token and the gas each payment may use, in thousands, set by raise;
         // then the outcome — exactly one of the two times is ever set
@@ -31,7 +62,10 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         uint40 reclaimedAt;
         // set by raise
         uint256 amount;
+        address rootKey;
         bytes32 dataHash;
+        // set by thank
+        bytes32 giveHash;
     }
 
     event Raised(
@@ -40,11 +74,30 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         address indexed token,
         uint256 amount,
         uint40 expiry,
+        address rootKey,
+        uint16 minGiverClaimBps,
         uint16 payoutGasK,
         bytes32 dataHash
     );
     event Reclaimed(uint256 indexed handId);
-    event Thanked(uint256 indexed handId, address indexed giver, bytes32 dataHash);
+    event Thanked(
+        uint256 indexed handId,
+        address indexed signer,
+        address indexed payee,
+        bytes32 routeHash,
+        uint16 claimBps,
+        bytes32 dataHash
+    );
+    event Shaken(
+        uint256 indexed handId,
+        uint256 position,
+        address nextKey,
+        address indexed payee,
+        uint16 claimBps,
+        uint16 nextClaimBps,
+        uint256 margin,
+        bytes32 dataHash
+    );
     event Paid(address indexed token, address indexed payee, uint256 amount);
     event Pending(address indexed token, address indexed payee, uint256 amount);
     event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
@@ -55,34 +108,72 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     error NotRaiser();
     error GiverIsRaiser();
     error InvalidGive();
+    error InvalidShake(uint256 position);
+    error InvalidClaim(uint256 position);
+    error AnonymousMargin(uint256 position);
+    error BelowMinGiverClaim();
+    error InvalidMinGiverClaim();
+    error InvalidRootKey();
     error Expired();
     error InexactTransfer();
     error NotCore();
     error NotPayee();
     error NothingPending();
 
-    bytes32 private constant GIVE_TYPEHASH = keccak256("Give(uint256 handId,bytes32 dataHash)");
+    bytes32 private constant SHAKE_TYPEHASH = keccak256(
+        "Shake(uint256 handId,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)"
+    );
+    bytes32 private constant GIVE_TYPEHASH = keccak256(
+        "Give(uint256 handId,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)"
+    );
+
+    uint16 private constant BPS = 10_000; // the whole pot
 
     uint256 public handsCount;
     mapping(uint256 => Hand) public hands;
+
     /// @notice What waits for each payee per token, after a payment that could not be made.
     mapping(address token => mapping(address payee => uint256)) public pending;
 
     constructor() EIP712("aHand", "core") {}
 
-    /// @notice Locks `amount` of `token` from the caller until `expiry`. Each payment of
-    ///         this Hand may use `payoutGasK` thousand gas. `dataHash` is a commitment Core
-    ///         never reads: the application owns the data and its schema.
-    function raise(address token, uint256 amount, uint40 expiry, uint16 payoutGasK, bytes32 dataHash)
-        external
-        nonReentrant
-        returns (uint256 handId)
-    {
+    /// @notice Locks `amount` of `token` from the caller until `expiry`. The Hand's link
+    ///         starts at `rootKey`; whatever route it takes, the giver keeps at least
+    ///         `minGiverClaimBps` of the pot. Each payment may use `payoutGasK` thousand gas.
+    ///         `dataHash` is a commitment Core never reads: the application owns the data.
+    ///         A minimum above the whole pot or a zero root key would leave a Hand nobody can
+    ///         ever thank, its money locked until expiry: both are refused here.
+    function raise(
+        address token,
+        uint256 amount,
+        uint40 expiry,
+        address rootKey,
+        uint16 minGiverClaimBps,
+        uint16 payoutGasK,
+        bytes32 dataHash
+    ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
+        if (minGiverClaimBps > BPS) revert InvalidMinGiverClaim();
+        if (rootKey == address(0)) revert InvalidRootKey();
 
         handId = ++handsCount;
-        hands[handId] = Hand(msg.sender, expiry, uint40(block.timestamp), token, payoutGasK, 0, 0, amount, dataHash);
-        emit Raised(handId, msg.sender, token, amount, expiry, payoutGasK, dataHash);
+        hands[handId] = Hand({
+            raiser: msg.sender,
+            expiry: expiry,
+            minGiverClaimBps: minGiverClaimBps,
+            raisedAt: uint40(block.timestamp),
+            token: token,
+            payoutGasK: payoutGasK,
+            thankedAt: 0, // written by thank
+            reclaimedAt: 0, // written by reclaim
+            amount: amount,
+            rootKey: rootKey,
+            dataHash: dataHash,
+            giveHash: 0 // written by thank
+        });
+
+        emit Raised(handId, msg.sender, token, amount, expiry, rootKey, minGiverClaimBps, payoutGasK, dataHash);
+
         if (amount == 0) return handId; // a Hand without a reward never touches a token
 
         // Both sides are measured: a token that moves any other amount is refused here,
@@ -94,28 +185,33 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (IERC20(token).balanceOf(address(this)) != coreBefore + amount) revert InexactTransfer();
     }
 
-    /// @notice Pays the whole pot to `giver`, who signed a Give for this Hand and is never
-    ///         the raiser. Only the raiser, only before expiry. `dataHash` is a
-    ///         commitment Core never reads: it is signed, logged and nothing else.
-    function thank(uint256 handId, address giver, bytes32 dataHash, bytes calldata signature)
-        external
-        nonReentrant
-        whenOpen(handId)
-    {
+    /// @notice Pays the pot along a route: each shaker keeps its margin, the Give's payee gets
+    ///         the rest. Each Shake is signed by the key before it, starting at the root key;
+    ///         the Give by the last key and by its signer, who is never the raiser. Only the
+    ///         raiser, only before expiry. Core never reads the data hashes.
+    function thank(
+        uint256 handId,
+        SignedShake[] calldata shakes,
+        Give calldata give,
+        bytes calldata keySig,
+        bytes calldata giverSig
+    ) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
+
         if (msg.sender != hand.raiser) revert NotRaiser();
-        if (giver == msg.sender) revert GiverIsRaiser();
+        if (msg.sender == give.signer) revert GiverIsRaiser();
         if (block.timestamp >= hand.expiry) revert Expired();
 
-        // The expected signer is passed in and compared: recovery alone returns some
-        // address for any input, so a wrong signature would pay a stranger.
-        bytes32 give = keccak256(abi.encode(GIVE_TYPEHASH, handId, dataHash));
-        if (ECDSA.recoverCalldata(_hashTypedDataV4(give), signature) != giver) revert InvalidGive();
+        bytes32 giveHash = _checkGive(handId, hand, shakes, give, keySig, giverSig);
 
         hand.thankedAt = uint40(block.timestamp);
-        emit Thanked(handId, giver, dataHash);
+        hand.giveHash = giveHash;
 
-        _tryPay(hand.token, giver, hand.amount, hand.payoutGasK);
+        emit Thanked(handId, give.signer, give.payee, give.routeHash, give.claimBps, give.dataHash);
+
+        uint256 rest = _payShakers(handId, hand, shakes);
+
+        _pay(hand.token, give.payee, rest, hand.payoutGasK);
     }
 
     /// @notice Refunds an expired Hand to its raiser. Anyone may call.
@@ -126,7 +222,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         hand.reclaimedAt = uint40(block.timestamp);
         emit Reclaimed(handId);
 
-        _tryPay(hand.token, hand.raiser, hand.amount, hand.payoutGasK);
+        _pay(hand.token, hand.raiser, hand.amount, hand.payoutGasK);
     }
 
     /// @notice Sends what is pending for `payee` in `token` to `to`. Anyone may send it to
@@ -134,6 +230,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     ///         address the token has blocked.
     function withdraw(address token, address payee, address to) external nonReentrant {
         if (to != payee && msg.sender != payee) revert NotPayee();
+
         uint256 amount = pending[token][payee];
         if (amount == 0) revert NothingPending();
 
@@ -143,11 +240,97 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         _transferExact(token, to, amount);
     }
 
-    /// @notice Core calls this on itself, so that each payment runs in a frame of its own
+    /// @notice Core calls this on itself, so that each transfer runs in a frame of its own
     ///         and a failing one undoes only itself. Nobody else may call it.
-    function pay(address token, address to, uint256 amount) external {
+    function transferOut(address token, address to, uint256 amount) external {
         if (msg.sender != address(this)) revert NotCore();
         _transferExact(token, to, amount);
+    }
+
+    /// @dev Checks the route and the Give that ends it, and returns the Give's hash. Both
+    ///      sign the same Give: the last key shows it came from the end of this route, the
+    ///      signer that the giver accepted exactly it. Recovery alone returns some address for
+    ///      any input, so each signature is compared with the address it must come from.
+    function _checkGive(
+        uint256 handId,
+        Hand storage hand,
+        SignedShake[] calldata shakes,
+        Give calldata give,
+        bytes calldata keySig,
+        bytes calldata giverSig
+    ) private view returns (bytes32 giveHash) {
+        address lastKey = _checkRoute(handId, hand, shakes, give);
+
+        giveHash = _hashGive(handId, give);
+        bytes32 digest = _hashTypedDataV4(giveHash);
+
+        if (ECDSA.recoverCalldata(digest, keySig) != lastKey) revert InvalidGive();
+        if (ECDSA.recoverCalldata(digest, giverSig) != give.signer) revert InvalidGive();
+    }
+
+    /// @dev Follows the route from the root key and returns its last key. Each Shake must
+    ///      continue the share it received, keep nothing without a payee, and be signed by
+    ///      the key it comes from; the Give must name this route and the share left at its
+    ///      end, which is no less than the raiser's minimum for the giver.
+    function _checkRoute(uint256 handId, Hand storage hand, SignedShake[] calldata shakes, Give calldata give)
+        private
+        view
+        returns (address key)
+    {
+        key = hand.rootKey;
+        uint16 claim = BPS;
+        bytes32 routeHash = bytes32(0); // a route without Shakes hashes to zero
+
+        for (uint256 i; i < shakes.length; ++i) {
+            Shake calldata shake = shakes[i].shake;
+
+            if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(i);
+            if (shake.payee == address(0) && shake.nextClaimBps != claim) revert AnonymousMargin(i);
+
+            bytes32 shakeHash = _hashShake(handId, shake);
+
+            if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), shakes[i].keySig) != key) revert InvalidShake(i);
+
+            routeHash = keccak256(abi.encode(routeHash, shakeHash));
+
+            key = shake.nextKey;
+            claim = shake.nextClaimBps;
+        }
+
+        if (give.claimBps != claim) revert InvalidClaim(shakes.length);
+        if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
+        if (give.routeHash != routeHash) revert InvalidGive();
+    }
+
+    /// @dev Pays every shaker its margin of the pot and returns what is left for the giver.
+    ///      A margin that rounds down to zero leaves its dust to the giver.
+    function _payShakers(uint256 handId, Hand storage hand, SignedShake[] calldata shakes)
+        private
+        returns (uint256 rest)
+    {
+        uint256 pot = hand.amount;
+        rest = pot;
+
+        for (uint256 i; i < shakes.length; ++i) {
+            Shake calldata shake = shakes[i].shake;
+
+            uint256 margin = Math.mulDiv(pot, shake.claimBps - shake.nextClaimBps, BPS);
+            rest -= margin;
+
+            emit Shaken(
+                handId, i, shake.nextKey, shake.payee, shake.claimBps, shake.nextClaimBps, margin, shake.dataHash
+            );
+
+            _pay(hand.token, shake.payee, margin, hand.payoutGasK);
+        }
+    }
+
+    function _hashShake(uint256 handId, Shake calldata s) private pure returns (bytes32) {
+        return keccak256(abi.encode(SHAKE_TYPEHASH, handId, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash));
+    }
+
+    function _hashGive(uint256 handId, Give calldata g) private pure returns (bytes32) {
+        return keccak256(abi.encode(GIVE_TYPEHASH, handId, g.routeHash, g.signer, g.payee, g.claimBps, g.dataHash));
     }
 
     /// @dev Raised and neither thanked nor reclaimed.
@@ -162,9 +345,9 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     ///      payee instead. The Hand is closed either way. A zero amount touches no token.
     ///      Sent with too little gas on purpose, a payment that itself needs a lot of gas
     ///      can end up pending too; it is never lost, and anyone can withdraw it to the payee.
-    function _tryPay(address token, address payee, uint256 amount, uint16 payoutGasK) private {
+    function _pay(address token, address payee, uint256 amount, uint16 payoutGasK) private {
         if (amount == 0) return;
-        try this.pay{gas: uint256(payoutGasK) * 1_000}(token, payee, amount) {
+        try this.transferOut{gas: uint256(payoutGasK) * 1_000}(token, payee, amount) {
             emit Paid(token, payee, amount);
         } catch {
             pending[token][payee] += amount;
