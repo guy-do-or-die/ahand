@@ -422,15 +422,26 @@ contract CoreTest is Test {
         core.reclaim(id);
     }
 
-    function test_thank_onlyTheRaiser() public {
+    /// Any caller but the raiser is refused, whatever its address.
+    function testFuzz_thank_onlyTheRaiser(address caller) public {
+        vm.assume(caller != alice);
         uint256 id = _raise(alice, address(usd), POT);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         vm.expectRevert(AHandCore.NotRaiser.selector);
-        _thank(carol, id, carolKey);
+        _submit(caller, id, _none(), g, keySig, giverSig);
     }
 
     function test_thank_windowClosesExactlyAtExpiry() public {
         uint256 id = _raise(alice, address(usd), POT);
         vm.warp(expiry);
+        vm.expectRevert(AHandCore.Expired.selector);
+        _thank(alice, id, carolKey);
+    }
+
+    /// And it stays closed: any time after expiry, thank is refused.
+    function testFuzz_thank_refusedAnyTimeAfterExpiry(uint32 late) public {
+        uint256 id = _raise(alice, address(usd), POT);
+        vm.warp(uint256(expiry) + late);
         vm.expectRevert(AHandCore.Expired.selector);
         _thank(alice, id, carolKey);
     }
@@ -732,7 +743,7 @@ contract CoreTest is Test {
         _submit(alice, second, shakes, g, keySig, giverSig);
     }
 
-    /// A Shake starts from the share it received and cannot pass on more than that.
+    /// A Shake starts from exactly the share it received and cannot pass on more than that.
     function test_route_shakeContinuesItsShare() public {
         uint256 id = _raise(alice, address(usd), POT);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
@@ -743,6 +754,22 @@ contract CoreTest is Test {
         _submit(alice, id, shakes, g, keySig, giverSig);
 
         shakes = _oneShake(id, makeAddr("shaker"), 10_001);
+        (g, keySig, giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 0));
+        _submit(alice, id, shakes, g, keySig, giverSig);
+
+        // Claiming more than reached it, even while passing on less, would take from the giver.
+        shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        shakes[0].shake.claimBps = 19_000;
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+        (g, keySig, giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 0));
+        _submit(alice, id, shakes, g, keySig, giverSig);
+
+        // Both rules broken at once.
+        shakes = _oneShake(id, makeAddr("shaker"), 10_500);
+        shakes[0].shake.claimBps = 19_000;
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
         (g, keySig, giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 0));
         _submit(alice, id, shakes, g, keySig, giverSig);
@@ -1156,8 +1183,11 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(carol), 3 * POT);
     }
 
-    function test_transferOut_onlyFromCoreItself() public {
+    /// Nobody but Core itself may call it, whatever the caller's address.
+    function testFuzz_transferOut_onlyFromCoreItself(address caller) public {
+        vm.assume(caller != address(core));
         vm.expectRevert(AHandCore.NotCore.selector);
+        vm.prank(caller);
         core.transferOut(address(usd), carol, 1);
     }
 
@@ -1198,6 +1228,15 @@ contract CoreTest is Test {
         core.withdraw(address(t), carol, fresh);
         assertEq(t.balanceOf(fresh), POT);
         assertEq(core.pending(address(t), carol), 0);
+    }
+
+    /// Nobody else redirects it, whatever the addresses of the caller and the destination.
+    function testFuzz_withdraw_nobodyElseRedirects(address caller, address to) public {
+        vm.assume(caller != carol && to != carol);
+        BlacklistToken t = _leavePending(carol);
+        vm.expectRevert(AHandCore.NotPayee.selector);
+        vm.prank(caller);
+        core.withdraw(address(t), carol, to);
     }
 
     /// What is cleared is the payee's pending amount, never the destination's (the bug Across shipped).
