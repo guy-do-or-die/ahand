@@ -268,9 +268,9 @@ contract CoreTest is Test {
     /// A minimum above the whole pot would make the Hand impossible to thank: refused at raise.
     function test_raise_rejectsMinGiverClaimAboveThePot() public {
         vm.startPrank(alice);
-        vm.expectRevert(AHandCore.InvalidMinGiverClaim.selector);
+        vm.expectRevert(AHandCore.MinGiverClaimTooHigh.selector);
         core.raise(address(usd), POT, expiry, root, 10_001, GAS_K, ASK);
-        vm.expectRevert(AHandCore.InvalidMinGiverClaim.selector);
+        vm.expectRevert(AHandCore.MinGiverClaimTooHigh.selector);
         core.raise(address(usd), POT, expiry, root, type(uint16).max, GAS_K, ASK);
         core.raise(address(usd), POT, expiry, root, 10_000, GAS_K, ASK); // the whole pot is fine
         vm.stopPrank();
@@ -280,7 +280,7 @@ contract CoreTest is Test {
     /// Nobody can sign as the zero address, so a zero root key is refused at raise.
     function test_raise_rejectsZeroRootKey() public {
         vm.prank(alice);
-        vm.expectRevert(AHandCore.InvalidRootKey.selector);
+        vm.expectRevert(AHandCore.ZeroRootKey.selector);
         core.raise(address(usd), POT, expiry, address(0), 0, GAS_K, ASK);
         assertEq(core.handsCount(), 0);
     }
@@ -366,15 +366,15 @@ contract CoreTest is Test {
         _raise(bob, address(usd), POT); // money a second reclaim would steal
         vm.warp(expiry);
         core.reclaim(id);
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(id);
         assertEq(usd.balanceOf(address(core)), POT);
     }
 
     function test_reclaim_unknownHand() public {
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(1);
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(0);
     }
 
@@ -391,7 +391,7 @@ contract CoreTest is Test {
         assertEq(_hand(42).raiser, address(0));
         assertEq(_hand(42).raisedAt, 0);
         vm.warp(uint256(expiry) + 1);
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(42);
     }
 
@@ -418,7 +418,7 @@ contract CoreTest is Test {
         vm.warp(uint256(expiry) + 1);
         assertEq(_hand(id).thankedAt, at);
         assertEq(_hand(id).reclaimedAt, 0);
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(id);
     }
 
@@ -457,13 +457,13 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), POT);
         _raise(bob, address(usd), POT); // money a second thank would steal
         _thank(alice, id, carolKey);
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         _thank(alice, id, carolKey);
         assertEq(usd.balanceOf(address(core)), POT);
     }
 
     function test_thank_unknownHand() public {
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         _thank(alice, 1, carolKey);
     }
 
@@ -472,7 +472,7 @@ contract CoreTest is Test {
         _raise(bob, address(usd), POT);
         _thank(alice, id, carolKey);
         vm.warp(expiry);
-        vm.expectRevert(AHandCore.NotActive.selector);
+        vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(id);
     }
 
@@ -659,13 +659,13 @@ contract CoreTest is Test {
         Give memory g = Give(bytes32(0), carol, address(0), 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidPayee.selector);
+        vm.expectRevert(AHandCore.ZeroPayee.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
 
         uint256 empty = _raise(alice, address(usd), 0);
         keySig = _signGive(address(core), ROOT_PK, empty, g);
         giverSig = _signGive(address(core), carolKey, empty, g);
-        vm.expectRevert(AHandCore.InvalidPayee.selector);
+        vm.expectRevert(AHandCore.ZeroPayee.selector);
         _submit(alice, empty, _none(), g, keySig, giverSig);
     }
 

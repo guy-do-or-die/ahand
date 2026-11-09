@@ -104,18 +104,18 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
 
     error ExpiryNotInFuture();
-    error NotActive();
+    error NotOpen();
     error NotExpired();
     error NotRaiser();
     error GiverIsRaiser();
-    error InvalidPayee();
+    error ZeroPayee();
     error InvalidGive();
     error InvalidShake(uint256 position);
     error InvalidClaim(uint256 position);
     error AnonymousMargin(uint256 position);
     error BelowMinGiverClaim();
-    error InvalidMinGiverClaim();
-    error InvalidRootKey();
+    error MinGiverClaimTooHigh();
+    error ZeroRootKey();
     error Expired();
     error InexactTransfer();
     error NotCore();
@@ -156,8 +156,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
-        if (minGiverClaimBps > BPS) revert InvalidMinGiverClaim();
-        if (rootKey == address(0)) revert InvalidRootKey();
+        if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
+        if (rootKey == address(0)) revert ZeroRootKey();
 
         handId = ++handsCount;
         hands[handId] = Hand({
@@ -205,7 +205,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (msg.sender == give.signer) revert GiverIsRaiser();
-        if (give.payee == address(0)) revert InvalidPayee();
+        if (give.payee == address(0)) revert ZeroPayee();
         if (block.timestamp >= hand.expiry) revert Expired();
 
         bytes32 giveHash = _checkGive(handId, hand, shakes, give, keySig, giverSig);
@@ -348,7 +348,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     /// @dev Raised and neither thanked nor reclaimed.
     modifier whenOpen(uint256 handId) {
         Hand storage hand = hands[handId];
-        if (hand.raisedAt == 0 || hand.thankedAt != 0 || hand.reclaimedAt != 0) revert NotActive();
+        if (hand.raisedAt == 0 || hand.thankedAt != 0 || hand.reclaimedAt != 0) revert NotOpen();
         _;
     }
 
