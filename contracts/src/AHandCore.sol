@@ -108,6 +108,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     error NotExpired();
     error NotRaiser();
     error GiverIsRaiser();
+    error InvalidPayee();
     error InvalidGive();
     error InvalidShake(uint256 position);
     error InvalidClaim(uint256 position);
@@ -190,6 +191,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     ///         the rest. Each Shake is signed by the key before it, starting at the root key;
     ///         the Give by the last key and by its signer, who is never the raiser. Only the
     ///         raiser, only before expiry. Core never reads the data hashes.
+    ///         A Give without a payee is refused: sent to the zero address, the giver's share
+    ///         would be burned or stay pending where nobody can ever withdraw it.
     function thank(
         uint256 handId,
         SignedShake[] calldata shakes,
@@ -201,6 +204,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (msg.sender == give.signer) revert GiverIsRaiser();
+        if (give.payee == address(0)) revert InvalidPayee();
         if (block.timestamp >= hand.expiry) revert Expired();
 
         bytes32 giveHash = _checkGive(handId, hand, shakes, give, keySig, giverSig);

@@ -640,7 +640,7 @@ contract CoreTest is Test {
     /// Nobody holds the zero address key: junk that recovers to zero must not pass for it.
     function test_give_zeroAddressCannotBeTheGiver() public {
         uint256 id = _raise(alice, address(usd), POT);
-        Give memory g = _give(address(0));
+        Give memory g = Give(bytes32(0), address(0), carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         vm.expectRevert();
         _submit(alice, id, _none(), g, keySig, new bytes(65));
@@ -650,6 +650,23 @@ contract CoreTest is Test {
         vm.expectRevert(AHandCore.InvalidGive.selector);
         _submit(alice, id, _none(), g, keySig, carolSig);
         assertEq(usd.balanceOf(address(core)), POT);
+    }
+
+    /// The giver's share must reach someone. Sent to the zero address it is burned, or, if the
+    /// token refuses, stays pending where nobody can ever withdraw it. Refused for any pot.
+    function test_give_zeroAddressCannotBeThePayee() public {
+        uint256 id = _raise(alice, address(usd), POT);
+        Give memory g = Give(bytes32(0), carol, address(0), 10_000, ANSWER);
+        bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
+        bytes memory giverSig = _signGive(address(core), carolKey, id, g);
+        vm.expectRevert(AHandCore.InvalidPayee.selector);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+
+        uint256 empty = _raise(alice, address(usd), 0);
+        keySig = _signGive(address(core), ROOT_PK, empty, g);
+        giverSig = _signGive(address(core), carolKey, empty, g);
+        vm.expectRevert(AHandCore.InvalidPayee.selector);
+        _submit(alice, empty, _none(), g, keySig, giverSig);
     }
 
     function test_give_malformedSignature() public {
@@ -1491,7 +1508,7 @@ contract CoreTest is Test {
         vm.assume(claimed != vm.addr(key) && claimed != alice);
         uint256 id = _raise(alice, address(usd), POT);
 
-        Give memory g = _give(claimed);
+        Give memory g = Give(bytes32(0), claimed, carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), key, id, g);
         vm.expectRevert(AHandCore.InvalidGive.selector);
