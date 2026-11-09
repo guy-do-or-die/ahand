@@ -20,10 +20,10 @@ interface IMintable {
 }
 
 contract TwoInARow {
-    function go(AHandCore core, MockUSD token, uint256 amount, uint40 expiry) external {
-        token.approve(address(core), 2 * amount);
-        core.raise(address(token), amount, expiry, address(this), 0, 200, bytes32(0));
-        core.raise(address(token), amount, expiry, address(this), 0, 200, bytes32(0));
+    function go(AHandCore core, MockUSD token, uint256 reward, uint40 expiry) external {
+        token.approve(address(core), 2 * reward);
+        core.raise(address(token), reward, expiry, address(this), 0, 200, bytes32(0));
+        core.raise(address(token), reward, expiry, address(this), 0, 200, bytes32(0));
     }
 }
 
@@ -54,7 +54,7 @@ contract CoreTest is Test {
         uint256 indexed handId,
         address indexed raiser,
         address indexed token,
-        uint256 amount,
+        uint256 reward,
         uint40 expiry,
         address rootKey,
         uint16 minGiverClaimBps,
@@ -84,7 +84,7 @@ contract CoreTest is Test {
     event Pending(address indexed token, address indexed payee, uint256 amount);
     event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
 
-    uint256 constant POT = 100e6;
+    uint256 constant REWARD = 100e6;
     bytes32 constant ANSWER = keccak256("the salted answer");
     bytes32 constant ASK = keccak256("what the raiser asks for");
     bytes32 constant SHAKE_DATA = keccak256("why I passed it on");
@@ -121,9 +121,9 @@ contract CoreTest is Test {
         IMintable(token).approve(address(core), type(uint256).max);
     }
 
-    function _raise(address who, address token, uint256 amount) internal returns (uint256) {
+    function _raise(address who, address token, uint256 reward) internal returns (uint256) {
         vm.prank(who);
-        return core.raise(token, amount, expiry, root, 0, GAS_K, ASK);
+        return core.raise(token, reward, expiry, root, 0, GAS_K, ASK);
     }
 
     function _signed(uint256 key, bytes32 digest) internal pure returns (bytes memory) {
@@ -196,17 +196,17 @@ contract CoreTest is Test {
 
     /*//////////////////////////// raise ////////////////////////////*/
 
-    function test_raise_escrowsThePotAndRecordsTheHand() public {
+    function test_raise_escrowsTheRewardAndRecordsTheHand() public {
         uint256 before = usd.balanceOf(alice);
 
         vm.expectEmit(address(core));
-        emit Raised(1, alice, address(usd), POT, expiry, root, 0, GAS_K, ASK);
-        uint256 id = _raise(alice, address(usd), POT);
+        emit Raised(1, alice, address(usd), REWARD, expiry, root, 0, GAS_K, ASK);
+        uint256 id = _raise(alice, address(usd), REWARD);
 
         assertEq(id, 1);
         assertEq(core.handsCount(), 1);
-        assertEq(usd.balanceOf(address(core)), POT);
-        assertEq(usd.balanceOf(alice), before - POT);
+        assertEq(usd.balanceOf(address(core)), REWARD);
+        assertEq(usd.balanceOf(alice), before - REWARD);
 
         HandView memory h = _hand(id);
         assertEq(h.raiser, alice);
@@ -216,19 +216,19 @@ contract CoreTest is Test {
         assertEq(h.token, address(usd));
         assertEq(h.payoutGasK, GAS_K);
         _assertOpen(id);
-        assertEq(h.amount, POT);
+        assertEq(h.reward, REWARD);
         assertEq(h.rootKey, root);
         assertEq(h.dataHash, ASK);
         assertEq(h.giveHash, bytes32(0));
     }
 
     function test_raise_idsGrowFromOne() public {
-        assertEq(_raise(alice, address(usd), POT), 1);
-        assertEq(_raise(bob, address(usd), POT), 2);
-        assertEq(_raise(alice, address(usd), POT), 3);
+        assertEq(_raise(alice, address(usd), REWARD), 1);
+        assertEq(_raise(bob, address(usd), REWARD), 2);
+        assertEq(_raise(alice, address(usd), REWARD), 3);
     }
 
-    function test_raise_zeroPotIsAllowed() public {
+    function test_raise_zeroRewardIsAllowed() public {
         uint256 id = _raise(alice, address(usd), 0);
         assertEq(usd.balanceOf(address(core)), 0);
         vm.warp(expiry);
@@ -239,14 +239,14 @@ contract CoreTest is Test {
     /// Core does not judge the hash: an empty one is the raiser's and the application's business.
     function test_raise_zeroDataHashIsAllowed() public {
         vm.prank(alice);
-        uint256 id = core.raise(address(usd), POT, expiry, root, 0, GAS_K, bytes32(0));
+        uint256 id = core.raise(address(usd), REWARD, expiry, root, 0, GAS_K, bytes32(0));
         assertEq(_hand(id).dataHash, bytes32(0));
     }
 
     /// The hash outlives the Hand, so it can still be read once the Hand is closed.
     function test_raise_dataHashStaysAfterTheHandCloses() public {
-        uint256 thanked = _raise(alice, address(usd), POT);
-        uint256 reclaimed = _raise(alice, address(usd), POT);
+        uint256 thanked = _raise(alice, address(usd), REWARD);
+        uint256 reclaimed = _raise(alice, address(usd), REWARD);
         _thank(alice, thanked, carolKey);
         vm.warp(expiry);
         core.reclaim(reclaimed);
@@ -258,21 +258,21 @@ contract CoreTest is Test {
     function test_raise_rejectsExpiryNotInTheFuture() public {
         vm.startPrank(alice);
         vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
-        core.raise(address(usd), POT, uint40(block.timestamp), root, 0, GAS_K, ASK);
+        core.raise(address(usd), REWARD, uint40(block.timestamp), root, 0, GAS_K, ASK);
         vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
-        core.raise(address(usd), POT, uint40(block.timestamp - 1), root, 0, GAS_K, ASK);
+        core.raise(address(usd), REWARD, uint40(block.timestamp - 1), root, 0, GAS_K, ASK);
         vm.stopPrank();
         assertEq(core.handsCount(), 0);
     }
 
-    /// A minimum above the whole pot would make the Hand impossible to thank: refused at raise.
-    function test_raise_rejectsMinGiverClaimAboveThePot() public {
+    /// A minimum above the whole reward would make the Hand impossible to thank: refused at raise.
+    function test_raise_rejectsMinGiverClaimAboveTheReward() public {
         vm.startPrank(alice);
         vm.expectRevert(AHandCore.MinGiverClaimTooHigh.selector);
-        core.raise(address(usd), POT, expiry, root, 10_001, GAS_K, ASK);
+        core.raise(address(usd), REWARD, expiry, root, 10_001, GAS_K, ASK);
         vm.expectRevert(AHandCore.MinGiverClaimTooHigh.selector);
-        core.raise(address(usd), POT, expiry, root, type(uint16).max, GAS_K, ASK);
-        core.raise(address(usd), POT, expiry, root, 10_000, GAS_K, ASK); // the whole pot is fine
+        core.raise(address(usd), REWARD, expiry, root, type(uint16).max, GAS_K, ASK);
+        core.raise(address(usd), REWARD, expiry, root, 10_000, GAS_K, ASK); // the whole reward is fine
         vm.stopPrank();
         assertEq(core.handsCount(), 1);
     }
@@ -281,13 +281,13 @@ contract CoreTest is Test {
     function test_raise_rejectsZeroRootKey() public {
         vm.prank(alice);
         vm.expectRevert(AHandCore.ZeroRootKey.selector);
-        core.raise(address(usd), POT, expiry, address(0), 0, GAS_K, ASK);
+        core.raise(address(usd), REWARD, expiry, address(0), 0, GAS_K, ASK);
         assertEq(core.handsCount(), 0);
     }
 
     function test_raise_acceptsExpiryOneSecondAhead() public {
         vm.prank(alice);
-        core.raise(address(usd), POT, uint40(block.timestamp + 1), root, 0, GAS_K, ASK);
+        core.raise(address(usd), REWARD, uint40(block.timestamp + 1), root, 0, GAS_K, ASK);
         assertEq(core.handsCount(), 1);
     }
 
@@ -296,14 +296,14 @@ contract CoreTest is Test {
         usd.approve(address(core), 0);
         vm.prank(alice);
         vm.expectRevert();
-        core.raise(address(usd), POT, expiry, root, 0, GAS_K, ASK);
+        core.raise(address(usd), REWARD, expiry, root, 0, GAS_K, ASK);
         assertEq(core.handsCount(), 0);
     }
 
     function test_raise_revertsOnAddressWithoutCode() public {
         vm.prank(alice);
         vm.expectRevert();
-        core.raise(makeAddr("not a token"), POT, expiry, root, 0, GAS_K, ASK);
+        core.raise(makeAddr("not a token"), REWARD, expiry, root, 0, GAS_K, ASK);
         assertEq(core.handsCount(), 0);
     }
 
@@ -312,7 +312,7 @@ contract CoreTest is Test {
         _fund(address(t), alice);
         vm.prank(alice);
         vm.expectRevert(AHandCore.InexactTransfer.selector);
-        core.raise(address(t), POT, expiry, root, 0, GAS_K, ASK);
+        core.raise(address(t), REWARD, expiry, root, 0, GAS_K, ASK);
     }
 
     function test_raise_rejectsReceiverSideFee() public {
@@ -320,14 +320,14 @@ contract CoreTest is Test {
         _fund(address(t), alice);
         vm.prank(alice);
         vm.expectRevert(AHandCore.InexactTransfer.selector);
-        core.raise(address(t), POT, expiry, root, 0, GAS_K, ASK);
+        core.raise(address(t), REWARD, expiry, root, 0, GAS_K, ASK);
     }
 
     /*//////////////////////////// reclaim ////////////////////////////*/
 
     function test_reclaim_refundsTheRaiserInFull() public {
         uint256 before = usd.balanceOf(alice);
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(expiry);
 
         vm.expectEmit(address(core));
@@ -340,7 +340,7 @@ contract CoreTest is Test {
     }
 
     function test_reclaim_windowOpensExactlyAtExpiry() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(expiry - 1);
         vm.expectRevert(AHandCore.NotExpired.selector);
         core.reclaim(id);
@@ -349,7 +349,7 @@ contract CoreTest is Test {
     }
 
     function test_reclaim_anyoneMayCallButOnlyTheRaiserIsPaid() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         uint256 aliceBefore = usd.balanceOf(alice);
         uint256 bobBefore = usd.balanceOf(bob);
         vm.warp(expiry);
@@ -357,18 +357,18 @@ contract CoreTest is Test {
         vm.prank(bob);
         core.reclaim(id);
 
-        assertEq(usd.balanceOf(alice), aliceBefore + POT);
+        assertEq(usd.balanceOf(alice), aliceBefore + REWARD);
         assertEq(usd.balanceOf(bob), bobBefore);
     }
 
     function test_reclaim_onlyOnce() public {
-        uint256 id = _raise(alice, address(usd), POT);
-        _raise(bob, address(usd), POT); // money a second reclaim would steal
+        uint256 id = _raise(alice, address(usd), REWARD);
+        _raise(bob, address(usd), REWARD); // money a second reclaim would steal
         vm.warp(expiry);
         core.reclaim(id);
         vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(id);
-        assertEq(usd.balanceOf(address(core)), POT);
+        assertEq(usd.balanceOf(address(core)), REWARD);
     }
 
     function test_reclaim_unknownHand() public {
@@ -380,7 +380,7 @@ contract CoreTest is Test {
 
     /// The moment of reclaim is recorded, not the expiry it waited for.
     function test_reclaim_recordsItsOwnMoment() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(uint256(expiry) + 3 days);
         core.reclaim(id);
         _assertReclaimedNow(id);
@@ -397,21 +397,21 @@ contract CoreTest is Test {
 
     /*//////////////////////////// thank ////////////////////////////*/
 
-    function test_thank_paysTheWholePotToTheGiver() public {
-        uint256 id = _raise(alice, address(usd), POT);
+    function test_thank_paysTheWholeRewardToTheGiver() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
 
         vm.expectEmit(address(core));
         emit Thanked(id, carol, carol, bytes32(0), 10_000, ANSWER);
         _thank(alice, id, carolKey);
 
-        assertEq(usd.balanceOf(carol), POT);
+        assertEq(usd.balanceOf(carol), REWARD);
         assertEq(usd.balanceOf(address(core)), 0);
         _assertThankedNow(id);
     }
 
     /// The time of thank is written once and stays.
     function test_thank_timeIsWrittenOnce() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         uint256 at = block.timestamp + 1 hours;
         vm.warp(at);
         _thank(alice, id, carolKey);
@@ -425,14 +425,14 @@ contract CoreTest is Test {
     /// Any caller but the raiser is refused, whatever its address.
     function testFuzz_thank_onlyTheRaiser(address caller) public {
         vm.assume(caller != alice);
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         vm.expectRevert(AHandCore.NotRaiser.selector);
         _submit(caller, id, _none(), g, keySig, giverSig);
     }
 
     function test_thank_windowClosesExactlyAtExpiry() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(expiry);
         vm.expectRevert(AHandCore.Expired.selector);
         _thank(alice, id, carolKey);
@@ -440,26 +440,26 @@ contract CoreTest is Test {
 
     /// And it stays closed: any time after expiry, thank is refused.
     function testFuzz_thank_refusedAnyTimeAfterExpiry(uint32 late) public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(uint256(expiry) + late);
         vm.expectRevert(AHandCore.Expired.selector);
         _thank(alice, id, carolKey);
     }
 
     function test_thank_worksOneSecondBeforeExpiry() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(expiry - 1);
         _thank(alice, id, carolKey);
-        assertEq(usd.balanceOf(carol), POT);
+        assertEq(usd.balanceOf(carol), REWARD);
     }
 
     function test_thank_onlyOnce() public {
-        uint256 id = _raise(alice, address(usd), POT);
-        _raise(bob, address(usd), POT); // money a second thank would steal
+        uint256 id = _raise(alice, address(usd), REWARD);
+        _raise(bob, address(usd), REWARD); // money a second thank would steal
         _thank(alice, id, carolKey);
         vm.expectRevert(AHandCore.NotOpen.selector);
         _thank(alice, id, carolKey);
-        assertEq(usd.balanceOf(address(core)), POT);
+        assertEq(usd.balanceOf(address(core)), REWARD);
     }
 
     function test_thank_unknownHand() public {
@@ -468,17 +468,17 @@ contract CoreTest is Test {
     }
 
     function test_thank_closesReclaim() public {
-        uint256 id = _raise(alice, address(usd), POT);
-        _raise(bob, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
+        _raise(bob, address(usd), REWARD);
         _thank(alice, id, carolKey);
         vm.warp(expiry);
         vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(id);
     }
 
-    /// Nobody helps themselves: the pot leaves only to someone else, or back by reclaim.
+    /// Nobody helps themselves: the reward leaves only to someone else, or back by reclaim.
     function test_thank_raiserCannotBeTheGiver() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.expectRevert(AHandCore.GiverIsRaiser.selector);
         _thank(alice, id, aliceKey);
         _assertOpen(id);
@@ -487,7 +487,7 @@ contract CoreTest is Test {
     /// The check is on who signs, not where the money goes: the raiser cannot sign as giver
     /// even while sending the money to someone else.
     function test_thank_raiserCannotSignAsTheGiver() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = Give(bytes32(0), alice, carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), aliceKey, id, g);
@@ -495,7 +495,7 @@ contract CoreTest is Test {
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
-    function test_thank_zeroPot() public {
+    function test_thank_zeroReward() public {
         uint256 id = _raise(alice, address(usd), 0);
         _thank(alice, id, carolKey);
         _assertThankedNow(id);
@@ -503,7 +503,7 @@ contract CoreTest is Test {
 
     /// Core has no key, so it can never sign a Give.
     function test_thank_coreCannotBeTheGiver() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = _give(address(core));
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
@@ -515,35 +515,35 @@ contract CoreTest is Test {
     function test_thank_blockedGiverShareStaysPending() public {
         BlacklistToken t = new BlacklistToken();
         _fund(address(t), alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         t.setBlocked(carol, true);
 
         vm.expectEmit(address(core));
-        emit Pending(address(t), carol, POT);
+        emit Pending(address(t), carol, REWARD);
         _thank(alice, id, carolKey);
 
         _assertThankedNow(id);
-        assertEq(core.pending(address(t), carol), POT);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     function test_thank_lateFeeCannotEatAnotherHand() public {
         LateSenderFeeToken t = new LateSenderFeeToken();
         _fund(address(t), alice);
         _fund(address(t), bob);
-        uint256 a = _raise(alice, address(t), POT);
-        _raise(bob, address(t), POT);
+        uint256 a = _raise(alice, address(t), REWARD);
+        _raise(bob, address(t), REWARD);
         t.setFeeOn(true);
         _thank(alice, a, carolKey);
-        assertEq(core.pending(address(t), carol), POT);
-        assertEq(t.balanceOf(address(core)), 2 * POT);
+        assertEq(core.pending(address(t), carol), REWARD);
+        assertEq(t.balanceOf(address(core)), 2 * REWARD);
     }
 
     /*//////////////////////////// give ////////////////////////////*/
 
     /// The raiser cannot name a giver who did not sign.
     function test_give_signatureOfSomeoneElse() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = _give(carol);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), bobKey, id, g);
@@ -553,7 +553,7 @@ contract CoreTest is Test {
 
     /// A Give must come from the end of its route, here the root key: the link itself.
     function test_give_needsTheLinkKey() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = _give(carol);
         bytes memory keySig = _signGive(address(core), bobKey, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
@@ -562,15 +562,15 @@ contract CoreTest is Test {
     }
 
     function test_give_cannotBeMovedToAnotherHand() public {
-        uint256 first = _raise(alice, address(usd), POT);
-        uint256 second = _raise(alice, address(usd), POT);
+        uint256 first = _raise(alice, address(usd), REWARD);
+        uint256 second = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(first, carolKey);
         vm.expectRevert(AHandCore.InvalidGive.selector);
         _submit(alice, second, _none(), g, keySig, giverSig);
     }
 
     function test_give_coversTheData() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         g.dataHash = keccak256("another answer");
         vm.expectRevert(AHandCore.InvalidGive.selector);
@@ -579,7 +579,7 @@ contract CoreTest is Test {
 
     /// Where the money goes is signed: nobody can swap the payee after the giver signed.
     function test_give_coversThePayee() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         g.payee = alice;
         vm.expectRevert(AHandCore.InvalidGive.selector);
@@ -588,19 +588,19 @@ contract CoreTest is Test {
 
     /// The giver may take the money at another address, an exchange for example.
     function test_give_paysThePayeeTheSignerChose() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         address exchange = makeAddr("exchange");
         Give memory g = Give(bytes32(0), carol, exchange, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         _submit(alice, id, _none(), g, keySig, giverSig);
-        assertEq(usd.balanceOf(exchange), POT);
+        assertEq(usd.balanceOf(exchange), REWARD);
         assertEq(usd.balanceOf(carol), 0);
     }
 
-    /// The share in the Give is the one that reached its signer: the whole pot on a direct route.
+    /// The share in the Give is the one that reached its signer: the whole reward on a direct route.
     function test_give_namesTheShareThatReachedIt() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = Give(bytes32(0), carol, carol, 9_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
@@ -610,7 +610,7 @@ contract CoreTest is Test {
 
     /// The route in the Give is the one the raiser submits: no Shakes here.
     function test_give_namesTheRoute() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = Give(keccak256("another route"), carol, carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
@@ -619,7 +619,7 @@ contract CoreTest is Test {
     }
 
     function test_give_cannotBeMovedToAnotherCore() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = _give(carol);
         address other = makeAddr("another core");
         bytes memory keySig = _signGive(other, ROOT_PK, id, g);
@@ -630,7 +630,7 @@ contract CoreTest is Test {
 
     /// After a fork the old chain id no longer signs anything here.
     function test_give_cannotBeMovedToAnotherChain() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         vm.chainId(block.chainid + 1);
         vm.expectRevert(AHandCore.InvalidGive.selector);
@@ -639,7 +639,7 @@ contract CoreTest is Test {
 
     /// Nobody holds the zero address key: junk that recovers to zero must not pass for it.
     function test_give_zeroAddressCannotBeTheGiver() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = Give(bytes32(0), address(0), carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         vm.expectRevert();
@@ -649,13 +649,13 @@ contract CoreTest is Test {
         bytes memory carolSig = _signGive(address(core), carolKey, id, g);
         vm.expectRevert(AHandCore.InvalidGive.selector);
         _submit(alice, id, _none(), g, keySig, carolSig);
-        assertEq(usd.balanceOf(address(core)), POT);
+        assertEq(usd.balanceOf(address(core)), REWARD);
     }
 
     /// The giver's share must reach someone. Sent to the zero address it is burned, or, if the
-    /// token refuses, stays pending where nobody can ever withdraw it. Refused for any pot.
+    /// token refuses, stays pending where nobody can ever withdraw it. Refused for any reward.
     function test_give_zeroAddressCannotBeThePayee() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = Give(bytes32(0), carol, address(0), 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
@@ -670,7 +670,7 @@ contract CoreTest is Test {
     }
 
     function test_give_malformedSignature() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         vm.expectRevert();
         _submit(alice, id, _none(), g, keySig, hex"1234");
@@ -719,7 +719,7 @@ contract CoreTest is Test {
     /// The shaker keeps its margin, the giver gets the rest.
     function test_route_shakerKeepsItsMargin() public {
         address shaker = makeAddr("shaker");
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         _thankAlong(id, _oneShake(id, shaker, 9_000), carolKey);
         assertEq(usd.balanceOf(shaker), 10e6);
         assertEq(usd.balanceOf(carol), 90e6);
@@ -730,7 +730,7 @@ contract CoreTest is Test {
     /// The Give and every Shake are logged with everything they signed; the Shake with its margin.
     function test_route_isLogged() public {
         address shaker = makeAddr("shaker");
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, shaker, 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         vm.expectEmit(address(core));
@@ -742,7 +742,7 @@ contract CoreTest is Test {
 
     /// A Shake comes only from the key that holds the Hand: here the root key.
     function test_route_shakeMustBeSignedByTheRootKey() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         shakes[0].keySig = _signShake(bobKey, id, shakes[0].shake);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
@@ -752,8 +752,8 @@ contract CoreTest is Test {
 
     /// A Shake is signed for one Hand: the same link key cannot reuse it on another Hand.
     function test_route_shakeIsBoundToItsHand() public {
-        uint256 first = _raise(alice, address(usd), POT);
-        uint256 second = _raise(alice, address(usd), POT);
+        uint256 first = _raise(alice, address(usd), REWARD);
+        uint256 second = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(first, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(second, shakes, NEXT_PK, carolKey);
         vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
@@ -762,7 +762,7 @@ contract CoreTest is Test {
 
     /// A Shake starts from exactly the share it received and cannot pass on more than that.
     function test_route_shakeContinuesItsShare() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         shakes[0].shake.claimBps = 9_999;
         shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
@@ -798,7 +798,7 @@ contract CoreTest is Test {
         uint256 lastPk = 0xC0C0;
         address first = makeAddr("first shaker");
         address second = makeAddr("second shaker");
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = new SignedShake[](2);
         shakes[0].shake = Shake(vm.addr(NEXT_PK), first, 10_000, 9_000, SHAKE_DATA);
         shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
@@ -818,19 +818,19 @@ contract CoreTest is Test {
 
     /// A Shake without a payee may pass the Hand on but never keep a margin.
     function test_route_anonymousShakeKeepsNothing() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, address(0), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         vm.expectRevert(abi.encodeWithSelector(AHandCore.AnonymousMargin.selector, 0));
         _submit(alice, id, shakes, g, keySig, giverSig);
 
         _thankAlong(id, _oneShake(id, address(0), 10_000), carolKey);
-        assertEq(usd.balanceOf(carol), POT);
+        assertEq(usd.balanceOf(carol), REWARD);
     }
 
     /// The Give must come from the key the Shake passed the Hand to, not from the root.
     function test_route_giveComesFromTheNextKey() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, ROOT_PK, carolKey);
         vm.expectRevert(AHandCore.InvalidGive.selector);
@@ -840,7 +840,7 @@ contract CoreTest is Test {
     /// The giver holds only the next key, so she cannot drop the Shake to take its margin:
     /// a Give over the shorter route would need the root key.
     function test_route_giverCannotDropTheShake() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, _none(), NEXT_PK, carolKey);
         vm.expectRevert(AHandCore.InvalidGive.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
@@ -848,7 +848,7 @@ contract CoreTest is Test {
 
     /// The Give names the route it ends: a Give for no Shakes cannot close a route with one.
     function test_route_giveNamesItsRoute() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         Give memory g = Give(bytes32(0), carol, carol, 9_000, ANSWER);
         bytes memory keySig = _signGive(address(core), NEXT_PK, id, g);
@@ -859,7 +859,7 @@ contract CoreTest is Test {
 
     /// The share in the Give is the one the Shake passed on.
     function test_route_giveNamesTheShareThatReachedIt() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         Give memory g = Give(_routeHash(id, shakes), carol, carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), NEXT_PK, id, g);
@@ -871,7 +871,7 @@ contract CoreTest is Test {
     /// The raiser's minimum for the giver holds against any route.
     function test_route_minimumForTheGiver() public {
         vm.prank(alice);
-        uint256 id = core.raise(address(usd), POT, expiry, root, 9_500, GAS_K, ASK);
+        uint256 id = core.raise(address(usd), REWARD, expiry, root, 9_500, GAS_K, ASK);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         vm.expectRevert(AHandCore.BelowMinGiverClaim.selector);
@@ -886,7 +886,7 @@ contract CoreTest is Test {
     function test_route_rootKeyNobodyHoldsLeavesOnlyReclaim() public {
         address nobodys = address(uint160(uint256(keccak256("a root key nobody holds"))));
         vm.prank(alice);
-        uint256 id = core.raise(address(usd), POT, expiry, nobodys, 0, GAS_K, ASK);
+        uint256 id = core.raise(address(usd), REWARD, expiry, nobodys, 0, GAS_K, ASK);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         vm.expectRevert(AHandCore.InvalidGive.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
@@ -906,7 +906,7 @@ contract CoreTest is Test {
 
     /// Core keeps the hash of the Give it paid, so a contract can later prove the route.
     function test_route_giveHashIsKept() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         _submit(alice, id, shakes, g, keySig, giverSig);
@@ -920,7 +920,7 @@ contract CoreTest is Test {
         address shaker = makeAddr("shaker");
         vm.etch(shaker, type(Refuser).runtimeCode);
         t.setHooked(shaker, true);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         _thankAlong(id, _oneShake(id, shaker, 9_000), carolKey);
         assertEq(core.pending(address(t), shaker), 10e6);
         assertEq(t.balanceOf(carol), 90e6);
@@ -928,7 +928,7 @@ contract CoreTest is Test {
 
     /// No exception by identity: the raiser may be a Shake's payee and gets its margin.
     function test_route_raiserMayBeAShakePayee() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         uint256 before = usd.balanceOf(alice);
         _thankAlong(id, _oneShake(id, alice, 9_000), carolKey);
         assertEq(usd.balanceOf(alice), before + 10e6);
@@ -937,13 +937,13 @@ contract CoreTest is Test {
 
     /// The giver may also be the Shake's payee: each occurrence is paid.
     function test_route_giverMayAlsoBeTheShakePayee() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         _thankAlong(id, _oneShake(id, carol, 9_000), carolKey);
-        assertEq(usd.balanceOf(carol), POT);
+        assertEq(usd.balanceOf(carol), REWARD);
     }
 
     /// A Hand without a reward still logs its Shake, and touches no token.
-    function test_route_zeroPotLogsTheShakeAndTouchesNoToken() public {
+    function test_route_zeroRewardLogsTheShakeAndTouchesNoToken() public {
         vm.prank(alice);
         uint256 id = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
@@ -952,8 +952,8 @@ contract CoreTest is Test {
         assertEq(vm.getRecordedLogs().length, 2); // Thanked and Shaken; no Paid, no Pending
     }
 
-    /// A huge pot cannot overflow the margin.
-    function test_route_hugePotDoesNotOverflow() public {
+    /// A huge reward cannot overflow the margin.
+    function test_route_hugeRewardDoesNotOverflow() public {
         uint256 big = type(uint256).max / 2;
         usd.mint(alice, big);
         uint256 id = _raise(alice, address(usd), big);
@@ -964,15 +964,15 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
-    function testFuzz_route_conservesThePot(uint256 pot, uint16 next) public {
-        pot = bound(pot, 0, type(uint128).max);
+    function testFuzz_route_conservesTheReward(uint256 reward, uint16 next) public {
+        reward = bound(reward, 0, type(uint128).max);
         next = uint16(bound(next, 0, 10_000));
-        usd.mint(alice, pot);
-        uint256 id = _raise(alice, address(usd), pot);
+        usd.mint(alice, reward);
+        uint256 id = _raise(alice, address(usd), reward);
         address shaker = makeAddr("shaker");
         _thankAlong(id, _oneShake(id, shaker, next), carolKey);
-        assertEq(usd.balanceOf(shaker), pot * (10_000 - next) / 10_000);
-        assertEq(usd.balanceOf(shaker) + usd.balanceOf(carol), pot);
+        assertEq(usd.balanceOf(shaker), reward * (10_000 - next) / 10_000);
+        assertEq(usd.balanceOf(shaker) + usd.balanceOf(carol), reward);
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
@@ -1010,7 +1010,7 @@ contract CoreTest is Test {
         NoReturnToken t = new NoReturnToken();
         _fund(address(t), alice);
         uint256 before = t.balanceOf(alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         vm.warp(expiry);
         core.reclaim(id);
         assertEq(t.balanceOf(alice), before);
@@ -1020,13 +1020,13 @@ contract CoreTest is Test {
     function test_token_falseReturnLeavesRefundPending() public {
         ReturnsFalseToken t = new ReturnsFalseToken();
         _fund(address(t), alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         t.setRefuses(alice, true);
         vm.warp(expiry);
 
         core.reclaim(id);
         _assertReclaimedNow(id);
-        assertEq(core.pending(address(t), alice), POT);
+        assertEq(core.pending(address(t), alice), REWARD);
 
         t.setRefuses(alice, false);
         core.withdraw(address(t), alice, alice);
@@ -1038,15 +1038,15 @@ contract CoreTest is Test {
         BlacklistToken t = new BlacklistToken();
         _fund(address(t), alice);
         _fund(address(t), bob);
-        uint256 a = _raise(alice, address(t), POT);
-        uint256 b = _raise(bob, address(t), POT);
+        uint256 a = _raise(alice, address(t), REWARD);
+        uint256 b = _raise(bob, address(t), REWARD);
         t.setBlocked(alice, true);
         vm.warp(expiry);
 
         core.reclaim(a);
         core.reclaim(b);
-        assertEq(core.pending(address(t), alice), POT);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(core.pending(address(t), alice), REWARD);
+        assertEq(t.balanceOf(address(core)), REWARD);
 
         t.setBlocked(alice, false);
         core.withdraw(address(t), alice, alice);
@@ -1058,44 +1058,44 @@ contract CoreTest is Test {
         LateSenderFeeToken t = new LateSenderFeeToken();
         _fund(address(t), alice);
         _fund(address(t), bob);
-        uint256 a = _raise(alice, address(t), POT);
-        _raise(bob, address(t), POT);
+        uint256 a = _raise(alice, address(t), REWARD);
+        _raise(bob, address(t), REWARD);
         t.setFeeOn(true);
         vm.warp(expiry);
 
         core.reclaim(a);
-        assertEq(core.pending(address(t), alice), POT);
-        assertEq(t.balanceOf(address(core)), 2 * POT);
+        assertEq(core.pending(address(t), alice), REWARD);
+        assertEq(t.balanceOf(address(core)), 2 * REWARD);
 
         vm.expectRevert(AHandCore.InexactTransfer.selector); // what is pending waits too
         core.withdraw(address(t), alice, alice);
 
         t.setFeeOn(false);
         core.withdraw(address(t), alice, alice);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     /// A broken token stays in its own lane: another token's Hands are unaffected.
     function test_token_brokenTokenDoesNotReachOtherTokens() public {
         LateSenderFeeToken bad = new LateSenderFeeToken();
         _fund(address(bad), alice);
-        uint256 a = _raise(alice, address(bad), POT);
-        uint256 b = _raise(bob, address(usd), POT);
+        uint256 a = _raise(alice, address(bad), REWARD);
+        uint256 b = _raise(bob, address(usd), REWARD);
         bad.setFeeOn(true);
         vm.warp(expiry);
 
         core.reclaim(a); // the token itself fails: the refund stays pending
         core.reclaim(b);
-        assertEq(core.pending(address(bad), alice), POT);
+        assertEq(core.pending(address(bad), alice), REWARD);
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
     /*//////////////////////////// payouts ////////////////////////////*/
 
     function test_payout_emitsPaid() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         vm.expectEmit(address(core));
-        emit Paid(address(usd), carol, POT);
+        emit Paid(address(usd), carol, REWARD);
         _thank(alice, id, carolKey);
         assertEq(core.pending(address(usd), carol), 0);
     }
@@ -1104,11 +1104,11 @@ contract CoreTest is Test {
     function test_payout_refusedPaymentStaysPending() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         vm.etch(carol, type(Refuser).runtimeCode); // a smart account that misbehaves; carol's key still signs
         t.setHooked(carol, true);
         _thank(alice, id, carolKey);
-        assertEq(core.pending(address(t), carol), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
     }
 
     /// A payee that burns all the gas it is handed costs the thank no more than the Hand's
@@ -1117,43 +1117,43 @@ contract CoreTest is Test {
     function test_payout_gasBurnerIsCapped() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         vm.etch(carol, type(Burner).runtimeCode);
         t.setHooked(carol, true);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         SignedShake[] memory none;
         vm.prank(alice);
         core.thank{gas: 400_000}(id, none, g, keySig, giverSig);
-        assertEq(core.pending(address(t), carol), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
     }
 
     /// A token answering with a megabyte cannot make the thank fail.
     function test_payout_returndataBombLeavesPaymentPending() public {
         ReturndataBombToken t = new ReturndataBombToken();
         _fund(address(t), alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         SignedShake[] memory none;
         vm.prank(alice);
         core.thank{gas: 2_000_000}(id, none, g, keySig, giverSig);
-        assertEq(core.pending(address(t), carol), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
     }
 
     /// The payout gas is the raiser's choice per Hand, for the payment and the refund
     /// alike: too little leaves the share pending.
     function test_payout_gasIsSetPerHand() public {
         vm.startPrank(alice);
-        uint256 a = core.raise(address(usd), POT, expiry, root, 0, 1, ASK); // 1 000 gas cannot move a token
-        uint256 b = core.raise(address(usd), POT, expiry, root, 0, 1, ASK);
+        uint256 a = core.raise(address(usd), REWARD, expiry, root, 0, 1, ASK); // 1 000 gas cannot move a token
+        uint256 b = core.raise(address(usd), REWARD, expiry, root, 0, 1, ASK);
         vm.stopPrank();
         _thank(alice, a, carolKey);
-        assertEq(core.pending(address(usd), carol), POT);
+        assertEq(core.pending(address(usd), carol), REWARD);
         vm.warp(expiry);
         core.reclaim(b);
-        assertEq(core.pending(address(usd), alice), POT);
+        assertEq(core.pending(address(usd), alice), REWARD);
 
         core.withdraw(address(usd), carol, carol);
-        assertEq(usd.balanceOf(carol), POT);
+        assertEq(usd.balanceOf(carol), REWARD);
     }
 
     /// The limit is counted in thousands of gas: a payee needing 150 000 is left pending
@@ -1164,19 +1164,19 @@ contract CoreTest is Test {
         vm.etch(carol, type(Heavy).runtimeCode);
         t.setHooked(carol, true);
         vm.startPrank(alice);
-        uint256 low = core.raise(address(t), POT, expiry, root, 0, 100, ASK);
-        uint256 high = core.raise(address(t), POT, expiry, root, 0, 300, ASK);
+        uint256 low = core.raise(address(t), REWARD, expiry, root, 0, 100, ASK);
+        uint256 high = core.raise(address(t), REWARD, expiry, root, 0, 300, ASK);
         vm.stopPrank();
         _thank(alice, low, carolKey);
         _thank(alice, high, carolKey);
-        assertEq(core.pending(address(t), carol), POT);
-        assertEq(t.balanceOf(carol), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
+        assertEq(t.balanceOf(carol), REWARD);
     }
 
     /// Picking the transaction gas cannot leave an honest payout of an ordinary token pending:
     /// it reverts or pays. The refund matters most, because anyone may call `reclaim`.
     function test_payout_underGassingPaysOrReverts() public {
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory give, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         SignedShake[] memory none;
         uint256 paid;
@@ -1186,7 +1186,7 @@ contract CoreTest is Test {
             vm.prank(alice);
             try core.thank{gas: g}(id, none, give, keySig, giverSig) {
                 assertEq(core.pending(address(usd), carol), 0);
-                assertEq(usd.balanceOf(carol), POT);
+                assertEq(usd.balanceOf(carol), REWARD);
                 paid++;
             } catch {
                 reverted++;
@@ -1201,7 +1201,7 @@ contract CoreTest is Test {
             vm.prank(bob);
             try core.reclaim{gas: g}(id) {
                 assertEq(core.pending(address(usd), alice), 0);
-                assertEq(usd.balanceOf(alice), before + POT);
+                assertEq(usd.balanceOf(alice), before + REWARD);
                 paid++;
             } catch {
                 reverted++;
@@ -1216,16 +1216,16 @@ contract CoreTest is Test {
     function test_payout_pendingAddsUp() public {
         BlacklistToken t = new BlacklistToken();
         _fund(address(t), alice);
-        uint256 a = _raise(alice, address(t), POT);
-        uint256 b = _raise(alice, address(t), 2 * POT);
+        uint256 a = _raise(alice, address(t), REWARD);
+        uint256 b = _raise(alice, address(t), 2 * REWARD);
         t.setBlocked(carol, true);
         _thank(alice, a, carolKey);
         _thank(alice, b, carolKey);
-        assertEq(core.pending(address(t), carol), 3 * POT);
+        assertEq(core.pending(address(t), carol), 3 * REWARD);
 
         t.setBlocked(carol, false);
         core.withdraw(address(t), carol, carol);
-        assertEq(t.balanceOf(carol), 3 * POT);
+        assertEq(t.balanceOf(carol), 3 * REWARD);
     }
 
     /// Nobody but Core itself may call it, whatever the caller's address.
@@ -1241,7 +1241,7 @@ contract CoreTest is Test {
     function _leavePending(address payee) internal returns (BlacklistToken t) {
         t = new BlacklistToken();
         _fund(address(t), alice);
-        uint256 id = _raise(alice, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
         t.setBlocked(payee, true);
         uint256 key = payee == carol ? carolKey : bobKey;
         _thank(alice, id, key);
@@ -1252,10 +1252,10 @@ contract CoreTest is Test {
         BlacklistToken t = _leavePending(carol);
         t.setBlocked(carol, false);
         vm.expectEmit(address(core));
-        emit Withdrawn(address(t), carol, carol, POT);
+        emit Withdrawn(address(t), carol, carol, REWARD);
         vm.prank(bob);
         core.withdraw(address(t), carol, carol);
-        assertEq(t.balanceOf(carol), POT);
+        assertEq(t.balanceOf(carol), REWARD);
         assertEq(core.pending(address(t), carol), 0);
     }
 
@@ -1268,10 +1268,10 @@ contract CoreTest is Test {
         core.withdraw(address(t), carol, bob);
 
         vm.expectEmit(address(core));
-        emit Withdrawn(address(t), carol, fresh, POT);
+        emit Withdrawn(address(t), carol, fresh, REWARD);
         vm.prank(carol);
         core.withdraw(address(t), carol, fresh);
-        assertEq(t.balanceOf(fresh), POT);
+        assertEq(t.balanceOf(fresh), REWARD);
         assertEq(core.pending(address(t), carol), 0);
     }
 
@@ -1291,23 +1291,23 @@ contract CoreTest is Test {
         vm.expectRevert(AHandCore.ZeroDestination.selector);
         vm.prank(carol);
         core.withdraw(address(t), carol, address(0));
-        assertEq(core.pending(address(t), carol), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
     }
 
     /// What is cleared is the payee's pending amount, never the destination's (the bug Across shipped).
     function test_withdraw_clearsThePayeeNotTheDestination() public {
         BlacklistToken t = _leavePending(carol);
-        uint256 other = _raise(alice, address(t), POT);
+        uint256 other = _raise(alice, address(t), REWARD);
         t.setBlocked(bob, true);
         _thank(alice, other, bobKey);
-        assertEq(core.pending(address(t), bob), POT);
+        assertEq(core.pending(address(t), bob), REWARD);
 
         t.setBlocked(bob, false);
         vm.prank(carol);
         core.withdraw(address(t), carol, bob); // carol sends hers to bob, who has some pending too
-        assertEq(t.balanceOf(bob), POT);
+        assertEq(t.balanceOf(bob), REWARD);
         assertEq(core.pending(address(t), carol), 0);
-        assertEq(core.pending(address(t), bob), POT);
+        assertEq(core.pending(address(t), bob), REWARD);
     }
 
     function test_withdraw_nothingPending() public {
@@ -1328,7 +1328,7 @@ contract CoreTest is Test {
         BlacklistToken t = _leavePending(carol);
         vm.expectRevert();
         core.withdraw(address(t), carol, carol); // still blocked
-        assertEq(core.pending(address(t), carol), POT);
+        assertEq(core.pending(address(t), carol), REWARD);
     }
 
     /// Nothing re-enters Core while a pending amount is paid out — not even a withdraw that would
@@ -1336,8 +1336,8 @@ contract CoreTest is Test {
     function test_withdraw_reentryBlocked() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
-        uint256 a = _raise(alice, address(t), POT);
-        uint256 b = _raise(alice, address(t), POT);
+        uint256 a = _raise(alice, address(t), REWARD);
+        uint256 b = _raise(alice, address(t), REWARD);
         vm.etch(carol, type(Refuser).runtimeCode); // both refuse once, so both have some pending
         vm.etch(bob, type(Refuser).runtimeCode);
         t.setHooked(carol, true);
@@ -1352,16 +1352,16 @@ contract CoreTest is Test {
 
         assertFalse(t.lastReentryOk());
         assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        assertEq(t.balanceOf(carol), POT);
-        assertEq(core.pending(address(t), bob), POT);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(t.balanceOf(carol), REWARD);
+        assertEq(core.pending(address(t), bob), REWARD);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     /*//////////////////////////// zero ////////////////////////////*/
 
     /// A Hand without a reward never touches a token, so any token address will do;
     /// closing it pays nothing and leaves nothing pending: no Paid, no Pending.
-    function test_zeroPot_touchesNoToken() public {
+    function test_zeroReward_touchesNoToken() public {
         vm.prank(alice);
         uint256 a = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
         vm.recordLogs();
@@ -1383,8 +1383,8 @@ contract CoreTest is Test {
         HookToken t = new HookToken();
         _fund(address(t), alice);
         _fund(address(t), bob);
-        uint256 id = _raise(alice, address(t), POT);
-        _raise(bob, address(t), POT);
+        uint256 id = _raise(alice, address(t), REWARD);
+        _raise(bob, address(t), REWARD);
         t.setReentry(address(core), abi.encodeCall(core.reclaim, (id)), false, true, false);
         vm.warp(expiry);
 
@@ -1392,33 +1392,33 @@ contract CoreTest is Test {
 
         assertFalse(t.lastReentryOk());
         assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     function test_reentry_reclaimInsideRaiseCannotFakeADeposit() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
-        uint256 old = _raise(alice, address(t), POT);
+        uint256 old = _raise(alice, address(t), REWARD);
         vm.warp(expiry);
         t.setReentry(address(core), abi.encodeCall(core.reclaim, (old)), true, false, true);
 
         vm.prank(alice);
         vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        core.raise(address(t), POT, expiry + 1, root, 0, GAS_K, ASK);
+        core.raise(address(t), REWARD, expiry + 1, root, 0, GAS_K, ASK);
 
         assertEq(core.handsCount(), 1);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     /// The token is its own raiser here, so it can re-enter `thank` with full authority.
     function test_reentry_thankInsideItsOwnPaymentPaysOnce() public {
         HookToken t = new HookToken();
         _fund(address(t), bob);
-        t.mint(address(t), POT);
+        t.mint(address(t), REWARD);
         vm.prank(address(t));
-        t.approve(address(core), POT);
-        uint256 id = _raise(address(t), address(t), POT);
-        _raise(bob, address(t), POT);
+        t.approve(address(core), REWARD);
+        uint256 id = _raise(address(t), address(t), REWARD);
+        _raise(bob, address(t), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         t.setReentry(address(core), abi.encodeCall(core.thank, (id, _none(), g, keySig, giverSig)), false, true, false);
 
@@ -1426,43 +1426,43 @@ contract CoreTest is Test {
 
         assertFalse(t.lastReentryOk());
         assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        assertEq(t.balanceOf(carol), POT);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(t.balanceOf(carol), REWARD);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     /// A Hand cannot be paid out while its own deposit is still in flight.
     function test_reentry_thankInsideRaiseReverts() public {
         HookToken t = new HookToken();
         _fund(address(t), bob);
-        _raise(bob, address(t), POT); // another Hand's pot the payout would borrow from
-        t.mint(address(t), POT);
+        _raise(bob, address(t), REWARD); // another Hand's reward the payout would borrow from
+        t.mint(address(t), REWARD);
         vm.prank(address(t));
-        t.approve(address(core), POT);
+        t.approve(address(core), REWARD);
         uint256 next = core.handsCount() + 1;
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(next, carolKey);
         t.setReentry(address(core), abi.encodeCall(core.thank, (next, _none(), g, keySig, giverSig)), true, false, true);
 
         vm.prank(address(t));
         vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        core.raise(address(t), POT, expiry, root, 0, GAS_K, ASK);
+        core.raise(address(t), REWARD, expiry, root, 0, GAS_K, ASK);
 
         assertEq(t.balanceOf(carol), 0);
-        assertEq(t.balanceOf(address(core)), POT);
+        assertEq(t.balanceOf(address(core)), REWARD);
         assertEq(core.handsCount(), 1);
     }
 
     /// The lock stops nesting, not sequence: a contract raiser may call Core many times in a row.
     function test_reentry_lockAllowsCallsInARow() public {
         TwoInARow raiser = new TwoInARow();
-        usd.mint(address(raiser), 2 * POT);
-        raiser.go(core, usd, POT, expiry);
+        usd.mint(address(raiser), 2 * REWARD);
+        raiser.go(core, usd, REWARD, expiry);
         assertEq(core.handsCount(), 2);
-        assertEq(usd.balanceOf(address(core)), 2 * POT);
+        assertEq(usd.balanceOf(address(core)), 2 * REWARD);
     }
 
     /*//////////////////////////// fuzz ////////////////////////////*/
 
-    function testFuzz_raiseThenReclaimReturnsExactlyThePot(uint256 amount, uint40 ahead, uint40 late) public {
+    function testFuzz_raiseThenReclaimReturnsExactlyTheReward(uint256 amount, uint40 ahead, uint40 late) public {
         amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
         uint40 e = uint40(block.timestamp + bound(ahead, 1, 3650 days));
         usd.mint(alice, amount);
@@ -1478,7 +1478,7 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
-    function testFuzz_thankPaysExactlyThePot(uint256 amount, uint40 ahead, uint40 at) public {
+    function testFuzz_thankPaysExactlyTheReward(uint256 amount, uint40 ahead, uint40 at) public {
         amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
         uint256 span = bound(ahead, 1, 3650 days);
         uint40 e = uint40(block.timestamp + span);
@@ -1495,7 +1495,7 @@ contract CoreTest is Test {
 
     function testFuzz_raiseKeepsAnyDataHash(bytes32 dataHash) public {
         vm.prank(alice);
-        uint256 id = core.raise(address(usd), POT, expiry, root, 0, GAS_K, dataHash);
+        uint256 id = core.raise(address(usd), REWARD, expiry, root, 0, GAS_K, dataHash);
         assertEq(_hand(id).dataHash, dataHash);
     }
 
@@ -1503,20 +1503,20 @@ contract CoreTest is Test {
         key = bound(key, 1, 115792089237316195423570985008687907852837564279074904382605163141518161494336);
         address giver = vm.addr(key);
         vm.assume(giver != alice && giver != address(core));
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
         uint256 before = usd.balanceOf(giver);
 
         Give memory g = Give(bytes32(0), giver, giver, 10_000, data);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), key, id, g);
         _submit(alice, id, _none(), g, keySig, giverSig);
-        assertEq(usd.balanceOf(giver), before + POT);
+        assertEq(usd.balanceOf(giver), before + REWARD);
     }
 
     function testFuzz_giveRejectsAnyOtherSigner(uint256 key, address claimed) public {
         key = bound(key, 1, 115792089237316195423570985008687907852837564279074904382605163141518161494336);
         vm.assume(claimed != vm.addr(key) && claimed != alice);
-        uint256 id = _raise(alice, address(usd), POT);
+        uint256 id = _raise(alice, address(usd), REWARD);
 
         Give memory g = Give(bytes32(0), claimed, carol, 10_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);

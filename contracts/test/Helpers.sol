@@ -63,7 +63,7 @@ struct HandView {
     uint16 payoutGasK;
     uint40 thankedAt;
     uint40 reclaimedAt;
-    uint256 amount;
+    uint256 reward;
     address rootKey;
     bytes32 dataHash;
     bytes32 giveHash;

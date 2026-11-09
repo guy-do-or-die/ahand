@@ -23,13 +23,13 @@ contract CoreSymbolic is Test {
         clock = uint40(block.timestamp);
     }
 
-    /// Raises `amount` as `who` and reclaims it while the token refuses `who`: the refund
+    /// Raises `reward` as `who` and reclaims it while the token refuses `who`: the refund
     /// is left pending.
-    function _leavePending(address who, uint256 amount) internal {
-        token.mint(who, amount);
+    function _leavePending(address who, uint256 reward) internal {
+        token.mint(who, reward);
         vm.startPrank(who);
-        token.approve(address(core), amount);
-        uint256 id = core.raise(address(token), amount, ++clock, NO_KEY, 0, 200, bytes32(0));
+        token.approve(address(core), reward);
+        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 0, 200, bytes32(0));
         vm.stopPrank();
         token.setBlocked(who, true);
         vm.warp(clock);
@@ -75,12 +75,12 @@ contract CoreSymbolic is Test {
     /// Anyone can close an expired Hand, whatever happens to its refund: the money then
     /// reaches the raiser or stays pending for the raiser. (Halmos does not count gas, so this
     /// says nothing fails for a reason other than gas.)
-    function check_anyoneClosesAnExpiredHand(uint128 amount, bool blocked, address caller) public {
-        vm.assume(amount > 0);
-        token.mint(RAISER, amount);
+    function check_anyoneClosesAnExpiredHand(uint128 reward, bool blocked, address caller) public {
+        vm.assume(reward > 0);
+        token.mint(RAISER, reward);
         vm.startPrank(RAISER);
-        token.approve(address(core), amount);
-        uint256 id = core.raise(address(token), amount, ++clock, NO_KEY, 0, 200, bytes32(0));
+        token.approve(address(core), reward);
+        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 0, 200, bytes32(0));
         vm.stopPrank();
         token.setBlocked(RAISER, blocked);
         vm.warp(clock);
@@ -92,14 +92,14 @@ contract CoreSymbolic is Test {
         }
     }
 
-    /// A refund either reaches the raiser or stays pending for the raiser, exactly the pot, whoever
+    /// A refund either reaches the raiser or stays pending for the raiser, exactly the reward, whoever
     /// calls `reclaim`.
-    function check_reclaimPaysOrLeavesThePotPending(uint128 amount, bool blocked, address caller) public {
-        vm.assume(amount > 0);
-        token.mint(RAISER, amount);
+    function check_reclaimPaysOrLeavesTheRewardPending(uint128 reward, bool blocked, address caller) public {
+        vm.assume(reward > 0);
+        token.mint(RAISER, reward);
         vm.startPrank(RAISER);
-        token.approve(address(core), amount);
-        uint256 id = core.raise(address(token), amount, ++clock, NO_KEY, 0, 200, bytes32(0));
+        token.approve(address(core), reward);
+        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 0, 200, bytes32(0));
         vm.stopPrank();
         token.setBlocked(RAISER, blocked);
         vm.warp(clock);
@@ -109,8 +109,8 @@ contract CoreSymbolic is Test {
 
         uint256 paid = token.balanceOf(RAISER);
         uint256 waiting = core.pending(address(token), RAISER);
-        assert(paid + waiting == amount);
-        assert(blocked ? waiting == amount : paid == amount);
+        assert(paid + waiting == reward);
+        assert(blocked ? waiting == reward : paid == reward);
         assert(token.balanceOf(address(core)) == waiting);
     }
 }

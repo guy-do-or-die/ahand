@@ -18,7 +18,7 @@ contract Handler is Test {
     uint256 constant ROOT_PK = 0xA0A0; // every Hand's link starts here
     uint256 constant NEXT_PK = 0xB0B0; // the key a Shake passes the Hand to
 
-    mapping(address => uint256) public open; // token => sum of Active pots, kept independently of Core
+    mapping(address => uint256) public open; // token => sum of open rewards, kept independently of Core
     mapping(address => uint256) public paidIn; // token => all deposits
     uint256 public closed; // Hands this handler closed
 
@@ -28,25 +28,25 @@ contract Handler is Test {
         actors = [vm.addr(keys[0]), vm.addr(keys[1]), vm.addr(keys[2])];
     }
 
-    function raise(uint256 who, uint256 which, uint256 amount, uint256 ahead) external {
+    function raise(uint256 who, uint256 which, uint256 reward, uint256 ahead) external {
         address actor = actors[who % 3];
         MockUSD token = tokens[which % 2];
-        amount = bound(amount, 0, 1e30);
-        token.mint(actor, amount);
+        reward = bound(reward, 0, 1e30);
+        token.mint(actor, reward);
         vm.startPrank(actor);
-        token.approve(address(core), amount);
+        token.approve(address(core), reward);
         core.raise(
             address(token),
-            amount,
+            reward,
             uint40(block.timestamp + bound(ahead, 1, 90 days)),
             vm.addr(ROOT_PK),
             0,
             200,
-            bytes32(amount)
+            bytes32(reward)
         );
         vm.stopPrank();
-        open[address(token)] += amount;
-        paidIn[address(token)] += amount;
+        open[address(token)] += reward;
+        paidIn[address(token)] += reward;
     }
 
     function reclaim(uint256 seed) external {
@@ -56,7 +56,7 @@ contract Handler is Test {
         HandView memory h = handOf(core, id);
         if (!_open(h) || block.timestamp < h.expiry) return;
         core.reclaim(id);
-        _closed(h.token, h.amount);
+        _closed(h.token, h.reward);
     }
 
     /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
@@ -88,7 +88,7 @@ contract Handler is Test {
         bytes memory giverSig = _sign(keys[pick], digest);
         vm.prank(h.raiser);
         core.thank(id, shakes, g, keySig, giverSig);
-        _closed(h.token, h.amount);
+        _closed(h.token, h.reward);
     }
 
     function _sign(uint256 key, bytes32 digest) private pure returns (bytes memory) {
@@ -100,8 +100,8 @@ contract Handler is Test {
         return h.thankedAt == 0 && h.reclaimedAt == 0;
     }
 
-    function _closed(address token, uint256 amount) private {
-        open[token] -= amount;
+    function _closed(address token, uint256 reward) private {
+        open[token] -= reward;
         ++closed;
     }
 
@@ -151,9 +151,9 @@ contract CoreInvariantTest is Test {
         targetContract(address(handler));
     }
 
-    /// Core's balance of each token is exactly its open pots plus what is pending: not a unit
+    /// Core's balance of each token is exactly its open rewards plus what is pending: not a unit
     /// more or less.
-    function invariant_balanceEqualsOpenPotsPlusPending() public view {
+    function invariant_balanceEqualsOpenRewardsPlusPending() public view {
         assertEq(a.balanceOf(address(core)), handler.open(address(a)) + handler.pendingTotal(address(a)));
         assertEq(b.balanceOf(address(core)), handler.open(address(b)) + handler.pendingTotal(address(b)));
     }
