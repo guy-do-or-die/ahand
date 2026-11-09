@@ -69,6 +69,21 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 giveHash;
     }
 
+    bytes32 private constant SHAKE_TYPEHASH = keccak256(
+        "Shake(uint256 handId,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)"
+    );
+    bytes32 private constant GIVE_TYPEHASH = keccak256(
+        "Give(uint256 handId,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)"
+    );
+
+    uint16 private constant BPS = 10_000; // the whole pot
+
+    uint256 public handsCount;
+    mapping(uint256 => Hand) public hands;
+
+    /// @notice What waits for each payee per token, after a payment that could not be made.
+    mapping(address token => mapping(address payee => uint256)) public pending;
+
     event Raised(
         uint256 indexed handId,
         address indexed raiser,
@@ -80,7 +95,6 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         uint16 payoutGasK,
         bytes32 dataHash
     );
-    event Reclaimed(uint256 indexed handId);
     event Thanked(
         uint256 indexed handId,
         address indexed signer,
@@ -99,44 +113,43 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         uint256 margin,
         bytes32 dataHash
     );
+    event Reclaimed(uint256 indexed handId);
     event Paid(address indexed token, address indexed payee, uint256 amount);
     event Pending(address indexed token, address indexed payee, uint256 amount);
     event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
 
+    // raise
     error ExpiryNotInFuture();
+    error MinGiverClaimTooHigh();
+    error ZeroRootKey();
+    // thank and reclaim
     error NotOpen();
-    error NotExpired();
+    // thank
     error NotRaiser();
     error GiverIsRaiser();
     error ZeroPayee();
-    error InvalidGive();
-    error InvalidShake(uint256 position);
+    error Expired();
     error InvalidClaim(uint256 position);
     error AnonymousMargin(uint256 position);
+    error InvalidShake(uint256 position);
     error BelowMinGiverClaim();
-    error MinGiverClaimTooHigh();
-    error ZeroRootKey();
-    error Expired();
-    error InexactTransfer();
-    error NotCore();
+    error InvalidGive();
+    // reclaim
+    error NotExpired();
+    // withdraw
     error NotPayee();
     error ZeroDestination();
     error NothingPending();
+    // token transfers
+    error InexactTransfer();
+    error NotCore();
 
-    bytes32 private constant SHAKE_TYPEHASH = keccak256(
-        "Shake(uint256 handId,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)"
-    );
-    bytes32 private constant GIVE_TYPEHASH = keccak256(
-        "Give(uint256 handId,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)"
-    );
-
-    uint16 private constant BPS = 10_000; // the whole pot
-
-    uint256 public handsCount;
-    mapping(uint256 => Hand) public hands;
-
-    /// @notice What waits for each payee per token, after a payment that could not be made.
-    mapping(address token => mapping(address payee => uint256)) public pending;
+    /// @dev Raised and neither thanked nor reclaimed.
+    modifier whenOpen(uint256 handId) {
+        Hand storage hand = hands[handId];
+        if (hand.raisedAt == 0 || hand.thankedAt != 0 || hand.reclaimedAt != 0) revert NotOpen();
+        _;
+    }
 
     constructor() EIP712("aHand", "core") {}
 
@@ -314,6 +327,14 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (give.routeHash != routeHash) revert InvalidGive();
     }
 
+    function _hashShake(uint256 handId, Shake calldata s) private pure returns (bytes32) {
+        return keccak256(abi.encode(SHAKE_TYPEHASH, handId, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash));
+    }
+
+    function _hashGive(uint256 handId, Give calldata g) private pure returns (bytes32) {
+        return keccak256(abi.encode(GIVE_TYPEHASH, handId, g.routeHash, g.signer, g.payee, g.claimBps, g.dataHash));
+    }
+
     /// @dev Pays every shaker its margin of the pot and returns what is left for the giver.
     ///      A margin that rounds down to zero leaves its dust to the giver.
     function _payShakers(uint256 handId, Hand storage hand, SignedShake[] calldata shakes)
@@ -335,21 +356,6 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
             _pay(hand.token, shake.payee, margin, hand.payoutGasK);
         }
-    }
-
-    function _hashShake(uint256 handId, Shake calldata s) private pure returns (bytes32) {
-        return keccak256(abi.encode(SHAKE_TYPEHASH, handId, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash));
-    }
-
-    function _hashGive(uint256 handId, Give calldata g) private pure returns (bytes32) {
-        return keccak256(abi.encode(GIVE_TYPEHASH, handId, g.routeHash, g.signer, g.payee, g.claimBps, g.dataHash));
-    }
-
-    /// @dev Raised and neither thanked nor reclaimed.
-    modifier whenOpen(uint256 handId) {
-        Hand storage hand = hands[handId];
-        if (hand.raisedAt == 0 || hand.thankedAt != 0 || hand.reclaimedAt != 0) revert NotOpen();
-        _;
     }
 
     /// @dev A payment that fails for any reason — a blocked or refusing payee, a paused or
