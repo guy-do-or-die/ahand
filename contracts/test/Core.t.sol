@@ -1284,6 +1284,16 @@ contract CoreTest is Test {
         core.withdraw(address(t), carol, to);
     }
 
+    /// Not even the payee may send it to the zero address: a token that accepts the transfer
+    /// would burn it. It stays pending.
+    function test_withdraw_neverToTheZeroAddress() public {
+        BlacklistToken t = _leavePending(carol);
+        vm.expectRevert(AHandCore.ZeroDestination.selector);
+        vm.prank(carol);
+        core.withdraw(address(t), carol, address(0));
+        assertEq(core.pending(address(t), carol), POT);
+    }
+
     /// What is cleared is the payee's pending amount, never the destination's (the bug Across shipped).
     function test_withdraw_clearsThePayeeNotTheDestination() public {
         BlacklistToken t = _leavePending(carol);

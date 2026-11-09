@@ -120,6 +120,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     error InexactTransfer();
     error NotCore();
     error NotPayee();
+    error ZeroDestination();
     error NothingPending();
 
     bytes32 private constant SHAKE_TYPEHASH = keccak256(
@@ -232,9 +233,11 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
     /// @notice Sends what is pending for `payee` in `token` to `to`. Anyone may send it to
     ///         the payee; only the payee may send it elsewhere, for example away from an
-    ///         address the token has blocked.
+    ///         address the token has blocked. Never to the zero address, where a token that
+    ///         accepts the transfer would burn the amount.
     function withdraw(address token, address payee, address to) external nonReentrant {
         if (to != payee && msg.sender != payee) revert NotPayee();
+        if (to == address(0)) revert ZeroDestination();
 
         uint256 amount = pending[token][payee];
         if (amount == 0) revert NothingPending();

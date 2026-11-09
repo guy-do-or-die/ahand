@@ -38,7 +38,8 @@ contract CoreSymbolic is Test {
     }
 
     /// `withdraw` moves exactly what is pending for the payee to `to` and clears only that;
-    /// a destination other than the payee needs the payee itself. A failed call changes nothing.
+    /// a destination other than the payee needs the payee itself, and the zero address is
+    /// never one. A failed call changes nothing.
     function check_withdraw(uint128 mine, uint128 others, address caller, address to) public {
         vm.assume(mine > 0 && others > 0);
         _leavePending(RAISER, mine);
@@ -49,6 +50,7 @@ contract CoreSymbolic is Test {
         vm.prank(caller);
         try core.withdraw(address(token), RAISER, to) {
             assert(to == RAISER || caller == RAISER);
+            assert(to != address(0));
             assert(core.pending(address(token), RAISER) == 0);
             assert(core.pending(address(token), OTHER) == others);
             assert(token.balanceOf(address(core)) == coreBefore - mine);
