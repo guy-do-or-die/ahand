@@ -5,7 +5,7 @@ import {MockUSD} from "./MockUSD.sol";
 
 /// @notice A conforming token that answers with `bombSize` bytes of returndata
 ///         (first word honest, the rest junk) from `transfer` and, when enabled,
-///         from `balanceOf`. The push frame copies no returndata and the memory
+///         from `balanceOf`. The payout frame copies no returndata and the memory
 ///         expansion is paid inside the frame's budget; outside a frame the caller
 ///         who chose this token pays for its own `balanceOf`.
 contract ReturndataBombToken is MockUSD {

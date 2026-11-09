@@ -139,12 +139,12 @@ contract CoreTest is Test {
         return _signed(key, digestOf(address(core), shakeStructHash(handId, sh)));
     }
 
-    /// A Give over the direct route (no Shakes): the whole share, paid to its signer.
+    /// A Give over the direct route (no Shakes): the whole reward, paid to its signer.
     function _give(address signer) internal pure returns (Give memory) {
         return Give(bytes32(0), signer, signer, 10_000, ANSWER);
     }
 
-    /// The direct route for `signerKey`'s holder, signed by the root key and by the signer.
+    /// The direct route for the signer with `signerKey`, signed by the root key and by the signer.
     function _direct(uint256 id, uint256 signerKey)
         internal
         view
@@ -169,7 +169,7 @@ contract CoreTest is Test {
         core.thank(id, shakes, g, keySig, giverSig);
     }
 
-    /// `raiser` thanks `signerKey`'s holder over the direct route.
+    /// `raiser` thanks the signer with `signerKey` over the direct route.
     function _thank(address raiser, uint256 id, uint256 signerKey) internal {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, signerKey);
         _submit(raiser, id, _none(), g, keySig, giverSig);
@@ -196,7 +196,7 @@ contract CoreTest is Test {
 
     /*//////////////////////////// raise ////////////////////////////*/
 
-    function test_raise_escrowsTheRewardAndRecordsTheHand() public {
+    function test_raise_locksTheRewardAndRecordsTheHand() public {
         uint256 before = usd.balanceOf(alice);
 
         vm.expectEmit(address(core));
@@ -325,7 +325,7 @@ contract CoreTest is Test {
 
     /*//////////////////////////// reclaim ////////////////////////////*/
 
-    function test_reclaim_refundsTheRaiserInFull() public {
+    function test_reclaim_returnsTheWholeRewardToTheRaiser() public {
         uint256 before = usd.balanceOf(alice);
         uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(expiry);
@@ -511,8 +511,8 @@ contract CoreTest is Test {
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
-    /// A giver who cannot be paid now loses nothing: the Hand closes and the share stays pending for her.
-    function test_thank_blockedGiverShareStaysPending() public {
+    /// A giver who cannot be paid now loses nothing: the Hand closes and the payout stays pending for the giver.
+    function test_thank_blockedGiverPayoutStaysPending() public {
         BlacklistToken t = new BlacklistToken();
         _fund(address(t), alice);
         uint256 id = _raise(alice, address(t), REWARD);
@@ -598,8 +598,8 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(carol), 0);
     }
 
-    /// The share in the Give is the one that reached its signer: the whole reward on a direct route.
-    function test_give_namesTheShareThatReachedIt() public {
+    /// The claim in the Give is the one that reached its signer: the whole reward on a direct route.
+    function test_give_namesTheClaimThatReachedIt() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         Give memory g = Give(bytes32(0), carol, carol, 9_000, ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
@@ -652,7 +652,7 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), REWARD);
     }
 
-    /// The giver's share must reach someone. Sent to the zero address it is burned, or, if the
+    /// The giver's payout must reach someone. Sent to the zero address it is burned, or, if the
     /// token refuses, stays pending where nobody can ever withdraw it. Refused for any reward.
     function test_give_zeroAddressCannotBeThePayee() public {
         uint256 id = _raise(alice, address(usd), REWARD);
@@ -697,7 +697,7 @@ contract CoreTest is Test {
         }
     }
 
-    /// The Give at the end of `shakes` for `signerKey`'s holder, signed by `lastKey` and by the signer.
+    /// The Give at the end of `shakes` for the signer with `signerKey`, signed by `lastKey` and by the signer.
     function _giveAt(uint256 id, SignedShake[] memory shakes, uint256 lastKey, uint256 signerKey)
         internal
         view
@@ -710,7 +710,7 @@ contract CoreTest is Test {
         giverSig = _signGive(address(core), signerKey, id, g);
     }
 
-    /// Alice thanks `signerKey`'s holder along a route of one Shake.
+    /// Alice thanks the signer with `signerKey` along a route of one Shake.
     function _thankAlong(uint256 id, SignedShake[] memory shakes, uint256 signerKey) internal {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, signerKey);
         _submit(alice, id, shakes, g, keySig, giverSig);
@@ -760,8 +760,8 @@ contract CoreTest is Test {
         _submit(alice, second, shakes, g, keySig, giverSig);
     }
 
-    /// A Shake starts from exactly the share it received and cannot pass on more than that.
-    function test_route_shakeContinuesItsShare() public {
+    /// A Shake starts from exactly the claim it received and cannot pass on more than that.
+    function test_route_shakeContinuesItsClaim() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         shakes[0].shake.claimBps = 9_999;
@@ -857,8 +857,8 @@ contract CoreTest is Test {
         _submit(alice, id, shakes, g, keySig, giverSig);
     }
 
-    /// The share in the Give is the one the Shake passed on.
-    function test_route_giveNamesTheShareThatReachedIt() public {
+    /// The claim in the Give is the one the Shake passed on.
+    function test_route_giveNamesTheClaimThatReachedIt() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         Give memory g = Give(_routeHash(id, shakes), carol, carol, 10_000, ANSWER);
@@ -1016,8 +1016,8 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(alice), before);
     }
 
-    /// A `false` return must not count as paid: the refund stays pending, not lost.
-    function test_token_falseReturnLeavesRefundPending() public {
+    /// A `false` return must not count as paid: the payout stays pending, not lost.
+    function test_token_falseReturnLeavesThePayoutPending() public {
         ReturnsFalseToken t = new ReturnsFalseToken();
         _fund(address(t), alice);
         uint256 id = _raise(alice, address(t), REWARD);
@@ -1053,7 +1053,7 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(address(core)), 0);
     }
 
-    /// A fee switched on later must not let one refund eat another Hand's escrow.
+    /// A fee switched on later must not let one payout eat another Hand's reward.
     function test_token_lateFeeCannotEatAnotherHand() public {
         LateSenderFeeToken t = new LateSenderFeeToken();
         _fund(address(t), alice);
@@ -1084,7 +1084,7 @@ contract CoreTest is Test {
         bad.setFeeOn(true);
         vm.warp(expiry);
 
-        core.reclaim(a); // the token itself fails: the refund stays pending
+        core.reclaim(a); // the token itself fails: the payout stays pending
         core.reclaim(b);
         assertEq(core.pending(address(bad), alice), REWARD);
         assertEq(usd.balanceOf(address(core)), 0);
@@ -1101,7 +1101,7 @@ contract CoreTest is Test {
     }
 
     /// A payee whose code refuses the money has it pending; the Hand still closes.
-    function test_payout_refusedPaymentStaysPending() public {
+    function test_payout_refusedPayoutStaysPending() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
         uint256 id = _raise(alice, address(t), REWARD);
@@ -1112,7 +1112,7 @@ contract CoreTest is Test {
     }
 
     /// A payee that burns all the gas it is handed costs the thank no more than the Hand's
-    /// payout gas: the thank still fits in 400 000 gas, and the share stays pending. (Checked by
+    /// payout gas: the thank still fits in 400 000 gas, and the payout stays pending. (Checked by
     /// outcome: Foundry miscounts gas measured around a call that asks for more than is left.)
     function test_payout_gasBurnerIsCapped() public {
         HookToken t = new HookToken();
@@ -1128,7 +1128,7 @@ contract CoreTest is Test {
     }
 
     /// A token answering with a megabyte cannot make the thank fail.
-    function test_payout_returndataBombLeavesPaymentPending() public {
+    function test_payout_returndataBombLeavesThePayoutPending() public {
         ReturndataBombToken t = new ReturndataBombToken();
         _fund(address(t), alice);
         uint256 id = _raise(alice, address(t), REWARD);
@@ -1139,8 +1139,8 @@ contract CoreTest is Test {
         assertEq(core.pending(address(t), carol), REWARD);
     }
 
-    /// The payout gas is the raiser's choice per Hand, for the payment and the refund
-    /// alike: too little leaves the share pending.
+    /// The payout gas is the raiser's choice per Hand, for thank and reclaim
+    /// alike: too little leaves the payout pending.
     function test_payout_gasIsSetPerHand() public {
         vm.startPrank(alice);
         uint256 a = core.raise(address(usd), REWARD, expiry, root, 0, 1, ASK); // 1 000 gas cannot move a token
@@ -1174,7 +1174,7 @@ contract CoreTest is Test {
     }
 
     /// Picking the transaction gas cannot leave an honest payout of an ordinary token pending:
-    /// it reverts or pays. The refund matters most, because anyone may call `reclaim`.
+    /// it reverts or pays. The reclaim payout matters most, because anyone may call `reclaim`.
     function test_payout_underGassingPaysOrReverts() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory give, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
@@ -1379,7 +1379,7 @@ contract CoreTest is Test {
 
     /*//////////////////////////// reentrancy ////////////////////////////*/
 
-    function test_reentry_reclaimInsideItsOwnRefundPaysOnce() public {
+    function test_reentry_reclaimInsideItsOwnPayoutPaysOnce() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
         _fund(address(t), bob);
@@ -1395,7 +1395,7 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(address(core)), REWARD);
     }
 
-    function test_reentry_reclaimInsideRaiseCannotFakeADeposit() public {
+    function test_reentry_reclaimInsideRaiseCannotFakeAReward() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
         uint256 old = _raise(alice, address(t), REWARD);
@@ -1411,7 +1411,7 @@ contract CoreTest is Test {
     }
 
     /// The token is its own raiser here, so it can re-enter `thank` with full authority.
-    function test_reentry_thankInsideItsOwnPaymentPaysOnce() public {
+    function test_reentry_thankInsideItsOwnPayoutPaysOnce() public {
         HookToken t = new HookToken();
         _fund(address(t), bob);
         t.mint(address(t), REWARD);
@@ -1430,7 +1430,7 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(address(core)), REWARD);
     }
 
-    /// A Hand cannot be paid out while its own deposit is still in flight.
+    /// A Hand cannot be paid out while its own reward is still being transferred in.
     function test_reentry_thankInsideRaiseReverts() public {
         HookToken t = new HookToken();
         _fund(address(t), bob);

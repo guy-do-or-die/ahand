@@ -5,7 +5,7 @@ import {MockUSD} from "./MockUSD.sol";
 
 /// @notice Sender-side fee on BOTH legs: moving 100 debits the sender 110 (the 10 is
 ///         burned) and credits the receiver 100. Core's receipt is exact but the
-///         payer's debit is not, so `raise` reverts `InexactDeposit` at the door.
+///         raiser's debit is not, so `raise` reverts `InexactTransfer` at the door.
 contract SenderFeeToken is MockUSD {
     uint256 public constant FEE_BPS = 1_000; // 10 %
 
@@ -19,9 +19,9 @@ contract SenderFeeToken is MockUSD {
 }
 
 /// @notice The same sender-side fee, but switched on AFTER Hands are open. The
-///         entry check only guards the door: once the fee is on, every exit debits
-///         custody inexactly — every push defers, every withdraw reverts
-///         `TransferInexact`, and the reclaim refund parks. The documented total stop.
+///         entry check only guards the door: once the fee is on, every transfer out of
+///         Core is inexact: every payout stays pending and every withdraw reverts
+///         `InexactTransfer`. The documented total stop.
 contract LateSenderFeeToken is MockUSD {
     uint256 public constant FEE_BPS = 1_000; // 10 %
     bool public feeOn;
@@ -40,9 +40,9 @@ contract LateSenderFeeToken is MockUSD {
 }
 
 /// @notice Receiver-side fee on BOTH legs: moving 100 debits the sender 100 and
-///         credits the receiver 99 (the 1 is burned). The deposit fails Core's
-///         receipt check (`InexactDeposit`); on exit the custody debit IS exact, so
-///         a push lands and the beneficiary simply receives the token's net.
+///         credits the receiver 99 (the 1 is burned). `raise` fails Core's
+///         receipt check (`InexactTransfer`); on the way out Core's debit IS exact,
+///         so a payout lands and the payee simply receives the token's net.
 contract ReceiverFeeToken is MockUSD {
     uint256 public constant FEE_BPS = 100; // 1 %
 

@@ -23,7 +23,7 @@ contract CoreSymbolic is Test {
         clock = uint40(block.timestamp);
     }
 
-    /// Raises `reward` as `who` and reclaims it while the token refuses `who`: the refund
+    /// Raises `reward` as `who` and reclaims it while the token refuses `who`: the reward
     /// is left pending.
     function _leavePending(address who, uint256 reward) internal {
         token.mint(who, reward);
@@ -72,7 +72,7 @@ contract CoreSymbolic is Test {
         } catch {}
     }
 
-    /// Anyone can close an expired Hand, whatever happens to its refund: the money then
+    /// Anyone can close an expired Hand, whatever happens to its reward: the money then
     /// reaches the raiser or stays pending for the raiser. (Halmos does not count gas, so this
     /// says nothing fails for a reason other than gas.)
     function check_anyoneClosesAnExpiredHand(uint128 reward, bool blocked, address caller) public {
@@ -92,7 +92,7 @@ contract CoreSymbolic is Test {
         }
     }
 
-    /// A refund either reaches the raiser or stays pending for the raiser, exactly the reward, whoever
+    /// A reclaimed reward either reaches the raiser or stays pending for the raiser, in full, whoever
     /// calls `reclaim`.
     function check_reclaimPaysOrLeavesTheRewardPending(uint128 reward, bool blocked, address caller) public {
         vm.assume(reward > 0);

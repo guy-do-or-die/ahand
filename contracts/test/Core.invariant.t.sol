@@ -9,7 +9,7 @@ import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Hel
 
 /// Random raises, thanks (direct or through one Shake with a random margin), reclaims, blocks,
 /// withdrawals and time jumps by three actors over two tokens; the second token can block any
-/// actor, so payments stay pending and get withdrawn.
+/// actor, so payouts stay pending and get withdrawn.
 contract Handler is Test {
     AHandCore public core;
     MockUSD[2] public tokens;
@@ -19,7 +19,7 @@ contract Handler is Test {
     uint256 constant NEXT_PK = 0xB0B0; // the key a Shake passes the Hand to
 
     mapping(address => uint256) public open; // token => sum of open rewards, kept independently of Core
-    mapping(address => uint256) public paidIn; // token => all deposits
+    mapping(address => uint256) public paidIn; // token => every reward ever raised
     uint256 public closed; // Hands this handler closed
 
     constructor(AHandCore core_, MockUSD a, MockUSD b) {
@@ -158,7 +158,7 @@ contract CoreInvariantTest is Test {
         assertEq(b.balanceOf(address(core)), handler.open(address(b)) + handler.pendingTotal(address(b)));
     }
 
-    /// Nothing is created or lost: every deposited unit is in Core or with an actor.
+    /// Nothing is created or lost: every unit raised is in Core or with an actor.
     function invariant_moneyIsConserved() public view {
         assertEq(handler.paidIn(address(a)), a.balanceOf(address(core)) + handler.held(address(a)));
         assertEq(handler.paidIn(address(b)), b.balanceOf(address(core)) + handler.held(address(b)));

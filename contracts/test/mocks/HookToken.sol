@@ -11,10 +11,9 @@ interface IHookRecipient {
 /// @notice A conforming token with two kinds of callbacks, both off by default:
 ///         (1) a recipient hook — after a move toward a `hooked` address it calls
 ///         `onTokenReceived` on it (ERC-777 style), so a recipient can burn gas,
-///         re-enter or send part of the amount back during a push; (2) a re-entry
+///         re-enter or send part of the amount back during a payout; (2) a re-entry
 ///         probe — on `transferFrom` and/or `transfer` it calls an arbitrary
-///         target with arbitrary calldata (any Core entry point, or
-///         `setCharityAllowed` mid-raise when the token is the policy admin) and
+///         target with arbitrary calldata (any Core entry point) and
 ///         records the outcome, bubbling the failure when `mustSucceed` is set.
 contract HookToken is MockUSD {
     mapping(address => bool) public hooked;

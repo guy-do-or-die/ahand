@@ -4,8 +4,8 @@ pragma solidity 0.8.35;
 import {MockUSD} from "./MockUSD.sol";
 
 /// @notice USDC-like blacklist: any transfer toward a blocked address
-///         reverts. Exercises withdraw retryability — claims must stay
-///         credited when the payout leg reverts.
+///         reverts. Exercises withdraw retries: a payout that reverts
+///         must stay pending.
 contract BlacklistToken is MockUSD {
     mapping(address => bool) public blocked;
 

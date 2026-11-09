@@ -3,7 +3,7 @@ pragma solidity 0.8.35;
 
 /// @notice Six-decimal token whose `transfer` to a refusing recipient returns
 ///         `false` without moving funds instead of reverting — the silent
-///         failure shape a settlement push must still treat as undelivered.
+///         failure that must still leave a payout pending.
 contract ReturnsFalseToken {
     uint8 public constant decimals = 6;
 
