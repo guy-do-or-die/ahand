@@ -91,6 +91,11 @@ contract CoreTest is Test {
     uint16 constant GAS_K = 200; // payout gas, thousands
     uint256 constant ROOT_PK = 0xA0A0; // the link's root key: whoever holds the link
     uint256 constant NEXT_PK = 0xB0B0; // the key a Shake passes the Hand to
+    uint256 constant TX_GAS_CAP = 16_777_216; // gas one transaction may use: EIP-7825, Ethereum and Base
+    uint256 constant TX_SIZE_LIMIT = 128 * 1024; // the largest transaction geth and reth admit to the mempool
+    uint256 constant TX_ENVELOPE = 256; // bytes of a signed transaction around its calldata, with room to spare
+    uint256 constant LONGEST_ACCEPTED = 369; // empty Shakes that still fit TX_SIZE_LIMIT
+    uint256 constant TOO_LONG = 1_100; // empty Shakes that need more gas than TX_GAS_CAP leaves
 
     AHandCore core;
     MockUSD usd;
@@ -981,9 +986,25 @@ contract CoreTest is Test {
     /// route is measured from a fresh call: read inside one long test, the number also grew with
     /// the test's own memory.
     function routeGas(uint256 n) external returns (uint256) {
-        vm.prank(alice);
-        uint256 id = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
-        SignedShake[] memory shakes = new SignedShake[](n);
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _emptyRoute(n, 0);
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        return vm.lastCallGas().gasTotalUsed;
+    }
+
+    /// A Hand with `reward` (none: no token at all) and a signed route of `n` Shakes that keep
+    /// nothing, ending in carol's Give.
+    function _emptyRoute(uint256 n, uint256 reward)
+        internal
+        returns (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig)
+    {
+        if (reward == 0) {
+            vm.prank(alice);
+            id = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
+        } else {
+            id = _raise(alice, address(usd), reward);
+        }
+        shakes = new SignedShake[](n);
         uint256 key = ROOT_PK;
         for (uint256 i; i < n; ++i) {
             uint256 nextKey = NEXT_PK + i;
@@ -991,9 +1012,20 @@ contract CoreTest is Test {
             shakes[i].keySig = _signShake(key, id, shakes[i].shake);
             key = nextKey;
         }
-        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, key, carolKey);
-        _submit(alice, id, shakes, g, keySig, giverSig);
-        return vm.lastCallGas().gasTotalUsed;
+        (g, keySig, giverSig) = _giveAt(id, shakes, key, carolKey);
+    }
+
+    /// Gas the calldata of a transaction costs: 4 for a zero byte, 16 for any other.
+    function _calldataGas(bytes memory data) internal pure returns (uint256 gas) {
+        for (uint256 i; i < data.length; ++i) {
+            gas += data[i] == 0 ? 4 : 16;
+        }
+    }
+
+    /// Calls `thank` as alice with the gas that one transaction carrying `data` has left to run.
+    function _thankInOneTransaction(bytes memory data) internal returns (bool ok) {
+        vm.prank(alice);
+        (ok,) = address(core).call{gas: TX_GAS_CAP - 21_000 - _calldataGas(data)}(data);
     }
 
     /// Every Shake costs the same, however long the route: the hundredth adds exactly what the
@@ -1002,6 +1034,54 @@ contract CoreTest is Test {
         uint256 second = this.routeGas(2) - this.routeGas(1);
         uint256 hundredth = this.routeGas(100) - this.routeGas(99);
         assertEq(hundredth, second);
+    }
+
+    /// The series from the owner's reminder of 07.11: a route of each of these lengths is thanked,
+    /// and every Shake adds exactly the same gas, on both sides of 256.
+    function test_route_seriesCostsLinearly() public {
+        this.routeGas(0);
+        uint256 one = this.routeGas(1);
+        uint256 perShake = this.routeGas(2) - one;
+        uint256[5] memory lengths = [uint256(6), 32, 255, 256, 257];
+        for (uint256 i; i < lengths.length; ++i) {
+            assertEq(this.routeGas(lengths[i]), one + (lengths[i] - 1) * perShake);
+        }
+    }
+
+    /// Padding up to the largest transaction ordinary nodes accept still fits the gas one
+    /// transaction may use: the size limit binds first, and the giver is paid (Р-45).
+    function test_route_longestAcceptedRouteFitsTheGasCap() public {
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _emptyRoute(LONGEST_ACCEPTED, REWARD);
+        bytes memory data = abi.encodeCall(core.thank, (id, shakes, g, keySig, giverSig));
+        assertLe(data.length + TX_ENVELOPE, TX_SIZE_LIMIT);
+        assertTrue(_thankInOneTransaction(data));
+        assertEq(usd.balanceOf(carol), REWARD);
+    }
+
+    /// A route that needs more gas than one transaction may use just fails, and nothing changes:
+    /// the Hand stays open with its whole reward, and another route is still thanked.
+    function test_route_tooLongForOneTransactionChangesNothing() public {
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _emptyRoute(TOO_LONG, REWARD);
+        assertFalse(_thankInOneTransaction(abi.encodeCall(core.thank, (id, shakes, g, keySig, giverSig))));
+        _assertOpen(id);
+        assertEq(usd.balanceOf(address(core)), REWARD);
+        _thank(alice, id, bobKey);
+        _assertThankedNow(id);
+    }
+
+    /// After a route too long to thank, reclaim at expiry returns the whole reward: it reads no
+    /// route, so a long one cannot touch it.
+    function test_reclaim_afterATooLongRoutePaysInFull() public {
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _emptyRoute(TOO_LONG, REWARD);
+        assertFalse(_thankInOneTransaction(abi.encodeCall(core.thank, (id, shakes, g, keySig, giverSig))));
+        vm.warp(expiry);
+        uint256 before = usd.balanceOf(alice);
+        core.reclaim(id);
+        assertEq(usd.balanceOf(alice), before + REWARD);
+        _assertReclaimedNow(id);
     }
 
     /*//////////////////////////// awkward tokens ////////////////////////////*/
