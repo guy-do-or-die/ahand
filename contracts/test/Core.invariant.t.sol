@@ -9,7 +9,8 @@ import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Hel
 
 /// Random raises, thanks (direct or through one Shake with a random margin), reclaims, blocks,
 /// withdrawals and time jumps by three actors over two tokens; the second token can block any
-/// actor, so payouts stay pending and get withdrawn.
+/// actor, so payouts stay pending and get withdrawn. Actions pick among the open Hands and the
+/// payees with something pending, so few calls are wasted.
 contract Handler is Test {
     AHandCore public core;
     MockUSD[2] public tokens;
@@ -21,6 +22,7 @@ contract Handler is Test {
     mapping(address => uint256) public open; // token => sum of open rewards, kept independently of Core
     mapping(address => uint256) public paidIn; // token => every reward ever raised
     uint256 public closed; // Hands this handler closed
+    uint256[] internal openIds; // Hands raised and not yet closed
 
     constructor(AHandCore core_, MockUSD a, MockUSD b) {
         core = core_;
@@ -35,7 +37,7 @@ contract Handler is Test {
         token.mint(actor, reward);
         vm.startPrank(actor);
         token.approve(address(core), reward);
-        core.raise(
+        uint256 id = core.raise(
             address(token),
             reward,
             uint40(block.timestamp + bound(ahead, 1, 90 days)),
@@ -45,27 +47,27 @@ contract Handler is Test {
             bytes32(reward)
         );
         vm.stopPrank();
+        openIds.push(id);
         open[address(token)] += reward;
         paidIn[address(token)] += reward;
     }
 
+    /// Any open Hand: time first moves to its expiry, so the call is never wasted.
     function reclaim(uint256 seed) external {
-        uint256 count = core.handsCount();
-        if (count == 0) return;
-        uint256 id = seed % count + 1;
+        if (openIds.length == 0) return;
+        uint256 id = openIds[seed % openIds.length];
         HandView memory h = handOf(core, id);
-        if (!_open(h) || block.timestamp < h.expiry) return;
+        if (block.timestamp < h.expiry) vm.warp(h.expiry);
         core.reclaim(id);
-        _closed(h.token, h.reward);
+        _closed(id, h.token, h.reward);
     }
 
     /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
     function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external {
-        uint256 count = core.handsCount();
-        if (count == 0) return;
-        uint256 id = seed % count + 1;
+        if (openIds.length == 0) return;
+        uint256 id = openIds[seed % openIds.length];
         HandView memory h = handOf(core, id);
-        if (!_open(h) || block.timestamp >= h.expiry) return;
+        if (block.timestamp >= h.expiry) return; // too late to thank: only reclaim closes it now
         uint256 pick = to % 3;
         if (actors[pick] == h.raiser) pick = (pick + 1) % 3;
 
@@ -88,7 +90,7 @@ contract Handler is Test {
         bytes memory giverSig = _sign(keys[pick], digest);
         vm.prank(h.raiser);
         core.thank(id, shakes, g, keySig, giverSig);
-        _closed(h.token, h.reward);
+        _closed(id, h.token, h.reward);
     }
 
     function _sign(uint256 key, bytes32 digest) private pure returns (bytes memory) {
@@ -96,28 +98,60 @@ contract Handler is Test {
         return abi.encodePacked(r, sv, v);
     }
 
-    function _open(HandView memory h) private pure returns (bool) {
-        return h.thankedAt == 0 && h.reclaimedAt == 0;
-    }
-
-    function _closed(address token, uint256 reward) private {
+    function _closed(uint256 id, address token, uint256 reward) private {
         open[token] -= reward;
         ++closed;
+        for (uint256 i; i < openIds.length; ++i) {
+            if (openIds[i] == id) {
+                openIds[i] = openIds[openIds.length - 1];
+                openIds.pop();
+                return;
+            }
+        }
     }
 
     function block_(uint256 who, bool blocked) external {
         BlacklistToken(address(tokens[1])).setBlocked(actors[who % 3], blocked);
     }
 
-    function withdraw_(uint256 who, uint256 which, uint256 dest, uint256 by) external {
-        MockUSD token = tokens[which % 2];
-        address payee = actors[who % 3];
-        if (core.pending(address(token), payee) == 0) return;
-        address to = actors[dest % 3];
-        if (which % 2 == 1 && BlacklistToken(address(token)).blocked(to)) return;
-        // anyone may send what is pending to its payee; only the payee may send it elsewhere
-        vm.prank(to == payee ? actors[by % 3] : payee);
-        core.withdraw(address(token), payee, to);
+    /// The first (token, payee) pair with something pending, from a random start.
+    function withdraw_(uint256 who, uint256 dest, uint256 by) external {
+        for (uint256 k; k < 6; ++k) {
+            uint256 j = (who % 6 + k) % 6;
+            MockUSD token = tokens[j % 2];
+            address payee = actors[j / 2];
+            if (core.pending(address(token), payee) == 0) continue;
+            address to = actors[dest % 3];
+            if (j % 2 == 1 && BlacklistToken(address(token)).blocked(to)) return;
+            // anyone may send what is pending to its payee; only the payee may send it elsewhere
+            vm.prank(to == payee ? actors[by % 3] : payee);
+            core.withdraw(address(token), payee, to);
+            return;
+        }
+    }
+
+    /// Closes every open Hand and delivers everything pending: afterwards Core holds nothing.
+    function drain() external {
+        uint256 latest = block.timestamp;
+        for (uint256 i; i < openIds.length; ++i) {
+            uint40 expiry = handOf(core, openIds[i]).expiry;
+            if (expiry > latest) latest = expiry;
+        }
+        vm.warp(latest);
+        while (openIds.length > 0) {
+            uint256 id = openIds[openIds.length - 1];
+            HandView memory h = handOf(core, id);
+            core.reclaim(id);
+            _closed(id, h.token, h.reward);
+        }
+        for (uint256 i; i < 3; ++i) {
+            BlacklistToken(address(tokens[1])).setBlocked(actors[i], false);
+        }
+        for (uint256 j; j < 6; ++j) {
+            address token = address(tokens[j % 2]);
+            address payee = actors[j / 2];
+            if (core.pending(token, payee) > 0) core.withdraw(token, payee, payee);
+        }
     }
 
     function pendingTotal(address token) public view returns (uint256 sum) {
@@ -149,6 +183,20 @@ contract CoreInvariantTest is Test {
         b = new BlacklistToken();
         handler = new Handler(core, a, b);
         targetContract(address(handler));
+        bytes4[] memory notAnAction = new bytes4[](1);
+        notAnAction[0] = Handler.drain.selector;
+        excludeSelector(FuzzSelector({addr: address(handler), selectors: notAnAction}));
+    }
+
+    /// After every run: close every open Hand, unblock everyone and withdraw everything pending.
+    /// Then Core holds nothing, and the actors hold exactly what was raised: whatever was left
+    /// pending could really be withdrawn.
+    function afterInvariant() public {
+        handler.drain();
+        assertEq(a.balanceOf(address(core)), 0);
+        assertEq(b.balanceOf(address(core)), 0);
+        assertEq(handler.paidIn(address(a)), handler.held(address(a)));
+        assertEq(handler.paidIn(address(b)), handler.held(address(b)));
     }
 
     /// Core's balance of each token is exactly its open rewards plus what is pending: not a unit
