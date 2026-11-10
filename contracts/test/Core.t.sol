@@ -95,7 +95,7 @@ contract CoreTest is Test {
     uint256 constant TX_SIZE_LIMIT = 128 * 1024; // the largest transaction geth and reth admit to the mempool
     uint256 constant TX_ENVELOPE = 256; // bytes of a signed transaction around its calldata, with room to spare
     uint256 constant LONGEST_ACCEPTED = 369; // empty Shakes that still fit TX_SIZE_LIMIT
-    uint256 constant TOO_LONG = 1_100; // empty Shakes that need more gas than TX_GAS_CAP leaves
+    uint256 constant TOO_LONG = 1_500; // empty Shakes whose execution alone needs more than TX_GAS_CAP
 
     AHandCore core;
     MockUSD usd;
