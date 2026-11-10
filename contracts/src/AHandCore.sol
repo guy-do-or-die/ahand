@@ -3,6 +3,8 @@ pragma solidity 0.8.35;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {EIP7702Utils} from "@openzeppelin/contracts/account/utils/EIP7702Utils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -286,7 +288,21 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 digest = _hashTypedDataV4(giveHash);
 
         if (ECDSA.recoverCalldata(digest, keySig) != lastKey) revert InvalidGive();
-        if (ECDSA.recoverCalldata(digest, giverSig) != give.signer) revert InvalidGive();
+
+        // The signer's own key counts while the protocol still lets it act for the address: with
+        // no code there, or with an EIP-7702 delegation (0xef0100 and an address, 23 bytes), which
+        // that key can redirect at any time. Otherwise, or if that key did not sign, the address's
+        // code decides (ERC-1271): a smart wallet, a passkey, a key that took over.
+        address signer = give.signer;
+        uint256 size = signer.code.length;
+        bool signed = false;
+        if (size == 0 || (size == 23 && EIP7702Utils.fetchDelegate(signer) != address(0))) {
+            (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, giverSig);
+            signed = err == ECDSA.RecoverError.NoError && recovered == signer;
+        }
+        if (!signed && !SignatureChecker.isValidERC1271SignatureNowCalldata(signer, digest, giverSig)) {
+            revert InvalidGive();
+        }
     }
 
     /// @dev Follows the route from the root key and returns its last key. Each Shake must

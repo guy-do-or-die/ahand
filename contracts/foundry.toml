@@ -3,7 +3,7 @@ src = "src"
 test = "test"
 libs = ["lib"]
 solc = "0.8.35"
-evm_version = "cancun"
+evm_version = "prague" # tests need EIP-7702 accounts; Core's code is the same under cancun, prague and osaka
 optimizer = true
 optimizer_runs = 200
 

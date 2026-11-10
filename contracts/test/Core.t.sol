@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
@@ -27,25 +28,64 @@ contract TwoInARow {
     }
 }
 
-/// Code put on a giver's address: refuses to be paid once switched on.
+/// Code put on a payee's address: refuses to be paid once switched on.
 contract Refuser is IHookRecipient {
     function onTokenReceived(address, uint256) external pure {
         revert("PAY ME");
     }
 }
 
-/// Code put on a giver's address: burns all the gas it is handed and never returns.
+/// Code put on a payee's address: burns all the gas it is handed and never returns.
 contract Burner is IHookRecipient {
     function onTokenReceived(address, uint256) external pure {
         while (true) {}
     }
 }
 
-/// Code put on a giver's address: does 150 000 gas of work, then accepts the money.
+/// Code put on a payee's address: does 150 000 gas of work, then accepts the money.
 contract Heavy is IHookRecipient {
     function onTokenReceived(address, uint256) external view {
         uint256 start = gasleft();
         while (start - gasleft() < 150_000) {}
+    }
+}
+
+/// A smart wallet (ERC-1271) that accepts a plain signature by `owner`. The same code serves an
+/// EIP-7702 account, or an address that moved to regular code for good, whose key is now `owner`.
+contract Wallet {
+    address immutable owner;
+
+    constructor(address owner_) {
+        owner = owner_;
+    }
+
+    function isValidSignature(bytes32 digest, bytes calldata signature) external view returns (bytes4) {
+        return ECDSA.recoverCalldata(digest, signature) == owner ? this.isValidSignature.selector : bytes4(0);
+    }
+}
+
+/// A smart wallet whose check burns all the gas it is handed and never answers.
+contract BurningWallet {
+    fallback() external {
+        while (true) {}
+    }
+}
+
+/// A smart wallet that accepts a plain signature by `owner` and answers with a megabyte: the
+/// answer, then junk.
+contract HugeAnswerWallet {
+    address immutable owner;
+
+    constructor(address owner_) {
+        owner = owner_;
+    }
+
+    function isValidSignature(bytes32 digest, bytes calldata signature) external view returns (bytes4 answer) {
+        answer = ECDSA.recoverCalldata(digest, signature) == owner ? this.isValidSignature.selector : bytes4(0);
+        assembly {
+            mstore(0, answer)
+            return(0, 0x100000)
+        }
     }
 }
 
@@ -155,9 +195,20 @@ contract CoreTest is Test {
         view
         returns (Give memory g, bytes memory keySig, bytes memory giverSig)
     {
-        g = _give(vm.addr(signerKey));
+        address signer = vm.addr(signerKey);
+        return _directGive(id, signer, signer, signerKey);
+    }
+
+    /// The direct route for `signer`, paying `payee`: signed by the root key and with `signKey`,
+    /// the signer's own key or a key its code accepts.
+    function _directGive(uint256 id, address signer, address payee, uint256 signKey)
+        internal
+        view
+        returns (Give memory g, bytes memory keySig, bytes memory giverSig)
+    {
+        g = Give(bytes32(0), signer, payee, 10_000, ANSWER);
         keySig = _signGive(address(core), ROOT_PK, id, g);
-        giverSig = _signGive(address(core), signerKey, id, g);
+        giverSig = _signGive(address(core), signKey, id, g);
     }
 
     function _none() internal pure returns (SignedShake[] memory shakes) {}
@@ -177,6 +228,13 @@ contract CoreTest is Test {
     /// `raiser` thanks the signer with `signerKey` over the direct route.
     function _thank(address raiser, uint256 id, uint256 signerKey) internal {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, signerKey);
+        _submit(raiser, id, _none(), g, keySig, giverSig);
+    }
+
+    /// `raiser` thanks the signer with `signerKey` over the direct route, paying `payee`.
+    function _thankTo(address raiser, uint256 id, uint256 signerKey, address payee) internal {
+        (Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _directGive(id, vm.addr(signerKey), payee, signerKey);
         _submit(raiser, id, _none(), g, keySig, giverSig);
     }
 
@@ -683,6 +741,158 @@ contract CoreTest is Test {
         _submit(alice, id, _none(), g, hex"1234", giverSig);
     }
 
+    /*//////////////////////////// signer ////////////////////////////*/
+
+    /// A smart wallet signs through its code (ERC-1271): this one accepts its owner's signature.
+    function test_signer_smartWalletSigns() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address wallet = address(new Wallet(carol));
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+        _assertThankedNow(id);
+        assertEq(usd.balanceOf(wallet), REWARD);
+    }
+
+    /// A wallet that does not accept the signature fails only this Give: the Hand stays open for
+    /// another one.
+    function test_signer_walletRefusalFailsOnlyItsGive() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address wallet = address(new Wallet(carol));
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, bobKey);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+        _assertOpen(id);
+        _thank(alice, id, carolKey);
+        _assertThankedNow(id);
+    }
+
+    /// A wallet whose check burns all the gas it is handed costs the raiser one failed
+    /// transaction, nothing more: the Hand stays open for another Give.
+    function test_signer_walletBurningGasFailsOnlyTheThank() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address wallet = address(new BurningWallet());
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
+        SignedShake[] memory none;
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.prank(alice);
+        core.thank{gas: 1_000_000}(id, none, g, keySig, giverSig);
+        _assertOpen(id);
+        _thank(alice, id, carolKey);
+        _assertThankedNow(id);
+    }
+
+    /// A wallet answering with a megabyte pays for its own answer: Core reads its first 32 bytes
+    /// and copies nothing more, so the thank fits in 3 million gas. Copying the answer would take
+    /// about 2.2 million more.
+    function test_signer_walletHugeAnswerIsNotCopied() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address wallet = address(new HugeAnswerWallet(carol));
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
+        SignedShake[] memory none;
+        vm.prank(alice);
+        core.thank{gas: 3_000_000}(id, none, g, keySig, giverSig);
+        _assertThankedNow(id);
+    }
+
+    /// One owner, two wallets: a Give names its signer, so what the owner signed for one wallet
+    /// does not pass for the other.
+    function test_signer_oneSignatureFitsOneWallet() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address first = address(new Wallet(carol));
+        address second = address(new Wallet(carol));
+        (,, bytes memory firstSig) = _directGive(id, first, first, carolKey);
+        (Give memory g, bytes memory keySig,) = _directGive(id, second, second, carolKey);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _submit(alice, id, _none(), g, keySig, firstSig);
+    }
+
+    /// A wallet not deployed yet has no code to ask, and its owner's key is not the address's own:
+    /// the Give fails. Signatures that deploy the wallet first (ERC-6492) are not read.
+    function test_signer_undeployedWalletCannotSign() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address wallet = makeAddr("wallet not deployed yet");
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+    }
+
+    /// An EIP-7702 account signs with its own key, which the protocol still lets act for it.
+    /// Usually its code accepts that key as well.
+    function test_signer_eip7702AccountSigns() public {
+        vm.etch(carol, abi.encodePacked(hex"ef0100", address(new Wallet(carol)))); // carol delegates
+        uint256 id = _raise(alice, address(usd), REWARD);
+        _thank(alice, id, carolKey);
+        _assertThankedNow(id);
+    }
+
+    /// An EIP-7702 account's own key passes whatever its code says, even when the code accepts
+    /// another key instead or knows nothing of ERC-1271: that key can redirect the code at any
+    /// time. The other key passes too, through the code.
+    function test_signer_eip7702KeyStillSigns() public {
+        (address newKey, uint256 newKeyPk) = makeAddrAndKey("new key");
+        vm.etch(carol, abi.encodePacked(hex"ef0100", address(new Wallet(newKey)))); // carol delegates
+        uint256 first = _raise(alice, address(usd), REWARD);
+        _thank(alice, first, carolKey);
+        _assertThankedNow(first);
+
+        uint256 second = _raise(alice, address(usd), REWARD);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(second, carol, carol, newKeyPk);
+        _submit(alice, second, _none(), g, keySig, giverSig);
+        _assertThankedNow(second);
+    }
+
+    /// An address that moved to regular code for good (EIP-8298 proposes this) has retired its
+    /// key: only the code decides now.
+    function test_signer_retiredKeyCannotSign() public {
+        (address newKey, uint256 newKeyPk) = makeAddrAndKey("new key");
+        vm.etch(carol, address(new Wallet(newKey)).code);
+        uint256 id = _raise(alice, address(usd), REWARD);
+        (Give memory g, bytes memory keySig, bytes memory carolSig) = _direct(id, carolKey);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _submit(alice, id, _none(), g, keySig, carolSig);
+
+        (,, bytes memory newKeySig) = _directGive(id, carol, carol, newKeyPk);
+        _submit(alice, id, _none(), g, keySig, newKeySig);
+        _assertThankedNow(id);
+    }
+
+    /// Only the exact EIP-7702 mark keeps the key: other code of the same 23 bytes decides alone.
+    function test_signer_onlyTheEip7702MarkKeepsTheKey() public {
+        vm.etch(carol, new bytes(23)); // code that stops at once and answers nothing
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _thank(alice, id, carolKey);
+    }
+
+    /// Only an address's own key or its own code signs for it: a random key or random bytes never
+    /// pass for a plain account, a smart wallet, an EIP-7702 account or a precompile.
+    function testFuzz_signer_nobodyElseSigns(uint256 key, bytes memory junk, uint8 precompile) public {
+        key = bound(key, 1, 115792089237316195423570985008687907852837564279074904382605163141518161494336);
+        (address newKey, uint256 newKeyPk) = makeAddrAndKey("new key");
+        (address dave, uint256 daveKey) = makeAddrAndKey("dave");
+        vm.assume(key != carolKey && key != newKeyPk && key != daveKey);
+        vm.etch(dave, abi.encodePacked(hex"ef0100", address(new Wallet(newKey)))); // dave delegates
+        uint256 id = _raise(alice, address(usd), REWARD);
+
+        _assertNobodyElseSigns(id, carol, key, junk);
+        _assertNobodyElseSigns(id, address(new Wallet(carol)), key, junk);
+        _assertNobodyElseSigns(id, dave, key, junk);
+        _assertNobodyElseSigns(id, address(uint160(bound(precompile, 1, 0x11))), key, junk);
+        _assertOpen(id);
+    }
+
+    /// A Give from `signer` fails both when signed with `key` and when it carries `junk`.
+    function _assertNobodyElseSigns(uint256 id, address signer, uint256 key, bytes memory junk) internal {
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, signer, signer, key);
+        SignedShake[] memory none;
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.prank(alice);
+        core.thank{gas: 2_000_000}(id, none, g, keySig, giverSig);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.prank(alice);
+        core.thank{gas: 2_000_000}(id, none, g, keySig, junk);
+    }
+
     /*//////////////////////////// route ////////////////////////////*/
 
     /// One Shake: the root key passes the Hand to NEXT_PK, keeping `10 000 - nextClaimBps` for `payee`.
@@ -755,6 +965,23 @@ contract CoreTest is Test {
         _submit(alice, id, shakes, g, keySig, giverSig);
     }
 
+    /// Link keys sign only plainly: with a wallet's address as the root key, neither a Give nor a
+    /// Shake from it passes, though the wallet would accept the root key's signature.
+    function test_route_linkKeyCannotBeAWallet() public {
+        address wallet = address(new Wallet(root));
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), REWARD, expiry, wallet, 0, GAS_K, ASK);
+
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+
+        SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        (g, keySig, giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+        _submit(alice, id, shakes, g, keySig, giverSig);
+    }
+
     /// A Shake is signed for one Hand: the same link key cannot reuse it on another Hand.
     function test_route_shakeIsBoundToItsHand() public {
         uint256 first = _raise(alice, address(usd), REWARD);
@@ -819,6 +1046,35 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(first), 10e6);
         assertEq(usd.balanceOf(second), 5e6);
         assertEq(usd.balanceOf(carol), 85e6);
+    }
+
+    /// Each pass over the route hands its memory back, so a Shake's signature is checked in the
+    /// very memory where the previous Shake's signer was just recovered. Junk in its place still
+    /// fails, even when the previous Shake was signed by the same key and passed the Hand to it.
+    function testFuzz_route_junkNeverPassesOnALaterShake(bytes32 r, bytes32 s, uint8 v) public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = new SignedShake[](2);
+        shakes[0].shake = Shake(root, makeAddr("first shaker"), 10_000, 9_000, SHAKE_DATA); // to the same key
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+        shakes[1].shake = Shake(vm.addr(NEXT_PK), makeAddr("second shaker"), 9_000, 8_000, SHAKE_DATA);
+        shakes[1].keySig = abi.encodePacked(r, s, v);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        vm.expectRevert();
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        _assertOpen(id);
+    }
+
+    /// The same for the Give: junk in place of the last key's signature fails right after a Shake
+    /// that passed the Hand back to the very key that signed it.
+    function testFuzz_route_junkNeverPassesForTheLastKey(bytes32 r, bytes32 s, uint8 v) public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = new SignedShake[](1);
+        shakes[0].shake = Shake(root, makeAddr("shaker"), 10_000, 9_000, SHAKE_DATA); // back to the same key
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+        (Give memory g,, bytes memory giverSig) = _giveAt(id, shakes, ROOT_PK, carolKey);
+        vm.expectRevert();
+        _submit(alice, id, shakes, g, abi.encodePacked(r, s, v), giverSig);
+        _assertOpen(id);
     }
 
     /// A Shake without a payee may pass the Hand on but never keep a margin.
@@ -1185,10 +1441,11 @@ contract CoreTest is Test {
         HookToken t = new HookToken();
         _fund(address(t), alice);
         uint256 id = _raise(alice, address(t), REWARD);
-        vm.etch(carol, type(Refuser).runtimeCode); // a smart account that misbehaves; carol's key still signs
-        t.setHooked(carol, true);
-        _thank(alice, id, carolKey);
-        assertEq(core.pending(address(t), carol), REWARD);
+        address payee = makeAddr("payee");
+        vm.etch(payee, type(Refuser).runtimeCode); // carol signs and is paid at an address that misbehaves
+        t.setHooked(payee, true);
+        _thankTo(alice, id, carolKey, payee);
+        assertEq(core.pending(address(t), payee), REWARD);
     }
 
     /// A payee that burns all the gas it is handed costs the thank no more than the Hand's
@@ -1198,13 +1455,14 @@ contract CoreTest is Test {
         HookToken t = new HookToken();
         _fund(address(t), alice);
         uint256 id = _raise(alice, address(t), REWARD);
-        vm.etch(carol, type(Burner).runtimeCode);
-        t.setHooked(carol, true);
-        (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
+        address payee = makeAddr("payee");
+        vm.etch(payee, type(Burner).runtimeCode);
+        t.setHooked(payee, true);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, carol, payee, carolKey);
         SignedShake[] memory none;
         vm.prank(alice);
         core.thank{gas: 400_000}(id, none, g, keySig, giverSig);
-        assertEq(core.pending(address(t), carol), REWARD);
+        assertEq(core.pending(address(t), payee), REWARD);
     }
 
     /// A token answering with a megabyte cannot make the thank fail.
@@ -1241,16 +1499,17 @@ contract CoreTest is Test {
     function test_payout_gasLimitIsInThousands() public {
         HookToken t = new HookToken();
         _fund(address(t), alice);
-        vm.etch(carol, type(Heavy).runtimeCode);
-        t.setHooked(carol, true);
+        address payee = makeAddr("payee");
+        vm.etch(payee, type(Heavy).runtimeCode);
+        t.setHooked(payee, true);
         vm.startPrank(alice);
         uint256 low = core.raise(address(t), REWARD, expiry, root, 0, 100, ASK);
         uint256 high = core.raise(address(t), REWARD, expiry, root, 0, 300, ASK);
         vm.stopPrank();
-        _thank(alice, low, carolKey);
-        _thank(alice, high, carolKey);
-        assertEq(core.pending(address(t), carol), REWARD);
-        assertEq(t.balanceOf(carol), REWARD);
+        _thankTo(alice, low, carolKey, payee);
+        _thankTo(alice, high, carolKey, payee);
+        assertEq(core.pending(address(t), payee), REWARD);
+        assertEq(t.balanceOf(payee), REWARD);
     }
 
     /// Picking the transaction gas cannot leave an honest payout of an ordinary token pending:
@@ -1418,22 +1677,24 @@ contract CoreTest is Test {
         _fund(address(t), alice);
         uint256 a = _raise(alice, address(t), REWARD);
         uint256 b = _raise(alice, address(t), REWARD);
-        vm.etch(carol, type(Refuser).runtimeCode); // both refuse once, so both have some pending
-        vm.etch(bob, type(Refuser).runtimeCode);
-        t.setHooked(carol, true);
-        t.setHooked(bob, true);
-        _thank(alice, a, carolKey);
-        _thank(alice, b, bobKey);
-        t.setHooked(carol, false);
-        t.setHooked(bob, false);
-        t.setReentry(address(core), abi.encodeCall(core.withdraw, (address(t), bob, bob)), false, true, false);
+        address payeeA = makeAddr("payee a"); // both refuse once, so both have some pending
+        address payeeB = makeAddr("payee b");
+        vm.etch(payeeA, type(Refuser).runtimeCode);
+        vm.etch(payeeB, type(Refuser).runtimeCode);
+        t.setHooked(payeeA, true);
+        t.setHooked(payeeB, true);
+        _thankTo(alice, a, carolKey, payeeA);
+        _thankTo(alice, b, bobKey, payeeB);
+        t.setHooked(payeeA, false);
+        t.setHooked(payeeB, false);
+        t.setReentry(address(core), abi.encodeCall(core.withdraw, (address(t), payeeB, payeeB)), false, true, false);
 
-        core.withdraw(address(t), carol, carol);
+        core.withdraw(address(t), payeeA, payeeA);
 
         assertFalse(t.lastReentryOk());
         assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
-        assertEq(t.balanceOf(carol), REWARD);
-        assertEq(core.pending(address(t), bob), REWARD);
+        assertEq(t.balanceOf(payeeA), REWARD);
+        assertEq(core.pending(address(t), payeeB), REWARD);
         assertEq(t.balanceOf(address(core)), REWARD);
     }
 
