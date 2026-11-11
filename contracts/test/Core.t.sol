@@ -13,6 +13,7 @@ import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {HookToken, IHookRecipient} from "./mocks/HookToken.sol";
 import {ReturndataBombToken} from "./mocks/ReturndataBombToken.sol";
 import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Helpers.sol";
+import {FactsReader} from "./probes/FactsReader.sol";
 
 interface IMintable {
     function mint(address to, uint256 amount) external;
@@ -1423,6 +1424,104 @@ contract CoreTest is Test {
         core.reclaim(id);
         assertEq(usd.balanceOf(alice), before + REWARD);
         _assertReclaimedNow(id);
+    }
+
+    /*//////////////////////////// facts ////////////////////////////*/
+
+    /// Two Shakes, each keeping a margin for its own payee, then the Give at NEXT_PK's successor.
+    function _twoShakes(uint256 id, address first, address second) internal view returns (SignedShake[] memory shakes) {
+        shakes = new SignedShake[](2);
+        shakes[0].shake = Shake(vm.addr(NEXT_PK), first, 10_000, 9_000, SHAKE_DATA);
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+        shakes[1].shake = Shake(vm.addr(0xC0C0), second, 9_000, 8_500, keccak256("why I passed it on, too"));
+        shakes[1].keySig = _signShake(NEXT_PK, id, shakes[1].shake);
+    }
+
+    function _unsigned(SignedShake[] memory signed) internal pure returns (Shake[] memory shakes) {
+        shakes = new Shake[](signed.length);
+        for (uint256 i; i < signed.length; ++i) {
+            shakes[i] = signed[i].shake;
+        }
+    }
+
+    /// A reader outside Core proves from Core's storage alone who helped in a thanked Hand and what
+    /// each one was due: the raiser, the giver, every payee with its amount and reason, the answer.
+    function test_facts_readerProvesWhoHelpedAndWhatEachWasDue() public {
+        FactsReader reader = new FactsReader(core);
+        address first = makeAddr("first shaker");
+        address second = makeAddr("second shaker");
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _twoShakes(id, first, second);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, 0xC0C0, carolKey);
+        _submit(alice, id, shakes, g, keySig, giverSig);
+
+        (address raiser, address giver, FactsReader.Share[] memory shares) = reader.proveThank(id, _unsigned(shakes), g);
+        assertEq(raiser, alice);
+        assertEq(giver, carol);
+        assertEq(shares.length, 3);
+        assertEq(shares[0].payee, first);
+        assertEq(shares[0].amount, usd.balanceOf(first));
+        assertEq(shares[0].dataHash, SHAKE_DATA);
+        assertEq(shares[1].payee, second);
+        assertEq(shares[1].amount, usd.balanceOf(second));
+        assertEq(shares[2].payee, carol);
+        assertEq(shares[2].amount, usd.balanceOf(carol));
+        assertEq(shares[2].dataHash, ANSWER);
+    }
+
+    /// A branch that was not thanked, or a Give changed in any field, proves nothing.
+    function test_facts_otherRouteOrChangedGiveProvesNothing() public {
+        FactsReader reader = new FactsReader(core);
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _twoShakes(id, makeAddr("first shaker"), makeAddr("second shaker"));
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, 0xC0C0, carolKey);
+        _submit(alice, id, shakes, g, keySig, giverSig);
+
+        Shake[] memory firstOnly = new Shake[](1);
+        firstOnly[0] = shakes[0].shake;
+        vm.expectRevert(FactsReader.NotTheThankedRoute.selector);
+        reader.proveThank(id, firstOnly, g);
+
+        Give memory changed = g;
+        changed.payee = bob;
+        vm.expectRevert(FactsReader.NotTheThankedGive.selector);
+        reader.proveThank(id, _unsigned(shakes), changed);
+        changed = g;
+        changed.dataHash = keccak256("another answer");
+        vm.expectRevert(FactsReader.NotTheThankedGive.selector);
+        reader.proveThank(id, _unsigned(shakes), changed);
+    }
+
+    /// An open Hand and a reclaimed one have nothing to prove.
+    function test_facts_openOrReclaimedHandHasNoFacts() public {
+        FactsReader reader = new FactsReader(core);
+        uint256 id = _raise(alice, address(usd), REWARD);
+        (Give memory g,,) = _direct(id, carolKey);
+        Shake[] memory none;
+        vm.expectRevert(FactsReader.NotThanked.selector);
+        reader.proveThank(id, none, g);
+        vm.warp(expiry);
+        core.reclaim(id);
+        vm.expectRevert(FactsReader.NotThanked.selector);
+        reader.proveThank(id, none, g);
+    }
+
+    /// Whatever the reward and the margin, what the reader works out is exactly what Core paid.
+    function testFuzz_facts_readerAmountsAreThePayouts(uint256 reward, uint16 next) public {
+        reward = bound(reward, 0, 1e30);
+        next = uint16(bound(next, 0, 10_000));
+        FactsReader reader = new FactsReader(core);
+        IMintable(address(usd)).mint(alice, reward);
+        address shaker = makeAddr("shaker");
+        uint256 id = _raise(alice, address(usd), reward);
+        SignedShake[] memory shakes = _oneShake(id, shaker, next);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        _submit(alice, id, shakes, g, keySig, giverSig);
+
+        (,, FactsReader.Share[] memory shares) = reader.proveThank(id, _unsigned(shakes), g);
+        assertEq(shares[0].amount, usd.balanceOf(shaker));
+        assertEq(shares[1].amount, usd.balanceOf(carol));
+        assertEq(shares[0].amount + shares[1].amount, reward);
     }
 
     /*//////////////////////////// awkward tokens ////////////////////////////*/
