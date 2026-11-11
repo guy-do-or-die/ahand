@@ -177,11 +177,11 @@ contract CoreTest is Test {
     }
 
     function _signGive(address to, uint256 key, uint256 handId, Give memory g) internal view returns (bytes memory) {
-        return _signed(key, digestOf(to, giveStructHash(handId, g)));
+        return _signed(key, digestOf(to, giveStructHash(core, handId, g)));
     }
 
     function _signShake(uint256 key, uint256 handId, Shake memory sh) internal view returns (bytes memory) {
-        return _signed(key, digestOf(address(core), shakeStructHash(handId, sh)));
+        return _signed(key, digestOf(address(core), shakeStructHash(core, handId, sh)));
     }
 
     /// A Give over the direct route (no Shakes): the whole reward, paid to its signer.
@@ -228,6 +228,14 @@ contract CoreTest is Test {
     /// `raiser` thanks the signer with `signerKey` over the direct route.
     function _thank(address raiser, uint256 id, uint256 signerKey) internal {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, signerKey);
+        _submit(raiser, id, _none(), g, keySig, giverSig);
+    }
+
+    /// `raiser` tries to thank the signer with `signerKey` over the direct route and is refused
+    /// with `reason`. Everything is signed before the refusal is expected.
+    function _thankReverts(address raiser, uint256 id, uint256 signerKey, bytes4 reason) internal {
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, signerKey);
+        vm.expectRevert(reason);
         _submit(raiser, id, _none(), g, keySig, giverSig);
     }
 
@@ -497,16 +505,14 @@ contract CoreTest is Test {
     function test_thank_windowClosesExactlyAtExpiry() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(expiry);
-        vm.expectRevert(AHandCore.Expired.selector);
-        _thank(alice, id, carolKey);
+        _thankReverts(alice, id, carolKey, AHandCore.Expired.selector);
     }
 
     /// And it stays closed: any time after expiry, thank is refused.
     function testFuzz_thank_refusedAnyTimeAfterExpiry(uint32 late) public {
         uint256 id = _raise(alice, address(usd), REWARD);
         vm.warp(uint256(expiry) + late);
-        vm.expectRevert(AHandCore.Expired.selector);
-        _thank(alice, id, carolKey);
+        _thankReverts(alice, id, carolKey, AHandCore.Expired.selector);
     }
 
     function test_thank_worksOneSecondBeforeExpiry() public {
@@ -520,14 +526,12 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         _raise(bob, address(usd), REWARD); // money a second thank would steal
         _thank(alice, id, carolKey);
-        vm.expectRevert(AHandCore.NotOpen.selector);
-        _thank(alice, id, carolKey);
+        _thankReverts(alice, id, carolKey, AHandCore.NotOpen.selector);
         assertEq(usd.balanceOf(address(core)), REWARD);
     }
 
     function test_thank_unknownHand() public {
-        vm.expectRevert(AHandCore.NotOpen.selector);
-        _thank(alice, 1, carolKey);
+        _thankReverts(alice, 1, carolKey, AHandCore.NotOpen.selector);
     }
 
     function test_thank_closesReclaim() public {
@@ -542,8 +546,7 @@ contract CoreTest is Test {
     /// Nobody helps themselves: the reward leaves only to someone else, or back by reclaim.
     function test_thank_raiserCannotBeTheGiver() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        vm.expectRevert(AHandCore.GiverIsRaiser.selector);
-        _thank(alice, id, aliceKey);
+        _thankReverts(alice, id, aliceKey, AHandCore.GiverIsRaiser.selector);
         _assertOpen(id);
     }
 
@@ -860,8 +863,7 @@ contract CoreTest is Test {
     function test_signer_onlyTheEip7702MarkKeepsTheKey() public {
         vm.etch(carol, new bytes(23)); // code that stops at once and answers nothing
         uint256 id = _raise(alice, address(usd), REWARD);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
-        _thank(alice, id, carolKey);
+        _thankReverts(alice, id, carolKey, AHandCore.InvalidGive.selector);
     }
 
     /// Only an address's own key or its own code signs for it: a random key or random bytes never
@@ -893,6 +895,89 @@ contract CoreTest is Test {
         core.thank{gas: 2_000_000}(id, none, g, keySig, junk);
     }
 
+    /*//////////////////////////// reorg ////////////////////////////*/
+
+    /// Signatures collected for alice's Hand along one Shake; then the chain goes back to before her
+    /// raise, as in a reorg, and the same number is free again.
+    function _collectThenReorg()
+        internal
+        returns (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig)
+    {
+        uint256 beforeRaise = vm.snapshotState();
+        id = _raise(alice, address(usd), REWARD);
+        shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        (g, keySig, giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        vm.revertToState(beforeRaise);
+    }
+
+    /// After a reorg a stranger takes the same number with a copy of everything she can copy: the
+    /// root key, the question and the rules. Only the raiser differs, and none of the signatures
+    /// collected for alice's Hand pass on hers.
+    function test_reorg_strangerCopyingTheWholeHandGetsNoSignature() public {
+        address mallory = makeAddr("mallory");
+        _fund(address(usd), mallory);
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _collectThenReorg();
+        vm.prank(mallory);
+        assertEq(core.raise(address(usd), 1, expiry, root, 0, GAS_K, ASK), id);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+        _submit(mallory, id, shakes, g, keySig, giverSig);
+    }
+
+    /// A stranger may sign the first Shake again with her own root key, but the Give still names
+    /// alice's Hand.
+    function test_reorg_strangerResigningTheFirstShakeGetsNoGive() public {
+        (address mallory, uint256 malloryKey) = makeAddrAndKey("mallory");
+        _fund(address(usd), mallory);
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _collectThenReorg();
+        vm.prank(mallory);
+        assertEq(core.raise(address(usd), 1, expiry, mallory, 0, GAS_K, keccak256("another question")), id);
+        shakes[0].keySig = _signShake(malloryKey, id, shakes[0].shake);
+        vm.expectRevert(AHandCore.InvalidGive.selector);
+        _submit(mallory, id, shakes, g, keySig, giverSig);
+    }
+
+    /// Every term a signature names counts. After a reorg alice's own Hand takes the number, the same
+    /// in all but one of them — token, root key, minimum for the giver, payout gas or question — and
+    /// no signature passes; with another root key, not even after the first Shake is signed again.
+    function test_reorg_everySignedTermCounts() public {
+        MockUSD otherToken = new MockUSD();
+        _fund(address(otherToken), alice);
+        for (uint256 k; k < 5; ++k) {
+            (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+                _collectThenReorg();
+            vm.prank(alice);
+            core.raise(
+                k == 0 ? address(otherToken) : address(usd),
+                REWARD,
+                expiry,
+                k == 1 ? vm.addr(0xA1A1) : root,
+                k == 2 ? 100 : 0,
+                k == 3 ? GAS_K + 1 : GAS_K,
+                k == 4 ? keccak256("another question") : ASK
+            );
+            if (k == 1) {
+                shakes[0].keySig = _signShake(0xA1A1, id, shakes[0].shake);
+                vm.expectRevert(AHandCore.InvalidGive.selector);
+            } else {
+                vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+            }
+            _submit(alice, id, shakes, g, keySig, giverSig);
+        }
+    }
+
+    /// A signature names the question and its rules, not the amount or the deadline: the same
+    /// question raised again after a reorg, with another reward and expiry, keeps its signatures.
+    function test_reorg_sameQuestionKeepsItsSignatures() public {
+        (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
+            _collectThenReorg();
+        vm.prank(alice);
+        assertEq(core.raise(address(usd), REWARD / 2, expiry + 1 days, root, 0, GAS_K, ASK), id);
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        _assertThankedNow(id);
+    }
+
     /*//////////////////////////// route ////////////////////////////*/
 
     /// One Shake: the root key passes the Hand to NEXT_PK, keeping `10 000 - nextClaimBps` for `payee`.
@@ -906,9 +991,9 @@ contract CoreTest is Test {
         shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
     }
 
-    function _routeHash(uint256 id, SignedShake[] memory shakes) internal pure returns (bytes32 routeHash) {
+    function _routeHash(uint256 id, SignedShake[] memory shakes) internal view returns (bytes32 routeHash) {
         for (uint256 i; i < shakes.length; ++i) {
-            routeHash = keccak256(abi.encode(routeHash, shakeStructHash(id, shakes[i].shake)));
+            routeHash = keccak256(abi.encode(routeHash, shakeStructHash(core, id, shakes[i].shake)));
         }
     }
 
@@ -1171,7 +1256,7 @@ contract CoreTest is Test {
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         _submit(alice, id, shakes, g, keySig, giverSig);
-        assertEq(_hand(id).giveHash, giveStructHash(id, g));
+        assertEq(_hand(id).giveHash, giveStructHash(core, id, g));
     }
 
     /// A Shake whose payee refuses the money leaves only its own margin pending.

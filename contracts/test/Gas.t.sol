@@ -57,14 +57,14 @@ contract GasTest is Test {
         for (uint256 i; i < n; ++i) {
             Shake memory shake =
                 Shake(vm.addr(NEXT_PK + i), address(uint160(0x5000 + i)), claim, claim - 100, keccak256("why"));
-            bytes32 shakeHash = shakeStructHash(id, shake);
+            bytes32 shakeHash = shakeStructHash(core, id, shake);
             shakes[i] = SignedShake(shake, _sign(key, digestOf(address(core), shakeHash)));
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
             key = NEXT_PK + i;
             claim -= 100;
         }
         Give memory g = Give(routeHash, giver, giver, claim, keccak256("answer"));
-        bytes32 digest = digestOf(address(core), giveStructHash(id, g));
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         bytes memory keySig = _sign(key, digest);
         bytes memory giverSig = _sign(GIVER_PK, digest);
         vm.prank(raiser);

@@ -4,7 +4,7 @@ pragma solidity 0.8.35;
 import {AHandCore, Shake, Give} from "../src/AHandCore.sol";
 
 /// The signed formats written out by hand, so the tests pin them instead of asking Core
-/// what it expects.
+/// what it expects. A Hand's terms are read from Core, as an application reads them from `Raised`.
 function domainOf(address core) view returns (bytes32) {
     return keccak256(
         abi.encode(
@@ -17,13 +17,32 @@ function domainOf(address core) view returns (bytes32) {
     );
 }
 
-function shakeStructHash(uint256 handId, Shake memory s) pure returns (bytes32) {
+/// What a Shake or a Give names the Hand by: everything `raise` fixes for good, not reward or expiry.
+function handStructHash(AHandCore core, uint256 handId) view returns (bytes32) {
+    HandView memory h = handOf(core, handId);
     return keccak256(
         abi.encode(
             keccak256(
-                "Shake(uint256 handId,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)"
+                "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
             ),
             handId,
+            h.raiser,
+            h.token,
+            h.rootKey,
+            h.minGiverClaimBps,
+            h.payoutGasK,
+            h.dataHash
+        )
+    );
+}
+
+function shakeStructHash(AHandCore core, uint256 handId, Shake memory s) view returns (bytes32) {
+    return keccak256(
+        abi.encode(
+            keccak256(
+                "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+            ),
+            handStructHash(core, handId),
             s.nextKey,
             s.payee,
             s.claimBps,
@@ -33,13 +52,13 @@ function shakeStructHash(uint256 handId, Shake memory s) pure returns (bytes32) 
     );
 }
 
-function giveStructHash(uint256 handId, Give memory g) pure returns (bytes32) {
+function giveStructHash(AHandCore core, uint256 handId, Give memory g) view returns (bytes32) {
     return keccak256(
         abi.encode(
             keccak256(
-                "Give(uint256 handId,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)"
+                "Give(Hand hand,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
             ),
-            handId,
+            handStructHash(core, handId),
             g.routeHash,
             g.signer,
             g.payee,

@@ -79,13 +79,13 @@ contract Handler is Test {
             claim = uint16(bound(next, 0, 10_000));
             shakes = new SignedShake[](1);
             shakes[0].shake = Shake(vm.addr(NEXT_PK), actors[via % 3], 10_000, claim, bytes32(seed));
-            bytes32 shakeHash = shakeStructHash(id, shakes[0].shake);
+            bytes32 shakeHash = shakeStructHash(core, id, shakes[0].shake);
             shakes[0].keySig = _sign(ROOT_PK, digestOf(address(core), shakeHash));
             routeHash = keccak256(abi.encode(bytes32(0), shakeHash));
             lastKey = NEXT_PK;
         }
         Give memory g = Give(routeHash, actors[pick], actors[pick], claim, keccak256(abi.encode(seed)));
-        bytes32 digest = digestOf(address(core), giveStructHash(id, g));
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         bytes memory keySig = _sign(lastKey, digest);
         bytes memory giverSig = _sign(keys[pick], digest);
         vm.prank(h.raiser);

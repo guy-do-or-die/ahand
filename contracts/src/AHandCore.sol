@@ -71,11 +71,18 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 giveHash;
     }
 
+    /// @dev What a Shake or a Give names its Hand by: everything `raise` fixes for good about the
+    ///      question and its rules, not the number alone. After a reorg the same number may belong
+    ///      to another Hand, and a signature must not pass there. Reward and expiry are not signed:
+    ///      a giver accepts a share of the reward, and the Hand's own expiry decides when thanks end.
+    bytes32 private constant HAND_TYPEHASH = keccak256(
+        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+    );
     bytes32 private constant SHAKE_TYPEHASH = keccak256(
-        "Shake(uint256 handId,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)"
+        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
     bytes32 private constant GIVE_TYPEHASH = keccak256(
-        "Give(uint256 handId,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)"
+        "Give(Hand hand,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
 
     uint16 private constant BPS = 10_000; // the whole reward
@@ -282,9 +289,10 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes calldata keySig,
         bytes calldata giverSig
     ) private view returns (bytes32 giveHash) {
-        address lastKey = _checkRoute(handId, hand, shakes, give);
+        bytes32 handHash = _hashHand(handId, hand);
+        address lastKey = _checkRoute(handHash, hand, shakes, give);
 
-        giveHash = _hashGive(handId, give);
+        giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);
 
         if (ECDSA.recoverCalldata(digest, keySig) != lastKey) revert InvalidGive();
@@ -309,7 +317,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     ///      continue the claim it received, keep nothing without a payee, and be signed by
     ///      the key it comes from; the Give must name this route and the claim left at its
     ///      end, which is no less than the raiser's minimum for the giver.
-    function _checkRoute(uint256 handId, Hand storage hand, SignedShake[] calldata shakes, Give calldata give)
+    function _checkRoute(bytes32 handHash, Hand storage hand, SignedShake[] calldata shakes, Give calldata give)
         private
         view
         returns (address key)
@@ -325,7 +333,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
             if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(i);
             if (shake.payee == address(0) && shake.nextClaimBps != claim) revert AnonymousMargin(i);
 
-            bytes32 shakeHash = _hashShake(handId, shake);
+            bytes32 shakeHash = _hashShake(handHash, shake);
 
             if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), shakes[i].keySig) != key) revert InvalidShake(i);
 
@@ -343,12 +351,28 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (give.routeHash != routeHash) revert InvalidGive();
     }
 
-    function _hashShake(uint256 handId, Shake calldata s) private pure returns (bytes32) {
-        return keccak256(abi.encode(SHAKE_TYPEHASH, handId, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash));
+    function _hashHand(uint256 handId, Hand storage hand) private view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                HAND_TYPEHASH,
+                handId,
+                hand.raiser,
+                hand.token,
+                hand.rootKey,
+                hand.minGiverClaimBps,
+                hand.payoutGasK,
+                hand.dataHash
+            )
+        );
     }
 
-    function _hashGive(uint256 handId, Give calldata g) private pure returns (bytes32) {
-        return keccak256(abi.encode(GIVE_TYPEHASH, handId, g.routeHash, g.signer, g.payee, g.claimBps, g.dataHash));
+    function _hashShake(bytes32 handHash, Shake calldata s) private pure returns (bytes32) {
+        return
+            keccak256(abi.encode(SHAKE_TYPEHASH, handHash, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash));
+    }
+
+    function _hashGive(bytes32 handHash, Give calldata g) private pure returns (bytes32) {
+        return keccak256(abi.encode(GIVE_TYPEHASH, handHash, g.routeHash, g.signer, g.payee, g.claimBps, g.dataHash));
     }
 
     /// @dev Pays every shaker its margin of the reward and returns what is left for the giver.
