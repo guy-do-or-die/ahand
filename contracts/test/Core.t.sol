@@ -121,8 +121,8 @@ contract CoreTest is Test {
         uint256 margin,
         bytes32 dataHash
     );
-    event Paid(address indexed token, address indexed payee, uint256 amount);
-    event Pending(address indexed token, address indexed payee, uint256 amount);
+    event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
+    event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
 
     uint256 constant REWARD = 100e6;
@@ -586,7 +586,7 @@ contract CoreTest is Test {
         t.setBlocked(carol, true);
 
         vm.expectEmit(address(core));
-        emit Pending(address(t), carol, REWARD);
+        emit Pending(id, address(t), carol, REWARD);
         _thank(alice, id, carolKey);
 
         _assertThankedNow(id);
@@ -1615,9 +1615,33 @@ contract CoreTest is Test {
     function test_payout_emitsPaid() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         vm.expectEmit(address(core));
-        emit Paid(address(usd), carol, REWARD);
+        emit Paid(id, address(usd), carol, REWARD);
         _thank(alice, id, carolKey);
         assertEq(core.pending(address(usd), carol), 0);
+    }
+
+    /// Every payout names its Hand, so an indexer tracks payouts without guessing from the order of
+    /// the log: in one Hand a shaker is paid and the giver left pending, in another the raiser is paid back.
+    function test_payout_eventsNameTheHand() public {
+        BlacklistToken t = new BlacklistToken();
+        _fund(address(t), alice);
+        address shaker = makeAddr("shaker");
+        uint256 thanked = _raise(alice, address(t), REWARD);
+        uint256 reclaimed = _raise(alice, address(t), REWARD);
+        t.setBlocked(carol, true);
+        SignedShake[] memory shakes = _oneShake(thanked, shaker, 9_000);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(thanked, shakes, NEXT_PK, carolKey);
+
+        vm.expectEmit(address(core));
+        emit Paid(thanked, address(t), shaker, 10e6);
+        vm.expectEmit(address(core));
+        emit Pending(thanked, address(t), carol, 90e6);
+        _submit(alice, thanked, shakes, g, keySig, giverSig);
+
+        vm.warp(expiry);
+        vm.expectEmit(address(core));
+        emit Paid(reclaimed, address(t), alice, REWARD);
+        core.reclaim(reclaimed);
     }
 
     /// A payee whose code refuses the money has it pending; the Hand still closes.

@@ -123,8 +123,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 dataHash
     );
     event Reclaimed(uint256 indexed handId);
-    event Paid(address indexed token, address indexed payee, uint256 amount);
-    event Pending(address indexed token, address indexed payee, uint256 amount);
+    event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
+    event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
 
     // raise
@@ -239,7 +239,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
         uint256 rest = _payShakers(handId, hand, shakes);
 
-        _pay(hand.token, give.payee, rest, hand.payoutGasK);
+        _pay(handId, hand.token, give.payee, rest, hand.payoutGasK);
     }
 
     /// @notice Returns an expired Hand's reward to its raiser. Anyone may call.
@@ -250,7 +250,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         hand.reclaimedAt = uint40(block.timestamp);
         emit Reclaimed(handId);
 
-        _pay(hand.token, hand.raiser, hand.reward, hand.payoutGasK);
+        _pay(handId, hand.token, hand.raiser, hand.reward, hand.payoutGasK);
     }
 
     /// @notice Sends what is pending for `payee` in `token` to `to`. Anyone may send it to
@@ -274,6 +274,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     ///         and a failing one undoes only itself. Nobody else may call it.
     function transferOut(address token, address to, uint256 amount) external {
         if (msg.sender != address(this)) revert NotCore();
+
         _transferExact(token, to, amount);
     }
 
@@ -304,10 +305,12 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         address signer = give.signer;
         uint256 size = signer.code.length;
         bool signed = false;
+
         if (size == 0 || (size == 23 && EIP7702Utils.fetchDelegate(signer) != address(0))) {
             (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, giverSig);
             signed = err == ECDSA.RecoverError.NoError && recovered == signer;
         }
+
         if (!signed && !SignatureChecker.isValidERC1271SignatureNowCalldata(signer, digest, giverSig)) {
             revert InvalidGive();
         }
@@ -394,7 +397,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
                 handId, i, shake.nextKey, shake.payee, shake.claimBps, shake.nextClaimBps, margin, shake.dataHash
             );
 
-            _pay(hand.token, shake.payee, margin, hand.payoutGasK);
+            _pay(handId, hand.token, shake.payee, margin, hand.payoutGasK);
         }
     }
 
@@ -403,13 +406,14 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     ///      payee instead. The Hand is closed either way. A zero amount touches no token.
     ///      Sent with too little gas on purpose, a payout that itself needs a lot of gas
     ///      can end up pending too; it is never lost, and anyone can withdraw it to the payee.
-    function _pay(address token, address payee, uint256 amount, uint16 payoutGasK) private {
+    function _pay(uint256 handId, address token, address payee, uint256 amount, uint16 payoutGasK) private {
         if (amount == 0) return;
+
         try this.transferOut{gas: uint256(payoutGasK) * 1_000}(token, payee, amount) {
-            emit Paid(token, payee, amount);
+            emit Paid(handId, token, payee, amount);
         } catch {
             pending[token][payee] += amount;
-            emit Pending(token, payee, amount);
+            emit Pending(handId, token, payee, amount);
         }
     }
 
