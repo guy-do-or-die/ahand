@@ -1274,6 +1274,80 @@ contract CoreTest is Test {
         _assertReclaimedNow(id);
     }
 
+    /// A Shake may pass the link to the zero key. Nobody holds that key, so the branch is dead:
+    /// nothing after it can be signed. Signature recovery answers "zero" for anything it cannot
+    /// read, so these tests pin that no such answer ever counts as the zero key's signature.
+    /// Any refusal will do: the error may change, the refusal may not.
+    function _deadBranch(uint256 id) internal view returns (SignedShake[] memory shakes) {
+        shakes = new SignedShake[](1);
+        shakes[0].shake = Shake(address(0), address(0), 10_000, 10_000, SHAKE_DATA);
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+    }
+
+    /// Signatures that are not the zero key's: unreadable ones, an all-zero one, and a real one by
+    /// another key.
+    function _notTheZeroKeys(bytes memory realOfAnotherKey) internal pure returns (bytes[] memory sigs) {
+        sigs = new bytes[](7);
+        sigs[0] = "";
+        sigs[1] = hex"00";
+        sigs[2] = new bytes(64);
+        sigs[3] = new bytes(65);
+        sigs[4] = new bytes(66);
+        sigs[5] = abi.encodePacked(bytes32(0), bytes32(0), uint8(27));
+        sigs[6] = realOfAnotherKey;
+    }
+
+    /// After a dead branch, a Give "from the zero key" pays nobody, whatever stands for the last
+    /// key's signature. The same Give after a live branch passes: only that signature is wrong.
+    function test_route_giveFromADeadBranchIsRefused() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        (address thief, uint256 thiefKey) = makeAddrAndKey("thief");
+        SignedShake[] memory shakes = _deadBranch(id);
+        Give memory g = Give(_routeHash(id, shakes), thief, thief, 10_000, ANSWER);
+        bytes memory giverSig = _signGive(address(core), thiefKey, id, g);
+        bytes[] memory sigs = _notTheZeroKeys(giverSig);
+        for (uint256 i; i < sigs.length; ++i) {
+            vm.expectRevert();
+            _submit(alice, id, shakes, g, sigs[i], giverSig);
+        }
+        assertEq(usd.balanceOf(thief), 0);
+
+        shakes[0].shake.nextKey = vm.addr(NEXT_PK);
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+        g.routeHash = _routeHash(id, shakes);
+        _submit(
+            alice, id, shakes, g, _signGive(address(core), NEXT_PK, id, g), _signGive(address(core), thiefKey, id, g)
+        );
+        assertEq(usd.balanceOf(thief), REWARD);
+    }
+
+    /// After a dead branch, a Shake "from the zero key" that keeps the whole reward pays nobody,
+    /// whatever stands for its signature. The same Shake after a live branch passes.
+    function test_route_shakeFromADeadBranchIsRefused() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        (address thief, uint256 thiefKey) = makeAddrAndKey("thief");
+        SignedShake[] memory shakes = new SignedShake[](2);
+        shakes[0] = _deadBranch(id)[0];
+        shakes[1].shake = Shake(thief, thief, 10_000, 0, SHAKE_DATA); // keeps it all, passes on to itself
+        bytes[] memory sigs = _notTheZeroKeys(_signShake(thiefKey, id, shakes[1].shake));
+        for (uint256 i; i < sigs.length; ++i) {
+            shakes[1].keySig = sigs[i];
+            Give memory g = Give(_routeHash(id, shakes), thief, thief, 0, ANSWER);
+            bytes memory sig = _signGive(address(core), thiefKey, id, g);
+            vm.expectRevert();
+            _submit(alice, id, shakes, g, sig, sig);
+        }
+        assertEq(usd.balanceOf(thief), 0);
+
+        shakes[0].shake.nextKey = vm.addr(NEXT_PK);
+        shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
+        shakes[1].keySig = _signShake(NEXT_PK, id, shakes[1].shake);
+        Give memory live = Give(_routeHash(id, shakes), thief, thief, 0, ANSWER);
+        bytes memory liveSig = _signGive(address(core), thiefKey, id, live);
+        _submit(alice, id, shakes, live, liveSig, liveSig);
+        assertEq(usd.balanceOf(thief), REWARD);
+    }
+
     /// A margin that rounds to nothing does not stop the route: the dust goes to the giver.
     function test_route_marginRoundingToZeroGoesToTheGiver() public {
         address shaker = makeAddr("shaker");
