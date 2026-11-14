@@ -102,8 +102,8 @@ contract CoreTest is Test {
         uint16 payoutGasK,
         bytes32 dataHash
     );
-    event Reclaimed(uint256 indexed handId);
-    event Thanked(uint256 indexed handId);
+    event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
+    event Thanked(uint256 indexed handId, address indexed token, uint256 reward);
     event Shaken(
         uint256 indexed handId,
         address indexed payee,
@@ -405,7 +405,7 @@ contract CoreTest is Test {
         vm.warp(expiry);
 
         vm.expectEmit(address(core));
-        emit Reclaimed(id);
+        emit Reclaimed(id, address(usd), REWARD);
         core.reclaim(id);
 
         assertEq(usd.balanceOf(alice), before);
@@ -475,7 +475,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
 
         vm.expectEmit(address(core));
-        emit Thanked(id);
+        emit Thanked(id, address(usd), REWARD);
         vm.expectEmit(address(core));
         emit Given(id, carol, carol, REWARD, 10_000, bytes32(0), ANSWER);
         _thank(alice, id, carolKey);
@@ -483,6 +483,22 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(carol), REWARD);
         assertEq(usd.balanceOf(address(core)), 0);
         _assertThankedNow(id);
+    }
+
+    /// A Hand closes with its token and its whole reward named, whatever then reaches the payees:
+    /// here the giver's payout only waits. Summed per token, the closing events give what was
+    /// thanked and what was reclaimed; Paid and Pending tell what was delivered.
+    function test_thank_namesTheWholeRewardEvenIfItsPayoutWaits() public {
+        BlacklistToken t = new BlacklistToken();
+        _fund(address(t), alice);
+        uint256 id = _raise(alice, address(t), REWARD);
+        t.setBlocked(carol, true);
+
+        vm.expectEmit(address(core));
+        emit Thanked(id, address(t), REWARD);
+        _thank(alice, id, carolKey);
+
+        assertEq(core.pending(address(t), carol), REWARD);
     }
 
     /// The time of thank is written once and stays.
@@ -1041,7 +1057,7 @@ contract CoreTest is Test {
         SignedShake[] memory shakes = _oneShake(id, shaker, 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         vm.expectEmit(address(core));
-        emit Thanked(id);
+        emit Thanked(id, address(usd), REWARD);
         vm.expectEmit(address(core));
         emit Shaken(id, shaker, 0, 10e6, vm.addr(NEXT_PK), 10_000, 9_000, SHAKE_DATA);
         vm.expectEmit(address(core));
@@ -2019,6 +2035,8 @@ contract CoreTest is Test {
     function test_zeroReward_touchesNoToken() public {
         vm.prank(alice);
         uint256 a = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
+        vm.expectEmit(address(core));
+        emit Thanked(a, address(0), 0);
         vm.recordLogs();
         _thank(alice, a, carolKey);
         assertEq(vm.getRecordedLogs().length, 2); // Thanked and Given only
@@ -2026,6 +2044,8 @@ contract CoreTest is Test {
         vm.prank(alice);
         uint256 b = core.raise(address(0xdead), 0, expiry, root, 0, GAS_K, ASK);
         vm.warp(expiry);
+        vm.expectEmit(address(core));
+        emit Reclaimed(b, address(0xdead), 0);
         vm.recordLogs();
         core.reclaim(b);
         assertEq(vm.getRecordedLogs().length, 1); // Reclaimed only

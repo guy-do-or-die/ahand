@@ -123,8 +123,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         bytes32 routeHash,
         bytes32 dataHash
     );
-    event Thanked(uint256 indexed handId);
-    event Reclaimed(uint256 indexed handId);
+    event Thanked(uint256 indexed handId, address indexed token, uint256 reward);
+    event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
     event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     event Withdrawn(address indexed token, address indexed payee, uint256 amount, address to);
@@ -237,7 +237,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         hand.thankedAt = uint40(block.timestamp);
         hand.giveHash = giveHash;
 
-        emit Thanked(handId);
+        emit Thanked(handId, hand.token, hand.reward);
 
         uint256 rest = _payShakers(handId, hand, shakes);
 
@@ -251,7 +251,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
         hand.reclaimedAt = uint40(block.timestamp);
 
-        emit Reclaimed(handId);
+        emit Reclaimed(handId, hand.token, hand.reward);
 
         _pay(handId, hand.token, hand.raiser, hand.reward, hand.payoutGasK);
     }
