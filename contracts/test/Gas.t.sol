@@ -63,7 +63,7 @@ contract GasTest is Test {
             key = NEXT_PK + i;
             claim -= 100;
         }
-        Give memory g = Give(routeHash, giver, giver, claim, keccak256("answer"));
+        Give memory g = Give(giver, giver, claim, routeHash, keccak256("answer"));
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         bytes memory keySig = _sign(key, digest);
         bytes memory giverSig = _sign(GIVER_PK, digest);

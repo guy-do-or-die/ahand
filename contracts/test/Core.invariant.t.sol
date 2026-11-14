@@ -84,7 +84,7 @@ contract Handler is Test {
             routeHash = keccak256(abi.encode(bytes32(0), shakeHash));
             lastKey = NEXT_PK;
         }
-        Give memory g = Give(routeHash, actors[pick], actors[pick], claim, keccak256(abi.encode(seed)));
+        Give memory g = Give(actors[pick], actors[pick], claim, routeHash, keccak256(abi.encode(seed)));
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         bytes memory keySig = _sign(lastKey, digest);
         bytes memory giverSig = _sign(keys[pick], digest);

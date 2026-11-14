@@ -138,7 +138,7 @@ contract CoreSymbolic is Test {
         bytes32 shakeHash = shakeStructHash(core, id, shakes[0].shake);
         shakes[0].keySig = _sign(ROOT_PK, digestOf(address(core), shakeHash));
         Give memory g =
-            Give(keccak256(abi.encode(bytes32(0), shakeHash)), vm.addr(GIVER_PK), giverPayee, next, bytes32(0));
+            Give(vm.addr(GIVER_PK), giverPayee, next, keccak256(abi.encode(bytes32(0), shakeHash)), bytes32(0));
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         vm.prank(RAISER);
         core.thank(id, shakes, g, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest));

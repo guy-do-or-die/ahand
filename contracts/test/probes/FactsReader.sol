@@ -16,7 +16,7 @@ contract FactsReader {
         "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
     bytes32 constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
 
     /// What one payee was due: a shaker's margin, or the rest for the giver's payee. `dataHash` is
@@ -65,7 +65,7 @@ contract FactsReader {
         }
         if (give.routeHash != routeHash) revert NotTheThankedRoute();
         bytes32 giveHash = keccak256(
-            abi.encode(GIVE_TYPEHASH, handHash, give.routeHash, give.signer, give.payee, give.claimBps, give.dataHash)
+            abi.encode(GIVE_TYPEHASH, handHash, give.signer, give.payee, give.claimBps, give.routeHash, give.dataHash)
         );
         if (giveHash != h.giveHash) revert NotTheThankedGive();
 

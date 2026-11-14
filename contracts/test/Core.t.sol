@@ -189,7 +189,7 @@ contract CoreTest is Test {
 
     /// A Give over the direct route (no Shakes): the whole reward, paid to its signer.
     function _give(address signer) internal pure returns (Give memory) {
-        return Give(bytes32(0), signer, signer, 10_000, ANSWER);
+        return Give(signer, signer, 10_000, bytes32(0), ANSWER);
     }
 
     /// The direct route for the signer with `signerKey`, signed by the root key and by the signer.
@@ -209,7 +209,7 @@ contract CoreTest is Test {
         view
         returns (Give memory g, bytes memory keySig, bytes memory giverSig)
     {
-        g = Give(bytes32(0), signer, payee, 10_000, ANSWER);
+        g = Give(signer, payee, 10_000, bytes32(0), ANSWER);
         keySig = _signGive(address(core), ROOT_PK, id, g);
         giverSig = _signGive(address(core), signKey, id, g);
     }
@@ -575,7 +575,7 @@ contract CoreTest is Test {
     /// even while sending the money to someone else.
     function test_thank_raiserCannotSignAsTheGiver() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        Give memory g = Give(bytes32(0), alice, carol, 10_000, ANSWER);
+        Give memory g = Give(alice, carol, 10_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), aliceKey, id, g);
         vm.expectRevert(AHandCore.GiverIsRaiser.selector);
@@ -677,7 +677,7 @@ contract CoreTest is Test {
     function test_give_paysThePayeeTheSignerChose() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         address exchange = makeAddr("exchange");
-        Give memory g = Give(bytes32(0), carol, exchange, 10_000, ANSWER);
+        Give memory g = Give(carol, exchange, 10_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         _submit(alice, id, _none(), g, keySig, giverSig);
@@ -688,7 +688,7 @@ contract CoreTest is Test {
     /// The claim in the Give is the one that reached its signer: the whole reward on a direct route.
     function test_give_namesTheClaimThatReachedIt() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        Give memory g = Give(bytes32(0), carol, carol, 9_000, ANSWER);
+        Give memory g = Give(carol, carol, 9_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 0));
@@ -698,7 +698,7 @@ contract CoreTest is Test {
     /// The route in the Give is the one the raiser submits: no Shakes here.
     function test_give_namesTheRoute() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        Give memory g = Give(keccak256("another route"), carol, carol, 10_000, ANSWER);
+        Give memory g = Give(carol, carol, 10_000, keccak256("another route"), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         vm.expectRevert(AHandCore.InvalidGive.selector);
@@ -727,7 +727,7 @@ contract CoreTest is Test {
     /// Nobody holds the zero address key: junk that recovers to zero must not pass for it.
     function test_give_zeroAddressCannotBeTheGiver() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        Give memory g = Give(bytes32(0), address(0), carol, 10_000, ANSWER);
+        Give memory g = Give(address(0), carol, 10_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         vm.expectRevert();
         _submit(alice, id, _none(), g, keySig, new bytes(65));
@@ -743,7 +743,7 @@ contract CoreTest is Test {
     /// token refuses, stays pending where nobody can ever withdraw it. Refused for any reward.
     function test_give_zeroAddressCannotBeThePayee() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        Give memory g = Give(bytes32(0), carol, address(0), 10_000, ANSWER);
+        Give memory g = Give(carol, address(0), 10_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         vm.expectRevert(AHandCore.ZeroPayee.selector);
@@ -1026,7 +1026,7 @@ contract CoreTest is Test {
     {
         uint16 claim = shakes.length == 0 ? 10_000 : shakes[shakes.length - 1].shake.nextClaimBps;
         address signer = vm.addr(signerKey);
-        g = Give(_routeHash(id, shakes), signer, signer, claim, ANSWER);
+        g = Give(signer, signer, claim, _routeHash(id, shakes), ANSWER);
         keySig = _signGive(address(core), lastKey, id, g);
         giverSig = _signGive(address(core), signerKey, id, g);
     }
@@ -1245,7 +1245,7 @@ contract CoreTest is Test {
     function test_route_giveNamesItsRoute() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
-        Give memory g = Give(bytes32(0), carol, carol, 9_000, ANSWER);
+        Give memory g = Give(carol, carol, 9_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), NEXT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         vm.expectRevert(AHandCore.InvalidGive.selector);
@@ -1256,7 +1256,7 @@ contract CoreTest is Test {
     function test_route_giveNamesTheClaimThatReachedIt() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
-        Give memory g = Give(_routeHash(id, shakes), carol, carol, 10_000, ANSWER);
+        Give memory g = Give(carol, carol, 10_000, _routeHash(id, shakes), ANSWER);
         bytes memory keySig = _signGive(address(core), NEXT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
         vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 1));
@@ -1319,7 +1319,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         (address thief, uint256 thiefKey) = makeAddrAndKey("thief");
         SignedShake[] memory shakes = _deadBranch(id);
-        Give memory g = Give(_routeHash(id, shakes), thief, thief, 10_000, ANSWER);
+        Give memory g = Give(thief, thief, 10_000, _routeHash(id, shakes), ANSWER);
         bytes memory giverSig = _signGive(address(core), thiefKey, id, g);
         bytes[] memory sigs = _notTheZeroKeys(giverSig);
         for (uint256 i; i < sigs.length; ++i) {
@@ -1348,7 +1348,7 @@ contract CoreTest is Test {
         bytes[] memory sigs = _notTheZeroKeys(_signShake(thiefKey, id, shakes[1].shake));
         for (uint256 i; i < sigs.length; ++i) {
             shakes[1].keySig = sigs[i];
-            Give memory g = Give(_routeHash(id, shakes), thief, thief, 0, ANSWER);
+            Give memory g = Give(thief, thief, 0, _routeHash(id, shakes), ANSWER);
             bytes memory sig = _signGive(address(core), thiefKey, id, g);
             vm.expectRevert();
             _submit(alice, id, shakes, g, sig, sig);
@@ -1358,7 +1358,7 @@ contract CoreTest is Test {
         shakes[0].shake.nextKey = vm.addr(NEXT_PK);
         shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
         shakes[1].keySig = _signShake(NEXT_PK, id, shakes[1].shake);
-        Give memory live = Give(_routeHash(id, shakes), thief, thief, 0, ANSWER);
+        Give memory live = Give(thief, thief, 0, _routeHash(id, shakes), ANSWER);
         bytes memory liveSig = _signGive(address(core), thiefKey, id, live);
         _submit(alice, id, shakes, live, liveSig, liveSig);
         assertEq(usd.balanceOf(thief), REWARD);
@@ -2181,7 +2181,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         uint256 before = usd.balanceOf(giver);
 
-        Give memory g = Give(bytes32(0), giver, giver, 10_000, data);
+        Give memory g = Give(giver, giver, 10_000, bytes32(0), data);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), key, id, g);
         _submit(alice, id, _none(), g, keySig, giverSig);
@@ -2193,7 +2193,7 @@ contract CoreTest is Test {
         vm.assume(claimed != vm.addr(key) && claimed != alice);
         uint256 id = _raise(alice, address(usd), REWARD);
 
-        Give memory g = Give(bytes32(0), claimed, carol, 10_000, ANSWER);
+        Give memory g = Give(claimed, carol, 10_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), key, id, g);
         vm.expectRevert(AHandCore.InvalidGive.selector);

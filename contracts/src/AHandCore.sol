@@ -25,10 +25,10 @@ struct Shake {
 /// @notice The giver's acceptance of a route: the claim that reached its end, `claimBps`,
 ///         is paid to `payee`. Signed by the last key of the route and by `signer`, the giver.
 struct Give {
-    bytes32 routeHash;
     address signer;
     address payee;
     uint16 claimBps;
+    bytes32 routeHash;
     bytes32 dataHash;
 }
 
@@ -82,7 +82,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
     bytes32 private constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
 
     uint16 private constant BPS = 10_000; // the whole reward
@@ -377,7 +377,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     }
 
     function _hashGive(bytes32 handHash, Give calldata g) private pure returns (bytes32) {
-        return keccak256(abi.encode(GIVE_TYPEHASH, handHash, g.routeHash, g.signer, g.payee, g.claimBps, g.dataHash));
+        return keccak256(abi.encode(GIVE_TYPEHASH, handHash, g.signer, g.payee, g.claimBps, g.routeHash, g.dataHash));
     }
 
     /// @dev Pays every shaker its margin of the reward and returns what is left for the giver.

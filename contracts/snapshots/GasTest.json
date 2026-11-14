@@ -1,11 +1,11 @@
 {
-  "raise_firstHand": "204332",
-  "raise_nextHand": "170132",
-  "raise_withoutReward": "125399",
-  "reclaim": "54956",
-  "thank_direct": "121255",
-  "thank_oneShake": "167303",
-  "thank_tenShakes": "578477",
-  "thank_threeShakes": "258691",
+  "raise_firstHand": "204310",
+  "raise_nextHand": "170110",
+  "raise_withoutReward": "125377",
+  "reclaim": "55001",
+  "thank_direct": "121332",
+  "thank_oneShake": "167333",
+  "thank_tenShakes": "578324",
+  "thank_threeShakes": "258699",
   "withdraw": "67750"
 }

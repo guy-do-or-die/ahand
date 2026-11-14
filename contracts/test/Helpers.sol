@@ -56,13 +56,13 @@ function giveStructHash(AHandCore core, uint256 handId, Give memory g) view retu
     return keccak256(
         abi.encode(
             keccak256(
-                "Give(Hand hand,bytes32 routeHash,address signer,address payee,uint16 claimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+                "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
             ),
             handStructHash(core, handId),
-            g.routeHash,
             g.signer,
             g.payee,
             g.claimBps,
+            g.routeHash,
             g.dataHash
         )
     );
