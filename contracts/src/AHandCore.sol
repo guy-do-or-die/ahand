@@ -9,7 +9,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Memory} from "@openzeppelin/contracts/utils/Memory.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 /// @notice One shake: the shaker holding the current key passes the Hand on to `nextKey`
 ///         and keeps `claimBps - nextClaimBps` of the reward for `payee`. `claimBps` is the
@@ -46,7 +45,7 @@ struct SignedShake {
 ///         anyone can send the reward back to the raiser. Nothing else can move it.
 ///         Every payout is tried on its own: one that fails stays pending for its payee
 ///         and can be withdrawn later, so no single payee can block the others.
-contract AHandCore is EIP712, ReentrancyGuardTransient {
+contract AHandCore is EIP712 {
     using SafeERC20 for IERC20;
 
     /// @dev Field order is the storage packing. A Hand is open while both outcome
@@ -92,6 +91,10 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
 
     /// @notice What waits for each payee per token, after a payout that could not be made.
     mapping(address token => mapping(address payee => uint256)) public pending;
+
+    /// @dev Set while raise, thank, reclaim or withdraw runs; see `nonReentrant`. Transient
+    ///      storage: it lasts only until the transaction ends and is never saved in state.
+    bool private transient locked;
 
     event Raised(
         uint256 indexed handId,
@@ -154,6 +157,18 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     // token transfers
     error InexactTransfer();
     error NotCore();
+    // raise, thank, reclaim and withdraw
+    error Reentered();
+
+    /// @dev Raise, thank, reclaim and withdraw cannot be entered while one of them runs:
+    ///      code that a token or a payee runs during a transfer cannot call back into them.
+    ///      Calls one after another are not affected.
+    modifier nonReentrant() {
+        if (locked) revert Reentered();
+        locked = true;
+        _;
+        locked = false;
+    }
 
     /// @dev Raised and neither thanked nor reclaimed.
     modifier whenOpen(uint256 handId) {
@@ -186,8 +201,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         // Field by field: a new number is a fresh, empty Hand, so the outcome fields need no
         // zero written; thank or reclaim fills them.
         handId = ++handsCount;
-        hands[handId].raiser = msg.sender;
         Hand storage hand = hands[handId];
+        hand.raiser = msg.sender;
         hand.raisedAt = uint40(block.timestamp);
         hand.expiry = expiry;
         hand.minGiverClaimBps = minGiverClaimBps;

@@ -3,7 +3,6 @@ pragma solidity 0.8.35;
 
 import {Test, Vm} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {SenderFeeToken, LateSenderFeeToken, ReceiverFeeToken} from "./mocks/FeeTokens.sol";
@@ -2022,7 +2021,7 @@ contract CoreTest is Test {
         core.withdraw(address(t), payeeA, payeeA);
 
         assertFalse(t.lastReentryOk());
-        assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        assertEq(bytes4(t.lastReentryReturn()), AHandCore.Reentered.selector);
         assertEq(t.balanceOf(payeeA), REWARD);
         assertEq(core.pending(address(t), payeeB), REWARD);
         assertEq(t.balanceOf(address(core)), REWARD);
@@ -2066,7 +2065,7 @@ contract CoreTest is Test {
         core.reclaim(id);
 
         assertFalse(t.lastReentryOk());
-        assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        assertEq(bytes4(t.lastReentryReturn()), AHandCore.Reentered.selector);
         assertEq(t.balanceOf(address(core)), REWARD);
     }
 
@@ -2078,7 +2077,7 @@ contract CoreTest is Test {
         t.setReentry(address(core), abi.encodeCall(core.reclaim, (old)), true, false, true);
 
         vm.prank(alice);
-        vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        vm.expectRevert(AHandCore.Reentered.selector);
         core.raise(address(t), REWARD, expiry + 1, root, 0, GAS_K, ASK);
 
         assertEq(core.handsCount(), 1);
@@ -2100,7 +2099,7 @@ contract CoreTest is Test {
         _submit(address(t), id, _none(), g, keySig, giverSig);
 
         assertFalse(t.lastReentryOk());
-        assertEq(bytes4(t.lastReentryReturn()), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        assertEq(bytes4(t.lastReentryReturn()), AHandCore.Reentered.selector);
         assertEq(t.balanceOf(carol), REWARD);
         assertEq(t.balanceOf(address(core)), REWARD);
     }
@@ -2118,7 +2117,7 @@ contract CoreTest is Test {
         t.setReentry(address(core), abi.encodeCall(core.thank, (next, _none(), g, keySig, giverSig)), true, false, true);
 
         vm.prank(address(t));
-        vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        vm.expectRevert(AHandCore.Reentered.selector);
         core.raise(address(t), REWARD, expiry, root, 0, GAS_K, ASK);
 
         assertEq(t.balanceOf(carol), 0);
