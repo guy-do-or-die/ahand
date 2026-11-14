@@ -54,9 +54,9 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     struct Hand {
         // slot 0: set by raise
         address raiser;
+        uint40 raisedAt;
         uint40 expiry;
         uint16 minGiverClaimBps;
-        uint40 raisedAt;
         // slot 1: the token and the gas each payout may use, in thousands, set by raise;
         // then the outcome — exactly one of the two times is ever set
         address token;
@@ -183,21 +183,19 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
         if (rootKey == address(0)) revert ZeroRootKey();
 
+        // Field by field: a new number is a fresh, empty Hand, so the outcome fields need no
+        // zero written; thank or reclaim fills them.
         handId = ++handsCount;
-        hands[handId] = Hand({
-            raiser: msg.sender,
-            expiry: expiry,
-            minGiverClaimBps: minGiverClaimBps,
-            raisedAt: uint40(block.timestamp),
-            token: token,
-            payoutGasK: payoutGasK,
-            thankedAt: 0, // written by thank
-            reclaimedAt: 0, // written by reclaim
-            reward: reward,
-            rootKey: rootKey,
-            dataHash: dataHash,
-            giveHash: 0 // written by thank
-        });
+        hands[handId].raiser = msg.sender;
+        Hand storage hand = hands[handId];
+        hand.raisedAt = uint40(block.timestamp);
+        hand.expiry = expiry;
+        hand.minGiverClaimBps = minGiverClaimBps;
+        hand.token = token;
+        hand.payoutGasK = payoutGasK;
+        hand.reward = reward;
+        hand.rootKey = rootKey;
+        hand.dataHash = dataHash;
 
         emit Raised(handId, msg.sender, token, reward, expiry, rootKey, minGiverClaimBps, payoutGasK, dataHash);
 

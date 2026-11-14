@@ -75,9 +75,9 @@ function digestOf(address core, bytes32 structHash) view returns (bytes32) {
 /// What `hands(id)` returns, decoded whole: twelve values do not fit on the stack at once.
 struct HandView {
     address raiser;
+    uint40 raisedAt;
     uint40 expiry;
     uint16 minGiverClaimBps;
-    uint40 raisedAt;
     address token;
     uint16 payoutGasK;
     uint40 thankedAt;
