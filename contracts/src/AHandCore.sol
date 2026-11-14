@@ -88,7 +88,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
     uint16 private constant BPS = 10_000; // the whole reward
 
     uint256 public handsCount;
-    mapping(uint256 => Hand) public hands;
+    mapping(uint256 handId => Hand) public hands;
 
     /// @notice What waits for each payee per token, after a payout that could not be made.
     mapping(address token => mapping(address payee => uint256)) public pending;
@@ -104,28 +104,30 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         uint16 payoutGasK,
         bytes32 dataHash
     );
-    event Thanked(
+    event Shaken(
+        uint256 indexed handId,
+        address indexed payee,
+        uint256 position,
+        uint256 margin,
+        address nextKey,
+        uint16 claimBps,
+        uint16 nextClaimBps,
+        bytes32 dataHash
+    );
+    event Given(
         uint256 indexed handId,
         address indexed signer,
         address indexed payee,
+        uint256 amount,
+        uint16 claimBps,
         bytes32 routeHash,
-        uint16 claimBps,
         bytes32 dataHash
     );
-    event Shaken(
-        uint256 indexed handId,
-        uint256 position,
-        address nextKey,
-        address indexed payee,
-        uint16 claimBps,
-        uint16 nextClaimBps,
-        uint256 margin,
-        bytes32 dataHash
-    );
+    event Thanked(uint256 indexed handId);
     event Reclaimed(uint256 indexed handId);
     event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
-    event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
+    event Withdrawn(address indexed token, address indexed payee, uint256 amount, address to);
 
     // raise
     error ExpiryNotInFuture();
@@ -235,11 +237,11 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         hand.thankedAt = uint40(block.timestamp);
         hand.giveHash = giveHash;
 
-        emit Thanked(handId, give.signer, give.payee, give.routeHash, give.claimBps, give.dataHash);
+        emit Thanked(handId);
 
         uint256 rest = _payShakers(handId, hand, shakes);
 
-        _pay(handId, hand.token, give.payee, rest, hand.payoutGasK);
+        _payGiver(handId, hand, give, rest);
     }
 
     /// @notice Returns an expired Hand's reward to its raiser. Anyone may call.
@@ -248,6 +250,7 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (block.timestamp < hand.expiry) revert NotExpired();
 
         hand.reclaimedAt = uint40(block.timestamp);
+
         emit Reclaimed(handId);
 
         _pay(handId, hand.token, hand.raiser, hand.reward, hand.payoutGasK);
@@ -265,7 +268,8 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
         if (amount == 0) revert NothingPending();
 
         pending[token][payee] = 0;
-        emit Withdrawn(token, payee, to, amount);
+
+        emit Withdrawn(token, payee, amount, to);
 
         _transferExact(token, to, amount);
     }
@@ -394,11 +398,18 @@ contract AHandCore is EIP712, ReentrancyGuardTransient {
             rest -= margin;
 
             emit Shaken(
-                handId, i, shake.nextKey, shake.payee, shake.claimBps, shake.nextClaimBps, margin, shake.dataHash
+                handId, shake.payee, i, margin, shake.nextKey, shake.claimBps, shake.nextClaimBps, shake.dataHash
             );
 
             _pay(handId, hand.token, shake.payee, margin, hand.payoutGasK);
         }
+    }
+
+    /// @dev Logs the Give with the giver's amount, then pays it: the last act of a thank.
+    function _payGiver(uint256 handId, Hand storage hand, Give calldata give, uint256 amount) private {
+        emit Given(handId, give.signer, give.payee, amount, give.claimBps, give.routeHash, give.dataHash);
+
+        _pay(handId, hand.token, give.payee, amount, hand.payoutGasK);
     }
 
     /// @dev A payout that fails for any reason — a blocked or refusing payee, a paused or

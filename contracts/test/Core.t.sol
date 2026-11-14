@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
@@ -103,27 +103,29 @@ contract CoreTest is Test {
         bytes32 dataHash
     );
     event Reclaimed(uint256 indexed handId);
-    event Thanked(
+    event Thanked(uint256 indexed handId);
+    event Shaken(
+        uint256 indexed handId,
+        address indexed payee,
+        uint256 position,
+        uint256 margin,
+        address nextKey,
+        uint16 claimBps,
+        uint16 nextClaimBps,
+        bytes32 dataHash
+    );
+    event Given(
         uint256 indexed handId,
         address indexed signer,
         address indexed payee,
+        uint256 amount,
+        uint16 claimBps,
         bytes32 routeHash,
-        uint16 claimBps,
-        bytes32 dataHash
-    );
-    event Shaken(
-        uint256 indexed handId,
-        uint256 position,
-        address nextKey,
-        address indexed payee,
-        uint16 claimBps,
-        uint16 nextClaimBps,
-        uint256 margin,
         bytes32 dataHash
     );
     event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
-    event Withdrawn(address indexed token, address indexed payee, address to, uint256 amount);
+    event Withdrawn(address indexed token, address indexed payee, uint256 amount, address to);
 
     uint256 constant REWARD = 100e6;
     bytes32 constant ANSWER = keccak256("the salted answer");
@@ -473,7 +475,9 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
 
         vm.expectEmit(address(core));
-        emit Thanked(id, carol, carol, bytes32(0), 10_000, ANSWER);
+        emit Thanked(id);
+        vm.expectEmit(address(core));
+        emit Given(id, carol, carol, REWARD, 10_000, bytes32(0), ANSWER);
         _thank(alice, id, carolKey);
 
         assertEq(usd.balanceOf(carol), REWARD);
@@ -1028,17 +1032,45 @@ contract CoreTest is Test {
         _assertThankedNow(id);
     }
 
-    /// The Give and every Shake are logged with everything they signed; the Shake with its margin.
+    /// Each act has its event, in the order of the route: the thank, every Shake with its margin
+    /// and payout, then the Give with the giver's amount and payout. Shakes and the Give carry
+    /// everything they signed, so anyone can rebuild them to prove the route to a contract.
     function test_route_isLogged() public {
         address shaker = makeAddr("shaker");
         uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, shaker, 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         vm.expectEmit(address(core));
-        emit Thanked(id, carol, carol, g.routeHash, 9_000, ANSWER);
+        emit Thanked(id);
         vm.expectEmit(address(core));
-        emit Shaken(id, 0, vm.addr(NEXT_PK), shaker, 10_000, 9_000, 10e6, SHAKE_DATA);
+        emit Shaken(id, shaker, 0, 10e6, vm.addr(NEXT_PK), 10_000, 9_000, SHAKE_DATA);
+        vm.expectEmit(address(core));
+        emit Paid(id, address(usd), shaker, 10e6);
+        vm.expectEmit(address(core));
+        emit Given(id, carol, carol, 90e6, 9_000, g.routeHash, ANSWER);
+        vm.expectEmit(address(core));
+        emit Paid(id, address(usd), carol, 90e6);
         _submit(alice, id, shakes, g, keySig, giverSig);
+    }
+
+    /// A giver who helps for nothing, paid at the Shake's own address, is still named with the
+    /// amount: zero. Without it, the Shake's payout would be the last one and pass for the giver's.
+    function test_route_givenNamesAZeroAmount() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _oneShake(id, carol, 0);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        vm.expectEmit(address(core));
+        emit Paid(id, address(usd), carol, REWARD);
+        vm.expectEmit(address(core));
+        emit Given(id, carol, carol, 0, 0, g.routeHash, ANSWER);
+        vm.recordLogs();
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 fromCore;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter == address(core)) ++fromCore;
+        }
+        assertEq(fromCore, 4); // Thanked, Shaken, Paid, Given; no Paid of zero
     }
 
     /// A Shake comes only from the key that holds the Hand: here the root key.
@@ -1296,7 +1328,7 @@ contract CoreTest is Test {
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         vm.recordLogs();
         _thankAlong(id, shakes, carolKey);
-        assertEq(vm.getRecordedLogs().length, 2); // Thanked and Shaken; no Paid, no Pending
+        assertEq(vm.getRecordedLogs().length, 3); // Thanked, Shaken and Given; no Paid, no Pending
     }
 
     /// A huge reward cannot overflow the margin.
@@ -1799,7 +1831,7 @@ contract CoreTest is Test {
         BlacklistToken t = _leavePending(carol);
         t.setBlocked(carol, false);
         vm.expectEmit(address(core));
-        emit Withdrawn(address(t), carol, carol, REWARD);
+        emit Withdrawn(address(t), carol, REWARD, carol);
         vm.prank(bob);
         core.withdraw(address(t), carol, carol);
         assertEq(t.balanceOf(carol), REWARD);
@@ -1815,7 +1847,7 @@ contract CoreTest is Test {
         core.withdraw(address(t), carol, bob);
 
         vm.expectEmit(address(core));
-        emit Withdrawn(address(t), carol, fresh, REWARD);
+        emit Withdrawn(address(t), carol, REWARD, fresh);
         vm.prank(carol);
         core.withdraw(address(t), carol, fresh);
         assertEq(t.balanceOf(fresh), REWARD);
@@ -1915,7 +1947,7 @@ contract CoreTest is Test {
         uint256 a = core.raise(address(0), 0, expiry, root, 0, GAS_K, ASK);
         vm.recordLogs();
         _thank(alice, a, carolKey);
-        assertEq(vm.getRecordedLogs().length, 1); // Thanked only
+        assertEq(vm.getRecordedLogs().length, 2); // Thanked and Given only
 
         vm.prank(alice);
         uint256 b = core.raise(address(0xdead), 0, expiry, root, 0, GAS_K, ASK);
