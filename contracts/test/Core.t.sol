@@ -133,6 +133,7 @@ contract CoreTest is Test {
     uint16 constant GAS_K = 200; // payout gas, thousands
     uint256 constant ROOT_PK = 0xA0A0; // the link's root key: whoever holds the link
     uint256 constant NEXT_PK = 0xB0B0; // the key a Shake passes the Hand to
+    uint256 constant SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141; // order of the curve
     uint256 constant TX_GAS_CAP = 16_777_216; // gas one transaction may use: EIP-7825, Ethereum and Base
     uint256 constant TX_SIZE_LIMIT = 128 * 1024; // the largest transaction geth and reth admit to the mempool
     uint256 constant TX_ENVELOPE = 256; // bytes of a signed transaction around its calldata, with room to spare
@@ -1361,6 +1362,52 @@ contract CoreTest is Test {
         bytes memory liveSig = _signGive(address(core), thiefKey, id, live);
         _submit(alice, id, shakes, live, liveSig, liveSig);
         assertEq(usd.balanceOf(thief), REWARD);
+    }
+
+    /// A key signature Core cannot read is refused like one by another key, with the place where it
+    /// stands: the Shake's, or the number of Shakes for the Give. Unreadable means the wrong length,
+    /// zeros, a `v` other than 27 or 28, or a real signature turned into its second form, with the
+    /// high `s`, which recovery would accept for the same key.
+    function test_route_unreadableKeySigNamesItsPlace() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        bytes memory shakeSig = shakes[0].keySig;
+        bytes[] memory badShakeSigs = _unreadable(shakeSig);
+        bytes[] memory badGiveSigs = _unreadable(keySig);
+        for (uint256 i; i < badShakeSigs.length; ++i) {
+            shakes[0].keySig = badShakeSigs[i];
+            vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
+            _submit(alice, id, shakes, g, keySig, giverSig);
+
+            shakes[0].keySig = shakeSig;
+            vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 1));
+            _submit(alice, id, shakes, g, badGiveSigs[i], giverSig);
+        }
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        _assertThankedNow(id);
+    }
+
+    /// Unreadable forms of a key signature: lengths around 65, zeros, a bad `v`, and the
+    /// signature's second form with the high `s`.
+    function _unreadable(bytes memory real) internal pure returns (bytes[] memory sigs) {
+        bytes32 r;
+        bytes32 s;
+        assembly ("memory-safe") {
+            r := mload(add(real, 0x20))
+            s := mload(add(real, 0x40))
+        }
+        uint8 v = uint8(real[64]);
+        bytes32 highS = bytes32(SECP256K1_N - uint256(s));
+        sigs = new bytes[](8);
+        sigs[0] = "";
+        sigs[1] = hex"00";
+        sigs[2] = abi.encodePacked(r, s);
+        sigs[3] = abi.encodePacked(real, uint8(0));
+        sigs[4] = new bytes(65);
+        sigs[5] = abi.encodePacked(bytes32(0), bytes32(0), uint8(27));
+        sigs[6] = abi.encodePacked(r, s, uint8(29));
+        sigs[7] = abi.encodePacked(r, highS, v == 27 ? uint8(28) : uint8(27));
     }
 
     /// A margin that rounds to nothing does not stop the route: the dust goes to the giver.

@@ -321,7 +321,7 @@ contract AHandCore is EIP712 {
         giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);
 
-        if (ECDSA.recoverCalldata(digest, signedGive.keySig) != lastKey) revert InvalidKeySig(shakes.length);
+        if (!_signedBy(lastKey, digest, signedGive.keySig)) revert InvalidKeySig(shakes.length);
 
         // The signer's own key counts while the protocol still lets it act for the address: with
         // no code there, or with an EIP-7702 delegation (0xef0100 and an address, 23 bytes), which
@@ -332,8 +332,7 @@ contract AHandCore is EIP712 {
         bool signed = false;
 
         if (size == 0 || (size == 23 && EIP7702Utils.fetchDelegate(signer) != address(0))) {
-            (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, signedGive.giverSig);
-            signed = err == ECDSA.RecoverError.NoError && recovered == signer;
+            signed = _signedBy(signer, digest, signedGive.giverSig);
         }
 
         if (!signed && !SignatureChecker.isValidERC1271SignatureNowCalldata(signer, digest, signedGive.giverSig)) {
@@ -364,7 +363,7 @@ contract AHandCore is EIP712 {
 
             bytes32 shakeHash = _hashShake(handHash, shake);
 
-            if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), signedShake.keySig) != key) revert InvalidKeySig(i);
+            if (!_signedBy(key, _hashTypedDataV4(shakeHash), signedShake.keySig)) revert InvalidKeySig(i);
 
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
 
@@ -378,6 +377,13 @@ contract AHandCore is EIP712 {
         if (give.claimBps != claim) revert InvalidClaim(shakes.length);
         if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
         if (give.routeHash != routeHash) revert InvalidRouteHash();
+    }
+
+    /// @dev Whether `key` signed `digest`. A signature that cannot be read never counts, so the
+    ///      zero address that recovery returns for it is never taken for the zero key's signature.
+    function _signedBy(address key, bytes32 digest, bytes calldata sig) private pure returns (bool) {
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, sig);
+        return err == ECDSA.RecoverError.NoError && recovered == key;
     }
 
     function _hashHand(uint256 handId, Hand storage hand) private view returns (bytes32) {
