@@ -56,6 +56,10 @@ struct SignedGive {
 ///         fails undoes only itself and stays pending for its payee, who can withdraw it later.
 ///         A token that calls its payees lets a payee spend all of that gas each time it is
 ///         paid, so a route that pays it often enough needs more gas than a transaction may use.
+/// @dev    Core proves who called and who signed. Any other address in its events is only what
+///         a call or a signature named: Core never checks a payee. `Paid` means that Core's
+///         balance of the token dropped by exactly the amount; what the token is worth is the
+///         raiser's choice.
 contract AHandCore is EIP712 {
     using SafeERC20 for IERC20;
 
@@ -77,7 +81,8 @@ contract AHandCore is EIP712 {
         uint256 reward;
         address rootKey;
         bytes32 dataHash;
-        // set by thank
+        // set by thank: the EIP-712 struct hash of the accepted Give; with the domain separator
+        // it gives the digest that both of the Give's signatures signed
         bytes32 giveHash;
     }
 
@@ -107,6 +112,8 @@ contract AHandCore is EIP712 {
     ///      storage: it lasts only until the transaction ends and is never saved in state.
     bool private transient locked;
 
+    /// @notice A Hand is raised: `reward` in `token` is locked until `expiry`. All but `reward` and
+    ///         `expiry` is what Shakes and Gives sign as their Hand.
     event Raised(
         uint256 indexed handId,
         address indexed raiser,
@@ -118,6 +125,8 @@ contract AHandCore is EIP712 {
         uint16 payoutGasK,
         bytes32 dataHash
     );
+    /// @notice The Shake at `position` of a thanked route, counted from the root key: it passed the
+    ///         Hand on to `nextKey` and kept `margin` of the reward for `payee`.
     event Shaken(
         uint256 indexed handId,
         address indexed payee,
@@ -128,6 +137,8 @@ contract AHandCore is EIP712 {
         uint16 nextClaimBps,
         bytes32 dataHash
     );
+    /// @notice The Give that ends a thanked route: `signer` accepted it, and `payee` gets `amount`,
+    ///         what the route left. `routeHash` names the route.
     event Given(
         uint256 indexed handId,
         address indexed signer,
@@ -137,39 +148,71 @@ contract AHandCore is EIP712 {
         bytes32 routeHash,
         bytes32 dataHash
     );
+    /// @notice A Hand is thanked: its whole `reward` in `token` leaves along the route. In the same
+    ///         transaction there follow, in this order: for each Shake, `Shaken` and its payout;
+    ///         then `Given` and the giver's payout. A payout is `Paid` or `Pending`; one of zero
+    ///         is not logged.
     event Thanked(uint256 indexed handId, address indexed token, uint256 reward);
+    /// @notice An expired Hand's whole `reward` in `token` goes back to its raiser; its payout
+    ///         follows, unless the reward is zero.
     event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
+    /// @notice `amount` in `token` left Core for `payee`.
     event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
+    /// @notice `amount` in `token` could not leave Core for `payee` and waits for `withdraw`.
     event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
+    /// @notice What waited for `payee` in `token` left for `to`.
     event Withdrawn(address indexed token, address indexed payee, uint256 amount, address to);
 
     // raise
+    /// @notice `expiry` is not later than now.
     error ExpiryNotInFuture();
+    /// @notice The root key is the zero address, which nobody can sign for.
     error ZeroRootKey();
+    /// @notice The giver's minimum is above the whole reward.
     error MinGiverClaimTooHigh();
     // thank and reclaim
+    /// @notice The Hand was never raised, or is thanked or reclaimed already.
     error NotOpen();
     // thank
+    /// @notice Only the Hand's raiser may thank.
     error NotRaiser();
+    /// @notice The Hand's expiry has come; it can only be reclaimed.
     error Expired();
+    /// @notice The Give's signer is the raiser's own address.
     error GiverIsRaiser();
+    /// @notice The Give names no payee.
     error ZeroPayee();
+    /// @notice The Shake at `position` does not start from the claim that reached it, or passes on
+    ///         more; at `position` equal to the number of Shakes, the Give's claim is not the one left.
     error InvalidClaim(uint256 position);
+    /// @notice The Shake at `position` keeps a margin without a payee.
     error AnonymousMargin(uint256 position);
+    /// @notice The link key's signature at `position` is unreadable or by another key; at `position`
+    ///         equal to the number of Shakes, it is the Give's.
     error InvalidKeySig(uint256 position);
+    /// @notice The claim the route leaves the giver is below the raiser's minimum.
     error BelowMinGiverClaim();
+    /// @notice The Give names another route.
     error InvalidRouteHash();
+    /// @notice The Give's signer did not sign it: not its key, where that key still counts, nor its code (ERC-1271).
     error InvalidGiverSig();
     // reclaim
+    /// @notice The Hand's expiry has not come yet.
     error NotExpired();
     // withdraw
+    /// @notice Only the payee may send what waits for it anywhere but to itself.
     error NotPayee();
+    /// @notice `to` is the zero address.
     error ZeroDestination();
+    /// @notice Nothing waits for this payee in this token.
     error NothingPending();
     // token transfers
+    /// @notice The token moved another amount than asked.
     error InexactTransfer();
+    /// @notice Only Core may call `transferOut`.
     error NotCore();
     // raise, thank, reclaim and withdraw
+    /// @notice Called again while one of them runs.
     error Reentered();
 
     /// @dev Raise, thank, reclaim and withdraw cannot be entered while one of them runs:
@@ -193,7 +236,8 @@ contract AHandCore is EIP712 {
 
     /// @notice Locks `reward` in `token` from the caller until `expiry`. The Hand's link
     ///         starts at `rootKey`; whatever route it takes, the giver keeps at least
-    ///         `minGiverClaimBps` of the reward. Each payout may use `payoutGasK` thousand gas;
+    ///         `minGiverClaimBps` of the reward, and above it each shaker keeps the margin its
+    ///         Shake signed. Each payout may use `payoutGasK` thousand gas;
     ///         with too little, zero for example, every payout stays pending until withdrawn.
     ///         `dataHash` is a commitment every signature for the Hand covers and Core never
     ///         interprets: the application owns the data.
