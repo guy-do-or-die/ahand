@@ -10,6 +10,7 @@ import {HandView} from "./Helpers.sol";
 /// The event and type strings are written out by hand, so the test pins them.
 contract EventIndexer {
     bytes32 constant RAISED = keccak256("Raised(uint256,address,address,uint256,uint40,address,uint16,uint16,bytes32)");
+    bytes32 constant EXTENDED = keccak256("Extended(uint256,uint40)");
     bytes32 constant SHAKEN = keccak256("Shaken(uint256,address,uint256,uint256,address,uint16,uint16,bytes32)");
     bytes32 constant GIVEN = keccak256("Given(uint256,address,address,uint256,uint16,bytes32,bytes32)");
     bytes32 constant THANKED = keccak256("Thanked(uint256,address,uint256)");
@@ -67,6 +68,7 @@ contract EventIndexer {
         if (topic == GIVEN) return _given(log);
         require(thanking == 0, "a thank ended without its Give");
         if (topic == RAISED) return _raised(log, time);
+        if (topic == EXTENDED) return _extended(log);
         if (topic == THANKED) return _closed(log, time, true);
         if (topic == RECLAIMED) return _closed(log, time, false);
         if (topic == WITHDRAWN) return _withdrawn(log);
@@ -98,6 +100,14 @@ contract EventIndexer {
         uint16 minGiverClaimBps;
         uint16 payoutGasK;
         bytes32 dataHash;
+    }
+
+    /// The expiry moves later; `Raised` names the first one.
+    function _extended(Vm.Log memory log) private {
+        HandView storage h = hands[uint256(log.topics[1])];
+        uint40 expiry = abi.decode(log.data, (uint40));
+        require(expiry > h.expiry, "an expiry only moves later");
+        h.expiry = expiry;
     }
 
     /// `Thanked` opens the reading of a route; `Reclaimed` announces the payout to the raiser.

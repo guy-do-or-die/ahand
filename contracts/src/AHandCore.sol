@@ -47,8 +47,8 @@ struct SignedGive {
 }
 
 /// @title  AHandCore
-/// @notice A Hand locks a reward in one ERC-20 until a fixed moment. Its link starts at a
-///         root key, and each shaker passes it on with a signed Shake, keeping a margin.
+/// @notice A Hand locks a reward in one ERC-20 until a set moment, which its raiser can only move
+///         later. Its link starts at a root key, and each shaker passes it on with a signed Shake, keeping a margin.
 ///         Before that moment the raiser can pay the reward along a route to a giver who signed
 ///         a Give at its end: every shaker gets its margin, the giver the rest. From that moment
 ///         anyone can send the reward back to the raiser. Nothing else can move it.
@@ -102,6 +102,10 @@ contract AHandCore is EIP712 {
 
     uint16 private constant BPS = 10_000; // the whole reward
 
+    /// @notice How far ahead an expiry may be when it is set: no reward stays locked longer than
+    ///         this after its raiser last raised or extended the Hand.
+    uint256 public constant MAX_TERM = 365 days;
+
     uint256 public handsCount;
     mapping(uint256 handId => Hand) public hands;
 
@@ -112,8 +116,8 @@ contract AHandCore is EIP712 {
     ///      storage: it lasts only until the transaction ends and is never saved in state.
     bool private transient locked;
 
-    /// @notice A Hand is raised: `reward` in `token` is locked until `expiry`. All but `reward` and
-    ///         `expiry` is what Shakes and Gives sign as their Hand.
+    /// @notice A Hand is raised: `reward` in `token` is locked until `expiry`, which `Extended` may
+    ///         move later. All but `reward` and `expiry` is what Shakes and Gives sign as their Hand.
     event Raised(
         uint256 indexed handId,
         address indexed raiser,
@@ -125,6 +129,8 @@ contract AHandCore is EIP712 {
         uint16 payoutGasK,
         bytes32 dataHash
     );
+    /// @notice The raiser moved the Hand's expiry later, to `expiry`.
+    event Extended(uint256 indexed handId, uint40 expiry);
     /// @notice The Shake at `position` of a thanked route, counted from the root key: it passed the
     ///         Hand on to `nextKey` and kept `margin` of the reward for `payee`.
     event Shaken(
@@ -166,18 +172,24 @@ contract AHandCore is EIP712 {
     // raise
     /// @notice `expiry` is not later than now.
     error ExpiryNotInFuture();
+    /// @notice The expiry is more than `MAX_TERM` ahead of now.
+    error ExpiryTooFar();
     /// @notice The root key is the zero address, which nobody can sign for.
     error ZeroRootKey();
     /// @notice The giver's minimum is above the whole reward.
     error MinGiverClaimTooHigh();
-    // thank and reclaim
+    // extend, thank and reclaim
     /// @notice The Hand was never raised, or is thanked or reclaimed already.
     error NotOpen();
-    // thank
-    /// @notice Only the Hand's raiser may thank.
+    // extend and thank
+    /// @notice Only the Hand's raiser may extend or thank it.
     error NotRaiser();
     /// @notice The Hand's expiry has come; it can only be reclaimed.
     error Expired();
+    // extend
+    /// @notice The new expiry is not later than the Hand's expiry.
+    error ExpiryNotLater();
+    // thank
     /// @notice The Give's signer is the raiser's own address.
     error GiverIsRaiser();
     /// @notice The Give names no payee.
@@ -234,8 +246,8 @@ contract AHandCore is EIP712 {
 
     constructor() EIP712("aHand", "core") {}
 
-    /// @notice Locks `reward` in `token` from the caller until `expiry`. The Hand's link
-    ///         starts at `rootKey`; whatever route it takes, the giver keeps at least
+    /// @notice Locks `reward` in `token` from the caller until `expiry`, at most `MAX_TERM` ahead;
+    ///         the raiser may move it later with `extend`. The Hand's link starts at `rootKey`; whatever route it takes, the giver keeps at least
     ///         `minGiverClaimBps` of the reward, and above it each shaker keeps the margin its
     ///         Shake signed. Each payout may use `payoutGasK` thousand gas;
     ///         with too little, zero for example, every payout stays pending until withdrawn.
@@ -253,6 +265,7 @@ contract AHandCore is EIP712 {
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
+        if (expiry > block.timestamp + MAX_TERM) revert ExpiryTooFar();
         if (rootKey == address(0)) revert ZeroRootKey();
         if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
 
@@ -281,6 +294,22 @@ contract AHandCore is EIP712 {
         IERC20(token).safeTransferFrom(msg.sender, address(this), reward);
         if (IERC20(token).balanceOf(msg.sender) + reward != raiserBefore) revert InexactTransfer();
         if (IERC20(token).balanceOf(address(this)) != coreBefore + reward) revert InexactTransfer();
+    }
+
+    /// @notice Moves an open Hand's expiry later, to `newExpiry`, at most `MAX_TERM` from now. Only
+    ///         the raiser, only before expiry. Nothing else of the Hand changes, and no signature
+    ///         names the expiry, so every route collected so far stays valid.
+    function extend(uint256 handId, uint40 newExpiry) external whenOpen(handId) {
+        Hand storage hand = hands[handId];
+
+        if (msg.sender != hand.raiser) revert NotRaiser();
+        if (block.timestamp >= hand.expiry) revert Expired();
+        if (newExpiry <= hand.expiry) revert ExpiryNotLater();
+        if (newExpiry > block.timestamp + MAX_TERM) revert ExpiryTooFar();
+
+        hand.expiry = newExpiry;
+
+        emit Extended(handId, newExpiry);
     }
 
     /// @notice Pays the reward along a route: each shaker keeps its margin, the Give's payee gets

@@ -62,6 +62,18 @@ contract Handler is Test {
         paidIn[address(token)] += reward;
     }
 
+    /// The raiser of an open Hand moves its expiry later, up to the cap; past its expiry nothing happens.
+    function extend(uint256 seed, uint256 by) external logged {
+        if (openIds.length == 0) return;
+        uint256 id = openIds[seed % openIds.length];
+        HandView memory h = handOf(core, id);
+        if (block.timestamp >= h.expiry) return;
+        uint256 latest = block.timestamp + core.MAX_TERM();
+        if (h.expiry >= latest) return;
+        vm.prank(h.raiser);
+        core.extend(id, uint40(bound(by, h.expiry + 1, latest)));
+    }
+
     /// Any open Hand: time first moves to its expiry, so the call is never wasted.
     function reclaim(uint256 seed) external logged {
         if (openIds.length == 0) return;

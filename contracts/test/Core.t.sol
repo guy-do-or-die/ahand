@@ -101,6 +101,7 @@ contract CoreTest is Test {
         uint16 payoutGasK,
         bytes32 dataHash
     );
+    event Extended(uint256 indexed handId, uint40 expiry);
     event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
     event Thanked(uint256 indexed handId, address indexed token, uint256 reward);
     event Shaken(
@@ -406,6 +407,118 @@ contract CoreTest is Test {
         vm.prank(alice);
         vm.expectRevert(AHandCore.InexactTransfer.selector);
         core.raise(address(t), REWARD, expiry, root, 0, GAS_K, ASK);
+    }
+
+    /// No expiry further ahead than the cap: a typo cannot lock the money for decades.
+    function test_raise_refusesExpiryBeyondTheCap() public {
+        uint256 cap = block.timestamp + core.MAX_TERM();
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.ExpiryTooFar.selector);
+        core.raise(address(usd), REWARD, uint40(cap + 1), root, 0, GAS_K, ASK);
+        core.raise(address(usd), REWARD, uint40(cap), root, 0, GAS_K, ASK); // the cap itself is fine
+        vm.stopPrank();
+        assertEq(core.handsCount(), 1);
+    }
+
+    /*//////////////////////////// extend ////////////////////////////*/
+
+    /// The raiser moves the expiry later. Nothing else of the Hand changes, so the signatures
+    /// collected before still pass, after the old expiry too.
+    function test_extend_movesTheExpiryLaterAndKeepsTheSignatures() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        HandView memory before = _hand(id);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
+        uint40 later = expiry + 10 days;
+
+        vm.expectEmit(address(core));
+        emit Extended(id, later);
+        vm.prank(alice);
+        core.extend(id, later);
+
+        before.expiry = later;
+        assertEq(abi.encode(_hand(id)), abi.encode(before));
+        vm.warp(expiry); // the old expiry has come and gone
+        _submit(alice, id, _none(), g, keySig, giverSig);
+        assertEq(usd.balanceOf(carol), REWARD);
+    }
+
+    /// Only the raiser extends: nobody else, whichever side of the raiser's address it is on.
+    function test_extend_onlyTheRaiser() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address[3] memory others = [bob, address(1), address(type(uint160).max)];
+        for (uint256 i; i < others.length; ++i) {
+            vm.prank(others[i]);
+            vm.expectRevert(AHandCore.NotRaiser.selector);
+            core.extend(id, expiry + 1);
+        }
+    }
+
+    /// Only before expiry: from that moment the Hand belongs to reclaim, and anyone may close it.
+    function test_extend_onlyBeforeExpiry() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.startPrank(alice);
+        vm.warp(expiry - 1);
+        core.extend(id, expiry + 1); // a second before expiry is still in time
+        vm.warp(expiry + 1); // exactly at the new expiry
+        vm.expectRevert(AHandCore.Expired.selector);
+        core.extend(id, expiry + 2);
+        vm.warp(expiry + 2); // and any time after it
+        vm.expectRevert(AHandCore.Expired.selector);
+        core.extend(id, expiry + 3);
+        vm.stopPrank();
+    }
+
+    /// Only later: the expiry never moves back, so nobody who counted on it loses time.
+    function test_extend_onlyLater() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.ExpiryNotLater.selector);
+        core.extend(id, expiry);
+        vm.expectRevert(AHandCore.ExpiryNotLater.selector);
+        core.extend(id, expiry - 1);
+        vm.stopPrank();
+    }
+
+    /// No further ahead than the cap, counted from now: extending again and again keeps a Hand
+    /// alive, but never locks it for longer than the cap from the last move.
+    function test_extend_notBeyondTheCap() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        uint256 cap = block.timestamp + core.MAX_TERM();
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.ExpiryTooFar.selector);
+        core.extend(id, uint40(cap + 1));
+        core.extend(id, uint40(cap));
+        vm.stopPrank();
+    }
+
+    /// A closed Hand stays closed: neither a thanked nor a reclaimed nor an unknown Hand extends.
+    function test_extend_onlyAnOpenHand() public {
+        uint256 thanked = _raise(alice, address(usd), REWARD);
+        _thank(alice, thanked, carolKey);
+        uint256 reclaimed = _raise(alice, address(usd), REWARD);
+        vm.warp(expiry);
+        core.reclaim(reclaimed);
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.NotOpen.selector);
+        core.extend(thanked, expiry + 1);
+        vm.expectRevert(AHandCore.NotOpen.selector);
+        core.extend(reclaimed, expiry + 1);
+        vm.expectRevert(AHandCore.NotOpen.selector);
+        core.extend(99, expiry + 1);
+        vm.stopPrank();
+    }
+
+    /// With several things wrong, the error names the first in the order of the checks: the Hand,
+    /// who calls, the time, then the new expiry.
+    function test_extend_firstWrongThingIsNamed() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.prank(bob);
+        vm.expectRevert(AHandCore.NotRaiser.selector);
+        core.extend(id, expiry); // not later either
+        vm.warp(expiry);
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.Expired.selector);
+        core.extend(id, expiry); // not later either
     }
 
     /*//////////////////////////// reclaim ////////////////////////////*/
@@ -2220,7 +2333,7 @@ contract CoreTest is Test {
 
     function testFuzz_raiseThenReclaimReturnsExactlyTheReward(uint256 amount, uint40 ahead, uint40 late) public {
         amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
-        uint40 e = uint40(block.timestamp + bound(ahead, 1, 3650 days));
+        uint40 e = uint40(block.timestamp + bound(ahead, 1, core.MAX_TERM()));
         usd.mint(alice, amount);
         uint256 before = usd.balanceOf(alice);
 
@@ -2236,7 +2349,7 @@ contract CoreTest is Test {
 
     function testFuzz_thankPaysExactlyTheReward(uint256 amount, uint40 ahead, uint40 at) public {
         amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
-        uint256 span = bound(ahead, 1, 3650 days);
+        uint256 span = bound(ahead, 1, core.MAX_TERM());
         uint40 e = uint40(block.timestamp + span);
         usd.mint(alice, amount);
 

@@ -118,6 +118,14 @@ contract GasTest is Test {
         vm.snapshotValue("thank_tenShakes", vm.lastFrameGas().gasTotalUsed);
     }
 
+    /// The raiser moves the expiry a month later.
+    function test_gas_extend() public {
+        uint256 id = _raise(usd, REWARD);
+        vm.prank(raiser);
+        core.extend(id, expiry + 30 days);
+        vm.snapshotValue("extend", vm.lastFrameGas().gasTotalUsed);
+    }
+
     function test_gas_reclaim() public {
         uint256 id = _raise(usd, REWARD);
         vm.warp(expiry);
