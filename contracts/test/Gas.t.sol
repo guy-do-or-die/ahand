@@ -2,7 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
-import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
+import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {shakeStructHash, giveStructHash, digestOf} from "./Helpers.sol";
@@ -68,7 +68,7 @@ contract GasTest is Test {
         bytes memory keySig = _sign(key, digest);
         bytes memory giverSig = _sign(GIVER_PK, digest);
         vm.prank(raiser);
-        core.thank(id, shakes, g, keySig, giverSig);
+        core.thank(id, shakes, SignedGive(g, keySig, giverSig));
     }
 
     function _sign(uint256 key, bytes32 digest) internal pure returns (bytes memory) {

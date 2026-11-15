@@ -2,7 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
-import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
+import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Helpers.sol";
@@ -89,7 +89,7 @@ contract Handler is Test {
         bytes memory keySig = _sign(lastKey, digest);
         bytes memory giverSig = _sign(keys[pick], digest);
         vm.prank(h.raiser);
-        core.thank(id, shakes, g, keySig, giverSig);
+        core.thank(id, shakes, SignedGive(g, keySig, giverSig));
         _closed(id, h.token, h.reward);
     }
 

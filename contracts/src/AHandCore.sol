@@ -39,6 +39,13 @@ struct SignedShake {
     bytes keySig;
 }
 
+/// @notice A Give and its two signatures: by the last key of the route and by its signer, the giver.
+struct SignedGive {
+    Give give;
+    bytes keySig;
+    bytes giverSig;
+}
+
 /// @title  AHandCore
 /// @notice A Hand locks a reward in one ERC-20 until a fixed moment. Its link starts at a
 ///         root key, and each shaker passes it on with a signed Shake, keeping a margin.
@@ -233,21 +240,20 @@ contract AHandCore is EIP712 {
     ///         raiser, only before expiry. Core never reads the data hashes.
     ///         A Give without a payee is refused: sent to the zero address, the giver's payout
     ///         would be burned or stay pending where nobody can ever withdraw it.
-    function thank(
-        uint256 handId,
-        SignedShake[] calldata shakes,
-        Give calldata give,
-        bytes calldata keySig,
-        bytes calldata giverSig
-    ) external nonReentrant whenOpen(handId) {
+    function thank(uint256 handId, SignedShake[] calldata shakes, SignedGive calldata signedGive)
+        external
+        nonReentrant
+        whenOpen(handId)
+    {
         Hand storage hand = hands[handId];
+        Give calldata give = signedGive.give;
 
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (msg.sender == give.signer) revert GiverIsRaiser();
         if (give.payee == address(0)) revert ZeroPayee();
         if (block.timestamp >= hand.expiry) revert Expired();
 
-        bytes32 giveHash = _checkGive(handId, hand, shakes, give, keySig, giverSig);
+        bytes32 giveHash = _checkGive(handId, hand, shakes, signedGive);
 
         hand.thankedAt = uint40(block.timestamp);
         hand.giveHash = giveHash;
@@ -305,17 +311,16 @@ contract AHandCore is EIP712 {
         uint256 handId,
         Hand storage hand,
         SignedShake[] calldata shakes,
-        Give calldata give,
-        bytes calldata keySig,
-        bytes calldata giverSig
+        SignedGive calldata signedGive
     ) private view returns (bytes32 giveHash) {
+        Give calldata give = signedGive.give;
         bytes32 handHash = _hashHand(handId, hand);
         address lastKey = _checkRoute(handHash, hand, shakes, give);
 
         giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);
 
-        if (ECDSA.recoverCalldata(digest, keySig) != lastKey) revert InvalidGive();
+        if (ECDSA.recoverCalldata(digest, signedGive.keySig) != lastKey) revert InvalidGive();
 
         // The signer's own key counts while the protocol still lets it act for the address: with
         // no code there, or with an EIP-7702 delegation (0xef0100 and an address, 23 bytes), which
@@ -326,11 +331,11 @@ contract AHandCore is EIP712 {
         bool signed = false;
 
         if (size == 0 || (size == 23 && EIP7702Utils.fetchDelegate(signer) != address(0))) {
-            (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, giverSig);
+            (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, signedGive.giverSig);
             signed = err == ECDSA.RecoverError.NoError && recovered == signer;
         }
 
-        if (!signed && !SignatureChecker.isValidERC1271SignatureNowCalldata(signer, digest, giverSig)) {
+        if (!signed && !SignatureChecker.isValidERC1271SignatureNowCalldata(signer, digest, signedGive.giverSig)) {
             revert InvalidGive();
         }
     }

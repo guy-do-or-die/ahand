@@ -2,7 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
-import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
+import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {shakeStructHash, giveStructHash, digestOf} from "./Helpers.sol";
 
@@ -141,7 +141,7 @@ contract CoreSymbolic is Test {
             Give(vm.addr(GIVER_PK), giverPayee, next, keccak256(abi.encode(bytes32(0), shakeHash)), bytes32(0));
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         vm.prank(RAISER);
-        core.thank(id, shakes, g, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest));
+        core.thank(id, shakes, SignedGive(g, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest)));
 
         assert(token.balanceOf(shaker) + token.balanceOf(giverPayee) == reward);
         assert(token.balanceOf(shaker) == reward * (10_000 - next) / 10_000);

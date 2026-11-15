@@ -3,7 +3,7 @@ pragma solidity 0.8.35;
 
 import {Test, Vm} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {AHandCore, Shake, Give, SignedShake} from "../src/AHandCore.sol";
+import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {SenderFeeToken, LateSenderFeeToken, ReceiverFeeToken} from "./mocks/FeeTokens.sol";
 import {NoReturnToken} from "./mocks/NoReturnToken.sol";
@@ -224,7 +224,7 @@ contract CoreTest is Test {
         bytes memory giverSig
     ) internal {
         vm.prank(raiser);
-        core.thank(id, shakes, g, keySig, giverSig);
+        core.thank(id, shakes, SignedGive(g, keySig, giverSig));
     }
 
     /// `raiser` thanks the signer with `signerKey` over the direct route.
@@ -798,7 +798,7 @@ contract CoreTest is Test {
         SignedShake[] memory none;
         vm.expectRevert(AHandCore.InvalidGive.selector);
         vm.prank(alice);
-        core.thank{gas: 1_000_000}(id, none, g, keySig, giverSig);
+        core.thank{gas: 1_000_000}(id, none, SignedGive(g, keySig, giverSig));
         _assertOpen(id);
         _thank(alice, id, carolKey);
         _assertThankedNow(id);
@@ -813,7 +813,7 @@ contract CoreTest is Test {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
         SignedShake[] memory none;
         vm.prank(alice);
-        core.thank{gas: 3_000_000}(id, none, g, keySig, giverSig);
+        core.thank{gas: 3_000_000}(id, none, SignedGive(g, keySig, giverSig));
         _assertThankedNow(id);
     }
 
@@ -909,10 +909,10 @@ contract CoreTest is Test {
         SignedShake[] memory none;
         vm.expectRevert(AHandCore.InvalidGive.selector);
         vm.prank(alice);
-        core.thank{gas: 2_000_000}(id, none, g, keySig, giverSig);
+        core.thank{gas: 2_000_000}(id, none, SignedGive(g, keySig, giverSig));
         vm.expectRevert(AHandCore.InvalidGive.selector);
         vm.prank(alice);
-        core.thank{gas: 2_000_000}(id, none, g, keySig, junk);
+        core.thank{gas: 2_000_000}(id, none, SignedGive(g, keySig, junk));
     }
 
     /*//////////////////////////// reorg ////////////////////////////*/
@@ -1516,7 +1516,7 @@ contract CoreTest is Test {
     function test_route_longestAcceptedRouteFitsTheGasCap() public {
         (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
             _emptyRoute(LONGEST_ACCEPTED, REWARD);
-        bytes memory data = abi.encodeCall(core.thank, (id, shakes, g, keySig, giverSig));
+        bytes memory data = abi.encodeCall(core.thank, (id, shakes, SignedGive(g, keySig, giverSig)));
         assertLe(data.length + TX_ENVELOPE, TX_SIZE_LIMIT);
         assertTrue(_thankInOneTransaction(data));
         assertEq(usd.balanceOf(carol), REWARD);
@@ -1527,7 +1527,7 @@ contract CoreTest is Test {
     function test_route_tooLongForOneTransactionChangesNothing() public {
         (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
             _emptyRoute(TOO_LONG, REWARD);
-        assertFalse(_thankInOneTransaction(abi.encodeCall(core.thank, (id, shakes, g, keySig, giverSig))));
+        assertFalse(_thankInOneTransaction(abi.encodeCall(core.thank, (id, shakes, SignedGive(g, keySig, giverSig)))));
         _assertOpen(id);
         assertEq(usd.balanceOf(address(core)), REWARD);
         _thank(alice, id, bobKey);
@@ -1539,7 +1539,7 @@ contract CoreTest is Test {
     function test_reclaim_afterATooLongRoutePaysInFull() public {
         (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig) =
             _emptyRoute(TOO_LONG, REWARD);
-        assertFalse(_thankInOneTransaction(abi.encodeCall(core.thank, (id, shakes, g, keySig, giverSig))));
+        assertFalse(_thankInOneTransaction(abi.encodeCall(core.thank, (id, shakes, SignedGive(g, keySig, giverSig)))));
         vm.warp(expiry);
         uint256 before = usd.balanceOf(alice);
         core.reclaim(id);
@@ -1790,7 +1790,7 @@ contract CoreTest is Test {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, carol, payee, carolKey);
         SignedShake[] memory none;
         vm.prank(alice);
-        core.thank{gas: 400_000}(id, none, g, keySig, giverSig);
+        core.thank{gas: 400_000}(id, none, SignedGive(g, keySig, giverSig));
         assertEq(core.pending(address(t), payee), REWARD);
     }
 
@@ -1802,7 +1802,7 @@ contract CoreTest is Test {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         SignedShake[] memory none;
         vm.prank(alice);
-        core.thank{gas: 2_000_000}(id, none, g, keySig, giverSig);
+        core.thank{gas: 2_000_000}(id, none, SignedGive(g, keySig, giverSig));
         assertEq(core.pending(address(t), carol), REWARD);
     }
 
@@ -1852,7 +1852,7 @@ contract CoreTest is Test {
         uint256 snap = vm.snapshotState();
         for (uint256 g = 20_000; g < 300_000; g += 100) {
             vm.prank(alice);
-            try core.thank{gas: g}(id, none, give, keySig, giverSig) {
+            try core.thank{gas: g}(id, none, SignedGive(give, keySig, giverSig)) {
                 assertEq(core.pending(address(usd), carol), 0);
                 assertEq(usd.balanceOf(carol), REWARD);
                 paid++;
@@ -2094,7 +2094,8 @@ contract CoreTest is Test {
         uint256 id = _raise(address(t), address(t), REWARD);
         _raise(bob, address(t), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
-        t.setReentry(address(core), abi.encodeCall(core.thank, (id, _none(), g, keySig, giverSig)), false, true, false);
+        bytes memory data = abi.encodeCall(core.thank, (id, _none(), SignedGive(g, keySig, giverSig)));
+        t.setReentry(address(core), data, false, true, false);
 
         _submit(address(t), id, _none(), g, keySig, giverSig);
 
@@ -2114,7 +2115,8 @@ contract CoreTest is Test {
         t.approve(address(core), REWARD);
         uint256 next = core.handsCount() + 1;
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(next, carolKey);
-        t.setReentry(address(core), abi.encodeCall(core.thank, (next, _none(), g, keySig, giverSig)), true, false, true);
+        bytes memory data = abi.encodeCall(core.thank, (next, _none(), SignedGive(g, keySig, giverSig)));
+        t.setReentry(address(core), data, true, false, true);
 
         vm.prank(address(t));
         vm.expectRevert(AHandCore.Reentered.selector);
