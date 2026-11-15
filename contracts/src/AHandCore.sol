@@ -355,14 +355,15 @@ contract AHandCore is EIP712 {
 
         for (uint256 i; i < shakes.length; ++i) {
             Memory.Pointer freeMemory = Memory.getFreeMemoryPointer();
-            Shake calldata shake = shakes[i].shake;
+            SignedShake calldata signedShake = shakes[i];
+            Shake calldata shake = signedShake.shake;
 
             if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(i);
             if (shake.payee == address(0) && shake.nextClaimBps != claim) revert AnonymousMargin(i);
 
             bytes32 shakeHash = _hashShake(handHash, shake);
 
-            if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), shakes[i].keySig) != key) revert InvalidShake(i);
+            if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), signedShake.keySig) != key) revert InvalidShake(i);
 
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
 
