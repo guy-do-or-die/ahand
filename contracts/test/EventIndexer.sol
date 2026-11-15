@@ -11,6 +11,7 @@ import {HandView} from "./Helpers.sol";
 contract EventIndexer {
     bytes32 constant RAISED = keccak256("Raised(uint256,address,address,uint256,uint40,address,uint16,uint16,bytes32)");
     bytes32 constant EXTENDED = keccak256("Extended(uint256,uint40)");
+    bytes32 constant FUNDED = keccak256("Funded(uint256,uint256,uint256)");
     bytes32 constant SHAKEN = keccak256("Shaken(uint256,address,uint256,uint256,address,uint16,uint16,bytes32)");
     bytes32 constant GIVEN = keccak256("Given(uint256,address,address,uint256,uint16,bytes32,bytes32)");
     bytes32 constant THANKED = keccak256("Thanked(uint256,address,uint256)");
@@ -69,6 +70,7 @@ contract EventIndexer {
         require(thanking == 0, "a thank ended without its Give");
         if (topic == RAISED) return _raised(log, time);
         if (topic == EXTENDED) return _extended(log);
+        if (topic == FUNDED) return _funded(log);
         if (topic == THANKED) return _closed(log, time, true);
         if (topic == RECLAIMED) return _closed(log, time, false);
         if (topic == WITHDRAWN) return _withdrawn(log);
@@ -108,6 +110,14 @@ contract EventIndexer {
         uint40 expiry = abi.decode(log.data, (uint40));
         require(expiry > h.expiry, "an expiry only moves later");
         h.expiry = expiry;
+    }
+
+    /// The reward grows by the amount; `Raised` names the first reward.
+    function _funded(Vm.Log memory log) private {
+        HandView storage h = hands[uint256(log.topics[1])];
+        (uint256 amount, uint256 reward) = abi.decode(log.data, (uint256, uint256));
+        require(reward == h.reward + amount, "the reward grows by the amount added");
+        h.reward = reward;
     }
 
     /// `Thanked` opens the reading of a route; `Reclaimed` announces the payout to the raiser.

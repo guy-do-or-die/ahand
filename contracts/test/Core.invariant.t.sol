@@ -8,9 +8,9 @@ import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Helpers.sol";
 import {EventIndexer} from "./EventIndexer.sol";
 
-/// Random raises, thanks (direct or through one Shake with a random margin), reclaims, blocks,
-/// withdrawals and time jumps by three actors over two tokens; the second token can block any
-/// actor, so payouts stay pending and get withdrawn. Actions pick among the open Hands and the
+/// Random raises, extensions, fundings, thanks (direct or through one Shake with a random margin),
+/// reclaims, blocks, withdrawals and time jumps by three actors over two tokens; the second token
+/// can block any actor, so payouts stay pending and get withdrawn. Actions pick among the open Hands and the
 /// payees with something pending, so few calls are wasted.
 contract Handler is Test {
     AHandCore public core;
@@ -72,6 +72,23 @@ contract Handler is Test {
         if (h.expiry >= latest) return;
         vm.prank(h.raiser);
         core.extend(id, uint40(bound(by, h.expiry + 1, latest)));
+    }
+
+    /// The raiser of an open Hand adds to its reward; past its expiry nothing happens.
+    function fund(uint256 seed, uint256 amount) external logged {
+        if (openIds.length == 0) return;
+        uint256 id = openIds[seed % openIds.length];
+        HandView memory h = handOf(core, id);
+        if (block.timestamp >= h.expiry) return;
+        amount = bound(amount, 0, 1e30);
+        MockUSD token = MockUSD(h.token);
+        token.mint(h.raiser, amount);
+        vm.startPrank(h.raiser);
+        token.approve(address(core), amount);
+        core.fund(id, amount);
+        vm.stopPrank();
+        open[h.token] += amount;
+        paidIn[h.token] += amount;
     }
 
     /// Any open Hand: time first moves to its expiry, so the call is never wasted.

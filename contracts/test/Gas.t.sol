@@ -126,6 +126,14 @@ contract GasTest is Test {
         vm.snapshotValue("extend", vm.lastFrameGas().gasTotalUsed);
     }
 
+    /// The raiser adds as much again to the reward.
+    function test_gas_fund() public {
+        uint256 id = _raise(usd, REWARD);
+        vm.prank(raiser);
+        core.fund(id, REWARD);
+        vm.snapshotValue("fund", vm.lastFrameGas().gasTotalUsed);
+    }
+
     function test_gas_reclaim() public {
         uint256 id = _raise(usd, REWARD);
         vm.warp(expiry);

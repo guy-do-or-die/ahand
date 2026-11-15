@@ -102,6 +102,7 @@ contract CoreTest is Test {
         bytes32 dataHash
     );
     event Extended(uint256 indexed handId, uint40 expiry);
+    event Funded(uint256 indexed handId, uint256 amount, uint256 reward);
     event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
     event Thanked(uint256 indexed handId, address indexed token, uint256 reward);
     event Shaken(
@@ -519,6 +520,119 @@ contract CoreTest is Test {
         vm.prank(alice);
         vm.expectRevert(AHandCore.Expired.selector);
         core.extend(id, expiry); // not later either
+    }
+
+    /*//////////////////////////// fund ////////////////////////////*/
+
+    /// The raiser adds to the reward. Signatures name shares, not amounts, so a route collected
+    /// before pays its shares of the larger reward.
+    function test_fund_addsToTheRewardAndTheRoutePaysItsShares() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address shaker = makeAddr("shaker");
+        SignedShake[] memory shakes = _oneShake(id, shaker, 9_000); // the shaker keeps 10 %
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+
+        vm.expectEmit(address(core));
+        emit Funded(id, REWARD, 2 * REWARD);
+        vm.prank(alice);
+        core.fund(id, REWARD);
+        assertEq(_hand(id).reward, 2 * REWARD);
+        assertEq(usd.balanceOf(address(core)), 2 * REWARD);
+
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        assertEq(usd.balanceOf(shaker), 2 * REWARD / 10);
+        assertEq(usd.balanceOf(carol), 2 * REWARD * 9 / 10);
+    }
+
+    /// Unthanked, all of it goes back to the raiser.
+    function test_fund_reclaimReturnsAllOfIt() public {
+        uint256 before = usd.balanceOf(alice);
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.prank(alice);
+        core.fund(id, 3 * REWARD);
+        vm.warp(expiry);
+        vm.expectEmit(address(core));
+        emit Reclaimed(id, address(usd), 4 * REWARD);
+        core.reclaim(id);
+        assertEq(usd.balanceOf(alice), before);
+        assertEq(usd.balanceOf(address(core)), 0);
+    }
+
+    /// Only the raiser funds: nobody else, whichever side of the raiser's address it is on.
+    function test_fund_onlyTheRaiser() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address[3] memory others = [bob, address(1), address(type(uint160).max)];
+        for (uint256 i; i < others.length; ++i) {
+            vm.prank(others[i]);
+            vm.expectRevert(AHandCore.NotRaiser.selector);
+            core.fund(id, REWARD);
+        }
+    }
+
+    /// Only before expiry: from that moment the Hand belongs to reclaim.
+    function test_fund_onlyBeforeExpiry() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.startPrank(alice);
+        vm.warp(expiry - 1);
+        core.fund(id, 1);
+        vm.warp(expiry);
+        vm.expectRevert(AHandCore.Expired.selector);
+        core.fund(id, 1);
+        vm.warp(expiry + 1);
+        vm.expectRevert(AHandCore.Expired.selector);
+        core.fund(id, 1);
+        vm.stopPrank();
+    }
+
+    /// A closed Hand takes nothing more: neither a thanked nor a reclaimed nor an unknown Hand.
+    function test_fund_onlyAnOpenHand() public {
+        uint256 thanked = _raise(alice, address(usd), REWARD);
+        _thank(alice, thanked, carolKey);
+        uint256 reclaimed = _raise(alice, address(usd), REWARD);
+        vm.warp(expiry);
+        core.reclaim(reclaimed);
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.NotOpen.selector);
+        core.fund(thanked, 1);
+        vm.expectRevert(AHandCore.NotOpen.selector);
+        core.fund(reclaimed, 1);
+        vm.expectRevert(AHandCore.NotOpen.selector);
+        core.fund(99, 1);
+        vm.stopPrank();
+    }
+
+    /// Like raise, fund measures both sides: a token that moves any other amount is refused.
+    function test_fund_refusesAnInexactToken() public {
+        SenderFeeToken s = new SenderFeeToken();
+        ReceiverFeeToken r = new ReceiverFeeToken();
+        _fund(address(s), alice);
+        _fund(address(r), alice);
+        uint256 a = _raise(alice, address(s), 0);
+        uint256 b = _raise(alice, address(r), 0);
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.fund(a, REWARD);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.fund(b, REWARD);
+        vm.stopPrank();
+    }
+
+    /// Adding nothing touches no token, so a Hand without a reward may name any address as token.
+    function test_fund_nothingTouchesNoToken() public {
+        vm.prank(alice);
+        uint256 id = core.raise(makeAddr("not a token"), 0, expiry, root, 0, GAS_K, ASK);
+        vm.prank(alice);
+        core.fund(id, 0);
+        assertEq(_hand(id).reward, 0);
+    }
+
+    /// With several things wrong, the error names the first in the order of the checks.
+    function test_fund_firstWrongThingIsNamed() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        vm.warp(expiry);
+        vm.prank(bob);
+        vm.expectRevert(AHandCore.NotRaiser.selector);
+        core.fund(id, 1); // late too
     }
 
     /*//////////////////////////// reclaim ////////////////////////////*/
@@ -2318,6 +2432,21 @@ contract CoreTest is Test {
         assertEq(t.balanceOf(carol), 0);
         assertEq(t.balanceOf(address(core)), REWARD);
         assertEq(core.handsCount(), 1);
+    }
+
+    /// The token cannot add to the Hand again while fund is moving its money.
+    function test_reentry_fundInsideItsOwnTransferReverts() public {
+        HookToken t = new HookToken();
+        _fund(address(t), alice);
+        uint256 id = _raise(alice, address(t), REWARD);
+        t.setReentry(address(core), abi.encodeCall(core.fund, (id, 1)), true, false, true);
+
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.Reentered.selector);
+        core.fund(id, REWARD);
+
+        assertEq(_hand(id).reward, REWARD);
+        assertEq(t.balanceOf(address(core)), REWARD);
     }
 
     /// The lock stops nesting, not sequence: a contract raiser may call Core many times in a row.
