@@ -292,7 +292,7 @@ contract AHandCore is EIP712 {
 
         if (reward == 0) return handId; // a Hand without a reward never touches a token
 
-        _takeExact(token, reward);
+        _transferIn(token, reward);
     }
 
     /// @notice Moves an open Hand's expiry later, to `newExpiry`, at most `MAX_TERM` from now. Only
@@ -327,7 +327,7 @@ contract AHandCore is EIP712 {
 
         if (amount == 0) return; // adding nothing never touches a token
 
-        _takeExact(hand.token, amount);
+        _transferIn(hand.token, amount);
     }
 
     /// @notice Pays the reward along a route: each shaker keeps its margin, the Give's payee gets
@@ -388,7 +388,7 @@ contract AHandCore is EIP712 {
 
         emit Withdrawn(token, payee, amount, to);
 
-        _transferExact(token, to, amount);
+        _transferOut(token, to, amount);
     }
 
     /// @notice Core calls this on itself, so that each transfer runs in a frame of its own
@@ -396,7 +396,7 @@ contract AHandCore is EIP712 {
     function transferOut(address token, address to, uint256 amount) external {
         if (msg.sender != address(this)) revert NotCore();
 
-        _transferExact(token, to, amount);
+        _transferOut(token, to, amount);
     }
 
     /// @dev Checks the route and the Give that ends it, and returns the Give's hash. Both
@@ -555,7 +555,7 @@ contract AHandCore is EIP712 {
 
     /// @dev Takes exactly `amount` of `token` from the caller. Both sides are measured: a token that
     ///      moves any other amount is refused here, not discovered when the money has to leave.
-    function _takeExact(address token, uint256 amount) private {
+    function _transferIn(address token, uint256 amount) private {
         uint256 callerBefore = IERC20(token).balanceOf(msg.sender);
         uint256 coreBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -565,7 +565,7 @@ contract AHandCore is EIP712 {
 
     /// @dev One token balance serves every Hand in that token, so a transfer that takes more
     ///      than its amount would be paid from other Hands' rewards.
-    function _transferExact(address token, address to, uint256 amount) private {
+    function _transferOut(address token, address to, uint256 amount) private {
         uint256 coreBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransfer(to, amount);
         if (IERC20(token).balanceOf(address(this)) + amount != coreBefore) revert InexactTransfer();
