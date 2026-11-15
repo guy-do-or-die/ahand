@@ -359,6 +359,17 @@ contract CoreTest is Test {
         assertEq(core.handsCount(), 0);
     }
 
+    /// With several things wrong, the error names the first in the order of the checks: the time,
+    /// then the arguments in their order. A zero root key comes before a minimum above the reward.
+    function test_raise_firstWrongThingIsNamed() public {
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.ZeroRootKey.selector);
+        core.raise(address(usd), REWARD, expiry, address(0), 10_001, GAS_K, ASK);
+        vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
+        core.raise(address(usd), REWARD, uint40(block.timestamp), address(0), 10_001, GAS_K, ASK);
+        vm.stopPrank();
+    }
+
     function test_raise_acceptsExpiryOneSecondAhead() public {
         vm.prank(alice);
         core.raise(address(usd), REWARD, uint40(block.timestamp + 1), root, 0, GAS_K, ASK);
@@ -580,6 +591,24 @@ contract CoreTest is Test {
         bytes memory giverSig = _signGive(address(core), aliceKey, id, g);
         vm.expectRevert(AHandCore.GiverIsRaiser.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
+    }
+
+    /// With several things wrong, the error names the first in the order of the checks: who calls,
+    /// then the time, then the Give's fields in their order. A Give signed by the raiser with no
+    /// payee is refused for its signer; after expiry the same call is late; by anyone else, a stranger's.
+    function test_thank_firstWrongThingIsNamed() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        Give memory g = Give(alice, address(0), 10_000, bytes32(0), ANSWER);
+        bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
+        bytes memory giverSig = _signGive(address(core), aliceKey, id, g);
+        vm.expectRevert(AHandCore.GiverIsRaiser.selector);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+
+        vm.warp(expiry);
+        vm.expectRevert(AHandCore.Expired.selector);
+        _submit(alice, id, _none(), g, keySig, giverSig);
+        vm.expectRevert(AHandCore.NotRaiser.selector);
+        _submit(bob, id, _none(), g, keySig, giverSig);
     }
 
     function test_thank_zeroReward() public {

@@ -145,15 +145,15 @@ contract AHandCore is EIP712 {
 
     // raise
     error ExpiryNotInFuture();
-    error MinGiverClaimTooHigh();
     error ZeroRootKey();
+    error MinGiverClaimTooHigh();
     // thank and reclaim
     error NotOpen();
     // thank
     error NotRaiser();
+    error Expired();
     error GiverIsRaiser();
     error ZeroPayee();
-    error Expired();
     error InvalidClaim(uint256 position);
     error AnonymousMargin(uint256 position);
     error InvalidKeySig(uint256 position);
@@ -209,8 +209,8 @@ contract AHandCore is EIP712 {
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
-        if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
         if (rootKey == address(0)) revert ZeroRootKey();
+        if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
 
         // Field by field: a new number is a fresh, empty Hand, so the outcome fields need no
         // zero written; thank or reclaim fills them.
@@ -255,9 +255,9 @@ contract AHandCore is EIP712 {
         Give calldata give = signedGive.give;
 
         if (msg.sender != hand.raiser) revert NotRaiser();
+        if (block.timestamp >= hand.expiry) revert Expired();
         if (msg.sender == give.signer) revert GiverIsRaiser();
         if (give.payee == address(0)) revert ZeroPayee();
-        if (block.timestamp >= hand.expiry) revert Expired();
 
         bytes32 giveHash = _checkGive(handId, hand, shakes, signedGive);
 
