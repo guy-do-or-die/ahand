@@ -154,9 +154,10 @@ contract AHandCore is EIP712 {
     error Expired();
     error InvalidClaim(uint256 position);
     error AnonymousMargin(uint256 position);
-    error InvalidShake(uint256 position);
+    error InvalidKeySig(uint256 position);
     error BelowMinGiverClaim();
-    error InvalidGive();
+    error InvalidRouteHash();
+    error InvalidGiverSig();
     // reclaim
     error NotExpired();
     // withdraw
@@ -320,7 +321,7 @@ contract AHandCore is EIP712 {
         giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);
 
-        if (ECDSA.recoverCalldata(digest, signedGive.keySig) != lastKey) revert InvalidGive();
+        if (ECDSA.recoverCalldata(digest, signedGive.keySig) != lastKey) revert InvalidKeySig(shakes.length);
 
         // The signer's own key counts while the protocol still lets it act for the address: with
         // no code there, or with an EIP-7702 delegation (0xef0100 and an address, 23 bytes), which
@@ -336,7 +337,7 @@ contract AHandCore is EIP712 {
         }
 
         if (!signed && !SignatureChecker.isValidERC1271SignatureNowCalldata(signer, digest, signedGive.giverSig)) {
-            revert InvalidGive();
+            revert InvalidGiverSig();
         }
     }
 
@@ -363,7 +364,7 @@ contract AHandCore is EIP712 {
 
             bytes32 shakeHash = _hashShake(handHash, shake);
 
-            if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), signedShake.keySig) != key) revert InvalidShake(i);
+            if (ECDSA.recoverCalldata(_hashTypedDataV4(shakeHash), signedShake.keySig) != key) revert InvalidKeySig(i);
 
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
 
@@ -376,7 +377,7 @@ contract AHandCore is EIP712 {
 
         if (give.claimBps != claim) revert InvalidClaim(shakes.length);
         if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
-        if (give.routeHash != routeHash) revert InvalidGive();
+        if (give.routeHash != routeHash) revert InvalidRouteHash();
     }
 
     function _hashHand(uint256 handId, Hand storage hand) private view returns (bytes32) {

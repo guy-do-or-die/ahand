@@ -593,7 +593,7 @@ contract CoreTest is Test {
         Give memory g = _give(address(core));
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -633,7 +633,7 @@ contract CoreTest is Test {
         Give memory g = _give(carol);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), bobKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -643,7 +643,7 @@ contract CoreTest is Test {
         Give memory g = _give(carol);
         bytes memory keySig = _signGive(address(core), bobKey, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -651,7 +651,7 @@ contract CoreTest is Test {
         uint256 first = _raise(alice, address(usd), REWARD);
         uint256 second = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(first, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, second, _none(), g, keySig, giverSig);
     }
 
@@ -659,7 +659,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         g.dataHash = keccak256("another answer");
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -668,7 +668,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         g.payee = alice;
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -700,7 +700,7 @@ contract CoreTest is Test {
         Give memory g = Give(carol, carol, 10_000, keccak256("another route"), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidRouteHash.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -710,7 +710,7 @@ contract CoreTest is Test {
         address other = makeAddr("another core");
         bytes memory keySig = _signGive(other, ROOT_PK, id, g);
         bytes memory giverSig = _signGive(other, carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -719,7 +719,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
         vm.chainId(block.chainid + 1);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -733,7 +733,7 @@ contract CoreTest is Test {
         vm.expectRevert();
         _submit(alice, id, _none(), g, keySig, "");
         bytes memory carolSig = _signGive(address(core), carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, carolSig);
         assertEq(usd.balanceOf(address(core)), REWARD);
     }
@@ -782,7 +782,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         address wallet = address(new Wallet(carol));
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, bobKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
         _assertOpen(id);
         _thank(alice, id, carolKey);
@@ -796,7 +796,7 @@ contract CoreTest is Test {
         address wallet = address(new BurningWallet());
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
         SignedShake[] memory none;
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         vm.prank(alice);
         core.thank{gas: 1_000_000}(id, none, SignedGive(g, keySig, giverSig));
         _assertOpen(id);
@@ -825,7 +825,7 @@ contract CoreTest is Test {
         address second = address(new Wallet(carol));
         (,, bytes memory firstSig) = _directGive(id, first, first, carolKey);
         (Give memory g, bytes memory keySig,) = _directGive(id, second, second, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, firstSig);
     }
 
@@ -835,7 +835,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         address wallet = makeAddr("wallet not deployed yet");
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, wallet, wallet, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -871,7 +871,7 @@ contract CoreTest is Test {
         vm.etch(carol, address(new Wallet(newKey)).code);
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory carolSig) = _direct(id, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, carolSig);
 
         (,, bytes memory newKeySig) = _directGive(id, carol, carol, newKeyPk);
@@ -883,7 +883,7 @@ contract CoreTest is Test {
     function test_signer_onlyTheEip7702MarkKeepsTheKey() public {
         vm.etch(carol, new bytes(23)); // code that stops at once and answers nothing
         uint256 id = _raise(alice, address(usd), REWARD);
-        _thankReverts(alice, id, carolKey, AHandCore.InvalidGive.selector);
+        _thankReverts(alice, id, carolKey, AHandCore.InvalidGiverSig.selector);
     }
 
     /// Only an address's own key or its own code signs for it: a random key or random bytes never
@@ -907,10 +907,10 @@ contract CoreTest is Test {
     function _assertNobodyElseSigns(uint256 id, address signer, uint256 key, bytes memory junk) internal {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _directGive(id, signer, signer, key);
         SignedShake[] memory none;
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         vm.prank(alice);
         core.thank{gas: 2_000_000}(id, none, SignedGive(g, keySig, giverSig));
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         vm.prank(alice);
         core.thank{gas: 2_000_000}(id, none, SignedGive(g, keySig, junk));
     }
@@ -940,7 +940,7 @@ contract CoreTest is Test {
             _collectThenReorg();
         vm.prank(mallory);
         assertEq(core.raise(address(usd), 1, expiry, root, 0, GAS_K, ASK), id);
-        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(mallory, id, shakes, g, keySig, giverSig);
     }
 
@@ -954,7 +954,7 @@ contract CoreTest is Test {
         vm.prank(mallory);
         assertEq(core.raise(address(usd), 1, expiry, mallory, 0, GAS_K, keccak256("another question")), id);
         shakes[0].keySig = _signShake(malloryKey, id, shakes[0].shake);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidRouteHash.selector);
         _submit(mallory, id, shakes, g, keySig, giverSig);
     }
 
@@ -979,9 +979,9 @@ contract CoreTest is Test {
             );
             if (k == 1) {
                 shakes[0].keySig = _signShake(0xA1A1, id, shakes[0].shake);
-                vm.expectRevert(AHandCore.InvalidGive.selector);
+                vm.expectRevert(AHandCore.InvalidRouteHash.selector);
             } else {
-                vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+                vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
             }
             _submit(alice, id, shakes, g, keySig, giverSig);
         }
@@ -1094,7 +1094,7 @@ contract CoreTest is Test {
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         shakes[0].keySig = _signShake(bobKey, id, shakes[0].shake);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
-        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, shakes, g, keySig, giverSig);
     }
 
@@ -1106,12 +1106,12 @@ contract CoreTest is Test {
         uint256 id = core.raise(address(usd), REWARD, expiry, wallet, 0, GAS_K, ASK);
 
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
 
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (g, keySig, giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
-        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, shakes, g, keySig, giverSig);
     }
 
@@ -1121,7 +1121,7 @@ contract CoreTest is Test {
         uint256 second = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(first, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(second, shakes, NEXT_PK, carolKey);
-        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, second, shakes, g, keySig, giverSig);
     }
 
@@ -1170,7 +1170,7 @@ contract CoreTest is Test {
         shakes[1].shake = Shake(vm.addr(lastPk), second, 9_000, 8_500, SHAKE_DATA);
         shakes[1].keySig = _signShake(ROOT_PK, id, shakes[1].shake); // the root no longer holds the Hand
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, lastPk, carolKey);
-        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidShake.selector, 1));
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 1));
         _submit(alice, id, shakes, g, keySig, giverSig);
 
         shakes[1].keySig = _signShake(NEXT_PK, id, shakes[1].shake);
@@ -1227,7 +1227,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, ROOT_PK, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 1));
         _submit(alice, id, shakes, g, keySig, giverSig);
     }
 
@@ -1236,7 +1236,7 @@ contract CoreTest is Test {
     function test_route_giverCannotDropTheShake() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, _none(), NEXT_PK, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 
@@ -1247,7 +1247,7 @@ contract CoreTest is Test {
         Give memory g = Give(carol, carol, 9_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), NEXT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), carolKey, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidRouteHash.selector);
         _submit(alice, id, shakes, g, keySig, giverSig);
     }
 
@@ -1282,7 +1282,7 @@ contract CoreTest is Test {
         vm.prank(alice);
         uint256 id = core.raise(address(usd), REWARD, expiry, nobodys, 0, GAS_K, ASK);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
         _submit(alice, id, _none(), g, keySig, giverSig);
         vm.warp(expiry);
         core.reclaim(id);
@@ -2197,7 +2197,7 @@ contract CoreTest is Test {
         Give memory g = Give(claimed, carol, 10_000, bytes32(0), ANSWER);
         bytes memory keySig = _signGive(address(core), ROOT_PK, id, g);
         bytes memory giverSig = _signGive(address(core), key, id, g);
-        vm.expectRevert(AHandCore.InvalidGive.selector);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
         _submit(alice, id, _none(), g, keySig, giverSig);
     }
 }
