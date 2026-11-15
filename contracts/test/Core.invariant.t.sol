@@ -6,6 +6,7 @@ import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Helpers.sol";
+import {EventIndexer} from "./EventIndexer.sol";
 
 /// Random raises, thanks (direct or through one Shake with a random margin), reclaims, blocks,
 /// withdrawals and time jumps by three actors over two tokens; the second token can block any
@@ -23,14 +24,23 @@ contract Handler is Test {
     mapping(address => uint256) public paidIn; // token => every reward ever raised
     uint256 public closed; // Hands this handler closed
     uint256[] internal openIds; // Hands raised and not yet closed
+    EventIndexer public indexer; // reads every action's logs, knowing nothing else of Core
 
     constructor(AHandCore core_, MockUSD a, MockUSD b) {
         core = core_;
         tokens = [a, b];
         actors = [vm.addr(keys[0]), vm.addr(keys[1]), vm.addr(keys[2])];
+        indexer = new EventIndexer(address(core_));
     }
 
-    function raise(uint256 who, uint256 which, uint256 reward, uint256 ahead) external {
+    /// Each action is one transaction: its logs go to the indexer with the time of its block.
+    modifier logged() {
+        vm.recordLogs();
+        _;
+        indexer.ingest(vm.getRecordedLogs(), block.timestamp);
+    }
+
+    function raise(uint256 who, uint256 which, uint256 reward, uint256 ahead) external logged {
         address actor = actors[who % 3];
         MockUSD token = tokens[which % 2];
         reward = bound(reward, 0, 1e30);
@@ -53,7 +63,7 @@ contract Handler is Test {
     }
 
     /// Any open Hand: time first moves to its expiry, so the call is never wasted.
-    function reclaim(uint256 seed) external {
+    function reclaim(uint256 seed) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
         HandView memory h = handOf(core, id);
@@ -63,7 +73,7 @@ contract Handler is Test {
     }
 
     /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
-    function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external {
+    function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
         HandView memory h = handOf(core, id);
@@ -115,7 +125,7 @@ contract Handler is Test {
     }
 
     /// The first (token, payee) pair with something pending, from a random start.
-    function withdraw_(uint256 who, uint256 dest, uint256 by) external {
+    function withdraw_(uint256 who, uint256 dest, uint256 by) external logged {
         for (uint256 k; k < 6; ++k) {
             uint256 j = (who % 6 + k) % 6;
             MockUSD token = tokens[j % 2];
@@ -131,7 +141,7 @@ contract Handler is Test {
     }
 
     /// Closes every open Hand and delivers everything pending: afterwards Core holds nothing.
-    function drain() external {
+    function drain() external logged {
         uint256 latest = block.timestamp;
         for (uint256 i; i < openIds.length; ++i) {
             uint40 expiry = handOf(core, openIds[i]).expiry;
@@ -193,6 +203,7 @@ contract CoreInvariantTest is Test {
     /// pending could really be withdrawn.
     function afterInvariant() public {
         handler.drain();
+        invariant_stateRebuildsFromEvents();
         assertEq(a.balanceOf(address(core)), 0);
         assertEq(b.balanceOf(address(core)), 0);
         assertEq(handler.paidIn(address(a)), handler.held(address(a)));
@@ -210,6 +221,37 @@ contract CoreInvariantTest is Test {
     function invariant_moneyIsConserved() public view {
         assertEq(handler.paidIn(address(a)), a.balanceOf(address(core)) + handler.held(address(a)));
         assertEq(handler.paidIn(address(b)), b.balanceOf(address(core)) + handler.held(address(b)));
+    }
+
+    /// Everything Core keeps can be rebuilt from its events and the times of their blocks: every
+    /// Hand field by field (`giveHash` from the Give, under the Hand's own terms), everything
+    /// pending, what each actor holds, and Core's balance of each token.
+    function invariant_stateRebuildsFromEvents() public view {
+        EventIndexer indexer = handler.indexer();
+        assertEq(indexer.handsCount(), core.handsCount());
+        for (uint256 id = 1; id <= core.handsCount(); ++id) {
+            assertEq(abi.encode(indexer.hand(id)), abi.encode(handOf(core, id)));
+        }
+        _moneyFromEvents(indexer, a);
+        _moneyFromEvents(indexer, b);
+    }
+
+    /// For one token: what waits and what each actor holds, then Core's balance as the open
+    /// rewards plus everything pending — all of it read from the events.
+    function _moneyFromEvents(EventIndexer indexer, MockUSD token) internal view {
+        uint256 total;
+        for (uint256 i; i < 3; ++i) {
+            address actor = handler.actors(i);
+            uint256 waits = indexer.pending(address(token), actor);
+            assertEq(waits, core.pending(address(token), actor));
+            assertEq(indexer.received(address(token), actor), token.balanceOf(actor));
+            total += waits;
+        }
+        for (uint256 id = 1; id <= indexer.handsCount(); ++id) {
+            HandView memory h = indexer.hand(id);
+            if (h.token == address(token) && h.thankedAt == 0 && h.reclaimedAt == 0) total += h.reward;
+        }
+        assertEq(total, token.balanceOf(address(core)));
     }
 
     /// Every raised Hand has its raise time; no Hand is both thanked and reclaimed.
