@@ -52,8 +52,10 @@ struct SignedGive {
 ///         Before that moment the raiser can pay the reward along a route to a giver who signed
 ///         a Give at its end: every shaker gets its margin, the giver the rest. From that moment
 ///         anyone can send the reward back to the raiser. Nothing else can move it.
-///         Every payout is tried on its own: one that fails stays pending for its payee
-///         and can be withdrawn later, so no single payee can block the others.
+///         Every payout is tried on its own and may use up to the Hand's payout gas: one that
+///         fails undoes only itself and stays pending for its payee, who can withdraw it later.
+///         A token that calls its payees lets a payee spend all of that gas each time it is
+///         paid, so a route that pays it often enough needs more gas than a transaction may use.
 contract AHandCore is EIP712 {
     using SafeERC20 for IERC20;
 
@@ -66,7 +68,7 @@ contract AHandCore is EIP712 {
         uint40 expiry;
         uint16 minGiverClaimBps;
         // slot 1: the token and the gas each payout may use, in thousands, set by raise;
-        // then the outcome — exactly one of the two times is ever set
+        // then the outcome — at most one of the two times is ever set
         address token;
         uint16 payoutGasK;
         uint40 thankedAt;
@@ -191,8 +193,10 @@ contract AHandCore is EIP712 {
 
     /// @notice Locks `reward` in `token` from the caller until `expiry`. The Hand's link
     ///         starts at `rootKey`; whatever route it takes, the giver keeps at least
-    ///         `minGiverClaimBps` of the reward. Each payout may use `payoutGasK` thousand gas.
-    ///         `dataHash` is a commitment Core never reads: the application owns the data.
+    ///         `minGiverClaimBps` of the reward. Each payout may use `payoutGasK` thousand gas;
+    ///         with too little, zero for example, every payout stays pending until withdrawn.
+    ///         `dataHash` is a commitment every signature for the Hand covers and Core never
+    ///         interprets: the application owns the data.
     ///         A minimum above the whole reward or a zero root key would leave a Hand nobody can
     ///         ever thank, its money locked until expiry: both are refused here.
     function raise(
@@ -237,8 +241,9 @@ contract AHandCore is EIP712 {
 
     /// @notice Pays the reward along a route: each shaker keeps its margin, the Give's payee gets
     ///         the rest. Each Shake is signed by the key before it, starting at the root key;
-    ///         the Give by the last key and by its signer, who is never the raiser. Only the
-    ///         raiser, only before expiry. Core never reads the data hashes.
+    ///         the Give by the last key and by its signer, whose address is not the raiser's.
+    ///         Only the raiser, only before expiry. The signatures cover the data hashes; Core
+    ///         never interprets them.
     ///         A Give without a payee is refused: sent to the zero address, the giver's payout
     ///         would be burned or stay pending where nobody can ever withdraw it.
     function thank(uint256 handId, SignedShake[] calldata shakes, SignedGive calldata signedGive)
@@ -279,9 +284,8 @@ contract AHandCore is EIP712 {
     }
 
     /// @notice Sends what is pending for `payee` in `token` to `to`. Anyone may send it to
-    ///         the payee; only the payee may send it elsewhere, for example away from an
-    ///         address the token has blocked. Never to the zero address, where a token that
-    ///         accepts the transfer would burn the amount.
+    ///         the payee; only the payee may send it elsewhere. Never to the zero address, where
+    ///         a token that accepts the transfer would burn the amount.
     function withdraw(address token, address payee, address to) external nonReentrant {
         if (to != payee && msg.sender != payee) revert NotPayee();
         if (to == address(0)) revert ZeroDestination();
