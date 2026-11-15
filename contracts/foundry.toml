@@ -14,3 +14,6 @@ runs = 1024
 runs = 64
 depth = 128
 fail_on_revert = true
+
+[fmt]
+multiline_func_header = "params_first_multi" # a header that does not fit one line: each parameter on its own line, then `) attributes {`, as OpenZeppelin writes

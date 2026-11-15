@@ -37,11 +37,11 @@ contract FactsReader {
         core = core_;
     }
 
-    function proveThank(uint256 handId, Shake[] calldata shakes, Give calldata give)
-        external
-        view
-        returns (address raiser, address giver, Share[] memory shares)
-    {
+    function proveThank(
+        uint256 handId,
+        Shake[] calldata shakes,
+        Give calldata give
+    ) external view returns (address raiser, address giver, Share[] memory shares) {
         HandView memory h = handOf(core, handId);
         if (h.thankedAt == 0) revert NotThanked();
         bytes32 handHash = keccak256(

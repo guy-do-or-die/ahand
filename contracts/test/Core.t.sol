@@ -193,22 +193,22 @@ contract CoreTest is Test {
     }
 
     /// The direct route for the signer with `signerKey`, signed by the root key and by the signer.
-    function _direct(uint256 id, uint256 signerKey)
-        internal
-        view
-        returns (Give memory g, bytes memory keySig, bytes memory giverSig)
-    {
+    function _direct(
+        uint256 id,
+        uint256 signerKey
+    ) internal view returns (Give memory g, bytes memory keySig, bytes memory giverSig) {
         address signer = vm.addr(signerKey);
         return _directGive(id, signer, signer, signerKey);
     }
 
     /// The direct route for `signer`, paying `payee`: signed by the root key and with `signKey`,
     /// the signer's own key or a key its code accepts.
-    function _directGive(uint256 id, address signer, address payee, uint256 signKey)
-        internal
-        view
-        returns (Give memory g, bytes memory keySig, bytes memory giverSig)
-    {
+    function _directGive(
+        uint256 id,
+        address signer,
+        address payee,
+        uint256 signKey
+    ) internal view returns (Give memory g, bytes memory keySig, bytes memory giverSig) {
         g = Give(signer, payee, 10_000, bytes32(0), ANSWER);
         keySig = _signGive(address(core), ROOT_PK, id, g);
         giverSig = _signGive(address(core), signKey, id, g);
@@ -1002,11 +1002,11 @@ contract CoreTest is Test {
     /*//////////////////////////// route ////////////////////////////*/
 
     /// One Shake: the root key passes the Hand to NEXT_PK, keeping `10 000 - nextClaimBps` for `payee`.
-    function _oneShake(uint256 id, address payee, uint16 nextClaimBps)
-        internal
-        view
-        returns (SignedShake[] memory shakes)
-    {
+    function _oneShake(
+        uint256 id,
+        address payee,
+        uint16 nextClaimBps
+    ) internal view returns (SignedShake[] memory shakes) {
         shakes = new SignedShake[](1);
         shakes[0].shake = Shake(vm.addr(NEXT_PK), payee, 10_000, nextClaimBps, SHAKE_DATA);
         shakes[0].keySig = _signShake(ROOT_PK, id, shakes[0].shake);
@@ -1019,11 +1019,12 @@ contract CoreTest is Test {
     }
 
     /// The Give at the end of `shakes` for the signer with `signerKey`, signed by `lastKey` and by the signer.
-    function _giveAt(uint256 id, SignedShake[] memory shakes, uint256 lastKey, uint256 signerKey)
-        internal
-        view
-        returns (Give memory g, bytes memory keySig, bytes memory giverSig)
-    {
+    function _giveAt(
+        uint256 id,
+        SignedShake[] memory shakes,
+        uint256 lastKey,
+        uint256 signerKey
+    ) internal view returns (Give memory g, bytes memory keySig, bytes memory giverSig) {
         uint16 claim = shakes.length == 0 ? 10_000 : shakes[shakes.length - 1].shake.nextClaimBps;
         address signer = vm.addr(signerKey);
         g = Give(signer, signer, claim, _routeHash(id, shakes), ANSWER);
@@ -1504,7 +1505,10 @@ contract CoreTest is Test {
 
     /// A Hand with `reward` (none: no token at all) and a signed route of `n` Shakes that keep
     /// nothing, ending in carol's Give.
-    function _emptyRoute(uint256 n, uint256 reward)
+    function _emptyRoute(
+        uint256 n,
+        uint256 reward
+    )
         internal
         returns (uint256 id, SignedShake[] memory shakes, Give memory g, bytes memory keySig, bytes memory giverSig)
     {

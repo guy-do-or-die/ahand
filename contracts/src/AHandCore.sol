@@ -246,11 +246,11 @@ contract AHandCore is EIP712 {
     ///         never interprets them.
     ///         A Give without a payee is refused: sent to the zero address, the giver's payout
     ///         would be burned or stay pending where nobody can ever withdraw it.
-    function thank(uint256 handId, SignedShake[] calldata shakes, SignedGive calldata signedGive)
-        external
-        nonReentrant
-        whenOpen(handId)
-    {
+    function thank(
+        uint256 handId,
+        SignedShake[] calldata shakes,
+        SignedGive calldata signedGive
+    ) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
         Give calldata give = signedGive.give;
 
@@ -348,11 +348,12 @@ contract AHandCore is EIP712 {
     ///      continue the claim it received, keep nothing without a payee, and be signed by
     ///      the key it comes from; the Give must name this route and the claim left at its
     ///      end, which is no less than the raiser's minimum for the giver.
-    function _checkRoute(bytes32 handHash, Hand storage hand, SignedShake[] calldata shakes, Give calldata give)
-        private
-        view
-        returns (address key)
-    {
+    function _checkRoute(
+        bytes32 handHash,
+        Hand storage hand,
+        SignedShake[] calldata shakes,
+        Give calldata give
+    ) private view returns (address key) {
         key = hand.rootKey;
         uint16 claim = BPS;
         bytes32 routeHash = bytes32(0); // a route without Shakes hashes to zero
@@ -416,10 +417,11 @@ contract AHandCore is EIP712 {
 
     /// @dev Pays every shaker its margin of the reward and returns what is left for the giver.
     ///      A margin that rounds down to zero leaves its dust to the giver.
-    function _payShakers(uint256 handId, Hand storage hand, SignedShake[] calldata shakes)
-        private
-        returns (uint256 rest)
-    {
+    function _payShakers(
+        uint256 handId,
+        Hand storage hand,
+        SignedShake[] calldata shakes
+    ) private returns (uint256 rest) {
         uint256 reward = hand.reward;
         rest = reward;
 

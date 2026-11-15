@@ -32,9 +32,13 @@ contract HookToken is MockUSD {
     }
 
     /// @dev Configure the re-entry probe; `target == 0` disables it.
-    function setReentry(address target, bytes calldata data, bool onTransferFrom, bool onTransfer, bool mustSucceed)
-        external
-    {
+    function setReentry(
+        address target,
+        bytes calldata data,
+        bool onTransferFrom,
+        bool onTransfer,
+        bool mustSucceed
+    ) external {
         reentryTarget = target;
         reentryData = data;
         reentryOnTransferFrom = onTransferFrom;
