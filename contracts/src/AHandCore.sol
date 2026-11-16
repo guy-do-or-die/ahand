@@ -182,9 +182,11 @@ contract AHandCore is EIP712 {
     error ZeroRootKey();
     /// @notice The giver's minimum is above the whole reward.
     error MinGiverClaimTooHigh();
+
     // extend, fund, thank and reclaim
     /// @notice The Hand was never raised, or is thanked or reclaimed already.
     error NotOpen();
+
     // extend, fund and thank
     /// @notice Only the Hand's raiser may extend, fund or thank it.
     error NotRaiser();
@@ -212,9 +214,11 @@ contract AHandCore is EIP712 {
     error InvalidRouteHash();
     /// @notice The Give's signer did not sign it: not its key, where that key still counts, nor its code (ERC-1271).
     error InvalidGiverSig();
+
     // reclaim
     /// @notice The Hand's expiry has not come yet.
     error NotExpired();
+
     // withdraw
     /// @notice Only the payee may send what waits for it anywhere but to itself.
     error NotPayee();
@@ -222,11 +226,13 @@ contract AHandCore is EIP712 {
     error ZeroDestination();
     /// @notice Nothing waits for this payee in this token.
     error NothingPending();
+
     // token transfers
     /// @notice The token moved another amount than asked.
     error InexactTransfer();
     /// @notice Only Core may call `transferOut`.
     error NotCore();
+
     // raise, extend, fund, thank, reclaim and withdraw
     /// @notice Called again while one of them runs.
     error Reentered();
@@ -451,6 +457,7 @@ contract AHandCore is EIP712 {
 
         for (uint256 i; i < signedShakes.length; ++i) {
             Memory.Pointer freeMemory = Memory.getFreeMemoryPointer();
+
             SignedShake calldata signedShake = signedShakes[i];
             Shake calldata shake = signedShake.shake;
 
@@ -558,7 +565,9 @@ contract AHandCore is EIP712 {
     function _transferIn(address token, uint256 amount) private {
         uint256 callerBefore = IERC20(token).balanceOf(msg.sender);
         uint256 coreBefore = IERC20(token).balanceOf(address(this));
+
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+
         if (IERC20(token).balanceOf(msg.sender) + amount != callerBefore) revert InexactTransfer();
         if (IERC20(token).balanceOf(address(this)) != coreBefore + amount) revert InexactTransfer();
     }
@@ -567,7 +576,9 @@ contract AHandCore is EIP712 {
     ///      than its amount would be paid from other Hands' rewards.
     function _transferOut(address token, address to, uint256 amount) private {
         uint256 coreBefore = IERC20(token).balanceOf(address(this));
+
         IERC20(token).safeTransfer(to, amount);
+
         if (IERC20(token).balanceOf(address(this)) + amount != coreBefore) revert InexactTransfer();
     }
 }
