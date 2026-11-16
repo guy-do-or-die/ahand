@@ -504,13 +504,18 @@ contract AHandCore is EIP712 {
         );
     }
 
-    function _hashShake(bytes32 handHash, Shake calldata s) private pure returns (bytes32) {
-        return
-            keccak256(abi.encode(SHAKE_TYPEHASH, handHash, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash));
+    function _hashShake(bytes32 handHash, Shake calldata shake) private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                SHAKE_TYPEHASH, handHash, shake.nextKey, shake.payee, shake.claimBps, shake.nextClaimBps, shake.dataHash
+            )
+        );
     }
 
-    function _hashGive(bytes32 handHash, Give calldata g) private pure returns (bytes32) {
-        return keccak256(abi.encode(GIVE_TYPEHASH, handHash, g.signer, g.payee, g.claimBps, g.routeHash, g.dataHash));
+    function _hashGive(bytes32 handHash, Give calldata give) private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(GIVE_TYPEHASH, handHash, give.signer, give.payee, give.claimBps, give.routeHash, give.dataHash)
+        );
     }
 
     /// @dev Pays every shaker its margin of the reward and returns what is left for the giver.
