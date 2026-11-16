@@ -2434,6 +2434,26 @@ contract CoreTest is Test {
         assertEq(core.handsCount(), 1);
     }
 
+    /// Nothing changes a Hand from inside a payout, not even its expiry: the token is the raiser of
+    /// another Hand here and tries to extend it while Core pays the giver.
+    function test_reentry_extendInsideAPayoutIsRefused() public {
+        HookToken t = new HookToken();
+        _fund(address(t), alice);
+        t.mint(address(t), REWARD);
+        vm.prank(address(t));
+        t.approve(address(core), REWARD);
+        uint256 own = _raise(address(t), address(t), REWARD);
+        uint256 id = _raise(alice, address(t), REWARD);
+        t.setReentry(address(core), abi.encodeCall(core.extend, (own, expiry + 1)), false, true, false);
+
+        _thank(alice, id, carolKey);
+
+        assertFalse(t.lastReentryOk());
+        assertEq(bytes4(t.lastReentryReturn()), AHandCore.Reentered.selector);
+        assertEq(_hand(own).expiry, expiry);
+        assertEq(t.balanceOf(carol), REWARD);
+    }
+
     /// The token cannot add to the Hand again while fund is moving its money.
     function test_reentry_fundInsideItsOwnTransferReverts() public {
         HookToken t = new HookToken();

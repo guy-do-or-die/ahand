@@ -113,8 +113,8 @@ contract AHandCore is EIP712 {
     /// @notice What waits for each payee per token, after a payout that could not be made.
     mapping(address token => mapping(address payee => uint256)) public pending;
 
-    /// @dev Set while raise, thank, reclaim or withdraw runs; see `nonReentrant`. Transient
-    ///      storage: it lasts only until the transaction ends and is never saved in state.
+    /// @dev Set while raise, extend, fund, thank, reclaim or withdraw runs; see `nonReentrant`.
+    ///      Transient storage: it lasts only until the transaction ends and is never saved in state.
     bool private transient locked;
 
     /// @notice A Hand is raised: `reward` in `token` is locked until `expiry`. `Funded` may add to the
@@ -227,12 +227,12 @@ contract AHandCore is EIP712 {
     error InexactTransfer();
     /// @notice Only Core may call `transferOut`.
     error NotCore();
-    // raise, thank, reclaim and withdraw
+    // raise, extend, fund, thank, reclaim and withdraw
     /// @notice Called again while one of them runs.
     error Reentered();
 
-    /// @dev Raise, thank, reclaim and withdraw cannot be entered while one of them runs:
-    ///      code that a token or a payee runs during a transfer cannot call back into them.
+    /// @dev Raise, extend, fund, thank, reclaim and withdraw cannot be entered while one of them
+    ///      runs: code that a token or a payee runs during a transfer cannot call back into them.
     ///      Calls one after another are not affected.
     modifier nonReentrant() {
         if (locked) revert Reentered();
@@ -298,7 +298,7 @@ contract AHandCore is EIP712 {
     /// @notice Moves an open Hand's expiry later, to `newExpiry`, at most `MAX_TERM` from now. Only
     ///         the raiser, only before expiry. Nothing else of the Hand changes, and no signature
     ///         names the expiry, so every route collected so far stays valid.
-    function extend(uint256 handId, uint40 newExpiry) external whenOpen(handId) {
+    function extend(uint256 handId, uint40 newExpiry) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
 
         if (msg.sender != hand.raiser) revert NotRaiser();
