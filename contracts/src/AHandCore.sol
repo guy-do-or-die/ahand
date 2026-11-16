@@ -339,7 +339,7 @@ contract AHandCore is EIP712 {
     ///         would be burned or stay pending where nobody can ever withdraw it.
     function thank(
         uint256 handId,
-        SignedShake[] calldata shakes,
+        SignedShake[] calldata signedShakes,
         SignedGive calldata signedGive
     ) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
@@ -350,14 +350,14 @@ contract AHandCore is EIP712 {
         if (msg.sender == give.signer) revert GiverIsRaiser();
         if (give.payee == address(0)) revert ZeroPayee();
 
-        bytes32 giveHash = _checkGive(handId, hand, shakes, signedGive);
+        bytes32 giveHash = _checkGive(handId, hand, signedShakes, signedGive);
 
         hand.thankedAt = uint40(block.timestamp);
         hand.giveHash = giveHash;
 
         emit Thanked(handId, hand.token, hand.reward);
 
-        uint256 rest = _payShakers(handId, hand, shakes);
+        uint256 rest = _payShakers(handId, hand, signedShakes);
 
         _payGiver(handId, hand, give, rest);
     }
@@ -406,17 +406,17 @@ contract AHandCore is EIP712 {
     function _checkGive(
         uint256 handId,
         Hand storage hand,
-        SignedShake[] calldata shakes,
+        SignedShake[] calldata signedShakes,
         SignedGive calldata signedGive
     ) private view returns (bytes32 giveHash) {
         Give calldata give = signedGive.give;
         bytes32 handHash = _hashHand(handId, hand);
-        address lastKey = _checkRoute(handHash, hand, shakes, give);
+        address lastKey = _checkRoute(handHash, hand, signedShakes, give);
 
         giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);
 
-        if (!_signedBy(lastKey, digest, signedGive.keySig)) revert InvalidKeySig(shakes.length);
+        if (!_signedBy(lastKey, digest, signedGive.keySig)) revert InvalidKeySig(signedShakes.length);
 
         // The signer's own key counts while the protocol still lets it act for the address: with
         // no code there, or with an EIP-7702 delegation (0xef0100 and an address, 23 bytes), which
@@ -442,16 +442,16 @@ contract AHandCore is EIP712 {
     function _checkRoute(
         bytes32 handHash,
         Hand storage hand,
-        SignedShake[] calldata shakes,
+        SignedShake[] calldata signedShakes,
         Give calldata give
     ) private view returns (address key) {
         key = hand.rootKey;
         uint16 claim = BPS;
         bytes32 routeHash = bytes32(0); // a route without Shakes hashes to zero
 
-        for (uint256 i; i < shakes.length; ++i) {
+        for (uint256 i; i < signedShakes.length; ++i) {
             Memory.Pointer freeMemory = Memory.getFreeMemoryPointer();
-            SignedShake calldata signedShake = shakes[i];
+            SignedShake calldata signedShake = signedShakes[i];
             Shake calldata shake = signedShake.shake;
 
             if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(i);
@@ -470,7 +470,7 @@ contract AHandCore is EIP712 {
             Memory.unsafeSetFreeMemoryPointer(freeMemory);
         }
 
-        if (give.claimBps != claim) revert InvalidClaim(shakes.length);
+        if (give.claimBps != claim) revert InvalidClaim(signedShakes.length);
         if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
         if (give.routeHash != routeHash) revert InvalidRouteHash();
     }
@@ -511,13 +511,13 @@ contract AHandCore is EIP712 {
     function _payShakers(
         uint256 handId,
         Hand storage hand,
-        SignedShake[] calldata shakes
+        SignedShake[] calldata signedShakes
     ) private returns (uint256 rest) {
         uint256 reward = hand.reward;
         rest = reward;
 
-        for (uint256 i; i < shakes.length; ++i) {
-            Shake calldata shake = shakes[i].shake;
+        for (uint256 i; i < signedShakes.length; ++i) {
+            Shake calldata shake = signedShakes[i].shake;
 
             uint256 margin = Math.mulDiv(reward, shake.claimBps - shake.nextClaimBps, BPS);
             rest -= margin;
