@@ -1854,6 +1854,252 @@ contract CoreTest is Test {
         _assertReclaimedNow(id);
     }
 
+    /*//////////////////////////// check ////////////////////////////*/
+
+    /// The Give `g` after a route, signed by `lastKey` and by the signer with `signerKey`.
+    function _signedGiveBy(
+        uint256 id,
+        Give memory g,
+        uint256 lastKey,
+        uint256 signerKey
+    ) internal view returns (SignedGive memory) {
+        return SignedGive(g, _signGive(address(core), lastKey, id, g), _signGive(address(core), signerKey, id, g));
+    }
+
+    /// `checkGive` refuses with `reason`. Everything is signed before the refusal is expected.
+    function _checkGiveReverts(
+        uint256 id,
+        SignedShake[] memory shakes,
+        SignedGive memory sg,
+        bytes memory reason
+    ) internal {
+        vm.expectRevert(reason);
+        core.checkGive(id, shakes, sg);
+    }
+
+    /// Anyone can ask Core where a route ends: its last key, the claim left for a giver, and the
+    /// hash a Give must name. An empty route ends at the root key with the whole claim.
+    function test_checkRoute_returnsWhereTheRouteEnds() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _twoShakes(id, makeAddr("first"), makeAddr("second"));
+
+        vm.prank(bob);
+        (address lastKey, uint16 claimBps, bytes32 routeHash) = core.checkRoute(id, shakes);
+        assertEq(lastKey, vm.addr(0xC0C0));
+        assertEq(claimBps, 8_500);
+        assertEq(routeHash, _routeHash(id, shakes));
+
+        (lastKey, claimBps, routeHash) = core.checkRoute(id, _none());
+        assertEq(lastKey, root);
+        assertEq(claimBps, 10_000);
+        assertEq(routeHash, bytes32(0));
+    }
+
+    /// A route `thank` would refuse is refused the same way, Shake by Shake.
+    function test_checkRoute_refusesWhatThankRefuses() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        address shaker = makeAddr("shaker");
+
+        SignedShake[] memory notByRoot = _oneShake(id, shaker, 9_000);
+        notByRoot[0].keySig = _signShake(NEXT_PK, id, notByRoot[0].shake);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
+        core.checkRoute(id, notByRoot);
+
+        SignedShake[] memory broken = _twoShakes(id, shaker, shaker);
+        broken[1].shake.claimBps = 9_500; // does not continue the claim it received
+        broken[1].keySig = _signShake(NEXT_PK, id, broken[1].shake);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 1));
+        core.checkRoute(id, broken);
+
+        SignedShake[] memory forNobody = _oneShake(id, address(0), 9_000); // keeps a margin for nobody
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.AnonymousMargin.selector, 0));
+        core.checkRoute(id, forNobody);
+    }
+
+    /// The claim a route leaves is returned, not judged: whether it is enough for a giver is a
+    /// question about a Give, and `checkGive` answers it.
+    function test_checkRoute_returnsAClaimBelowTheGiversMinimum() public {
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), REWARD, expiry, root, 8_000, GAS_K, ASK);
+        SignedShake[] memory greedy = _oneShake(id, makeAddr("shaker"), 7_999);
+
+        (, uint16 claimBps,) = core.checkRoute(id, greedy);
+        assertEq(claimBps, 7_999);
+
+        Give memory g = Give(carol, carol, 7_999, _routeHash(id, greedy), ANSWER);
+        _checkGiveReverts(
+            id,
+            greedy,
+            _signedGiveBy(id, g, NEXT_PK, carolKey),
+            abi.encodeWithSelector(AHandCore.BelowMinGiverClaim.selector)
+        );
+    }
+
+    /// A Hand that was never raised has no route and no Give: both checks refuse it by name, before
+    /// anything else. Its root key is zero, and an answer of zero would pass for a key with any
+    /// reader that recovers signatures carelessly.
+    function test_check_refusesAHandNeverRaised() public {
+        vm.expectRevert(AHandCore.NotRaised.selector);
+        core.checkRoute(99, _none());
+
+        SignedShake[] memory shakes = _oneShake(99, makeAddr("shaker"), 9_000);
+        vm.expectRevert(AHandCore.NotRaised.selector);
+        core.checkRoute(99, shakes);
+
+        bytes memory junk = hex"00";
+        vm.expectRevert(AHandCore.NotRaised.selector);
+        core.checkGive(99, _none(), SignedGive(Give(address(0), address(0), 1, bytes32(0), ANSWER), junk, junk));
+        SignedGive memory sg = _signedGiveBy(99, Give(carol, carol, 10_000, bytes32(0), ANSWER), ROOT_PK, carolKey);
+        vm.expectRevert(AHandCore.NotRaised.selector);
+        core.checkGive(99, _none(), sg);
+    }
+
+    /// Anyone can ask Core whether a Give ends a route of a Hand. The answer is the Give's hash:
+    /// the one Core keeps when the raiser thanks that Give. Asking changes nothing.
+    function test_checkGive_returnsTheHashThankKeeps() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
+        bytes memory before = abi.encode(_hand(id));
+
+        vm.prank(bob);
+        bytes32 giveHash = core.checkGive(id, shakes, SignedGive(g, keySig, giverSig));
+        assertEq(giveHash, giveStructHash(core, id, g));
+        assertEq(abi.encode(_hand(id)), before);
+
+        _submit(alice, id, shakes, g, keySig, giverSig);
+        assertEq(_hand(id).giveHash, giveHash);
+        assertEq(core.checkGive(id, shakes, SignedGive(g, keySig, giverSig)), giveHash); // a thanked Hand answers too
+    }
+
+    /// Only a Give its raiser signed is refused for its signer: a giver whose address is on either
+    /// side of the raiser's passes.
+    function test_checkGive_giverOnEitherSideOfTheRaiser() public {
+        vm.prank(alice);
+        uint256 byAlice = core.raise(address(usd), 0, expiry, root, 0, GAS_K, ASK);
+        vm.prank(carol);
+        uint256 byCarol = core.raise(address(usd), 0, expiry, root, 0, GAS_K, ASK);
+        (Give memory toCarol, bytes memory keySigC, bytes memory giverSigC) = _direct(byAlice, carolKey);
+        (Give memory toAlice, bytes memory keySigA, bytes memory giverSigA) = _direct(byCarol, aliceKey);
+
+        assertEq(
+            core.checkGive(byAlice, _none(), SignedGive(toCarol, keySigC, giverSigC)),
+            giveStructHash(core, byAlice, toCarol)
+        );
+        assertEq(
+            core.checkGive(byCarol, _none(), SignedGive(toAlice, keySigA, giverSigA)),
+            giveStructHash(core, byCarol, toAlice)
+        );
+    }
+
+    /// It answers at any time: the caller, the expiry and the Hand's outcome are not looked at.
+    function test_checkGive_answersAfterExpiryAndReclaim() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
+        SignedGive memory sg = SignedGive(g, keySig, giverSig);
+        bytes32 giveHash = giveStructHash(core, id, g);
+
+        vm.warp(expiry);
+        assertEq(core.checkGive(id, _none(), sg), giveHash);
+        core.reclaim(id);
+        assertEq(core.checkGive(id, _none(), sg), giveHash);
+    }
+
+    /// A Give `thank` would refuse is refused the same way.
+    function test_checkGive_refusesWhatThankRefuses() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        bytes32 route = _routeHash(id, shakes);
+        Give memory good = Give(carol, carol, 9_000, route, ANSWER);
+
+        // signed by the raiser itself
+        _checkGiveReverts(
+            id,
+            shakes,
+            _signedGiveBy(id, Give(alice, carol, 9_000, route, ANSWER), NEXT_PK, aliceKey),
+            abi.encodeWithSelector(AHandCore.GiverIsRaiser.selector)
+        );
+        // no payee
+        _checkGiveReverts(
+            id,
+            shakes,
+            _signedGiveBy(id, Give(carol, address(0), 9_000, route, ANSWER), NEXT_PK, carolKey),
+            abi.encodeWithSelector(AHandCore.ZeroPayee.selector)
+        );
+        // not the claim the route left
+        _checkGiveReverts(
+            id,
+            shakes,
+            _signedGiveBy(id, Give(carol, carol, 9_001, route, ANSWER), NEXT_PK, carolKey),
+            abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 1)
+        );
+        // names another route
+        _checkGiveReverts(
+            id,
+            shakes,
+            _signedGiveBy(id, Give(carol, carol, 9_000, bytes32(0), ANSWER), NEXT_PK, carolKey),
+            abi.encodeWithSelector(AHandCore.InvalidRouteHash.selector)
+        );
+        // not signed by the route's last key
+        _checkGiveReverts(
+            id,
+            shakes,
+            _signedGiveBy(id, good, ROOT_PK, carolKey),
+            abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 1)
+        );
+        // not signed by its signer
+        _checkGiveReverts(
+            id,
+            shakes,
+            _signedGiveBy(id, good, NEXT_PK, bobKey),
+            abi.encodeWithSelector(AHandCore.InvalidGiverSig.selector)
+        );
+    }
+
+    /// With several things wrong, the error names the first in the order of `thank`'s checks: the
+    /// Give's signer, its payee, and only then the route and the signatures.
+    function test_checkGive_firstWrongThingIsNamed() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        bytes memory junk = hex"00";
+
+        vm.expectRevert(AHandCore.GiverIsRaiser.selector);
+        core.checkGive(id, _none(), SignedGive(Give(alice, address(0), 1, bytes32(uint256(1)), ANSWER), junk, junk));
+        vm.expectRevert(AHandCore.ZeroPayee.selector);
+        core.checkGive(id, _none(), SignedGive(Give(carol, address(0), 1, bytes32(uint256(1)), ANSWER), junk, junk));
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 0));
+        core.checkGive(id, _none(), SignedGive(Give(carol, carol, 1, bytes32(uint256(1)), ANSWER), junk, junk));
+    }
+
+    /// Whatever the Give, `checkGive` says what `thank` would do with it for a raiser in time: it
+    /// passes exactly when the thank passes, and returns the hash the thank keeps.
+    function testFuzz_checkGive_saysWhatThankWouldDo(
+        uint16 next,
+        bool lastKeySigns,
+        bool giverSigns,
+        bool hasPayee
+    ) public {
+        next = uint16(bound(next, 0, 10_000));
+        uint256 id = _raise(alice, address(usd), REWARD);
+        SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), next);
+        Give memory g = Give(carol, hasPayee ? carol : address(0), next, _routeHash(id, shakes), ANSWER);
+        SignedGive memory sg = _signedGiveBy(id, g, lastKeySigns ? NEXT_PK : ROOT_PK, giverSigns ? carolKey : bobKey);
+
+        bool passes;
+        bytes32 giveHash;
+        try core.checkGive(id, shakes, sg) returns (bytes32 hash) {
+            (passes, giveHash) = (true, hash);
+        } catch {}
+
+        vm.prank(alice);
+        try core.thank(id, shakes, sg) {
+            assertTrue(passes);
+            assertEq(_hand(id).giveHash, giveHash);
+        } catch {
+            assertFalse(passes);
+        }
+        assertEq(passes, lastKeySigns && giverSigns && hasPayee);
+    }
+
     /*//////////////////////////// facts ////////////////////////////*/
 
     /// Two Shakes, each keeping a margin for its own payee, then the Give at NEXT_PK's successor.

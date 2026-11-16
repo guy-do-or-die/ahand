@@ -187,6 +187,10 @@ contract AHandCore is EIP712 {
     /// @notice The Hand was never raised, or is thanked or reclaimed already.
     error NotOpen();
 
+    // checkRoute and checkGive
+    /// @notice The Hand was never raised.
+    error NotRaised();
+
     // extend, fund and thank
     /// @notice Only the Hand's raiser may extend, fund or thank it.
     error NotRaiser();
@@ -195,7 +199,7 @@ contract AHandCore is EIP712 {
     // extend
     /// @notice The new expiry is not later than the Hand's expiry.
     error ExpiryNotLater();
-    // thank
+    // thank, checkRoute and checkGive
     /// @notice The Give's signer is the raiser's own address.
     error GiverIsRaiser();
     /// @notice The Give names no payee.
@@ -405,10 +409,48 @@ contract AHandCore is EIP712 {
         _transferOut(token, to, amount);
     }
 
-    /// @dev Checks the route and the Give that ends it, and returns the Give's hash. Both
-    ///      sign the same Give: the last key shows it came from the end of this route, the
-    ///      signer that the giver accepted exactly it. Recovery alone returns some address for
-    ///      any input, so each signature is compared with the address it must come from.
+    /// @notice Checks a route as `thank` checks it and returns where it ends: its last key, the
+    ///         claim left for a giver, and the hash of the route, which a Give names. Anyone may
+    ///         ask, at any time after the Hand is raised; nothing changes. An empty route ends at
+    ///         the Hand's root key. The claim left is not judged: if it is below the Hand's
+    ///         minimum for the giver, no Give can end this route.
+    function checkRoute(
+        uint256 handId,
+        SignedShake[] calldata signedShakes
+    ) external view returns (address lastKey, uint16 claimBps, bytes32 routeHash) {
+        Hand storage hand = hands[handId];
+
+        if (hand.raisedAt == 0) revert NotRaised();
+
+        return _checkRoute(_hashHand(handId, hand), hand, signedShakes);
+    }
+
+    /// @notice Checks a route and the Give that ends it as `thank` checks them and returns the
+    ///         Give's hash, which is the Hand's `giveHash` if the raiser thanked this Give. Anyone
+    ///         may ask, at any time after the Hand is raised; nothing changes. It does not say
+    ///         whether the Hand can still be thanked: the caller, the expiry and the Hand's
+    ///         outcome are not looked at.
+    function checkGive(
+        uint256 handId,
+        SignedShake[] calldata signedShakes,
+        SignedGive calldata signedGive
+    ) external view returns (bytes32) {
+        Hand storage hand = hands[handId];
+        Give calldata give = signedGive.give;
+
+        if (hand.raisedAt == 0) revert NotRaised();
+        if (give.signer == hand.raiser) revert GiverIsRaiser();
+        if (give.payee == address(0)) revert ZeroPayee();
+
+        return _checkGive(handId, hand, signedShakes, signedGive);
+    }
+
+    /// @dev Checks the route and the Give that ends it, and returns the Give's hash. The Give
+    ///      must name this route and the claim left at its end, which is no less than the
+    ///      raiser's minimum for the giver. Both sign the same Give: the last key shows it came
+    ///      from the end of this route, the signer that the giver accepted exactly it. Recovery
+    ///      alone returns some address for any input, so each signature is compared with the
+    ///      address it must come from.
     function _checkGive(
         uint256 handId,
         Hand storage hand,
@@ -417,7 +459,11 @@ contract AHandCore is EIP712 {
     ) private view returns (bytes32 giveHash) {
         Give calldata give = signedGive.give;
         bytes32 handHash = _hashHand(handId, hand);
-        address lastKey = _checkRoute(handHash, hand, signedShakes, give);
+        (address lastKey, uint16 claim, bytes32 routeHash) = _checkRoute(handHash, hand, signedShakes);
+
+        if (give.claimBps != claim) revert InvalidClaim(signedShakes.length);
+        if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
+        if (give.routeHash != routeHash) revert InvalidRouteHash();
 
         giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);
@@ -441,19 +487,17 @@ contract AHandCore is EIP712 {
         }
     }
 
-    /// @dev Follows the route from the root key and returns its last key. Each Shake must
-    ///      continue the claim it received, keep nothing without a payee, and be signed by
-    ///      the key it comes from; the Give must name this route and the claim left at its
-    ///      end, which is no less than the raiser's minimum for the giver.
+    /// @dev Follows the route from the root key and returns its last key, the claim left at its
+    ///      end and its hash. Each Shake must continue the claim it received, keep nothing
+    ///      without a payee, and be signed by the key it comes from.
     function _checkRoute(
         bytes32 handHash,
         Hand storage hand,
-        SignedShake[] calldata signedShakes,
-        Give calldata give
-    ) private view returns (address key) {
+        SignedShake[] calldata signedShakes
+    ) private view returns (address key, uint16 claim, bytes32 routeHash) {
         key = hand.rootKey;
-        uint16 claim = BPS;
-        bytes32 routeHash = bytes32(0); // a route without Shakes hashes to zero
+        claim = BPS;
+        routeHash = bytes32(0); // a route without Shakes hashes to zero
 
         for (uint256 i; i < signedShakes.length; ++i) {
             Memory.Pointer freeMemory = Memory.getFreeMemoryPointer();
@@ -476,10 +520,6 @@ contract AHandCore is EIP712 {
             // Nothing this pass put in memory outlives it; handing it back keeps every Shake's price the same.
             Memory.unsafeSetFreeMemoryPointer(freeMemory);
         }
-
-        if (give.claimBps != claim) revert InvalidClaim(signedShakes.length);
-        if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
-        if (give.routeHash != routeHash) revert InvalidRouteHash();
     }
 
     /// @dev Whether `key` signed `digest`. A signature that cannot be read never counts, so the
