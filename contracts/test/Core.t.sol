@@ -421,7 +421,7 @@ contract CoreTest is Test {
 
     /// No expiry further ahead than the cap: a typo cannot lock the money for decades.
     function test_raise_refusesExpiryBeyondTheCap() public {
-        uint256 cap = block.timestamp + core.MAX_TERM();
+        uint256 cap = block.timestamp + core.MAX_EXPIRY_PERIOD();
         vm.startPrank(alice);
         vm.expectRevert(AHandCore.ExpiryTooFar.selector);
         core.raise(address(usd), REWARD, uint40(cap + 1), root, GAS_K, 0, ASK);
@@ -493,7 +493,7 @@ contract CoreTest is Test {
     /// alive, but never locks it for longer than the cap from the last move.
     function test_extend_notBeyondTheCap() public {
         uint256 id = _raise(alice, address(usd), REWARD);
-        uint256 cap = block.timestamp + core.MAX_TERM();
+        uint256 cap = block.timestamp + core.MAX_EXPIRY_PERIOD();
         vm.startPrank(alice);
         vm.expectRevert(AHandCore.ExpiryTooFar.selector);
         core.extend(id, uint40(cap + 1));
@@ -2833,7 +2833,7 @@ contract CoreTest is Test {
 
     function testFuzz_raiseThenRefundReturnsExactlyTheReward(uint256 amount, uint40 ahead, uint40 late) public {
         amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
-        uint40 fuzzedExpiry = uint40(block.timestamp + bound(ahead, 1, core.MAX_TERM()));
+        uint40 fuzzedExpiry = uint40(block.timestamp + bound(ahead, 1, core.MAX_EXPIRY_PERIOD()));
         usd.mint(alice, amount);
         uint256 before = usd.balanceOf(alice);
 
@@ -2849,7 +2849,7 @@ contract CoreTest is Test {
 
     function testFuzz_thankPaysExactlyTheReward(uint256 amount, uint40 ahead, uint40 at) public {
         amount = bound(amount, 0, type(uint256).max - usd.totalSupply());
-        uint256 span = bound(ahead, 1, core.MAX_TERM());
+        uint256 span = bound(ahead, 1, core.MAX_EXPIRY_PERIOD());
         uint40 fuzzedExpiry = uint40(block.timestamp + span);
         usd.mint(alice, amount);
 

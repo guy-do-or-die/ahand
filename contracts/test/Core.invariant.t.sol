@@ -68,7 +68,7 @@ contract Handler is Test {
         uint256 id = openIds[seed % openIds.length];
         HandView memory hand = handOf(core, id);
         if (block.timestamp >= hand.expiry) return;
-        uint256 latest = block.timestamp + core.MAX_TERM();
+        uint256 latest = block.timestamp + core.MAX_EXPIRY_PERIOD();
         if (hand.expiry >= latest) return;
         vm.prank(hand.raiser);
         core.extend(id, uint40(bound(by, hand.expiry + 1, latest)));

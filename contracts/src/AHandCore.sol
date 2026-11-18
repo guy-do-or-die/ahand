@@ -111,7 +111,7 @@ contract AHandCore is EIP712 {
 
     /// @notice How far ahead an expiry may be when it is set: no reward stays locked longer than
     ///         this after its raiser last raised or extended the Hand.
-    uint256 public constant MAX_TERM = 365 days;
+    uint256 public constant MAX_EXPIRY_PERIOD = 365 days;
 
     /// @notice How many Hands were raised. Hands are numbered from 1, so this is also the
     ///         number of the last one.
@@ -193,7 +193,7 @@ contract AHandCore is EIP712 {
     // raise
     /// @notice `expiry` is not later than now.
     error ExpiryNotInFuture();
-    /// @notice The expiry is more than `MAX_TERM` ahead of now.
+    /// @notice The expiry is more than `MAX_EXPIRY_PERIOD` ahead of now.
     error ExpiryTooFar();
     /// @notice The root key is the zero address, which nobody can sign for.
     error ZeroRootKey();
@@ -277,8 +277,9 @@ contract AHandCore is EIP712 {
 
     constructor() EIP712("aHand", "core") {}
 
-    /// @notice Locks `reward` in `token` from the caller until `expiry`, at most `MAX_TERM` ahead;
-    ///         the raiser may add to the reward with `fund` and move the expiry later with `extend`.
+    /// @notice Locks `reward` in `token` from the caller until `expiry`, at most
+    ///         `MAX_EXPIRY_PERIOD` ahead; the raiser may add to the reward with `fund` and move
+    ///         the expiry later with `extend`.
     ///         The Hand's link starts at `rootKey`; whatever route it takes, the giver keeps at
     ///         least `minClaimBps` of the reward, and above it each shaker keeps the margin its
     ///         Shake signed. Each payout may use `payoutGasK` thousand gas; with too little, zero
@@ -297,7 +298,7 @@ contract AHandCore is EIP712 {
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
-        if (expiry > block.timestamp + MAX_TERM) revert ExpiryTooFar();
+        if (expiry > block.timestamp + MAX_EXPIRY_PERIOD) revert ExpiryTooFar();
         if (rootKey == address(0)) revert ZeroRootKey();
         if (minClaimBps > BPS) revert MinClaimTooHigh();
 
@@ -322,16 +323,16 @@ contract AHandCore is EIP712 {
         _transferIn(token, reward);
     }
 
-    /// @notice Moves an open Hand's expiry later, to `newExpiry`, at most `MAX_TERM` from now. Only
-    ///         the raiser, only before expiry. Nothing else of the Hand changes, and no signature
-    ///         names the expiry, so every route collected so far stays valid.
+    /// @notice Moves an open Hand's expiry later, to `newExpiry`, at most `MAX_EXPIRY_PERIOD`
+    ///         from now. Only the raiser, only before expiry. Nothing else of the Hand changes,
+    ///         and no signature names the expiry, so every route collected so far stays valid.
     function extend(uint256 handId, uint40 newExpiry) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
 
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (block.timestamp >= hand.expiry) revert Expired();
         if (newExpiry <= hand.expiry) revert ExpiryNotLater();
-        if (newExpiry > block.timestamp + MAX_TERM) revert ExpiryTooFar();
+        if (newExpiry > block.timestamp + MAX_EXPIRY_PERIOD) revert ExpiryTooFar();
 
         hand.expiry = newExpiry;
 
