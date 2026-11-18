@@ -5,7 +5,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
-import {SenderFeeToken, LateSenderFeeToken, ReceiverFeeToken} from "./mocks/FeeTokens.sol";
+import {SenderFeeToken, LateSenderFeeToken, ReceiverFeeToken, LateReceiverFeeToken} from "./mocks/FeeTokens.sol";
 import {NoReturnToken} from "./mocks/NoReturnToken.sol";
 import {ReturnsFalseToken} from "./mocks/ReturnsFalseToken.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
@@ -2505,6 +2505,27 @@ contract CoreTest is Test {
         assertEq(token.balanceOf(address(core)), REWARD);
     }
 
+    /// A fee on the receiver's side, switched on after the raise, does not stop a payout: Core's
+    /// debit is exact, `Paid` names the amount that left Core, and the payee gets the token's
+    /// net. Core answers for its own balance, not for what a token delivers.
+    function test_token_lateReceiverFeeIsPaidAndThePayeeGetsTheNet() public {
+        LateReceiverFeeToken token = new LateReceiverFeeToken();
+        _fund(address(token), alice);
+        uint256 id = _raise(alice, address(token), REWARD);
+        token.setFeeOn(true);
+        (Give memory give, bytes memory keySig, bytes memory giverSig) = _directGive(id, carol, carol, carolKey);
+        SignedShake[] memory none;
+
+        vm.expectEmit(address(core));
+        emit Paid(id, address(token), carol, REWARD);
+        vm.prank(alice);
+        core.thank(id, none, SignedGive(give, keySig, giverSig), bytes32(0));
+
+        assertEq(token.balanceOf(carol), REWARD * 99 / 100);
+        assertEq(token.balanceOf(address(core)), 0);
+        assertEq(core.pending(address(token), carol), 0);
+    }
+
     /// A broken token stays in its own lane: another token's Hands are unaffected.
     function test_token_brokenTokenDoesNotReachOtherTokens() public {
         LateSenderFeeToken bad = new LateSenderFeeToken();
@@ -2581,6 +2602,69 @@ contract CoreTest is Test {
         vm.prank(alice);
         core.thank{gas: 400_000}(id, none, SignedGive(give, keySig, giverSig), bytes32(0));
         assertEq(core.pending(address(token), payee), REWARD);
+    }
+
+    /// However little gas the raiser sends, a payee that burns its gas leaves only two outcomes:
+    /// the whole thank reverts and nothing changes, or it goes through and that payout is
+    /// pending. Here a shaker's payee and the giver's payee both burn.
+    function test_payout_burningPayeesLeaveAllOrNothing() public {
+        HookToken token = new HookToken();
+        _fund(address(token), alice);
+        uint256 id = _raise(alice, address(token), REWARD);
+        address shakerPayee = makeAddr("burning shaker");
+        address giverPayee = makeAddr("burning giver");
+        vm.etch(shakerPayee, type(Burner).runtimeCode);
+        vm.etch(giverPayee, type(Burner).runtimeCode);
+        token.setHooked(shakerPayee, true);
+        token.setHooked(giverPayee, true);
+        SignedShake[] memory shakes = _oneShake(id, shakerPayee, 9_000);
+        Give memory give = Give(carol, giverPayee, 9_000, _routeHash(id, shakes), ANSWER);
+        bytes memory keySig = _signGive(address(core), NEXT_PK, id, give);
+        bytes memory giverSig = _signGive(address(core), carolKey, id, give);
+
+        uint256 wentThrough;
+        uint256 reverted;
+        uint256 snap = vm.snapshotState();
+        for (uint256 txGas = 100_000; txGas <= 700_000; txGas += 4_000) {
+            vm.prank(alice);
+            try core.thank{gas: txGas}(id, shakes, SignedGive(give, keySig, giverSig), bytes32(0)) {
+                assertEq(core.pending(address(token), shakerPayee), REWARD / 10);
+                assertEq(core.pending(address(token), giverPayee), REWARD * 9 / 10);
+                assertEq(_hand(id).closedAt, block.timestamp);
+                wentThrough++;
+            } catch {
+                assertEq(_hand(id).closedAt, 0);
+                assertEq(core.pending(address(token), shakerPayee), 0);
+                assertEq(core.pending(address(token), giverPayee), 0);
+                assertEq(token.balanceOf(address(core)), REWARD);
+                reverted++;
+            }
+            vm.revertToState(snap);
+        }
+        assertGt(wentThrough, 0);
+        assertGt(reverted, 0);
+    }
+
+    /// Core named as a payee is not refused. Its payout cannot leave Core and nobody can withdraw
+    /// it: it waits for good, like money sent to a dead address. Other Hands are not touched.
+    function test_payout_coreAsThePayeeWaitsForGood() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        uint256 other = _raise(bob, address(usd), REWARD);
+        (Give memory give, bytes memory keySig, bytes memory giverSig) = _directGive(id, carol, address(core), carolKey);
+        SignedShake[] memory none;
+        vm.prank(alice);
+        core.thank(id, none, SignedGive(give, keySig, giverSig), bytes32(0));
+        assertEq(core.pending(address(usd), address(core)), REWARD);
+
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.withdraw(address(usd), address(core), address(core));
+        vm.prank(carol);
+        vm.expectRevert(AHandCore.NotPayee.selector);
+        core.withdraw(address(usd), address(core), carol);
+
+        _thank(bob, other, carolKey);
+        assertEq(usd.balanceOf(carol), REWARD);
+        assertEq(usd.balanceOf(address(core)), REWARD);
     }
 
     /// A token answering with a megabyte cannot make the thank fail.

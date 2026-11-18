@@ -54,3 +54,23 @@ contract ReceiverFeeToken is MockUSD {
         emit Transfer(from, to, amount - fee);
     }
 }
+
+/// @notice A receiver-side fee switched on AFTER Hands are open: moving 100 debits the
+///         sender 100 and credits the receiver 99. Core's debit stays exact, so a payout
+///         goes through and the payee receives the token's net.
+contract LateReceiverFeeToken is MockUSD {
+    uint256 public constant FEE_BPS = 100; // 1 %
+    bool public feeOn;
+
+    function setFeeOn(bool on) external {
+        feeOn = on;
+    }
+
+    function _move(address from, address to, uint256 amount) internal override {
+        uint256 fee = feeOn ? amount * FEE_BPS / 10_000 : 0;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount - fee;
+        totalSupply -= fee;
+        emit Transfer(from, to, amount - fee);
+    }
+}
