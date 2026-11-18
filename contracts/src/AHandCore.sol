@@ -500,10 +500,10 @@ contract AHandCore is EIP712 {
         // that key can redirect at any time. Otherwise, or if that key did not sign, the address's
         // code decides (ERC-1271): a smart wallet, a passkey, a key that took over.
         address signer = give.signer;
-        uint256 size = signer.code.length;
+        uint256 codeSize = signer.code.length;
         bool signed = false;
 
-        if (size == 0 || (size == 23 && EIP7702Utils.fetchDelegate(signer) != address(0))) {
+        if (codeSize == 0 || (codeSize == 23 && EIP7702Utils.fetchDelegate(signer) != address(0))) {
             signed = _signedBy(signer, digest, signedGive.giverSig);
         }
 
