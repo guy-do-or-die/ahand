@@ -44,7 +44,7 @@ contract GasTest is Test {
 
     function _raise(MockUSD token, uint256 reward) internal returns (uint256 id) {
         vm.prank(raiser);
-        id = core.raise(address(token), reward, expiry, vm.addr(ROOT_PK), 0, GAS_K, keccak256("ask"));
+        id = core.raise(address(token), reward, expiry, vm.addr(ROOT_PK), GAS_K, 0, keccak256("ask"));
     }
 
     /// Thanks along a route of `n` Shakes, each keeping 1 % for a payee who has never held the

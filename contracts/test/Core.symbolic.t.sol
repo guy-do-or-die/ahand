@@ -33,7 +33,7 @@ contract CoreSymbolic is Test {
         token.mint(who, reward);
         vm.startPrank(who);
         token.approve(address(core), reward);
-        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 0, 200, bytes32(0));
+        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 200, 0, bytes32(0));
         vm.stopPrank();
         token.setBlocked(who, true);
         vm.warp(clock);
@@ -84,7 +84,7 @@ contract CoreSymbolic is Test {
         token.mint(RAISER, reward);
         vm.startPrank(RAISER);
         token.approve(address(core), reward);
-        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 0, 200, bytes32(0));
+        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 200, 0, bytes32(0));
         vm.stopPrank();
         token.setBlocked(RAISER, blocked);
         vm.warp(clock);
@@ -103,7 +103,7 @@ contract CoreSymbolic is Test {
         token.mint(RAISER, reward);
         vm.startPrank(RAISER);
         token.approve(address(core), reward);
-        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 0, 200, bytes32(0));
+        uint256 id = core.raise(address(token), reward, ++clock, NO_KEY, 200, 0, bytes32(0));
         vm.stopPrank();
         token.setBlocked(RAISER, blocked);
         vm.warp(clock);
@@ -130,7 +130,7 @@ contract CoreSymbolic is Test {
         token.mint(RAISER, reward);
         vm.startPrank(RAISER);
         token.approve(address(core), reward);
-        uint256 id = core.raise(address(token), reward, ++clock, vm.addr(ROOT_PK), 0, 200, bytes32(0));
+        uint256 id = core.raise(address(token), reward, ++clock, vm.addr(ROOT_PK), 200, 0, bytes32(0));
         vm.stopPrank();
 
         SignedShake[] memory shakes = new SignedShake[](1);

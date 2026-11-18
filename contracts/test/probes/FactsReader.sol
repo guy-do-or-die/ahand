@@ -10,13 +10,13 @@ import {HandView, handOf} from "../Helpers.sol";
 /// events and trusts no indexer. The signed formats are written out again here, as any reader must.
 contract FactsReader {
     bytes32 constant HAND_TYPEHASH = keccak256(
-        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
     bytes32 constant SHAKE_TYPEHASH = keccak256(
-        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
     bytes32 constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
 
     /// What one payee was due: a shaker's margin, or the rest for the giver's payee. `dataHash` is
@@ -46,7 +46,7 @@ contract FactsReader {
         (bytes32 thankedGive,) = core.thanks(handId);
         if (thankedGive == bytes32(0)) revert NotThanked();
         bytes32 handHash = keccak256(
-            abi.encode(HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.minClaimBps, h.payoutGasK, h.dataHash)
+            abi.encode(HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.payoutGasK, h.minClaimBps, h.dataHash)
         );
 
         bytes32 routeHash;

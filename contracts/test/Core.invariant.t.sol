@@ -52,8 +52,8 @@ contract Handler is Test {
             reward,
             uint40(block.timestamp + bound(ahead, 1, 90 days)),
             vm.addr(ROOT_PK),
-            0,
             200,
+            0,
             bytes32(reward)
         );
         vm.stopPrank();

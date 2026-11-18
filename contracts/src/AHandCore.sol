@@ -98,13 +98,13 @@ contract AHandCore is EIP712 {
     ///      to another Hand, and a signature must not pass there. Reward and expiry are not signed:
     ///      a giver accepts a share of the reward, and the Hand's own expiry decides when thanks end.
     bytes32 private constant HAND_TYPEHASH = keccak256(
-        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
     bytes32 private constant SHAKE_TYPEHASH = keccak256(
-        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
     bytes32 private constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
 
     uint16 private constant BPS = 10_000; // the whole reward
@@ -144,8 +144,8 @@ contract AHandCore is EIP712 {
         uint256 reward,
         uint40 expiry,
         address rootKey,
-        uint16 minClaimBps,
         uint16 payoutGasK,
+        uint16 minClaimBps,
         bytes32 dataHash
     );
     /// @notice The raiser moved the Hand's expiry later, to `expiry`.
@@ -292,8 +292,8 @@ contract AHandCore is EIP712 {
         uint256 reward,
         uint40 expiry,
         address rootKey,
-        uint16 minClaimBps,
         uint16 payoutGasK,
+        uint16 minClaimBps,
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
@@ -315,7 +315,7 @@ contract AHandCore is EIP712 {
         hand.rootKey = rootKey;
         hand.dataHash = dataHash;
 
-        emit Raised(handId, msg.sender, token, reward, expiry, rootKey, minClaimBps, payoutGasK, dataHash);
+        emit Raised(handId, msg.sender, token, reward, expiry, rootKey, payoutGasK, minClaimBps, dataHash);
 
         if (reward == 0) return handId; // a Hand without a reward never touches a token
 
@@ -562,8 +562,8 @@ contract AHandCore is EIP712 {
                 hand.raiser,
                 hand.token,
                 hand.rootKey,
-                hand.minClaimBps,
                 hand.payoutGasK,
+                hand.minClaimBps,
                 hand.dataHash
             )
         );

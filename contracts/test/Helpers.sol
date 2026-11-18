@@ -23,14 +23,14 @@ function handStructHash(AHandCore core, uint256 handId) view returns (bytes32) {
     return keccak256(
         abi.encode(
             keccak256(
-                "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+                "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
             ),
             handId,
             h.raiser,
             h.token,
             h.rootKey,
-            h.minClaimBps,
             h.payoutGasK,
+            h.minClaimBps,
             h.dataHash
         )
     );
@@ -40,7 +40,7 @@ function shakeStructHash(AHandCore core, uint256 handId, Shake memory s) view re
     return keccak256(
         abi.encode(
             keccak256(
-                "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+                "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
             ),
             handStructHash(core, handId),
             s.nextKey,
@@ -56,7 +56,7 @@ function giveStructHash(AHandCore core, uint256 handId, Give memory g) view retu
     return keccak256(
         abi.encode(
             keccak256(
-                "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+                "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
             ),
             handStructHash(core, handId),
             g.signer,
