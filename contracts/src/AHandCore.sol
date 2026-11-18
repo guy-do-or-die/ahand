@@ -52,13 +52,13 @@ struct SignedGive {
 ///         it on with a signed Shake, keeping a margin. Before expiry the raiser can pay the
 ///         reward along a route to a giver who signed a Give at its end: every shaker gets its
 ///         margin, the giver the rest. From expiry on anyone can refund the reward to the
-///         raiser. Nothing else can move it.
+///         raiser. Nothing else can take it out of the Hand.
 ///         Every payout is tried on its own and may use up to the Hand's payout gas: one that
 ///         fails undoes only itself and stays pending for its payee, who can withdraw it later.
 ///         A token that calls its payees lets a payee spend all of that gas each time it is
 ///         paid, so a route that pays it often enough needs more gas than a transaction may use.
 /// @dev    Core proves who called and who signed. Any other address in its events is only what
-///         a call or a signature named: Core never checks a payee. `Paid` means that Core's
+///         a call or a signature named: Core never checks who a payee is. `Paid` means that Core's
 ///         balance of the token dropped by exactly the amount; what the token is worth is the
 ///         raiser's choice.
 contract AHandCore is EIP712 {
@@ -94,10 +94,10 @@ contract AHandCore is EIP712 {
     }
 
     /// @dev What a Shake or a Give names its Hand by: its raiser and all that the raiser sets for
-    ///      good in `raise`, not the number alone. After a reorg the same number may belong to
-    ///      another Hand, and a signature must not pass there. Reward and expiry are not signed: a
-    ///      giver accepts a claim on the reward, not an amount, and the Hand's own expiry decides
-    ///      how long it can be thanked.
+    ///      good in `raise`, not the number alone. After a reorg the same number may belong to a
+    ///      Hand with other terms, and a signature must not pass there. Reward and expiry are not
+    ///      signed: a giver accepts a claim on the reward, not an amount, and the Hand's own expiry
+    ///      decides how long it can be thanked.
     bytes32 private constant HAND_TYPEHASH = keccak256(
         "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
@@ -454,7 +454,8 @@ contract AHandCore is EIP712 {
     ///         Give's hash, which is the `giveHash` in `thanks` if the raiser thanked this Give.
     ///         Anyone may ask, at any time after the Hand is raised; nothing changes. It does not
     ///         say whether the Hand can still be thanked: the caller, the expiry and whether the
-    ///         Hand is closed are not looked at.
+    ///         Hand is closed are not looked at. A giver that is a contract is asked again on every
+    ///         call, so the answer for the same Give may change, also after the thank.
     function checkGive(
         uint256 handId,
         SignedShake[] calldata signedShakes,
@@ -618,7 +619,7 @@ contract AHandCore is EIP712 {
     ///      broken token, the Hand's payout gas running out — stays pending for the same
     ///      payee instead. The Hand is closed either way. A zero amount touches no token.
     ///      Sent with too little gas on purpose, a payout that itself needs a lot of gas
-    ///      can end up pending too; it is never lost, and anyone can withdraw it to the payee.
+    ///      can end up pending too; anyone can then withdraw it to the payee.
     function _pay(uint256 handId, address token, address payee, uint256 amount, uint16 payoutGasK) private {
         if (amount == 0) return;
 
