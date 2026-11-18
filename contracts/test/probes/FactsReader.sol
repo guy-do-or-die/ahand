@@ -43,7 +43,8 @@ contract FactsReader {
         Give calldata give
     ) external view returns (address raiser, address giver, Share[] memory shares) {
         HandView memory h = handOf(core, handId);
-        if (h.thankedAt == 0) revert NotThanked();
+        (bytes32 thankedGive,) = core.thanks(handId);
+        if (thankedGive == bytes32(0)) revert NotThanked();
         bytes32 handHash = keccak256(
             abi.encode(
                 HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.minGiverClaimBps, h.payoutGasK, h.dataHash
@@ -67,7 +68,7 @@ contract FactsReader {
         bytes32 giveHash = keccak256(
             abi.encode(GIVE_TYPEHASH, handHash, give.signer, give.payee, give.claimBps, give.routeHash, give.dataHash)
         );
-        if (giveHash != h.giveHash) revert NotTheThankedGive();
+        if (giveHash != thankedGive) revert NotTheThankedGive();
 
         shares[shakes.length] = Share(give.payee, rest, give.dataHash);
         return (h.raiser, give.signer, shares);

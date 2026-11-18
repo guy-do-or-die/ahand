@@ -64,27 +64,33 @@ struct SignedGive {
 contract AHandCore is EIP712 {
     using SafeERC20 for IERC20;
 
-    /// @dev Field order is the storage packing. A Hand is open while both outcome
-    ///      times are zero; it exists if `raisedAt` is not zero.
+    /// @dev Field order is the storage packing. A Hand exists if `raisedAt` is not zero and is
+    ///      open while `closedAt` is zero. A closed Hand was thanked if `thanks` keeps its Give,
+    ///      and reclaimed if not.
     struct Hand {
-        // slot 0: set by raise
+        // slot 0: set by raise; extend moves the expiry
         address raiser;
-        uint40 raisedAt;
         uint40 expiry;
-        uint16 minGiverClaimBps;
-        // slot 1: the token and the gas each payout may use, in thousands, set by raise;
-        // then the outcome — at most one of the two times is ever set
+        uint40 raisedAt;
+        // slot 1: the time thank or reclaim closed the Hand; then, set by raise, the token, the
+        // gas each payout may use, in thousands, and the least share the giver must get
+        uint40 closedAt;
         address token;
         uint16 payoutGasK;
-        uint40 thankedAt;
-        uint40 reclaimedAt;
+        uint16 minGiverClaimBps;
         // set by raise; fund adds to the reward
         uint256 reward;
         address rootKey;
         bytes32 dataHash;
-        // set by thank: the EIP-712 struct hash of the accepted Give; with the domain separator
-        // it gives the digest that both of the Give's signatures signed
+    }
+
+    /// @dev What a thank leaves.
+    struct Thank {
+        // the EIP-712 struct hash of the accepted Give; with the domain separator it gives the
+        // digest that both of the Give's signatures signed
         bytes32 giveHash;
+        // what the raiser stated with the thank, if anything
+        bytes32 dataHash;
     }
 
     /// @dev What a Shake or a Give names its Hand by: everything `raise` fixes for good about the
@@ -109,6 +115,9 @@ contract AHandCore is EIP712 {
 
     uint256 public handsCount;
     mapping(uint256 handId => Hand) public hands;
+
+    /// @notice What the thank of each thanked Hand left.
+    mapping(uint256 handId => Thank) public thanks;
 
     /// @notice What waits for each payee per token, after a payout that could not be made.
     mapping(address token => mapping(address payee => uint256)) public pending;
@@ -161,8 +170,8 @@ contract AHandCore is EIP712 {
     /// @notice A Hand is thanked: its whole `reward` in `token` leaves along the route. In the same
     ///         transaction there follow, in this order: for each Shake, `Shaken` and its payout;
     ///         then `Given` and the giver's payout. A payout is `Paid` or `Pending`; one of zero
-    ///         is not logged.
-    event Thanked(uint256 indexed handId, address indexed token, uint256 reward);
+    ///         is not logged. `dataHash` is what the raiser states with the thanks, zero if nothing.
+    event Thanked(uint256 indexed handId, address indexed token, uint256 reward, bytes32 dataHash);
     /// @notice An expired Hand's whole `reward` in `token` goes back to its raiser; its payout
     ///         follows, unless the reward is zero.
     event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
@@ -254,7 +263,7 @@ contract AHandCore is EIP712 {
     /// @dev Raised and neither thanked nor reclaimed.
     modifier whenOpen(uint256 handId) {
         Hand storage hand = hands[handId];
-        if (hand.raisedAt == 0 || hand.thankedAt != 0 || hand.reclaimedAt != 0) revert NotOpen();
+        if (hand.raisedAt == 0 || hand.closedAt != 0) revert NotOpen();
         _;
     }
 
@@ -284,16 +293,16 @@ contract AHandCore is EIP712 {
         if (rootKey == address(0)) revert ZeroRootKey();
         if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
 
-        // Field by field: a new number is a fresh, empty Hand, so the outcome fields need no
-        // zero written; thank or reclaim fills them.
+        // Field by field: a new number is a fresh, empty Hand, so `closedAt` needs no zero
+        // written; thank or reclaim sets it.
         handId = ++handsCount;
         Hand storage hand = hands[handId];
         hand.raiser = msg.sender;
-        hand.raisedAt = uint40(block.timestamp);
         hand.expiry = expiry;
-        hand.minGiverClaimBps = minGiverClaimBps;
+        hand.raisedAt = uint40(block.timestamp);
         hand.token = token;
         hand.payoutGasK = payoutGasK;
+        hand.minGiverClaimBps = minGiverClaimBps;
         hand.reward = reward;
         hand.rootKey = rootKey;
         hand.dataHash = dataHash;
@@ -347,10 +356,14 @@ contract AHandCore is EIP712 {
     ///         never interprets them.
     ///         A Give without a payee is refused: sent to the zero address, the giver's payout
     ///         would be burned or stay pending where nobody can ever withdraw it.
+    ///         `dataHash` is what the raiser states with the thanks. No signature covers it, only
+    ///         this call says it; Core keeps it in `thanks`, unless it is zero, and never
+    ///         interprets it.
     function thank(
         uint256 handId,
         SignedShake[] calldata signedShakes,
-        SignedGive calldata signedGive
+        SignedGive calldata signedGive,
+        bytes32 dataHash
     ) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
         Give calldata give = signedGive.give;
@@ -362,10 +375,11 @@ contract AHandCore is EIP712 {
 
         bytes32 giveHash = _checkGive(handId, hand, signedShakes, signedGive);
 
-        hand.thankedAt = uint40(block.timestamp);
-        hand.giveHash = giveHash;
+        hand.closedAt = uint40(block.timestamp);
+        thanks[handId].giveHash = giveHash;
+        if (dataHash != bytes32(0)) thanks[handId].dataHash = dataHash;
 
-        emit Thanked(handId, hand.token, hand.reward);
+        emit Thanked(handId, hand.token, hand.reward, dataHash);
 
         uint256 rest = _payShakers(handId, hand, signedShakes);
 
@@ -377,7 +391,7 @@ contract AHandCore is EIP712 {
         Hand storage hand = hands[handId];
         if (block.timestamp < hand.expiry) revert NotExpired();
 
-        hand.reclaimedAt = uint40(block.timestamp);
+        hand.closedAt = uint40(block.timestamp);
 
         emit Reclaimed(handId, hand.token, hand.reward);
 
@@ -426,10 +440,10 @@ contract AHandCore is EIP712 {
     }
 
     /// @notice Checks a route and the Give that ends it as `thank` checks them and returns the
-    ///         Give's hash, which is the Hand's `giveHash` if the raiser thanked this Give. Anyone
-    ///         may ask, at any time after the Hand is raised; nothing changes. It does not say
-    ///         whether the Hand can still be thanked: the caller, the expiry and the Hand's
-    ///         outcome are not looked at.
+    ///         Give's hash, which is the `giveHash` in `thanks` if the raiser thanked this Give.
+    ///         Anyone may ask, at any time after the Hand is raised; nothing changes. It does not
+    ///         say whether the Hand can still be thanked: the caller, the expiry and whether the
+    ///         Hand is closed are not looked at.
     function checkGive(
         uint256 handId,
         SignedShake[] calldata signedShakes,

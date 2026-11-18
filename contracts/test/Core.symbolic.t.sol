@@ -124,7 +124,7 @@ contract CoreSymbolic is Test {
     /// share unknown, `Math.mulDiv` multiplies two unknowns and the solver does not finish.
     /// Halmos treats signatures as given, so these say "with valid signatures, the money splits
     /// exactly"; that no other key passes is for the unit and fuzz tests.
-    function _thankAlongOneShake(uint256 reward, uint16 next) internal {
+    function _thankAlongOneShake(uint256 reward, uint16 next, bytes32 stated) internal {
         address shaker = address(0x5A);
         address giverPayee = address(0x6B);
         token.mint(RAISER, reward);
@@ -141,7 +141,7 @@ contract CoreSymbolic is Test {
             Give(vm.addr(GIVER_PK), giverPayee, next, keccak256(abi.encode(bytes32(0), shakeHash)), bytes32(0));
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         vm.prank(RAISER);
-        core.thank(id, shakes, SignedGive(g, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest)));
+        core.thank(id, shakes, SignedGive(g, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest)), stated);
 
         assert(token.balanceOf(shaker) + token.balanceOf(giverPayee) == reward);
         assert(token.balanceOf(shaker) == reward * (10_000 - next) / 10_000);
@@ -154,19 +154,19 @@ contract CoreSymbolic is Test {
     }
 
     /// Any share, the smallest reward where rounding shows: 3.
-    function check_thank_anyClaimSmallReward(uint16 next) public {
+    function check_thank_anyClaimSmallReward(uint16 next, bytes32 stated) public {
         vm.assume(next <= 10_000);
-        _thankAlongOneShake(3, next);
+        _thankAlongOneShake(3, next, stated);
     }
 
     /// Any share, a huge reward: nothing overflows.
-    function check_thank_anyClaimHugeReward(uint16 next) public {
+    function check_thank_anyClaimHugeReward(uint16 next, bytes32 stated) public {
         vm.assume(next <= 10_000);
-        _thankAlongOneShake(type(uint128).max, next);
+        _thankAlongOneShake(type(uint128).max, next, stated);
     }
 
     /// Any reward up to 2^128 - 1, half kept by the Shake.
-    function check_thank_anyRewardHalfClaim(uint128 reward) public {
-        _thankAlongOneShake(reward, 5_000);
+    function check_thank_anyRewardHalfClaim(uint128 reward, bytes32 stated) public {
+        _thankAlongOneShake(reward, 5_000, stated);
     }
 }

@@ -72,24 +72,32 @@ function digestOf(address core, bytes32 structHash) view returns (bytes32) {
     return keccak256(abi.encodePacked("\x19\x01", domainOf(core), structHash));
 }
 
-/// What `hands(id)` returns, decoded whole: twelve values do not fit on the stack at once.
+/// What `hands(id)` returns, as one value.
 struct HandView {
     address raiser;
-    uint40 raisedAt;
     uint40 expiry;
-    uint16 minGiverClaimBps;
+    uint40 raisedAt;
+    uint40 closedAt;
     address token;
     uint16 payoutGasK;
-    uint40 thankedAt;
-    uint40 reclaimedAt;
+    uint16 minGiverClaimBps;
     uint256 reward;
     address rootKey;
     bytes32 dataHash;
+}
+
+/// What `thanks(id)` returns, as one value.
+struct ThankView {
     bytes32 giveHash;
+    bytes32 dataHash;
 }
 
 function handOf(AHandCore core, uint256 id) view returns (HandView memory) {
     (bool ok, bytes memory ret) = address(core).staticcall(abi.encodeWithSelector(core.hands.selector, id));
     require(ok, "hands() failed");
     return abi.decode(ret, (HandView));
+}
+
+function thankOf(AHandCore core, uint256 id) view returns (ThankView memory t) {
+    (t.giveHash, t.dataHash) = core.thanks(id);
 }

@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
-import {shakeStructHash, giveStructHash, digestOf, HandView, handOf} from "./Helpers.sol";
+import {shakeStructHash, giveStructHash, digestOf, HandView, handOf, ThankView, thankOf} from "./Helpers.sol";
 import {EventIndexer} from "./EventIndexer.sol";
 
 /// Random raises, extensions, fundings, thanks (direct or through one Shake with a random margin),
@@ -102,6 +102,7 @@ contract Handler is Test {
     }
 
     /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
+    /// `to` odd: the raiser states something with the thanks.
     function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
@@ -127,8 +128,9 @@ contract Handler is Test {
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         bytes memory keySig = _sign(lastKey, digest);
         bytes memory giverSig = _sign(keys[pick], digest);
+        bytes32 stated = to % 2 == 0 ? bytes32(0) : bytes32(to);
         vm.prank(h.raiser);
-        core.thank(id, shakes, SignedGive(g, keySig, giverSig));
+        core.thank(id, shakes, SignedGive(g, keySig, giverSig), stated);
         _closed(id, h.token, h.reward);
     }
 
@@ -253,13 +255,14 @@ contract CoreInvariantTest is Test {
     }
 
     /// Everything Core keeps can be rebuilt from its events and the times of their blocks: every
-    /// Hand field by field (`giveHash` from the Give, under the Hand's own terms), everything
-    /// pending, what each actor holds, and Core's balance of each token.
+    /// Hand and every thank field by field (`giveHash` from the Give, under the Hand's own terms),
+    /// everything pending, what each actor holds, and Core's balance of each token.
     function invariant_stateRebuildsFromEvents() public view {
         EventIndexer indexer = handler.indexer();
         assertEq(indexer.handsCount(), core.handsCount());
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             assertEq(abi.encode(indexer.hand(id)), abi.encode(handOf(core, id)));
+            assertEq(abi.encode(indexer.thank(id)), abi.encode(thankOf(core, id)));
         }
         _moneyFromEvents(indexer, a);
         _moneyFromEvents(indexer, b);
@@ -278,17 +281,21 @@ contract CoreInvariantTest is Test {
         }
         for (uint256 id = 1; id <= indexer.handsCount(); ++id) {
             HandView memory h = indexer.hand(id);
-            if (h.token == address(token) && h.thankedAt == 0 && h.reclaimedAt == 0) total += h.reward;
+            if (h.token == address(token) && h.closedAt == 0) total += h.reward;
         }
         assertEq(total, token.balanceOf(address(core)));
     }
 
-    /// Every raised Hand has its raise time; no Hand is both thanked and reclaimed.
+    /// Every raised Hand has its raise time and is not closed before it; only a closed Hand
+    /// keeps a thank, and a thank that keeps a statement keeps its Give.
     function invariant_timesAreConsistent() public view {
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             HandView memory h = handOf(core, id);
+            ThankView memory t = thankOf(core, id);
             assertGt(h.raisedAt, 0);
-            assertFalse(h.thankedAt != 0 && h.reclaimedAt != 0);
+            if (h.closedAt != 0) assertGe(h.closedAt, h.raisedAt);
+            if (t.giveHash != bytes32(0)) assertGt(h.closedAt, 0);
+            if (t.dataHash != bytes32(0)) assertTrue(t.giveHash != bytes32(0));
         }
     }
 
@@ -297,7 +304,7 @@ contract CoreInvariantTest is Test {
         uint256 closed;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             HandView memory h = handOf(core, id);
-            if (h.thankedAt != 0 || h.reclaimedAt != 0) ++closed;
+            if (h.closedAt != 0) ++closed;
         }
         assertEq(closed, handler.closed());
     }

@@ -2,7 +2,7 @@
 pragma solidity 0.8.35;
 
 import {Vm} from "forge-std/Vm.sol";
-import {HandView} from "./Helpers.sol";
+import {HandView, ThankView} from "./Helpers.sol";
 
 /// An outside reader that knows Core only by its logs and the time of each block, as an indexer
 /// does. It rebuilds every Hand, everything pending and what each address received from Core.
@@ -14,7 +14,7 @@ contract EventIndexer {
     bytes32 constant FUNDED = keccak256("Funded(uint256,uint256,uint256)");
     bytes32 constant SHAKEN = keccak256("Shaken(uint256,address,uint256,uint256,address,uint16,uint16,bytes32)");
     bytes32 constant GIVEN = keccak256("Given(uint256,address,address,uint256,uint16,bytes32,bytes32)");
-    bytes32 constant THANKED = keccak256("Thanked(uint256,address,uint256)");
+    bytes32 constant THANKED = keccak256("Thanked(uint256,address,uint256,bytes32)");
     bytes32 constant RECLAIMED = keccak256("Reclaimed(uint256,address,uint256)");
     bytes32 constant PAID = keccak256("Paid(uint256,address,address,uint256)");
     bytes32 constant PENDING = keccak256("Pending(uint256,address,address,uint256)");
@@ -30,6 +30,7 @@ contract EventIndexer {
     address public immutable core;
     uint256 public handsCount;
     mapping(uint256 handId => HandView) internal hands;
+    mapping(uint256 handId => ThankView) internal thanks;
     mapping(address token => mapping(address payee => uint256)) public pending;
     mapping(address token => mapping(address to => uint256)) public received;
 
@@ -49,6 +50,10 @@ contract EventIndexer {
 
     function hand(uint256 handId) external view returns (HandView memory) {
         return hands[handId];
+    }
+
+    function thank(uint256 handId) external view returns (ThankView memory) {
+        return thanks[handId];
     }
 
     /// Reads one transaction's logs, with the time of its block.
@@ -126,13 +131,13 @@ contract EventIndexer {
         HandView storage h = hands[handId];
         require(_address(log.topics[2]) == h.token, "the closing event names the Hand's token");
         require(abi.decode(log.data, (uint256)) == h.reward, "the closing event names the whole reward");
+        h.closedAt = uint40(time);
         if (thanked) {
-            h.thankedAt = uint40(time);
+            (, thanks[handId].dataHash) = abi.decode(log.data, (uint256, bytes32));
             thanking = handId;
             nextPosition = 0;
             rest = h.reward;
         } else {
-            h.reclaimedAt = uint40(time);
             _owe(handId, h.raiser, h.reward);
         }
     }
@@ -155,7 +160,7 @@ contract EventIndexer {
         (uint256 amount, uint16 claimBps, bytes32 routeHash, bytes32 dataHash) =
             abi.decode(log.data, (uint256, uint16, bytes32, bytes32));
         require(amount == rest, "the giver gets what the Shakes left");
-        hands[handId].giveHash =
+        thanks[handId].giveHash =
             keccak256(abi.encode(GIVE_TYPEHASH, _handHash(handId), signer, payee, claimBps, routeHash, dataHash));
         thanking = 0;
         _owe(handId, payee, amount);

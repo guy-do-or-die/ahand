@@ -48,8 +48,8 @@ contract GasTest is Test {
     }
 
     /// Thanks along a route of `n` Shakes, each keeping 1 % for a payee who has never held the
-    /// token; the giver gets the rest.
-    function _thank(uint256 id, uint256 n) internal {
+    /// token; the giver gets the rest. With the thanks the raiser states `stated`.
+    function _thank(uint256 id, uint256 n, bytes32 stated) internal {
         SignedShake[] memory shakes = new SignedShake[](n);
         bytes32 routeHash;
         uint256 key = ROOT_PK;
@@ -68,7 +68,7 @@ contract GasTest is Test {
         bytes memory keySig = _sign(key, digest);
         bytes memory giverSig = _sign(GIVER_PK, digest);
         vm.prank(raiser);
-        core.thank(id, shakes, SignedGive(g, keySig, giverSig));
+        core.thank(id, shakes, SignedGive(g, keySig, giverSig), stated);
     }
 
     function _sign(uint256 key, bytes32 digest) internal pure returns (bytes memory) {
@@ -96,25 +96,32 @@ contract GasTest is Test {
 
     function test_gas_thank_direct() public {
         uint256 id = _raise(usd, REWARD);
-        _thank(id, 0);
+        _thank(id, 0, bytes32(0));
         vm.snapshotValue("thank_direct", vm.lastFrameGas().gasTotalUsed);
+    }
+
+    /// The raiser states something with the thanks: one more slot is written.
+    function test_gas_thank_directStating() public {
+        uint256 id = _raise(usd, REWARD);
+        _thank(id, 0, keccak256("thanks"));
+        vm.snapshotValue("thank_directStating", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_oneShake() public {
         uint256 id = _raise(usd, REWARD);
-        _thank(id, 1);
+        _thank(id, 1, bytes32(0));
         vm.snapshotValue("thank_oneShake", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_threeShakes() public {
         uint256 id = _raise(usd, REWARD);
-        _thank(id, 3);
+        _thank(id, 3, bytes32(0));
         vm.snapshotValue("thank_threeShakes", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_tenShakes() public {
         uint256 id = _raise(usd, REWARD);
-        _thank(id, 10);
+        _thank(id, 10, bytes32(0));
         vm.snapshotValue("thank_tenShakes", vm.lastFrameGas().gasTotalUsed);
     }
 
@@ -147,7 +154,7 @@ contract GasTest is Test {
         _fund(token);
         uint256 id = _raise(token, REWARD);
         token.setBlocked(giver, true);
-        _thank(id, 0);
+        _thank(id, 0, bytes32(0));
         token.setBlocked(giver, false);
         core.withdraw(address(token), giver, giver);
         vm.snapshotValue("withdraw", vm.lastFrameGas().gasTotalUsed);
