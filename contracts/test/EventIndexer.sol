@@ -15,7 +15,7 @@ contract EventIndexer {
     bytes32 constant SHAKEN = keccak256("Shaken(uint256,address,uint256,uint256,address,uint16,uint16,bytes32)");
     bytes32 constant GIVEN = keccak256("Given(uint256,address,address,uint256,uint16,bytes32,bytes32)");
     bytes32 constant THANKED = keccak256("Thanked(uint256,address,uint256,bytes32)");
-    bytes32 constant RECLAIMED = keccak256("Reclaimed(uint256,address,uint256)");
+    bytes32 constant REFUNDED = keccak256("Refunded(uint256,address,uint256)");
     bytes32 constant PAID = keccak256("Paid(uint256,address,address,uint256)");
     bytes32 constant PENDING = keccak256("Pending(uint256,address,address,uint256)");
     bytes32 constant WITHDRAWN = keccak256("Withdrawn(address,address,uint256,address)");
@@ -30,7 +30,7 @@ contract EventIndexer {
     address public immutable core;
     uint256 public handsCount;
     uint256 public thanksCount;
-    uint256 public reclaimsCount;
+    uint256 public refundsCount;
     mapping(uint256 handId => HandView) internal hands;
     mapping(uint256 handId => ThankView) internal thanks;
     mapping(address token => mapping(address payee => uint256)) public pending;
@@ -79,7 +79,7 @@ contract EventIndexer {
         if (topic == EXTENDED) return _extended(log);
         if (topic == FUNDED) return _funded(log);
         if (topic == THANKED) return _closed(log, time, true);
-        if (topic == RECLAIMED) return _closed(log, time, false);
+        if (topic == REFUNDED) return _closed(log, time, false);
         if (topic == WITHDRAWN) return _withdrawn(log);
         revert("an event this reader does not know");
     }
@@ -127,7 +127,7 @@ contract EventIndexer {
         h.reward = reward;
     }
 
-    /// `Thanked` opens the reading of a route; `Reclaimed` announces the payout to the raiser.
+    /// `Thanked` opens the reading of a route; `Refunded` announces the payout to the raiser.
     function _closed(Vm.Log memory log, uint256 time, bool thanked) private {
         uint256 handId = uint256(log.topics[1]);
         HandView storage h = hands[handId];
@@ -141,7 +141,7 @@ contract EventIndexer {
             nextPosition = 0;
             rest = h.reward;
         } else {
-            ++reclaimsCount;
+            ++refundsCount;
             _owe(handId, h.raiser, h.reward);
         }
     }

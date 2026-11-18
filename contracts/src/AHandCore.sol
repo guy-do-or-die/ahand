@@ -66,13 +66,13 @@ contract AHandCore is EIP712 {
 
     /// @dev Field order is the storage packing. A Hand exists if `openedAt` is not zero and is
     ///      open while `closedAt` is zero. A closed Hand was thanked if `thanks` keeps its Give,
-    ///      and reclaimed if not.
+    ///      and refunded if not.
     struct Hand {
         // slot 0: set by raise; extend moves the expiry
         address raiser;
         uint40 expiry;
         uint40 openedAt;
-        // slot 1: the time thank or reclaim closed the Hand; then, set by raise, the token, the
+        // slot 1: the time thank or refund closed the Hand; then, set by raise, the token, the
         // gas each payout may use, in thousands, and the least share the giver must get
         uint40 closedAt;
         address token;
@@ -118,8 +118,8 @@ contract AHandCore is EIP712 {
     uint256 public handsCount;
     /// @notice How many Hands were thanked.
     uint256 public thanksCount;
-    /// @notice How many Hands were reclaimed.
-    uint256 public reclaimsCount;
+    /// @notice How many Hands were refunded.
+    uint256 public refundsCount;
 
     /// @notice Each Hand by its number. A number never raised gives an empty Hand.
     mapping(uint256 handId => Hand) public hands;
@@ -130,7 +130,7 @@ contract AHandCore is EIP712 {
     /// @notice What waits for each payee per token, after a payout that could not be made.
     mapping(address token => mapping(address payee => uint256)) public pending;
 
-    /// @dev Set while raise, extend, fund, thank, reclaim or withdraw runs; see `nonReentrant`.
+    /// @dev Set while raise, extend, fund, thank, refund or withdraw runs; see `nonReentrant`.
     ///      Transient storage: it lasts only until the transaction ends and is never saved in state.
     bool private transient locked;
 
@@ -182,7 +182,7 @@ contract AHandCore is EIP712 {
     event Thanked(uint256 indexed handId, address indexed token, uint256 reward, bytes32 dataHash);
     /// @notice An expired Hand's whole `reward` in `token` goes back to its raiser; its payout
     ///         follows, unless the reward is zero.
-    event Reclaimed(uint256 indexed handId, address indexed token, uint256 reward);
+    event Refunded(uint256 indexed handId, address indexed token, uint256 reward);
     /// @notice `amount` in `token` left Core for `payee`.
     event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount);
     /// @notice `amount` in `token` could not leave Core for `payee` and waits for `withdraw`.
@@ -200,8 +200,8 @@ contract AHandCore is EIP712 {
     /// @notice The minimum claim is above the whole reward.
     error MinClaimTooHigh();
 
-    // extend, fund, thank and reclaim
-    /// @notice The Hand was never raised, or is thanked or reclaimed already.
+    // extend, fund, thank and refund
+    /// @notice The Hand was never raised, or is thanked or refunded already.
     error NotOpen();
 
     // checkRoute and checkGive
@@ -211,7 +211,7 @@ contract AHandCore is EIP712 {
     // extend, fund and thank
     /// @notice Only the Hand's raiser may extend, fund or thank it.
     error NotRaiser();
-    /// @notice The Hand's expiry has come; it can only be reclaimed.
+    /// @notice The Hand's expiry has come; it can only be refunded.
     error Expired();
     // extend
     /// @notice The new expiry is not later than the Hand's expiry.
@@ -236,7 +236,7 @@ contract AHandCore is EIP712 {
     /// @notice The Give's signer did not sign it: not its key, where that key still counts, nor its code (ERC-1271).
     error InvalidGiverSig();
 
-    // reclaim
+    // refund
     /// @notice The Hand's expiry has not come yet.
     error NotExpired();
 
@@ -254,11 +254,11 @@ contract AHandCore is EIP712 {
     /// @notice Only Core may call `transferOut`.
     error NotCore();
 
-    // raise, extend, fund, thank, reclaim and withdraw
+    // raise, extend, fund, thank, refund and withdraw
     /// @notice Called again while one of them runs.
     error Reentered();
 
-    /// @dev Raise, extend, fund, thank, reclaim and withdraw cannot be entered while one of them
+    /// @dev Raise, extend, fund, thank, refund and withdraw cannot be entered while one of them
     ///      runs: code that a token or a payee runs during a transfer cannot call back into them.
     ///      Calls one after another are not affected.
     modifier nonReentrant() {
@@ -268,7 +268,7 @@ contract AHandCore is EIP712 {
         locked = false;
     }
 
-    /// @dev Raised and neither thanked nor reclaimed.
+    /// @dev Raised and neither thanked nor refunded.
     modifier whenOpen(uint256 handId) {
         Hand storage hand = hands[handId];
         if (hand.openedAt == 0 || hand.closedAt != 0) revert NotOpen();
@@ -302,7 +302,7 @@ contract AHandCore is EIP712 {
         if (minClaimBps > BPS) revert MinClaimTooHigh();
 
         // Field by field: a new number is a fresh, empty Hand, so `closedAt` needs no zero
-        // written; thank or reclaim sets it.
+        // written; thank or refund sets it.
         handId = ++handsCount;
         Hand storage hand = hands[handId];
         hand.raiser = msg.sender;
@@ -395,15 +395,16 @@ contract AHandCore is EIP712 {
         _payGiver(handId, hand, give, rest);
     }
 
-    /// @notice Returns an expired Hand's reward to its raiser. Anyone may call.
-    function reclaim(uint256 handId) external nonReentrant whenOpen(handId) {
+    /// @notice Returns an expired Hand's whole reward to its raiser: what `raise` locked and all
+    ///         that `fund` added. Anyone may call.
+    function refund(uint256 handId) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
         if (block.timestamp < hand.expiry) revert NotExpired();
 
         hand.closedAt = uint40(block.timestamp);
-        ++reclaimsCount;
+        ++refundsCount;
 
-        emit Reclaimed(handId, hand.token, hand.reward);
+        emit Refunded(handId, hand.token, hand.reward);
 
         _pay(handId, hand.token, hand.raiser, hand.reward, hand.payoutGasK);
     }

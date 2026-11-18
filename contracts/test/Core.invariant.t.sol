@@ -9,7 +9,7 @@ import {shakeStructHash, giveStructHash, digestOf, HandView, handOf, ThankView, 
 import {EventIndexer} from "./EventIndexer.sol";
 
 /// Random raises, extensions, fundings, thanks (direct or through one Shake with a random margin),
-/// reclaims, blocks, withdrawals and time jumps by three actors over two tokens; the second token
+/// refunds, blocks, withdrawals and time jumps by three actors over two tokens; the second token
 /// can block any actor, so payouts stay pending and get withdrawn. Actions pick among the open Hands and the
 /// payees with something pending, so few calls are wasted.
 contract Handler is Test {
@@ -92,12 +92,12 @@ contract Handler is Test {
     }
 
     /// Any open Hand: time first moves to its expiry, so the call is never wasted.
-    function reclaim(uint256 seed) external logged {
+    function refund(uint256 seed) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
         HandView memory h = handOf(core, id);
         if (block.timestamp < h.expiry) vm.warp(h.expiry);
-        core.reclaim(id);
+        core.refund(id);
         _closed(id, h.token, h.reward);
     }
 
@@ -107,7 +107,7 @@ contract Handler is Test {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
         HandView memory h = handOf(core, id);
-        if (block.timestamp >= h.expiry) return; // too late to thank: only reclaim closes it now
+        if (block.timestamp >= h.expiry) return; // too late to thank: only refund closes it now
         uint256 pick = to % 3;
         if (actors[pick] == h.raiser) pick = (pick + 1) % 3;
 
@@ -182,7 +182,7 @@ contract Handler is Test {
         while (openIds.length > 0) {
             uint256 id = openIds[openIds.length - 1];
             HandView memory h = handOf(core, id);
-            core.reclaim(id);
+            core.refund(id);
             _closed(id, h.token, h.reward);
         }
         for (uint256 i; i < 3; ++i) {
@@ -261,7 +261,7 @@ contract CoreInvariantTest is Test {
         EventIndexer indexer = handler.indexer();
         assertEq(indexer.handsCount(), core.handsCount());
         assertEq(indexer.thanksCount(), core.thanksCount());
-        assertEq(indexer.reclaimsCount(), core.reclaimsCount());
+        assertEq(indexer.refundsCount(), core.refundsCount());
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             assertEq(abi.encode(indexer.hand(id)), abi.encode(handOf(core, id)));
             assertEq(abi.encode(indexer.thank(id)), abi.encode(thankOf(core, id)));
@@ -305,14 +305,14 @@ contract CoreInvariantTest is Test {
     /// counts are the closed Hands that keep a thank and those that keep none.
     function invariant_closedHandsStayClosed() public view {
         uint256 thanked;
-        uint256 reclaimed;
+        uint256 refunded;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             if (handOf(core, id).closedAt == 0) continue;
             if (thankOf(core, id).giveHash != bytes32(0)) ++thanked;
-            else ++reclaimed;
+            else ++refunded;
         }
-        assertEq(thanked + reclaimed, handler.closed());
+        assertEq(thanked + refunded, handler.closed());
         assertEq(core.thanksCount(), thanked);
-        assertEq(core.reclaimsCount(), reclaimed);
+        assertEq(core.refundsCount(), refunded);
     }
 }

@@ -27,7 +27,7 @@ contract CoreSymbolic is Test {
         clock = uint40(block.timestamp);
     }
 
-    /// Raises `reward` as `who` and reclaims it while the token refuses `who`: the reward
+    /// Raises `reward` as `who` and refunds it while the token refuses `who`: the reward
     /// is left pending.
     function _leavePending(address who, uint256 reward) internal {
         token.mint(who, reward);
@@ -37,7 +37,7 @@ contract CoreSymbolic is Test {
         vm.stopPrank();
         token.setBlocked(who, true);
         vm.warp(clock);
-        core.reclaim(id);
+        core.refund(id);
         token.setBlocked(who, false);
     }
 
@@ -90,15 +90,15 @@ contract CoreSymbolic is Test {
         vm.warp(clock);
 
         vm.prank(caller);
-        try core.reclaim(id) {}
+        try core.refund(id) {}
         catch {
             assert(false);
         }
     }
 
-    /// A reclaimed reward either reaches the raiser or stays pending for the raiser, in full, whoever
-    /// calls `reclaim`.
-    function check_reclaimPaysOrLeavesTheRewardPending(uint128 reward, bool blocked, address caller) public {
+    /// A refunded reward either reaches the raiser or stays pending for the raiser, in full, whoever
+    /// calls `refund`.
+    function check_refundPaysOrLeavesTheRewardPending(uint128 reward, bool blocked, address caller) public {
         vm.assume(reward > 0);
         token.mint(RAISER, reward);
         vm.startPrank(RAISER);
@@ -109,7 +109,7 @@ contract CoreSymbolic is Test {
         vm.warp(clock);
 
         vm.prank(caller);
-        core.reclaim(id);
+        core.refund(id);
 
         uint256 paid = token.balanceOf(RAISER);
         uint256 waiting = core.pending(address(token), RAISER);

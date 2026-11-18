@@ -13,7 +13,7 @@ import {shakeStructHash, giveStructHash, digestOf} from "./Helpers.sol";
 /// for a call made straight from the test, which counts it as a whole transaction: 21 000, the
 /// calldata and the execution. Checked against real transactions on a local node (anvil): they
 /// differ by a dozen gas at most, from different bytes in the calldata. The gas of the call frame
-/// alone (`snapshotGasLastFrame`) is lower by 4 800 for `thank` and `reclaim`, so it is not used.
+/// alone (`snapshotGasLastFrame`) is lower by 4 800 for `thank` and `refund`, so it is not used.
 contract GasTest is Test {
     uint256 constant REWARD = 100e6;
     uint256 constant ROOT_PK = 0xA0A0; // the link's root key
@@ -98,14 +98,14 @@ contract GasTest is Test {
         vm.snapshotValue("raise_withoutReward", vm.lastFrameGas().gasTotalUsed);
     }
 
-    /// One Hand thanked and one reclaimed, so that neither of Core's two counts is written for the
+    /// One Hand thanked and one refunded, so that neither of Core's two counts is written for the
     /// first time by the call measured next.
     function _closeTwoHands() internal {
         uint256 thanked = _raise(usd, REWARD);
-        uint256 reclaimed = _raise(usd, REWARD);
+        uint256 refunded = _raise(usd, REWARD);
         _thankBy(thanked, 0, bytes32(0), 0xCA402); // another giver: the one measured has never held the token
         vm.warp(expiry);
-        core.reclaim(reclaimed);
+        core.refund(refunded);
         expiry = uint40(block.timestamp + 30 days);
     }
 
@@ -116,12 +116,12 @@ contract GasTest is Test {
         vm.snapshotValue("thank_firstThank", vm.lastFrameGas().gasTotalUsed);
     }
 
-    /// The very first reclaim: Core's count of reclaims is written for the first time.
-    function test_gas_reclaim_firstReclaim() public {
+    /// The very first refund: Core's count of refunds is written for the first time.
+    function test_gas_refund_firstRefund() public {
         uint256 id = _raise(usd, REWARD);
         vm.warp(expiry);
-        core.reclaim(id);
-        vm.snapshotValue("reclaim_firstReclaim", vm.lastFrameGas().gasTotalUsed);
+        core.refund(id);
+        vm.snapshotValue("refund_firstRefund", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_direct() public {
@@ -176,12 +176,12 @@ contract GasTest is Test {
         vm.snapshotValue("fund", vm.lastFrameGas().gasTotalUsed);
     }
 
-    function test_gas_reclaim() public {
+    function test_gas_refund() public {
         _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         vm.warp(expiry);
-        core.reclaim(id);
-        vm.snapshotValue("reclaim", vm.lastFrameGas().gasTotalUsed);
+        core.refund(id);
+        vm.snapshotValue("refund", vm.lastFrameGas().gasTotalUsed);
     }
 
     /// The giver's payout waits while the token blocks the giver; once unblocked, anyone delivers it.
