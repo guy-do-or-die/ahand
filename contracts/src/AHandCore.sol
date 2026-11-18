@@ -111,7 +111,7 @@ contract AHandCore is EIP712 {
 
     /// @notice How far ahead an expiry may be when it is set: no reward stays locked longer than
     ///         this after its raiser last raised or extended the Hand.
-    uint256 public constant MAX_EXPIRY_PERIOD = 365 days;
+    uint256 public constant MAX_EXPIRY_PERIOD = 180 days;
 
     /// @notice How many Hands were raised. Hands are numbered from 1, so this is also the
     ///         number of the last one.
