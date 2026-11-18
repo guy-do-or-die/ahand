@@ -4,7 +4,7 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std/Test.sol";
 import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
-import {shakeStructHash, giveStructHash, digestOf} from "./Helpers.sol";
+import {shakeStructHash, giveStructHash, digestOf, handOf, HandView} from "./Helpers.sol";
 
 /// Symbolic checks for Halmos; `forge test` skips them. Every argument of a `check_`
 /// function stands for all of its values at once. Halmos cannot follow the deploy cheat
@@ -168,5 +168,184 @@ contract CoreSymbolic is Test {
     /// Any reward up to 2^128 - 1, half kept by the Shake.
     function check_thank_anyRewardHalfClaim(uint128 reward, bytes32 stated) public {
         _thankAlongOneShake(reward, 5_000, stated);
+    }
+
+    /*//////////////////// the life of a Hand, for every caller and time ////////////////////*/
+
+    /// A Hand of `reward` raised by RAISER with the link's root at ROOT_PK and 30 days to go.
+    function _open(uint256 reward) internal returns (uint256 id, uint40 expiry) {
+        expiry = clock + 30 days;
+        token.mint(RAISER, reward);
+        vm.startPrank(RAISER);
+        token.approve(address(core), type(uint256).max);
+        id = core.raise(address(token), reward, expiry, vm.addr(ROOT_PK), 200, 0, bytes32(0));
+        vm.stopPrank();
+    }
+
+    /// The Give of GIVER_PK at the end of the route without Shakes, signed by the root key too.
+    function _directGive(uint256 id) internal view returns (SignedGive memory) {
+        Give memory give = Give(vm.addr(GIVER_PK), vm.addr(GIVER_PK), 10_000, bytes32(0), bytes32(0));
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, give));
+        return SignedGive(give, _sign(ROOT_PK, digest), _sign(GIVER_PK, digest));
+    }
+
+    /// `raise` takes an expiry later than now and no later than the cap ahead, and no other.
+    function check_raise_expiryIsWithinItsBounds(uint40 expiry) public {
+        uint256 cap = core.MAX_EXPIRY_PERIOD();
+        vm.prank(RAISER);
+        try core.raise(address(token), 0, expiry, NO_KEY, 200, 0, bytes32(0)) returns (uint256 id) {
+            assert(expiry > block.timestamp && expiry <= block.timestamp + cap);
+            assert(handOf(core, id).expiry == expiry);
+        } catch {
+            assert(expiry <= block.timestamp || expiry > block.timestamp + cap);
+        }
+    }
+
+    /// `extend` moves the expiry only for the raiser, only before the expiry, only later and no
+    /// later than the cap ahead of now; any other call leaves the expiry as it was.
+    function check_extend_onlyTheRaiserBeforeExpiryLaterWithinTheCap(
+        address caller,
+        uint40 at,
+        uint40 newExpiry
+    ) public {
+        (uint256 id, uint40 expiry) = _open(0);
+        uint256 cap = core.MAX_EXPIRY_PERIOD();
+        vm.assume(at >= clock);
+        vm.warp(at);
+
+        vm.prank(caller);
+        try core.extend(id, newExpiry) {
+            assert(caller == RAISER && at < expiry);
+            assert(newExpiry > expiry && newExpiry <= uint256(at) + cap);
+            assert(handOf(core, id).expiry == newExpiry);
+        } catch {
+            assert(caller != RAISER || at >= expiry || newExpiry <= expiry || newExpiry > uint256(at) + cap);
+            assert(handOf(core, id).expiry == expiry);
+        }
+    }
+
+    /// `fund` adds exactly the amount, only for the raiser and only before the expiry; any other
+    /// call leaves the reward and Core's balance as they were.
+    function check_fund_onlyTheRaiserBeforeExpiryAddsExactly(address caller, uint40 at, uint128 amount) public {
+        (uint256 id, uint40 expiry) = _open(7);
+        token.mint(RAISER, amount);
+        vm.assume(at >= clock);
+        vm.warp(at);
+
+        vm.prank(caller);
+        try core.fund(id, amount) {
+            assert(caller == RAISER && at < expiry);
+            assert(handOf(core, id).reward == 7 + uint256(amount));
+            assert(token.balanceOf(address(core)) == 7 + uint256(amount));
+        } catch {
+            assert(caller != RAISER || at >= expiry);
+            assert(handOf(core, id).reward == 7);
+            assert(token.balanceOf(address(core)) == 7);
+        }
+    }
+
+    /// `thank` closes the Hand only for the raiser and only before the expiry, and a call that
+    /// fails leaves the Hand open with its reward. (That a valid route is never refused is for the
+    /// unit tests: Halmos takes signatures as given and lets a key's address be any address.)
+    function check_thank_onlyTheRaiserBeforeExpiry(address caller, uint40 at) public {
+        (uint256 id, uint40 expiry) = _open(3);
+        SignedShake[] memory none;
+        SignedGive memory signedGive = _directGive(id);
+        vm.assume(at >= clock);
+        vm.warp(at);
+
+        vm.prank(caller);
+        try core.thank(id, none, signedGive, bytes32(0)) {
+            assert(caller == RAISER && at < expiry);
+            assert(handOf(core, id).closedAt == at);
+            assert(token.balanceOf(vm.addr(GIVER_PK)) == 3);
+        } catch {
+            assert(handOf(core, id).closedAt == 0);
+            assert(token.balanceOf(address(core)) == 3);
+        }
+    }
+
+    /// `refund` closes the Hand from its expiry on and never before, whoever calls: with the
+    /// check above, the two windows never overlap and leave no gap.
+    function check_refund_onlyFromExpiryOn(address caller, uint40 at) public {
+        (uint256 id, uint40 expiry) = _open(3);
+        vm.assume(at >= clock);
+        vm.warp(at);
+
+        vm.prank(caller);
+        try core.refund(id) {
+            assert(at >= expiry);
+            assert(handOf(core, id).closedAt == at);
+        } catch {
+            assert(at < expiry);
+            assert(handOf(core, id).closedAt == 0);
+        }
+    }
+
+    /// A closed Hand takes no extend, fund, thank or refund, from anyone, at any later time, and
+    /// keeps its fields.
+    function _assertClosedForGood(
+        uint256 id,
+        uint8 which,
+        address caller,
+        uint40 later,
+        uint40 newExpiry,
+        uint128 amount
+    ) internal {
+        HandView memory before = handOf(core, id);
+        vm.assume(later >= block.timestamp);
+        vm.warp(later);
+
+        vm.prank(caller);
+        if (which == 0) {
+            try core.extend(id, newExpiry) {
+                assert(false);
+            } catch {}
+        } else if (which == 1) {
+            try core.fund(id, amount) {
+                assert(false);
+            } catch {}
+        } else if (which == 2) {
+            SignedShake[] memory none;
+            try core.thank(id, none, _directGive(id), bytes32(0)) {
+                assert(false);
+            } catch {}
+        } else {
+            try core.refund(id) {
+                assert(false);
+            } catch {}
+        }
+
+        HandView memory afterwards = handOf(core, id);
+        assert(afterwards.closedAt == before.closedAt && afterwards.expiry == before.expiry);
+        assert(afterwards.reward == before.reward);
+    }
+
+    function check_thankedHandIsClosedForGood(
+        uint8 which,
+        address caller,
+        uint40 later,
+        uint40 newExpiry,
+        uint128 amount
+    ) public {
+        (uint256 id,) = _open(3);
+        SignedShake[] memory none;
+        SignedGive memory signedGive = _directGive(id);
+        vm.prank(RAISER);
+        core.thank(id, none, signedGive, bytes32(0));
+        _assertClosedForGood(id, which, caller, later, newExpiry, amount);
+    }
+
+    function check_refundedHandIsClosedForGood(
+        uint8 which,
+        address caller,
+        uint40 later,
+        uint40 newExpiry,
+        uint128 amount
+    ) public {
+        (uint256 id, uint40 expiry) = _open(3);
+        vm.warp(expiry);
+        core.refund(id);
+        _assertClosedForGood(id, which, caller, later, newExpiry, amount);
     }
 }

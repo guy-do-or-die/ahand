@@ -1217,6 +1217,39 @@ contract CoreTest is Test {
         _thankReverts(alice, id, carolKey, AHandCore.InvalidGiverSig.selector);
     }
 
+    /// Only the 65-byte form of a signature counts, for the giver and for a link key alike: the
+    /// short form of the same signature (ERC-2098, 64 bytes) is refused.
+    function test_signer_shortFormSignaturesAreRefused() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        (Give memory give, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
+        bytes memory shortGiverSig = _shortForm(giverSig);
+        bytes memory shortKeySig = _shortForm(keySig);
+        assertEq(shortGiverSig.length, 64);
+        SignedShake[] memory none;
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.InvalidGiverSig.selector);
+        core.thank(id, none, SignedGive(give, keySig, shortGiverSig), bytes32(0));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidKeySig.selector, 0));
+        core.thank(id, none, SignedGive(give, shortKeySig, giverSig), bytes32(0));
+        vm.prank(alice);
+        core.thank(id, none, SignedGive(give, keySig, giverSig), bytes32(0));
+        _assertThankedNow(id);
+    }
+
+    /// The ERC-2098 form of a 65-byte signature: `r`, then `s` with the parity of `v` in its top bit.
+    function _shortForm(bytes memory sig) internal pure returns (bytes memory) {
+        bytes32 r;
+        bytes32 sValue;
+        uint8 v;
+        assembly ("memory-safe") {
+            r := mload(add(sig, 0x20))
+            sValue := mload(add(sig, 0x40))
+            v := byte(0, mload(add(sig, 0x60)))
+        }
+        return abi.encodePacked(r, bytes32(uint256(sValue) | (uint256(v - 27) << 255)));
+    }
+
     /// Only an address's own key or its own code signs for it: a random key or random bytes never
     /// pass for a plain account, a smart wallet, an EIP-7702 account or a precompile.
     function testFuzz_signer_nobodyElseSigns(uint256 key, bytes memory junk, uint8 precompile) public {
@@ -2043,8 +2076,8 @@ contract CoreTest is Test {
         }
     }
 
-    /// Padding up to the largest transaction ordinary nodes accept still fits the gas one
-    /// transaction may use: the size limit binds first, and the giver is paid (Р-45).
+    /// Padding up to the largest transaction ordinary nodes accept, every Shake encoded on its own,
+    /// still fits the gas one transaction may use, and the giver is paid (Р-45).
     function test_route_longestAcceptedRouteFitsTheGasCap() public {
         (uint256 id, SignedShake[] memory shakes, Give memory give, bytes memory keySig, bytes memory giverSig) =
             _emptyRoute(LONGEST_ACCEPTED, REWARD);
@@ -2052,6 +2085,71 @@ contract CoreTest is Test {
         assertLe(data.length + TX_ENVELOPE, TX_SIZE_LIMIT);
         assertTrue(_thankInOneTransaction(data));
         assertEq(usd.balanceOf(carol), REWARD);
+    }
+
+    /// The size limit alone does not bound a route: calldata may point every element of the array
+    /// at the same bytes, so one Shake that passes the Hand to its own key and keeps nothing can
+    /// stand at every position. A thousand of them take about a quarter of the size limit and are
+    /// thanked, with a thousand `Shaken`; 2 500 still fit the size limit, and only the gas one
+    /// transaction may use stops them. The raiser builds the calldata and pays for it.
+    function test_route_repeatedShakeIsBoundByGasNotSize() public {
+        uint256 id = _raise(alice, address(usd), REWARD);
+        Shake memory loop = Shake(root, address(0), 10_000, 10_000, bytes32(0));
+        SignedShake memory one = SignedShake(loop, _signShake(ROOT_PK, id, loop));
+
+        bytes memory data = _repeated(id, one, 1_000);
+        assertLt(data.length, TX_SIZE_LIMIT / 3);
+        uint256 snapshot = vm.snapshotState();
+        vm.recordLogs();
+        assertTrue(_thankInOneTransaction(data));
+        assertEq(vm.getRecordedLogs().length, 1_000 + 4); // Thanked, each Shaken, Given, the token's Transfer, Paid
+        assertEq(usd.balanceOf(carol), REWARD);
+        vm.revertToState(snapshot);
+
+        data = _repeated(id, one, 2_500);
+        assertLe(data.length + TX_ENVELOPE, TX_SIZE_LIMIT);
+        assertFalse(_thankInOneTransaction(data));
+        _assertOpen(id);
+    }
+
+    /// `thank` calldata for a route of `count` Shakes that are all the same bytes, `one`, ended by
+    /// carol's Give.
+    function _repeated(uint256 id, SignedShake memory one, uint256 count) internal view returns (bytes memory) {
+        bytes32 shakeHash = shakeStructHash(core, id, one.shake);
+        bytes32 routeHash;
+        for (uint256 position; position < count; ++position) {
+            routeHash = keccak256(abi.encode(routeHash, shakeHash));
+        }
+        Give memory give = Give(carol, carol, 10_000, routeHash, ANSWER);
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, give));
+        SignedGive memory signedGive = SignedGive(give, _signed(ROOT_PK, digest), _signed(carolKey, digest));
+
+        uint256[] memory offsets = new uint256[](count);
+        for (uint256 position; position < count; ++position) {
+            offsets[position] = count * 32; // every element starts right after the table of offsets
+        }
+        bytes memory element = _withoutOffset(abi.encode(one));
+        uint256 shakesAt = 4 * 32; // after the four words of the arguments
+        uint256 giveAt = shakesAt + 32 + count * 32 + element.length;
+        return abi.encodePacked(
+            core.thank.selector,
+            id,
+            shakesAt,
+            giveAt,
+            bytes32(0),
+            count,
+            offsets,
+            element,
+            _withoutOffset(abi.encode(signedGive))
+        );
+    }
+
+    /// An ABI-encoded dynamic value without the first word, which says where it starts.
+    function _withoutOffset(bytes memory encoded) internal pure returns (bytes memory rest) {
+        rest = new bytes(encoded.length - 32);
+        for (uint256 index; index < rest.length; ++index) {
+            rest[index] = encoded[index + 32];
+        }
     }
 
     /// A route that needs more gas than one transaction may use just fails, and nothing changes:
@@ -2541,6 +2639,23 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(address(core)), 0);
     }
 
+    /// Tokens sent straight to Core are no Hand's reward and nothing pending: they stay in Core
+    /// for good, and every Hand in that token still pays exactly its own reward.
+    function test_token_sentStraightToCoreStaysThere() public {
+        vm.prank(bob);
+        usd.transfer(address(core), 7);
+        uint256 first = _raise(alice, address(usd), REWARD);
+        uint256 second = _raise(alice, address(usd), REWARD);
+        uint256 aliceBefore = usd.balanceOf(alice);
+        _thank(alice, first, carolKey);
+        vm.warp(expiry);
+        core.refund(second);
+        assertEq(usd.balanceOf(carol), REWARD);
+        assertEq(usd.balanceOf(alice), aliceBefore + REWARD);
+        assertEq(usd.balanceOf(address(core)), 7);
+        assertEq(core.pending(address(usd), bob), 0);
+    }
+
     /*//////////////////////////// payouts ////////////////////////////*/
 
     function test_payout_emitsPaid() public {
@@ -2714,6 +2829,25 @@ contract CoreTest is Test {
         assertEq(token.balanceOf(payee), REWARD);
     }
 
+    /// The payout gas is a ceiling, not a demand: with the largest limit a Hand can name, a thank
+    /// and a refund of an ordinary token go through with an ordinary amount of gas.
+    function test_payout_largestGasLimitNeedsNoMoreGas() public {
+        vm.startPrank(alice);
+        uint256 first = core.raise(address(usd), REWARD, expiry, root, type(uint16).max, 0, ASK);
+        uint256 second = core.raise(address(usd), REWARD, expiry, root, type(uint16).max, 0, ASK);
+        vm.stopPrank();
+        uint256 aliceBefore = usd.balanceOf(alice);
+        (Give memory give, bytes memory keySig, bytes memory giverSig) = _direct(first, carolKey);
+        SignedShake[] memory none;
+        vm.prank(alice);
+        core.thank{gas: 250_000}(first, none, SignedGive(give, keySig, giverSig), bytes32(0));
+        assertEq(usd.balanceOf(carol), REWARD);
+        vm.warp(expiry);
+        core.refund{gas: 150_000}(second);
+        assertEq(usd.balanceOf(alice), aliceBefore + REWARD);
+        assertEq(usd.balanceOf(address(core)), 0);
+    }
+
     /// Picking the transaction gas cannot leave an honest payout of an ordinary token pending:
     /// it reverts or pays. The refund payout matters most, because anyone may call `refund`.
     function test_payout_underGassingPaysOrReverts() public {
@@ -2832,6 +2966,16 @@ contract CoreTest is Test {
         vm.expectRevert(AHandCore.ZeroDestination.selector);
         vm.prank(carol);
         core.withdraw(address(token), carol, address(0));
+        assertEq(core.pending(address(token), carol), REWARD);
+    }
+
+    /// With several things wrong, the error names the first in the order of the checks: a stranger
+    /// sending to the zero address is refused as a stranger.
+    function test_withdraw_firstWrongThingIsNamed() public {
+        BlacklistToken token = _leavePending(carol);
+        vm.prank(bob);
+        vm.expectRevert(AHandCore.NotPayee.selector);
+        core.withdraw(address(token), carol, address(0)); // to the zero address too
         assertEq(core.pending(address(token), carol), REWARD);
     }
 

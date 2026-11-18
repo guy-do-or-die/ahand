@@ -300,7 +300,8 @@ contract CoreInvariantTest is Test {
     }
 
     /// Every raised Hand has the time it was opened and is not closed before it; only a closed Hand
-    /// keeps a thank, and a thank that keeps a statement keeps its Give.
+    /// keeps a thank, and a thank that keeps a statement keeps its Give. A thanked Hand was closed
+    /// before its expiry and a refunded one from its expiry on: the two windows never overlap.
     function invariant_timesAreConsistent() public view {
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             HandView memory hand = handOf(core, id);
@@ -308,6 +309,8 @@ contract CoreInvariantTest is Test {
             assertGt(hand.openedAt, 0);
             if (hand.closedAt != 0) assertGe(hand.closedAt, hand.openedAt);
             if (thank.giveHash != bytes32(0)) assertGt(hand.closedAt, 0);
+            if (thank.giveHash != bytes32(0)) assertLt(hand.closedAt, hand.expiry);
+            if (hand.closedAt != 0 && thank.giveHash == bytes32(0)) assertGe(hand.closedAt, hand.expiry);
             if (thank.dataHash != bytes32(0)) assertTrue(thank.giveHash != bytes32(0));
         }
     }
