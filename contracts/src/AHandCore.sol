@@ -378,7 +378,7 @@ contract AHandCore is EIP712 {
 
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (block.timestamp >= hand.expiry) revert Expired();
-        if (msg.sender == give.signer) revert GiverIsRaiser();
+        if (give.signer == hand.raiser) revert GiverIsRaiser();
         if (give.payee == address(0)) revert ZeroPayee();
 
         bytes32 giveHash = _checkGive(handId, hand, signedShakes, signedGive);
