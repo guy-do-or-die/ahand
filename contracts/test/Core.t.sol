@@ -342,9 +342,9 @@ contract CoreTest is Test {
 
     function test_raise_rejectsExpiryNotInTheFuture() public {
         vm.startPrank(alice);
-        vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
+        vm.expectRevert(AHandCore.ExpiryTooEarly.selector);
         core.raise(address(usd), REWARD, uint40(block.timestamp), root, GAS_K, 0, ASK);
-        vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
+        vm.expectRevert(AHandCore.ExpiryTooEarly.selector);
         core.raise(address(usd), REWARD, uint40(block.timestamp - 1), root, GAS_K, 0, ASK);
         vm.stopPrank();
         assertEq(core.handsCount(), 0);
@@ -376,7 +376,7 @@ contract CoreTest is Test {
         vm.startPrank(alice);
         vm.expectRevert(AHandCore.ZeroRootKey.selector);
         core.raise(address(usd), REWARD, expiry, address(0), GAS_K, 10_001, ASK);
-        vm.expectRevert(AHandCore.ExpiryNotInFuture.selector);
+        vm.expectRevert(AHandCore.ExpiryTooEarly.selector);
         core.raise(address(usd), REWARD, uint40(block.timestamp), address(0), GAS_K, 10_001, ASK);
         vm.stopPrank();
     }
@@ -423,7 +423,7 @@ contract CoreTest is Test {
     function test_raise_refusesExpiryBeyondTheCap() public {
         uint256 cap = block.timestamp + core.MAX_EXPIRY_PERIOD();
         vm.startPrank(alice);
-        vm.expectRevert(AHandCore.ExpiryTooFar.selector);
+        vm.expectRevert(AHandCore.ExpiryTooLate.selector);
         core.raise(address(usd), REWARD, uint40(cap + 1), root, GAS_K, 0, ASK);
         core.raise(address(usd), REWARD, uint40(cap), root, GAS_K, 0, ASK); // the cap itself is fine
         vm.stopPrank();
@@ -482,9 +482,9 @@ contract CoreTest is Test {
     function test_extend_onlyLater() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         vm.startPrank(alice);
-        vm.expectRevert(AHandCore.ExpiryNotLater.selector);
+        vm.expectRevert(AHandCore.ExpiryTooEarly.selector);
         core.extend(id, expiry);
-        vm.expectRevert(AHandCore.ExpiryNotLater.selector);
+        vm.expectRevert(AHandCore.ExpiryTooEarly.selector);
         core.extend(id, expiry - 1);
         vm.stopPrank();
     }
@@ -495,7 +495,7 @@ contract CoreTest is Test {
         uint256 id = _raise(alice, address(usd), REWARD);
         uint256 cap = block.timestamp + core.MAX_EXPIRY_PERIOD();
         vm.startPrank(alice);
-        vm.expectRevert(AHandCore.ExpiryTooFar.selector);
+        vm.expectRevert(AHandCore.ExpiryTooLate.selector);
         core.extend(id, uint40(cap + 1));
         core.extend(id, uint40(cap));
         vm.stopPrank();

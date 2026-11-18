@@ -190,11 +190,12 @@ contract AHandCore is EIP712 {
     /// @notice What waited for `payee` in `token` left for `to`.
     event Withdrawn(address indexed token, address indexed payee, uint256 amount, address to);
 
-    // raise
-    /// @notice `expiry` is not later than now.
-    error ExpiryNotInFuture();
+    // raise and extend
+    /// @notice The expiry is not later than now or, in `extend`, than the Hand's expiry.
+    error ExpiryTooEarly();
     /// @notice The expiry is more than `MAX_EXPIRY_PERIOD` ahead of now.
-    error ExpiryTooFar();
+    error ExpiryTooLate();
+    // raise
     /// @notice The root key is the zero address, which nobody can sign for.
     error ZeroRootKey();
     /// @notice The minimum claim is above the whole reward.
@@ -213,9 +214,6 @@ contract AHandCore is EIP712 {
     error NotRaiser();
     /// @notice The Hand's expiry has come; it can only be refunded.
     error Expired();
-    // extend
-    /// @notice The new expiry is not later than the Hand's expiry.
-    error ExpiryNotLater();
     // thank, checkRoute and checkGive
     /// @notice The Give's signer is the raiser's own address.
     error GiverIsRaiser();
@@ -297,8 +295,8 @@ contract AHandCore is EIP712 {
         uint16 minClaimBps,
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
-        if (expiry <= block.timestamp) revert ExpiryNotInFuture();
-        if (expiry > block.timestamp + MAX_EXPIRY_PERIOD) revert ExpiryTooFar();
+        if (expiry <= block.timestamp) revert ExpiryTooEarly();
+        if (expiry > block.timestamp + MAX_EXPIRY_PERIOD) revert ExpiryTooLate();
         if (rootKey == address(0)) revert ZeroRootKey();
         if (minClaimBps > BPS) revert MinClaimTooHigh();
 
@@ -331,8 +329,8 @@ contract AHandCore is EIP712 {
 
         if (msg.sender != hand.raiser) revert NotRaiser();
         if (block.timestamp >= hand.expiry) revert Expired();
-        if (newExpiry <= hand.expiry) revert ExpiryNotLater();
-        if (newExpiry > block.timestamp + MAX_EXPIRY_PERIOD) revert ExpiryTooFar();
+        if (newExpiry <= hand.expiry) revert ExpiryTooEarly();
+        if (newExpiry > block.timestamp + MAX_EXPIRY_PERIOD) revert ExpiryTooLate();
 
         hand.expiry = newExpiry;
 
