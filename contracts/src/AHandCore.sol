@@ -459,7 +459,7 @@ contract AHandCore is EIP712 {
         uint256 handId,
         SignedShake[] calldata signedShakes,
         SignedGive calldata signedGive
-    ) external view returns (bytes32) {
+    ) external view returns (bytes32 giveHash) {
         Hand storage hand = hands[handId];
         Give calldata give = signedGive.give;
 
