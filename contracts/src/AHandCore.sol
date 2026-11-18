@@ -524,18 +524,18 @@ contract AHandCore is EIP712 {
         claim = BPS;
         routeHash = bytes32(0); // a route without Shakes hashes to zero
 
-        for (uint256 i; i < signedShakes.length; ++i) {
+        for (uint256 position; position < signedShakes.length; ++position) {
             Memory.Pointer freeMemory = Memory.getFreeMemoryPointer();
 
-            SignedShake calldata signedShake = signedShakes[i];
+            SignedShake calldata signedShake = signedShakes[position];
             Shake calldata shake = signedShake.shake;
 
-            if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(i);
-            if (shake.payee == address(0) && shake.nextClaimBps != claim) revert AnonymousMargin(i);
+            if (shake.claimBps != claim || shake.nextClaimBps > claim) revert InvalidClaim(position);
+            if (shake.payee == address(0) && shake.nextClaimBps != claim) revert AnonymousMargin(position);
 
             bytes32 shakeHash = _hashShake(handHash, shake);
 
-            if (!_signedBy(key, _hashTypedDataV4(shakeHash), signedShake.keySig)) revert InvalidKeySig(i);
+            if (!_signedBy(key, _hashTypedDataV4(shakeHash), signedShake.keySig)) revert InvalidKeySig(position);
 
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
 
@@ -593,14 +593,14 @@ contract AHandCore is EIP712 {
         uint256 reward = hand.reward;
         rest = reward;
 
-        for (uint256 i; i < signedShakes.length; ++i) {
-            Shake calldata shake = signedShakes[i].shake;
+        for (uint256 position; position < signedShakes.length; ++position) {
+            Shake calldata shake = signedShakes[position].shake;
 
             uint256 margin = Math.mulDiv(reward, shake.claimBps - shake.nextClaimBps, BPS);
             rest -= margin;
 
             emit Shaken(
-                handId, shake.payee, i, margin, shake.nextKey, shake.claimBps, shake.nextClaimBps, shake.dataHash
+                handId, shake.payee, position, margin, shake.nextKey, shake.claimBps, shake.nextClaimBps, shake.dataHash
             );
 
             _pay(handId, hand.token, shake.payee, margin, hand.payoutGasK);
