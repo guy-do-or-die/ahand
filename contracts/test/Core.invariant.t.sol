@@ -286,14 +286,14 @@ contract CoreInvariantTest is Test {
         assertEq(total, token.balanceOf(address(core)));
     }
 
-    /// Every raised Hand has its raise time and is not closed before it; only a closed Hand
+    /// Every raised Hand has the time it was opened and is not closed before it; only a closed Hand
     /// keeps a thank, and a thank that keeps a statement keeps its Give.
     function invariant_timesAreConsistent() public view {
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             HandView memory h = handOf(core, id);
             ThankView memory t = thankOf(core, id);
-            assertGt(h.raisedAt, 0);
-            if (h.closedAt != 0) assertGe(h.closedAt, h.raisedAt);
+            assertGt(h.openedAt, 0);
+            if (h.closedAt != 0) assertGe(h.closedAt, h.openedAt);
             if (t.giveHash != bytes32(0)) assertGt(h.closedAt, 0);
             if (t.dataHash != bytes32(0)) assertTrue(t.giveHash != bytes32(0));
         }

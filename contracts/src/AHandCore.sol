@@ -64,20 +64,20 @@ struct SignedGive {
 contract AHandCore is EIP712 {
     using SafeERC20 for IERC20;
 
-    /// @dev Field order is the storage packing. A Hand exists if `raisedAt` is not zero and is
+    /// @dev Field order is the storage packing. A Hand exists if `openedAt` is not zero and is
     ///      open while `closedAt` is zero. A closed Hand was thanked if `thanks` keeps its Give,
     ///      and reclaimed if not.
     struct Hand {
         // slot 0: set by raise; extend moves the expiry
         address raiser;
         uint40 expiry;
-        uint40 raisedAt;
+        uint40 openedAt;
         // slot 1: the time thank or reclaim closed the Hand; then, set by raise, the token, the
         // gas each payout may use, in thousands, and the least share the giver must get
         uint40 closedAt;
         address token;
         uint16 payoutGasK;
-        uint16 minGiverClaimBps;
+        uint16 minClaimBps;
         // set by raise; fund adds to the reward
         uint256 reward;
         address rootKey;
@@ -98,13 +98,13 @@ contract AHandCore is EIP712 {
     ///      to another Hand, and a signature must not pass there. Reward and expiry are not signed:
     ///      a giver accepts a share of the reward, and the Hand's own expiry decides when thanks end.
     bytes32 private constant HAND_TYPEHASH = keccak256(
-        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
     bytes32 private constant SHAKE_TYPEHASH = keccak256(
-        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
     bytes32 private constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
 
     uint16 private constant BPS = 10_000; // the whole reward
@@ -136,7 +136,7 @@ contract AHandCore is EIP712 {
         uint256 reward,
         uint40 expiry,
         address rootKey,
-        uint16 minGiverClaimBps,
+        uint16 minClaimBps,
         uint16 payoutGasK,
         bytes32 dataHash
     );
@@ -189,8 +189,8 @@ contract AHandCore is EIP712 {
     error ExpiryTooFar();
     /// @notice The root key is the zero address, which nobody can sign for.
     error ZeroRootKey();
-    /// @notice The giver's minimum is above the whole reward.
-    error MinGiverClaimTooHigh();
+    /// @notice The minimum claim is above the whole reward.
+    error MinClaimTooHigh();
 
     // extend, fund, thank and reclaim
     /// @notice The Hand was never raised, or is thanked or reclaimed already.
@@ -222,7 +222,7 @@ contract AHandCore is EIP712 {
     ///         equal to the number of Shakes, it is the Give's.
     error InvalidKeySig(uint256 position);
     /// @notice The claim the route leaves the giver is below the raiser's minimum.
-    error BelowMinGiverClaim();
+    error BelowMinClaim();
     /// @notice The Give names another route.
     error InvalidRouteHash();
     /// @notice The Give's signer did not sign it: not its key, where that key still counts, nor its code (ERC-1271).
@@ -263,7 +263,7 @@ contract AHandCore is EIP712 {
     /// @dev Raised and neither thanked nor reclaimed.
     modifier whenOpen(uint256 handId) {
         Hand storage hand = hands[handId];
-        if (hand.raisedAt == 0 || hand.closedAt != 0) revert NotOpen();
+        if (hand.openedAt == 0 || hand.closedAt != 0) revert NotOpen();
         _;
     }
 
@@ -272,7 +272,7 @@ contract AHandCore is EIP712 {
     /// @notice Locks `reward` in `token` from the caller until `expiry`, at most `MAX_TERM` ahead;
     ///         the raiser may add to the reward with `fund` and move the expiry later with `extend`.
     ///         The Hand's link starts at `rootKey`; whatever route it takes, the giver keeps at
-    ///         least `minGiverClaimBps` of the reward, and above it each shaker keeps the margin its
+    ///         least `minClaimBps` of the reward, and above it each shaker keeps the margin its
     ///         Shake signed. Each payout may use `payoutGasK` thousand gas; with too little, zero
     ///         for example, every payout stays pending until withdrawn.
     ///         `dataHash` is a commitment every signature for the Hand covers and Core never
@@ -284,14 +284,14 @@ contract AHandCore is EIP712 {
         uint256 reward,
         uint40 expiry,
         address rootKey,
-        uint16 minGiverClaimBps,
+        uint16 minClaimBps,
         uint16 payoutGasK,
         bytes32 dataHash
     ) external nonReentrant returns (uint256 handId) {
         if (expiry <= block.timestamp) revert ExpiryNotInFuture();
         if (expiry > block.timestamp + MAX_TERM) revert ExpiryTooFar();
         if (rootKey == address(0)) revert ZeroRootKey();
-        if (minGiverClaimBps > BPS) revert MinGiverClaimTooHigh();
+        if (minClaimBps > BPS) revert MinClaimTooHigh();
 
         // Field by field: a new number is a fresh, empty Hand, so `closedAt` needs no zero
         // written; thank or reclaim sets it.
@@ -299,15 +299,15 @@ contract AHandCore is EIP712 {
         Hand storage hand = hands[handId];
         hand.raiser = msg.sender;
         hand.expiry = expiry;
-        hand.raisedAt = uint40(block.timestamp);
+        hand.openedAt = uint40(block.timestamp);
         hand.token = token;
         hand.payoutGasK = payoutGasK;
-        hand.minGiverClaimBps = minGiverClaimBps;
+        hand.minClaimBps = minClaimBps;
         hand.reward = reward;
         hand.rootKey = rootKey;
         hand.dataHash = dataHash;
 
-        emit Raised(handId, msg.sender, token, reward, expiry, rootKey, minGiverClaimBps, payoutGasK, dataHash);
+        emit Raised(handId, msg.sender, token, reward, expiry, rootKey, minClaimBps, payoutGasK, dataHash);
 
         if (reward == 0) return handId; // a Hand without a reward never touches a token
 
@@ -434,7 +434,7 @@ contract AHandCore is EIP712 {
     ) external view returns (address lastKey, uint16 claimBps, bytes32 routeHash) {
         Hand storage hand = hands[handId];
 
-        if (hand.raisedAt == 0) revert NotRaised();
+        if (hand.openedAt == 0) revert NotRaised();
 
         return _checkRoute(_hashHand(handId, hand), hand, signedShakes);
     }
@@ -452,7 +452,7 @@ contract AHandCore is EIP712 {
         Hand storage hand = hands[handId];
         Give calldata give = signedGive.give;
 
-        if (hand.raisedAt == 0) revert NotRaised();
+        if (hand.openedAt == 0) revert NotRaised();
         if (give.signer == hand.raiser) revert GiverIsRaiser();
         if (give.payee == address(0)) revert ZeroPayee();
 
@@ -476,7 +476,7 @@ contract AHandCore is EIP712 {
         (address lastKey, uint16 claim, bytes32 routeHash) = _checkRoute(handHash, hand, signedShakes);
 
         if (give.claimBps != claim) revert InvalidClaim(signedShakes.length);
-        if (claim < hand.minGiverClaimBps) revert BelowMinGiverClaim();
+        if (claim < hand.minClaimBps) revert BelowMinClaim();
         if (give.routeHash != routeHash) revert InvalidRouteHash();
 
         giveHash = _hashGive(handHash, give);
@@ -551,7 +551,7 @@ contract AHandCore is EIP712 {
                 hand.raiser,
                 hand.token,
                 hand.rootKey,
-                hand.minGiverClaimBps,
+                hand.minClaimBps,
                 hand.payoutGasK,
                 hand.dataHash
             )

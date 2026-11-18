@@ -21,10 +21,10 @@ contract EventIndexer {
     bytes32 constant WITHDRAWN = keccak256("Withdrawn(address,address,uint256,address)");
 
     bytes32 constant HAND_TYPEHASH = keccak256(
-        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
     bytes32 constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minGiverClaimBps,uint16 payoutGasK,bytes32 dataHash)"
+        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 minClaimBps,uint16 payoutGasK,bytes32 dataHash)"
     );
 
     address public immutable core;
@@ -89,12 +89,12 @@ contract EventIndexer {
         HandView storage h = hands[handId];
         h.raiser = _address(log.topics[2]);
         h.token = _address(log.topics[3]);
-        h.raisedAt = uint40(time);
+        h.openedAt = uint40(time);
         RaisedTerms memory terms = abi.decode(log.data, (RaisedTerms));
         h.reward = terms.reward;
         h.expiry = terms.expiry;
         h.rootKey = terms.rootKey;
-        h.minGiverClaimBps = terms.minGiverClaimBps;
+        h.minClaimBps = terms.minClaimBps;
         h.payoutGasK = terms.payoutGasK;
         h.dataHash = terms.dataHash;
     }
@@ -104,7 +104,7 @@ contract EventIndexer {
         uint256 reward;
         uint40 expiry;
         address rootKey;
-        uint16 minGiverClaimBps;
+        uint16 minClaimBps;
         uint16 payoutGasK;
         bytes32 dataHash;
     }
@@ -202,9 +202,7 @@ contract EventIndexer {
     function _handHash(uint256 handId) private view returns (bytes32) {
         HandView storage h = hands[handId];
         return keccak256(
-            abi.encode(
-                HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.minGiverClaimBps, h.payoutGasK, h.dataHash
-            )
+            abi.encode(HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.minClaimBps, h.payoutGasK, h.dataHash)
         );
     }
 

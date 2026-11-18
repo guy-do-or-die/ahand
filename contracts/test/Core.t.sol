@@ -97,7 +97,7 @@ contract CoreTest is Test {
         uint256 reward,
         uint40 expiry,
         address rootKey,
-        uint16 minGiverClaimBps,
+        uint16 minClaimBps,
         uint16 payoutGasK,
         bytes32 dataHash
     );
@@ -297,11 +297,11 @@ contract CoreTest is Test {
         HandView memory h = _hand(id);
         assertEq(h.raiser, alice);
         assertEq(h.expiry, expiry);
-        assertEq(h.raisedAt, block.timestamp);
+        assertEq(h.openedAt, block.timestamp);
         _assertOpen(id);
         assertEq(h.token, address(usd));
         assertEq(h.payoutGasK, GAS_K);
-        assertEq(h.minGiverClaimBps, 0);
+        assertEq(h.minClaimBps, 0);
         assertEq(h.reward, REWARD);
         assertEq(h.rootKey, root);
         assertEq(h.dataHash, ASK);
@@ -351,11 +351,11 @@ contract CoreTest is Test {
     }
 
     /// A minimum above the whole reward would make the Hand impossible to thank: refused at raise.
-    function test_raise_rejectsMinGiverClaimAboveTheReward() public {
+    function test_raise_rejectsMinClaimAboveTheReward() public {
         vm.startPrank(alice);
-        vm.expectRevert(AHandCore.MinGiverClaimTooHigh.selector);
+        vm.expectRevert(AHandCore.MinClaimTooHigh.selector);
         core.raise(address(usd), REWARD, expiry, root, 10_001, GAS_K, ASK);
-        vm.expectRevert(AHandCore.MinGiverClaimTooHigh.selector);
+        vm.expectRevert(AHandCore.MinClaimTooHigh.selector);
         core.raise(address(usd), REWARD, expiry, root, type(uint16).max, GAS_K, ASK);
         core.raise(address(usd), REWARD, expiry, root, 10_000, GAS_K, ASK); // the whole reward is fine
         vm.stopPrank();
@@ -708,9 +708,9 @@ contract CoreTest is Test {
     }
 
     /// An id never raised has no times at all and cannot be reclaimed.
-    function test_unknownHand_hasNoRaisedAt() public {
+    function test_unknownHand_hasNoOpenedAt() public {
         assertEq(_hand(42).raiser, address(0));
-        assertEq(_hand(42).raisedAt, 0);
+        assertEq(_hand(42).openedAt, 0);
         vm.warp(uint256(expiry) + 1);
         vm.expectRevert(AHandCore.NotOpen.selector);
         core.reclaim(42);
@@ -1575,7 +1575,7 @@ contract CoreTest is Test {
         uint256 id = core.raise(address(usd), REWARD, expiry, root, 9_500, GAS_K, ASK);
         SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
-        vm.expectRevert(AHandCore.BelowMinGiverClaim.selector);
+        vm.expectRevert(AHandCore.BelowMinClaim.selector);
         _submit(alice, id, shakes, g, keySig, giverSig);
 
         _thankAlong(id, _oneShake(id, makeAddr("shaker"), 9_500), carolKey);
@@ -1988,7 +1988,7 @@ contract CoreTest is Test {
             id,
             greedy,
             _signedGiveBy(id, g, NEXT_PK, carolKey),
-            abi.encodeWithSelector(AHandCore.BelowMinGiverClaim.selector)
+            abi.encodeWithSelector(AHandCore.BelowMinClaim.selector)
         );
     }
 
