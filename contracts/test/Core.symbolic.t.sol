@@ -119,7 +119,7 @@ contract CoreSymbolic is Test {
     }
 
     /// A Hand thanked along one Shake that keeps `10 000 - next` of the reward for its payee: the
-    /// margin is that claim on the reward rounded down, the giver's payee gets the rest, and Core
+    /// margin is that part of the reward rounded down, the giver's payee gets the rest, and Core
     /// keeps nothing. Each check below leaves one number unknown: with both the reward and the
     /// claim unknown, `Math.mulDiv` multiplies two unknowns and the solver does not finish.
     /// Halmos treats signatures as given, so these say "with valid signatures, the money splits

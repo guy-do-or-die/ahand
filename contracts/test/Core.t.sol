@@ -430,6 +430,11 @@ contract CoreTest is Test {
         assertEq(core.handsCount(), 1);
     }
 
+    /// The cap is 180 days. Every other test reads it from Core; this one names the number.
+    function test_raise_theCapIs180Days() public view {
+        assertEq(core.MAX_EXPIRY_PERIOD(), 180 days);
+    }
+
     /*//////////////////////////// extend ////////////////////////////*/
 
     /// The raiser moves the expiry later. Nothing else of the Hand changes, so the signatures
@@ -1241,6 +1246,134 @@ contract CoreTest is Test {
         core.thank{gas: 2_000_000}(id, none, SignedGive(give, keySig, junk), bytes32(0));
     }
 
+    /*//////////////////////////// typed data ////////////////////////////*/
+
+    string constant HAND_FIELDS =
+        '[{"name":"handId","type":"uint256"},{"name":"raiser","type":"address"},{"name":"token","type":"address"},{"name":"rootKey","type":"address"},{"name":"payoutGasK","type":"uint16"},{"name":"minClaimBps","type":"uint16"},{"name":"dataHash","type":"bytes32"}]';
+    string constant SHAKE_FIELDS =
+        '[{"name":"hand","type":"Hand"},{"name":"nextKey","type":"address"},{"name":"payee","type":"address"},{"name":"claimBps","type":"uint16"},{"name":"nextClaimBps","type":"uint16"},{"name":"dataHash","type":"bytes32"}]';
+    string constant GIVE_FIELDS =
+        '[{"name":"hand","type":"Hand"},{"name":"signer","type":"address"},{"name":"payee","type":"address"},{"name":"claimBps","type":"uint16"},{"name":"routeHash","type":"bytes32"},{"name":"dataHash","type":"bytes32"}]';
+
+    function _quoted(address value) internal pure returns (string memory) {
+        return string.concat('"', vm.toString(value), '"');
+    }
+
+    function _quoted(bytes32 value) internal pure returns (string memory) {
+        return string.concat('"', vm.toString(value), '"');
+    }
+
+    /// The Hand as typed data shows it to a wallet, read from Core.
+    function _handJson(uint256 id) internal view returns (string memory) {
+        HandView memory hand = _hand(id);
+        return string.concat(
+            '{"handId":"',
+            vm.toString(id),
+            '","raiser":',
+            _quoted(hand.raiser),
+            ',"token":',
+            _quoted(hand.token),
+            ',"rootKey":',
+            _quoted(hand.rootKey),
+            ',"payoutGasK":',
+            vm.toString(uint256(hand.payoutGasK)),
+            ',"minClaimBps":',
+            vm.toString(uint256(hand.minClaimBps)),
+            ',"dataHash":',
+            _quoted(hand.dataHash),
+            "}"
+        );
+    }
+
+    function _shakeJson(uint256 id, Shake memory shake) internal view returns (string memory) {
+        return string.concat(
+            '{"hand":',
+            _handJson(id),
+            ',"nextKey":',
+            _quoted(shake.nextKey),
+            ',"payee":',
+            _quoted(shake.payee),
+            ',"claimBps":',
+            vm.toString(uint256(shake.claimBps)),
+            ',"nextClaimBps":',
+            vm.toString(uint256(shake.nextClaimBps)),
+            ',"dataHash":',
+            _quoted(shake.dataHash),
+            "}"
+        );
+    }
+
+    function _giveJson(uint256 id, Give memory give) internal view returns (string memory) {
+        return string.concat(
+            '{"hand":',
+            _handJson(id),
+            ',"signer":',
+            _quoted(give.signer),
+            ',"payee":',
+            _quoted(give.payee),
+            ',"claimBps":',
+            vm.toString(uint256(give.claimBps)),
+            ',"routeHash":',
+            _quoted(give.routeHash),
+            ',"dataHash":',
+            _quoted(give.dataHash),
+            "}"
+        );
+    }
+
+    /// The digest a wallet signs: Foundry hashes the typed data itself, from the names and types
+    /// of the fields. Neither Core's type strings nor this file's own hashing take part.
+    function _walletDigest(
+        string memory primaryType,
+        string memory fields,
+        string memory message
+    ) internal view returns (bytes32) {
+        return vm.eip712HashTypedData(
+            string.concat(
+                '{"types":{"EIP712Domain":[{"name":"name","type":"string"},{"name":"version","type":"string"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"Hand":',
+                HAND_FIELDS,
+                ',"',
+                primaryType,
+                '":',
+                fields,
+                '},"primaryType":"',
+                primaryType,
+                '","domain":{"name":"aHand","version":"core","chainId":',
+                vm.toString(block.chainid),
+                ',"verifyingContract":',
+                _quoted(address(core)),
+                '},"message":',
+                message,
+                "}"
+            )
+        );
+    }
+
+    /// Core's signed types are what a wallet hashes. A Shake and a Give are signed over typed data
+    /// as a wallet builds it, and Core thanks along them; the payout gas and the minimum differ,
+    /// so their order in the type counts. This file's own hashing, which every other test signs
+    /// with, gives the same digests.
+    function test_typedData_walletSignaturesAreAccepted() public {
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), REWARD, expiry, root, GAS_K, 9_000, ASK);
+        address shaker = makeAddr("shaker");
+
+        Shake memory shake = Shake(vm.addr(NEXT_PK), shaker, 10_000, 9_500, SHAKE_DATA);
+        bytes32 shakeDigest = _walletDigest("Shake", SHAKE_FIELDS, _shakeJson(id, shake));
+        assertEq(digestOf(address(core), shakeStructHash(core, id, shake)), shakeDigest);
+        SignedShake[] memory shakes = new SignedShake[](1);
+        shakes[0] = SignedShake(shake, _signed(ROOT_PK, shakeDigest));
+
+        (,, bytes32 routeHash) = core.checkRoute(id, shakes);
+        Give memory give = Give(carol, carol, 9_500, routeHash, ANSWER);
+        bytes32 giveDigest = _walletDigest("Give", GIVE_FIELDS, _giveJson(id, give));
+        assertEq(digestOf(address(core), giveStructHash(core, id, give)), giveDigest);
+
+        _submit(alice, id, shakes, give, _signed(NEXT_PK, giveDigest), _signed(carolKey, giveDigest));
+        assertEq(usd.balanceOf(shaker), REWARD * 500 / 10_000);
+        assertEq(usd.balanceOf(carol), REWARD * 9_500 / 10_000);
+    }
+
     /*//////////////////////////// reorg ////////////////////////////*/
 
     /// Signatures collected for alice's Hand along one Shake; then the chain goes back to before her
@@ -1285,7 +1418,7 @@ contract CoreTest is Test {
     }
 
     /// Every term a signature names counts. After a reorg alice's own Hand takes the number, the same
-    /// in all but one of them — token, root key, minimum for the giver, payout gas or question — and
+    /// in all but one of them — token, root key, payout gas, minimum for the giver or question — and
     /// no signature passes; with another root key, not even after the first Shake is signed again.
     function test_reorg_everySignedTermCounts() public {
         MockUSD otherToken = new MockUSD();
@@ -1299,8 +1432,8 @@ contract CoreTest is Test {
                 REWARD,
                 expiry,
                 term == 1 ? vm.addr(0xA1A1) : root,
-                term == 3 ? GAS_K + 1 : GAS_K,
-                term == 2 ? 100 : 0,
+                term == 2 ? GAS_K + 1 : GAS_K,
+                term == 3 ? 100 : 0,
                 term == 4 ? keccak256("another question") : ASK
             );
             if (term == 1) {
@@ -1313,7 +1446,7 @@ contract CoreTest is Test {
         }
     }
 
-    /// A signature names the question and its rules, not the amount or the deadline: the same
+    /// A signature names the question and its rules, not the reward or the expiry: the same
     /// question raised again after a reorg, with another reward and expiry, keeps its signatures.
     function test_reorg_sameQuestionKeepsItsSignatures() public {
         (uint256 id, SignedShake[] memory shakes, Give memory give, bytes memory keySig, bytes memory giverSig) =

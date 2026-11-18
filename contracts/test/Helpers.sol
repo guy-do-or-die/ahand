@@ -17,7 +17,8 @@ function domainOf(address core) view returns (bytes32) {
     );
 }
 
-/// What a Shake or a Give names the Hand by: everything `raise` fixes for good, not reward or expiry.
+/// What a Shake or a Give names the Hand by: its raiser and all that the raiser sets for good in
+/// `raise`, not reward or expiry.
 function handStructHash(AHandCore core, uint256 handId) view returns (bytes32) {
     HandView memory hand = handOf(core, handId);
     return keccak256(

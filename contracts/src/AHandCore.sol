@@ -93,10 +93,11 @@ contract AHandCore is EIP712 {
         bytes32 dataHash;
     }
 
-    /// @dev What a Shake or a Give names its Hand by: everything `raise` fixes for good, not the
-    ///      number alone. After a reorg the same number may belong to another Hand, and a signature
-    ///      must not pass there. Reward and expiry are not signed: a giver accepts a claim on the
-    ///      reward, not an amount, and the Hand's own expiry decides how long it can be thanked.
+    /// @dev What a Shake or a Give names its Hand by: its raiser and all that the raiser sets for
+    ///      good in `raise`, not the number alone. After a reorg the same number may belong to
+    ///      another Hand, and a signature must not pass there. Reward and expiry are not signed: a
+    ///      giver accepts a claim on the reward, not an amount, and the Hand's own expiry decides
+    ///      how long it can be thanked.
     bytes32 private constant HAND_TYPEHASH = keccak256(
         "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
