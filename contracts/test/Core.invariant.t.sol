@@ -260,6 +260,8 @@ contract CoreInvariantTest is Test {
     function invariant_stateRebuildsFromEvents() public view {
         EventIndexer indexer = handler.indexer();
         assertEq(indexer.handsCount(), core.handsCount());
+        assertEq(indexer.thanksCount(), core.thanksCount());
+        assertEq(indexer.reclaimsCount(), core.reclaimsCount());
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
             assertEq(abi.encode(indexer.hand(id)), abi.encode(handOf(core, id)));
             assertEq(abi.encode(indexer.thank(id)), abi.encode(thankOf(core, id)));
@@ -299,13 +301,18 @@ contract CoreInvariantTest is Test {
         }
     }
 
-    /// A closed Hand stays closed: Core counts exactly the Hands the handler closed.
+    /// A closed Hand stays closed: Core keeps exactly the Hands the handler closed, and its two
+    /// counts are the closed Hands that keep a thank and those that keep none.
     function invariant_closedHandsStayClosed() public view {
-        uint256 closed;
+        uint256 thanked;
+        uint256 reclaimed;
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            HandView memory h = handOf(core, id);
-            if (h.closedAt != 0) ++closed;
+            if (handOf(core, id).closedAt == 0) continue;
+            if (thankOf(core, id).giveHash != bytes32(0)) ++thanked;
+            else ++reclaimed;
         }
-        assertEq(closed, handler.closed());
+        assertEq(thanked + reclaimed, handler.closed());
+        assertEq(core.thanksCount(), thanked);
+        assertEq(core.reclaimsCount(), reclaimed);
     }
 }

@@ -789,6 +789,26 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(carol), REWARD);
     }
 
+    /// Core counts the Hands thanked and the Hands reclaimed; a raise counts as neither.
+    function test_counts_thanksAndReclaims() public {
+        uint256 first = _raise(alice, address(usd), REWARD);
+        uint256 second = _raise(alice, address(usd), REWARD);
+        uint256 third = _raise(alice, address(usd), REWARD);
+        assertEq(core.thanksCount(), 0);
+        assertEq(core.reclaimsCount(), 0);
+
+        _thank(alice, first, carolKey);
+        assertEq(core.thanksCount(), 1);
+        assertEq(core.reclaimsCount(), 0);
+
+        vm.warp(expiry);
+        core.reclaim(second);
+        core.reclaim(third);
+        assertEq(core.thanksCount(), 1);
+        assertEq(core.reclaimsCount(), 2);
+        assertEq(core.handsCount(), 3);
+    }
+
     /// The time a thank closed the Hand is written once and stays.
     function test_thank_timeIsWrittenOnce() public {
         uint256 id = _raise(alice, address(usd), REWARD);
@@ -1850,6 +1870,7 @@ contract CoreTest is Test {
     /// Every Shake costs the same, however long the route: the hundredth adds exactly what the
     /// second does.
     function test_route_everyShakeCostsTheSame() public {
+        this.routeGas(0); // the very first thank also starts Core's count of thanks
         uint256 second = this.routeGas(2) - this.routeGas(1);
         uint256 hundredth = this.routeGas(100) - this.routeGas(99);
         assertEq(hundredth, second);

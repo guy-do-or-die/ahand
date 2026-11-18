@@ -113,7 +113,15 @@ contract AHandCore is EIP712 {
     ///         this after its raiser last raised or extended the Hand.
     uint256 public constant MAX_TERM = 365 days;
 
+    /// @notice How many Hands were raised. Hands are numbered from 1, so this is also the
+    ///         number of the last one.
     uint256 public handsCount;
+    /// @notice How many Hands were thanked.
+    uint256 public thanksCount;
+    /// @notice How many Hands were reclaimed.
+    uint256 public reclaimsCount;
+
+    /// @notice Each Hand by its number. A number never raised gives an empty Hand.
     mapping(uint256 handId => Hand) public hands;
 
     /// @notice What the thank of each thanked Hand left.
@@ -376,6 +384,7 @@ contract AHandCore is EIP712 {
         bytes32 giveHash = _checkGive(handId, hand, signedShakes, signedGive);
 
         hand.closedAt = uint40(block.timestamp);
+        ++thanksCount;
         thanks[handId].giveHash = giveHash;
         if (dataHash != bytes32(0)) thanks[handId].dataHash = dataHash;
 
@@ -392,6 +401,7 @@ contract AHandCore is EIP712 {
         if (block.timestamp < hand.expiry) revert NotExpired();
 
         hand.closedAt = uint40(block.timestamp);
+        ++reclaimsCount;
 
         emit Reclaimed(handId, hand.token, hand.reward);
 

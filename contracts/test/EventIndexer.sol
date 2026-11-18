@@ -29,6 +29,8 @@ contract EventIndexer {
 
     address public immutable core;
     uint256 public handsCount;
+    uint256 public thanksCount;
+    uint256 public reclaimsCount;
     mapping(uint256 handId => HandView) internal hands;
     mapping(uint256 handId => ThankView) internal thanks;
     mapping(address token => mapping(address payee => uint256)) public pending;
@@ -133,11 +135,13 @@ contract EventIndexer {
         require(abi.decode(log.data, (uint256)) == h.reward, "the closing event names the whole reward");
         h.closedAt = uint40(time);
         if (thanked) {
+            ++thanksCount;
             (, thanks[handId].dataHash) = abi.decode(log.data, (uint256, bytes32));
             thanking = handId;
             nextPosition = 0;
             rest = h.reward;
         } else {
+            ++reclaimsCount;
             _owe(handId, h.raiser, h.reward);
         }
     }

@@ -50,6 +50,10 @@ contract GasTest is Test {
     /// Thanks along a route of `n` Shakes, each keeping 1 % for a payee who has never held the
     /// token; the giver gets the rest. With the thanks the raiser states `stated`.
     function _thank(uint256 id, uint256 n, bytes32 stated) internal {
+        _thankBy(id, n, stated, GIVER_PK);
+    }
+
+    function _thankBy(uint256 id, uint256 n, bytes32 stated, uint256 giverPk) internal {
         SignedShake[] memory shakes = new SignedShake[](n);
         bytes32 routeHash;
         uint256 key = ROOT_PK;
@@ -63,10 +67,10 @@ contract GasTest is Test {
             key = NEXT_PK + i;
             claim -= 100;
         }
-        Give memory g = Give(giver, giver, claim, routeHash, keccak256("answer"));
+        Give memory g = Give(vm.addr(giverPk), vm.addr(giverPk), claim, routeHash, keccak256("answer"));
         bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
         bytes memory keySig = _sign(key, digest);
-        bytes memory giverSig = _sign(GIVER_PK, digest);
+        bytes memory giverSig = _sign(giverPk, digest);
         vm.prank(raiser);
         core.thank(id, shakes, SignedGive(g, keySig, giverSig), stated);
     }
@@ -94,7 +98,34 @@ contract GasTest is Test {
         vm.snapshotValue("raise_withoutReward", vm.lastFrameGas().gasTotalUsed);
     }
 
+    /// One Hand thanked and one reclaimed, so that neither of Core's two counts is written for the
+    /// first time by the call measured next.
+    function _closeTwoHands() internal {
+        uint256 thanked = _raise(usd, REWARD);
+        uint256 reclaimed = _raise(usd, REWARD);
+        _thankBy(thanked, 0, bytes32(0), 0xCA402); // another giver: the one measured has never held the token
+        vm.warp(expiry);
+        core.reclaim(reclaimed);
+        expiry = uint40(block.timestamp + 30 days);
+    }
+
+    /// The very first thank: Core's count of thanks is written for the first time.
+    function test_gas_thank_firstThank() public {
+        uint256 id = _raise(usd, REWARD);
+        _thank(id, 0, bytes32(0));
+        vm.snapshotValue("thank_firstThank", vm.lastFrameGas().gasTotalUsed);
+    }
+
+    /// The very first reclaim: Core's count of reclaims is written for the first time.
+    function test_gas_reclaim_firstReclaim() public {
+        uint256 id = _raise(usd, REWARD);
+        vm.warp(expiry);
+        core.reclaim(id);
+        vm.snapshotValue("reclaim_firstReclaim", vm.lastFrameGas().gasTotalUsed);
+    }
+
     function test_gas_thank_direct() public {
+        _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         _thank(id, 0, bytes32(0));
         vm.snapshotValue("thank_direct", vm.lastFrameGas().gasTotalUsed);
@@ -102,24 +133,28 @@ contract GasTest is Test {
 
     /// The raiser states something with the thanks: one more slot is written.
     function test_gas_thank_directStating() public {
+        _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         _thank(id, 0, keccak256("thanks"));
         vm.snapshotValue("thank_directStating", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_oneShake() public {
+        _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         _thank(id, 1, bytes32(0));
         vm.snapshotValue("thank_oneShake", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_threeShakes() public {
+        _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         _thank(id, 3, bytes32(0));
         vm.snapshotValue("thank_threeShakes", vm.lastFrameGas().gasTotalUsed);
     }
 
     function test_gas_thank_tenShakes() public {
+        _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         _thank(id, 10, bytes32(0));
         vm.snapshotValue("thank_tenShakes", vm.lastFrameGas().gasTotalUsed);
@@ -142,6 +177,7 @@ contract GasTest is Test {
     }
 
     function test_gas_reclaim() public {
+        _closeTwoHands();
         uint256 id = _raise(usd, REWARD);
         vm.warp(expiry);
         core.reclaim(id);
