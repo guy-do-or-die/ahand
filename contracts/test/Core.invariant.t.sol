@@ -102,7 +102,7 @@ contract Handler is Test {
     }
 
     /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
-    /// `to` odd: the raiser states something with the thanks.
+    /// `to` odd: the raiser states something with the thank.
     function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];

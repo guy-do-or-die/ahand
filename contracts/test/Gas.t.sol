@@ -48,7 +48,7 @@ contract GasTest is Test {
     }
 
     /// Thanks along a route of `n` Shakes, each keeping 1 % for a payee who has never held the
-    /// token; the giver gets the rest. With the thanks the raiser states `stated`.
+    /// token; the giver gets the rest. With the thank the raiser states `stated`.
     function _thank(uint256 id, uint256 n, bytes32 stated) internal {
         _thankBy(id, n, stated, GIVER_PK);
     }
@@ -131,7 +131,7 @@ contract GasTest is Test {
         vm.snapshotValue("thank_direct", vm.lastFrameGas().gasTotalUsed);
     }
 
-    /// The raiser states something with the thanks: one more slot is written.
+    /// The raiser states something with the thank: one more slot is written.
     function test_gas_thank_directStating() public {
         _closeTwoHands();
         uint256 id = _raise(usd, REWARD);

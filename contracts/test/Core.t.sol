@@ -131,7 +131,7 @@ contract CoreTest is Test {
     uint256 constant REWARD = 100e6;
     bytes32 constant ANSWER = keccak256("the salted answer");
     bytes32 constant ASK = keccak256("what the raiser asks for");
-    bytes32 constant THANKS = keccak256("what the raiser states with the thanks");
+    bytes32 constant THANKS = keccak256("what the raiser states with the thank");
     bytes32 constant SHAKE_DATA = keccak256("why I passed it on");
     uint16 constant GAS_K = 200; // payout gas, thousands
     uint256 constant ROOT_PK = 0xA0A0; // the link's root key: whoever holds the link
@@ -533,9 +533,9 @@ contract CoreTest is Test {
 
     /*//////////////////////////// fund ////////////////////////////*/
 
-    /// The raiser adds to the reward. Signatures name shares, not amounts, so a route collected
-    /// before pays its shares of the larger reward.
-    function test_fund_addsToTheRewardAndTheRoutePaysItsShares() public {
+    /// The raiser adds to the reward. Signatures name claims, not amounts, so a route collected
+    /// before pays its claims on the larger reward.
+    function test_fund_addsToTheRewardAndTheRoutePaysItsClaims() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         address shaker = makeAddr("shaker");
         SignedShake[] memory shakes = _oneShake(id, shaker, 9_000); // the shaker keeps 10 %
@@ -748,8 +748,8 @@ contract CoreTest is Test {
         assertEq(core.pending(address(t), carol), REWARD);
     }
 
-    /// With the thanks the raiser may state something of its own. Core keeps it in the Hand and
-    /// logs it, and nothing else changes: the question, the accepted Give and the payout.
+    /// With the thank the raiser may state something of its own. Core keeps it in `thanks` and
+    /// logs it, and nothing else changes: the Hand's own data, the accepted Give and the payout.
     function test_thank_keepsAndLogsWhatTheRaiserStates() public {
         uint256 id = _raise(alice, address(usd), REWARD);
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _direct(id, carolKey);
@@ -2224,18 +2224,19 @@ contract CoreTest is Test {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, 0xC0C0, carolKey);
         _submit(alice, id, shakes, g, keySig, giverSig);
 
-        (address raiser, address giver, FactsReader.Share[] memory shares) = reader.proveThank(id, _unsigned(shakes), g);
+        (address raiser, address giver, FactsReader.Payout[] memory payouts) =
+            reader.proveThank(id, _unsigned(shakes), g);
         assertEq(raiser, alice);
         assertEq(giver, carol);
-        assertEq(shares.length, 3);
-        assertEq(shares[0].payee, first);
-        assertEq(shares[0].amount, usd.balanceOf(first));
-        assertEq(shares[0].dataHash, SHAKE_DATA);
-        assertEq(shares[1].payee, second);
-        assertEq(shares[1].amount, usd.balanceOf(second));
-        assertEq(shares[2].payee, carol);
-        assertEq(shares[2].amount, usd.balanceOf(carol));
-        assertEq(shares[2].dataHash, ANSWER);
+        assertEq(payouts.length, 3);
+        assertEq(payouts[0].payee, first);
+        assertEq(payouts[0].amount, usd.balanceOf(first));
+        assertEq(payouts[0].dataHash, SHAKE_DATA);
+        assertEq(payouts[1].payee, second);
+        assertEq(payouts[1].amount, usd.balanceOf(second));
+        assertEq(payouts[2].payee, carol);
+        assertEq(payouts[2].amount, usd.balanceOf(carol));
+        assertEq(payouts[2].dataHash, ANSWER);
     }
 
     /// A branch that was not thanked, or a Give changed in any field, proves nothing.
@@ -2287,10 +2288,10 @@ contract CoreTest is Test {
         (Give memory g, bytes memory keySig, bytes memory giverSig) = _giveAt(id, shakes, NEXT_PK, carolKey);
         _submit(alice, id, shakes, g, keySig, giverSig);
 
-        (,, FactsReader.Share[] memory shares) = reader.proveThank(id, _unsigned(shakes), g);
-        assertEq(shares[0].amount, usd.balanceOf(shaker));
-        assertEq(shares[1].amount, usd.balanceOf(carol));
-        assertEq(shares[0].amount + shares[1].amount, reward);
+        (,, FactsReader.Payout[] memory payouts) = reader.proveThank(id, _unsigned(shakes), g);
+        assertEq(payouts[0].amount, usd.balanceOf(shaker));
+        assertEq(payouts[1].amount, usd.balanceOf(carol));
+        assertEq(payouts[0].amount + payouts[1].amount, reward);
     }
 
     /*//////////////////////////// awkward tokens ////////////////////////////*/

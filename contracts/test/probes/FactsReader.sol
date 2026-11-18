@@ -21,7 +21,7 @@ contract FactsReader {
 
     /// What one payee was due: a shaker's margin, or the rest for the giver's payee. `dataHash` is
     /// the Shake's reason or the giver's answer.
-    struct Share {
+    struct Payout {
         address payee;
         uint256 amount;
         bytes32 dataHash;
@@ -41,7 +41,7 @@ contract FactsReader {
         uint256 handId,
         Shake[] calldata shakes,
         Give calldata give
-    ) external view returns (address raiser, address giver, Share[] memory shares) {
+    ) external view returns (address raiser, address giver, Payout[] memory payouts) {
         HandView memory h = handOf(core, handId);
         (bytes32 thankedGive,) = core.thanks(handId);
         if (thankedGive == bytes32(0)) revert NotThanked();
@@ -51,7 +51,7 @@ contract FactsReader {
 
         bytes32 routeHash;
         uint256 rest = h.reward;
-        shares = new Share[](shakes.length + 1);
+        payouts = new Payout[](shakes.length + 1);
         for (uint256 i; i < shakes.length; ++i) {
             Shake calldata s = shakes[i];
             bytes32 shakeHash = keccak256(
@@ -60,7 +60,7 @@ contract FactsReader {
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
             uint256 margin = Math.mulDiv(h.reward, s.claimBps - s.nextClaimBps, 10_000);
             rest -= margin;
-            shares[i] = Share(s.payee, margin, s.dataHash);
+            payouts[i] = Payout(s.payee, margin, s.dataHash);
         }
         if (give.routeHash != routeHash) revert NotTheThankedRoute();
         bytes32 giveHash = keccak256(
@@ -68,7 +68,7 @@ contract FactsReader {
         );
         if (giveHash != thankedGive) revert NotTheThankedGive();
 
-        shares[shakes.length] = Share(give.payee, rest, give.dataHash);
-        return (h.raiser, give.signer, shares);
+        payouts[shakes.length] = Payout(give.payee, rest, give.dataHash);
+        return (h.raiser, give.signer, payouts);
     }
 }

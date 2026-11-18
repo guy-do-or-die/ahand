@@ -119,9 +119,9 @@ contract CoreSymbolic is Test {
     }
 
     /// A Hand thanked along one Shake that keeps `10 000 - next` of the reward for its payee: the
-    /// margin is that share of the reward rounded down, the giver's payee gets the rest, and Core
+    /// margin is that claim on the reward rounded down, the giver's payee gets the rest, and Core
     /// keeps nothing. Each check below leaves one number unknown: with both the reward and the
-    /// share unknown, `Math.mulDiv` multiplies two unknowns and the solver does not finish.
+    /// claim unknown, `Math.mulDiv` multiplies two unknowns and the solver does not finish.
     /// Halmos treats signatures as given, so these say "with valid signatures, the money splits
     /// exactly"; that no other key passes is for the unit and fuzz tests.
     function _thankAlongOneShake(uint256 reward, uint16 next, bytes32 stated) internal {
@@ -153,13 +153,13 @@ contract CoreSymbolic is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    /// Any share, the smallest reward where rounding shows: 3.
+    /// Any claim, the smallest reward where rounding shows: 3.
     function check_thank_anyClaimSmallReward(uint16 next, bytes32 stated) public {
         vm.assume(next <= 10_000);
         _thankAlongOneShake(3, next, stated);
     }
 
-    /// Any share, a huge reward: nothing overflows.
+    /// Any claim, a huge reward: nothing overflows.
     function check_thank_anyClaimHugeReward(uint16 next, bytes32 stated) public {
         vm.assume(next <= 10_000);
         _thankAlongOneShake(type(uint128).max, next, stated);

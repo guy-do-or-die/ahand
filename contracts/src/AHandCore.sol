@@ -47,11 +47,11 @@ struct SignedGive {
 }
 
 /// @title  AHandCore
-/// @notice A Hand locks a reward in one ERC-20 until a set moment; its raiser can only add to the
-///         reward and move the moment later. Its link starts at a root key, and each shaker passes
-///         it on with a signed Shake, keeping a margin. Before that moment the raiser can pay the
+/// @notice A Hand locks a reward in one ERC-20 until its expiry; its raiser can only add to the
+///         reward and move the expiry later. Its link starts at a root key, and each shaker passes
+///         it on with a signed Shake, keeping a margin. Before expiry the raiser can pay the
 ///         reward along a route to a giver who signed a Give at its end: every shaker gets its
-///         margin, the giver the rest. From that moment anyone can send the reward back to the
+///         margin, the giver the rest. From expiry on anyone can refund the reward to the
 ///         raiser. Nothing else can move it.
 ///         Every payout is tried on its own and may use up to the Hand's payout gas: one that
 ///         fails undoes only itself and stays pending for its payee, who can withdraw it later.
@@ -73,7 +73,7 @@ contract AHandCore is EIP712 {
         uint40 expiry;
         uint40 openedAt;
         // slot 1: the time thank or refund closed the Hand; then, set by raise, the token, the
-        // gas each payout may use, in thousands, and the least share the giver must get
+        // gas each payout may use, in thousands, and the least claim the giver must get
         uint40 closedAt;
         address token;
         uint16 payoutGasK;
@@ -93,10 +93,10 @@ contract AHandCore is EIP712 {
         bytes32 dataHash;
     }
 
-    /// @dev What a Shake or a Give names its Hand by: everything `raise` fixes for good about the
-    ///      question and its rules, not the number alone. After a reorg the same number may belong
-    ///      to another Hand, and a signature must not pass there. Reward and expiry are not signed:
-    ///      a giver accepts a share of the reward, and the Hand's own expiry decides when thanks end.
+    /// @dev What a Shake or a Give names its Hand by: everything `raise` fixes for good, not the
+    ///      number alone. After a reorg the same number may belong to another Hand, and a signature
+    ///      must not pass there. Reward and expiry are not signed: a giver accepts a claim on the
+    ///      reward, not an amount, and the Hand's own expiry decides how long it can be thanked.
     bytes32 private constant HAND_TYPEHASH = keccak256(
         "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
     );
@@ -178,7 +178,7 @@ contract AHandCore is EIP712 {
     /// @notice A Hand is thanked: its whole `reward` in `token` leaves along the route. In the same
     ///         transaction there follow, in this order: for each Shake, `Shaken` and its payout;
     ///         then `Given` and the giver's payout. A payout is `Paid` or `Pending`; one of zero
-    ///         is not logged. `dataHash` is what the raiser states with the thanks, zero if nothing.
+    ///         is not logged. `dataHash` is what the raiser states with the thank, zero if nothing.
     event Thanked(uint256 indexed handId, address indexed token, uint256 reward, bytes32 dataHash);
     /// @notice An expired Hand's whole `reward` in `token` goes back to its raiser; its payout
     ///         follows, unless the reward is zero.
@@ -339,8 +339,8 @@ contract AHandCore is EIP712 {
     }
 
     /// @notice Adds `amount` from the raiser to an open Hand's reward. Only before expiry.
-    ///         Signatures name shares of the reward, not amounts, so every route collected so far
-    ///         stays valid and pays its shares of the larger reward.
+    ///         Signatures name claims on the reward, not amounts, so every route collected so far
+    ///         stays valid and pays its claims on the larger reward.
     function fund(uint256 handId, uint256 amount) external nonReentrant whenOpen(handId) {
         Hand storage hand = hands[handId];
 
@@ -364,7 +364,7 @@ contract AHandCore is EIP712 {
     ///         never interprets them.
     ///         A Give without a payee is refused: sent to the zero address, the giver's payout
     ///         would be burned or stay pending where nobody can ever withdraw it.
-    ///         `dataHash` is what the raiser states with the thanks. No signature covers it, only
+    ///         `dataHash` is what the raiser states with the thank. No signature covers it, only
     ///         this call says it; Core keeps it in `thanks`, unless it is zero, and never
     ///         interprets it.
     function thank(
