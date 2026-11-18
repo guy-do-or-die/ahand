@@ -229,10 +229,10 @@ contract AHandCore is EIP712 {
     /// @notice The link key's signature at `position` is unreadable or by another key; at `position`
     ///         equal to the number of Shakes, it is the Give's.
     error InvalidKeySig(uint256 position);
-    /// @notice The claim the route leaves the giver is below the raiser's minimum.
-    error BelowMinClaim();
     /// @notice The Give names another route.
     error InvalidRouteHash();
+    /// @notice The claim the route leaves the giver is below the raiser's minimum.
+    error BelowMinClaim();
     /// @notice The Give's signer did not sign it: not its key, where that key still counts, nor its code (ERC-1271).
     error InvalidGiverSig();
 
@@ -486,8 +486,8 @@ contract AHandCore is EIP712 {
         (address lastKey, uint16 claim, bytes32 routeHash) = _checkRoute(handHash, hand, signedShakes);
 
         if (give.claimBps != claim) revert InvalidClaim(signedShakes.length);
-        if (claim < hand.minClaimBps) revert BelowMinClaim();
         if (give.routeHash != routeHash) revert InvalidRouteHash();
+        if (claim < hand.minClaimBps) revert BelowMinClaim();
 
         giveHash = _hashGive(handHash, give);
         bytes32 digest = _hashTypedDataV4(giveHash);

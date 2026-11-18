@@ -1602,6 +1602,23 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(carol), 95e6);
     }
 
+    /// With several things wrong in the Give, the error names the first in the order of the checks:
+    /// its claim and its route against the route followed, then the raiser's minimum, then the
+    /// signatures. Here the route leaves less than the minimum and the Give is not signed at all.
+    function test_route_firstWrongThingInTheGiveIsNamed() public {
+        vm.prank(alice);
+        uint256 id = core.raise(address(usd), REWARD, expiry, root, 9_500, GAS_K, ASK);
+        SignedShake[] memory shakes = _oneShake(id, makeAddr("shaker"), 9_000);
+        bytes32 routeHash = _routeHash(id, shakes);
+
+        vm.expectRevert(abi.encodeWithSelector(AHandCore.InvalidClaim.selector, 1));
+        _submit(alice, id, shakes, Give(carol, carol, 10_000, bytes32(0), ANSWER), "", "");
+        vm.expectRevert(AHandCore.InvalidRouteHash.selector);
+        _submit(alice, id, shakes, Give(carol, carol, 9_000, bytes32(0), ANSWER), "", "");
+        vm.expectRevert(AHandCore.BelowMinClaim.selector);
+        _submit(alice, id, shakes, Give(carol, carol, 9_000, routeHash, ANSWER), "", "");
+    }
+
     /// A Hand whose root key nobody holds can never be thanked, only reclaimed. An address
     /// hashed from an open string is such a key, and anyone can check that.
     function test_route_rootKeyNobodyHoldsLeavesOnlyReclaim() public {
