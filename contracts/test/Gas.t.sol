@@ -47,32 +47,33 @@ contract GasTest is Test {
         id = core.raise(address(token), reward, expiry, vm.addr(ROOT_PK), GAS_K, 0, keccak256("ask"));
     }
 
-    /// Thanks along a route of `n` Shakes, each keeping 1 % for a payee who has never held the
+    /// Thanks along a route of `routeLength` Shakes, each keeping 1 % for a payee who has never held the
     /// token; the giver gets the rest. With the thank the raiser states `stated`.
-    function _thank(uint256 id, uint256 n, bytes32 stated) internal {
-        _thankBy(id, n, stated, GIVER_PK);
+    function _thank(uint256 id, uint256 routeLength, bytes32 stated) internal {
+        _thankBy(id, routeLength, stated, GIVER_PK);
     }
 
-    function _thankBy(uint256 id, uint256 n, bytes32 stated, uint256 giverPk) internal {
-        SignedShake[] memory shakes = new SignedShake[](n);
+    function _thankBy(uint256 id, uint256 routeLength, bytes32 stated, uint256 giverPk) internal {
+        SignedShake[] memory shakes = new SignedShake[](routeLength);
         bytes32 routeHash;
         uint256 key = ROOT_PK;
         uint16 claim = 10_000;
-        for (uint256 i; i < n; ++i) {
-            Shake memory shake =
-                Shake(vm.addr(NEXT_PK + i), address(uint160(0x5000 + i)), claim, claim - 100, keccak256("why"));
+        for (uint256 position; position < routeLength; ++position) {
+            Shake memory shake = Shake(
+                vm.addr(NEXT_PK + position), address(uint160(0x5000 + position)), claim, claim - 100, keccak256("why")
+            );
             bytes32 shakeHash = shakeStructHash(core, id, shake);
-            shakes[i] = SignedShake(shake, _sign(key, digestOf(address(core), shakeHash)));
+            shakes[position] = SignedShake(shake, _sign(key, digestOf(address(core), shakeHash)));
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
-            key = NEXT_PK + i;
+            key = NEXT_PK + position;
             claim -= 100;
         }
-        Give memory g = Give(vm.addr(giverPk), vm.addr(giverPk), claim, routeHash, keccak256("answer"));
-        bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
+        Give memory give = Give(vm.addr(giverPk), vm.addr(giverPk), claim, routeHash, keccak256("answer"));
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, give));
         bytes memory keySig = _sign(key, digest);
         bytes memory giverSig = _sign(giverPk, digest);
         vm.prank(raiser);
-        core.thank(id, shakes, SignedGive(g, keySig, giverSig), stated);
+        core.thank(id, shakes, SignedGive(give, keySig, giverSig), stated);
     }
 
     function _sign(uint256 key, bytes32 digest) internal pure returns (bytes memory) {

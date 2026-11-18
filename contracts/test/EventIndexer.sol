@@ -60,9 +60,9 @@ contract EventIndexer {
 
     /// Reads one transaction's logs, with the time of its block.
     function ingest(Vm.Log[] memory logs, uint256 time) external {
-        for (uint256 i; i < logs.length; ++i) {
-            if (logs[i].emitter != core) continue;
-            _read(logs[i], time);
+        for (uint256 index; index < logs.length; ++index) {
+            if (logs[index].emitter != core) continue;
+            _read(logs[index], time);
         }
         require(!owed, "a payout is missing");
         require(thanking == 0, "a thank ended without its Give");
@@ -88,17 +88,17 @@ contract EventIndexer {
         uint256 handId = uint256(log.topics[1]);
         require(handId == handsCount + 1, "Hands are numbered one after another");
         handsCount = handId;
-        HandView storage h = hands[handId];
-        h.raiser = _address(log.topics[2]);
-        h.token = _address(log.topics[3]);
-        h.openedAt = uint40(time);
+        HandView storage rebuilt = hands[handId];
+        rebuilt.raiser = _address(log.topics[2]);
+        rebuilt.token = _address(log.topics[3]);
+        rebuilt.openedAt = uint40(time);
         RaisedTerms memory terms = abi.decode(log.data, (RaisedTerms));
-        h.reward = terms.reward;
-        h.expiry = terms.expiry;
-        h.rootKey = terms.rootKey;
-        h.minClaimBps = terms.minClaimBps;
-        h.payoutGasK = terms.payoutGasK;
-        h.dataHash = terms.dataHash;
+        rebuilt.reward = terms.reward;
+        rebuilt.expiry = terms.expiry;
+        rebuilt.rootKey = terms.rootKey;
+        rebuilt.minClaimBps = terms.minClaimBps;
+        rebuilt.payoutGasK = terms.payoutGasK;
+        rebuilt.dataHash = terms.dataHash;
     }
 
     /// The fields of `Raised` that are not topics, in their order.
@@ -113,36 +113,36 @@ contract EventIndexer {
 
     /// The expiry moves later; `Raised` names the first one.
     function _extended(Vm.Log memory log) private {
-        HandView storage h = hands[uint256(log.topics[1])];
+        HandView storage rebuilt = hands[uint256(log.topics[1])];
         uint40 expiry = abi.decode(log.data, (uint40));
-        require(expiry > h.expiry, "an expiry only moves later");
-        h.expiry = expiry;
+        require(expiry > rebuilt.expiry, "an expiry only moves later");
+        rebuilt.expiry = expiry;
     }
 
     /// The reward grows by the amount; `Raised` names the first reward.
     function _funded(Vm.Log memory log) private {
-        HandView storage h = hands[uint256(log.topics[1])];
+        HandView storage rebuilt = hands[uint256(log.topics[1])];
         (uint256 amount, uint256 reward) = abi.decode(log.data, (uint256, uint256));
-        require(reward == h.reward + amount, "the reward grows by the amount added");
-        h.reward = reward;
+        require(reward == rebuilt.reward + amount, "the reward grows by the amount added");
+        rebuilt.reward = reward;
     }
 
     /// `Thanked` opens the reading of a route; `Refunded` announces the payout to the raiser.
     function _closed(Vm.Log memory log, uint256 time, bool thanked) private {
         uint256 handId = uint256(log.topics[1]);
-        HandView storage h = hands[handId];
-        require(_address(log.topics[2]) == h.token, "the closing event names the Hand's token");
-        require(abi.decode(log.data, (uint256)) == h.reward, "the closing event names the whole reward");
-        h.closedAt = uint40(time);
+        HandView storage rebuilt = hands[handId];
+        require(_address(log.topics[2]) == rebuilt.token, "the closing event names the Hand's token");
+        require(abi.decode(log.data, (uint256)) == rebuilt.reward, "the closing event names the whole reward");
+        rebuilt.closedAt = uint40(time);
         if (thanked) {
             ++thanksCount;
             (, thanks[handId].dataHash) = abi.decode(log.data, (uint256, bytes32));
             thanking = handId;
             nextPosition = 0;
-            rest = h.reward;
+            rest = rebuilt.reward;
         } else {
             ++refundsCount;
-            _owe(handId, h.raiser, h.reward);
+            _owe(handId, rebuilt.raiser, rebuilt.reward);
         }
     }
 
@@ -204,9 +204,18 @@ contract EventIndexer {
     }
 
     function _handHash(uint256 handId) private view returns (bytes32) {
-        HandView storage h = hands[handId];
+        HandView storage rebuilt = hands[handId];
         return keccak256(
-            abi.encode(HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.payoutGasK, h.minClaimBps, h.dataHash)
+            abi.encode(
+                HAND_TYPEHASH,
+                handId,
+                rebuilt.raiser,
+                rebuilt.token,
+                rebuilt.rootKey,
+                rebuilt.payoutGasK,
+                rebuilt.minClaimBps,
+                rebuilt.dataHash
+            )
         );
     }
 

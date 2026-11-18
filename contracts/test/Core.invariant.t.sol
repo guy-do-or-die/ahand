@@ -26,9 +26,9 @@ contract Handler is Test {
     uint256[] internal openIds; // Hands raised and not yet closed
     EventIndexer public indexer; // reads every action's logs, knowing nothing else of Core
 
-    constructor(AHandCore core_, MockUSD a, MockUSD b) {
+    constructor(AHandCore core_, MockUSD plainToken, MockUSD blockingToken) {
         core = core_;
-        tokens = [a, b];
+        tokens = [plainToken, blockingToken];
         actors = [vm.addr(keys[0]), vm.addr(keys[1]), vm.addr(keys[2])];
         indexer = new EventIndexer(address(core_));
     }
@@ -66,39 +66,39 @@ contract Handler is Test {
     function extend(uint256 seed, uint256 by) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
-        HandView memory h = handOf(core, id);
-        if (block.timestamp >= h.expiry) return;
+        HandView memory hand = handOf(core, id);
+        if (block.timestamp >= hand.expiry) return;
         uint256 latest = block.timestamp + core.MAX_TERM();
-        if (h.expiry >= latest) return;
-        vm.prank(h.raiser);
-        core.extend(id, uint40(bound(by, h.expiry + 1, latest)));
+        if (hand.expiry >= latest) return;
+        vm.prank(hand.raiser);
+        core.extend(id, uint40(bound(by, hand.expiry + 1, latest)));
     }
 
     /// The raiser of an open Hand adds to its reward; past its expiry nothing happens.
     function fund(uint256 seed, uint256 amount) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
-        HandView memory h = handOf(core, id);
-        if (block.timestamp >= h.expiry) return;
+        HandView memory hand = handOf(core, id);
+        if (block.timestamp >= hand.expiry) return;
         amount = bound(amount, 0, 1e30);
-        MockUSD token = MockUSD(h.token);
-        token.mint(h.raiser, amount);
-        vm.startPrank(h.raiser);
+        MockUSD token = MockUSD(hand.token);
+        token.mint(hand.raiser, amount);
+        vm.startPrank(hand.raiser);
         token.approve(address(core), amount);
         core.fund(id, amount);
         vm.stopPrank();
-        open[h.token] += amount;
-        paidIn[h.token] += amount;
+        open[hand.token] += amount;
+        paidIn[hand.token] += amount;
     }
 
     /// Any open Hand: time first moves to its expiry, so the call is never wasted.
     function refund(uint256 seed) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
-        HandView memory h = handOf(core, id);
-        if (block.timestamp < h.expiry) vm.warp(h.expiry);
+        HandView memory hand = handOf(core, id);
+        if (block.timestamp < hand.expiry) vm.warp(hand.expiry);
         core.refund(id);
-        _closed(id, h.token, h.reward);
+        _closed(id, hand.token, hand.reward);
     }
 
     /// `via` odd: one Shake first, its margin to one of the actors (the raiser included).
@@ -106,10 +106,10 @@ contract Handler is Test {
     function thank(uint256 seed, uint256 to, uint256 via, uint256 next) external logged {
         if (openIds.length == 0) return;
         uint256 id = openIds[seed % openIds.length];
-        HandView memory h = handOf(core, id);
-        if (block.timestamp >= h.expiry) return; // too late to thank: only refund closes it now
+        HandView memory hand = handOf(core, id);
+        if (block.timestamp >= hand.expiry) return; // too late to thank: only refund closes it now
         uint256 pick = to % 3;
-        if (actors[pick] == h.raiser) pick = (pick + 1) % 3;
+        if (actors[pick] == hand.raiser) pick = (pick + 1) % 3;
 
         SignedShake[] memory shakes;
         bytes32 routeHash;
@@ -124,14 +124,14 @@ contract Handler is Test {
             routeHash = keccak256(abi.encode(bytes32(0), shakeHash));
             lastKey = NEXT_PK;
         }
-        Give memory g = Give(actors[pick], actors[pick], claim, routeHash, keccak256(abi.encode(seed)));
-        bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
+        Give memory give = Give(actors[pick], actors[pick], claim, routeHash, keccak256(abi.encode(seed)));
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, give));
         bytes memory keySig = _sign(lastKey, digest);
         bytes memory giverSig = _sign(keys[pick], digest);
         bytes32 stated = to % 2 == 0 ? bytes32(0) : bytes32(to);
-        vm.prank(h.raiser);
-        core.thank(id, shakes, SignedGive(g, keySig, giverSig), stated);
-        _closed(id, h.token, h.reward);
+        vm.prank(hand.raiser);
+        core.thank(id, shakes, SignedGive(give, keySig, giverSig), stated);
+        _closed(id, hand.token, hand.reward);
     }
 
     function _sign(uint256 key, bytes32 digest) private pure returns (bytes memory) {
@@ -142,9 +142,9 @@ contract Handler is Test {
     function _closed(uint256 id, address token, uint256 reward) private {
         open[token] -= reward;
         ++closed;
-        for (uint256 i; i < openIds.length; ++i) {
-            if (openIds[i] == id) {
-                openIds[i] = openIds[openIds.length - 1];
+        for (uint256 index; index < openIds.length; ++index) {
+            if (openIds[index] == id) {
+                openIds[index] = openIds[openIds.length - 1];
                 openIds.pop();
                 return;
             }
@@ -157,13 +157,13 @@ contract Handler is Test {
 
     /// The first (token, payee) pair with something pending, from a random start.
     function withdraw_(uint256 who, uint256 dest, uint256 by) external logged {
-        for (uint256 k; k < 6; ++k) {
-            uint256 j = (who % 6 + k) % 6;
-            MockUSD token = tokens[j % 2];
-            address payee = actors[j / 2];
+        for (uint256 step; step < 6; ++step) {
+            uint256 pair = (who % 6 + step) % 6;
+            MockUSD token = tokens[pair % 2];
+            address payee = actors[pair / 2];
             if (core.pending(address(token), payee) == 0) continue;
             address to = actors[dest % 3];
-            if (j % 2 == 1 && BlacklistToken(address(token)).blocked(to)) return;
+            if (pair % 2 == 1 && BlacklistToken(address(token)).blocked(to)) return;
             // anyone may send what is pending to its payee; only the payee may send it elsewhere
             vm.prank(to == payee ? actors[by % 3] : payee);
             core.withdraw(address(token), payee, to);
@@ -174,36 +174,36 @@ contract Handler is Test {
     /// Closes every open Hand and delivers everything pending: afterwards Core holds nothing.
     function drain() external logged {
         uint256 latest = block.timestamp;
-        for (uint256 i; i < openIds.length; ++i) {
-            uint40 expiry = handOf(core, openIds[i]).expiry;
+        for (uint256 index; index < openIds.length; ++index) {
+            uint40 expiry = handOf(core, openIds[index]).expiry;
             if (expiry > latest) latest = expiry;
         }
         vm.warp(latest);
         while (openIds.length > 0) {
             uint256 id = openIds[openIds.length - 1];
-            HandView memory h = handOf(core, id);
+            HandView memory hand = handOf(core, id);
             core.refund(id);
-            _closed(id, h.token, h.reward);
+            _closed(id, hand.token, hand.reward);
         }
-        for (uint256 i; i < 3; ++i) {
-            BlacklistToken(address(tokens[1])).setBlocked(actors[i], false);
+        for (uint256 index; index < 3; ++index) {
+            BlacklistToken(address(tokens[1])).setBlocked(actors[index], false);
         }
-        for (uint256 j; j < 6; ++j) {
-            address token = address(tokens[j % 2]);
-            address payee = actors[j / 2];
+        for (uint256 pair; pair < 6; ++pair) {
+            address token = address(tokens[pair % 2]);
+            address payee = actors[pair / 2];
             if (core.pending(token, payee) > 0) core.withdraw(token, payee, payee);
         }
     }
 
     function pendingTotal(address token) public view returns (uint256 sum) {
-        for (uint256 i; i < 3; ++i) {
-            sum += core.pending(token, actors[i]);
+        for (uint256 index; index < 3; ++index) {
+            sum += core.pending(token, actors[index]);
         }
     }
 
     function held(address token) public view returns (uint256 sum) {
-        for (uint256 i; i < 3; ++i) {
-            sum += MockUSD(token).balanceOf(actors[i]);
+        for (uint256 index; index < 3; ++index) {
+            sum += MockUSD(token).balanceOf(actors[index]);
         }
     }
 
@@ -214,15 +214,15 @@ contract Handler is Test {
 
 contract CoreInvariantTest is Test {
     AHandCore core;
-    MockUSD a;
-    MockUSD b;
+    MockUSD plainToken;
+    MockUSD blockingToken;
     Handler handler;
 
     function setUp() public {
         core = new AHandCore();
-        a = new MockUSD();
-        b = new BlacklistToken();
-        handler = new Handler(core, a, b);
+        plainToken = new MockUSD();
+        blockingToken = new BlacklistToken();
+        handler = new Handler(core, plainToken, blockingToken);
         targetContract(address(handler));
         bytes4[] memory notAnAction = new bytes4[](1);
         notAnAction[0] = Handler.drain.selector;
@@ -235,23 +235,34 @@ contract CoreInvariantTest is Test {
     function afterInvariant() public {
         handler.drain();
         invariant_stateRebuildsFromEvents();
-        assertEq(a.balanceOf(address(core)), 0);
-        assertEq(b.balanceOf(address(core)), 0);
-        assertEq(handler.paidIn(address(a)), handler.held(address(a)));
-        assertEq(handler.paidIn(address(b)), handler.held(address(b)));
+        assertEq(plainToken.balanceOf(address(core)), 0);
+        assertEq(blockingToken.balanceOf(address(core)), 0);
+        assertEq(handler.paidIn(address(plainToken)), handler.held(address(plainToken)));
+        assertEq(handler.paidIn(address(blockingToken)), handler.held(address(blockingToken)));
     }
 
     /// Core's balance of each token is exactly its open rewards plus what is pending: not a unit
     /// more or less.
     function invariant_balanceEqualsOpenRewardsPlusPending() public view {
-        assertEq(a.balanceOf(address(core)), handler.open(address(a)) + handler.pendingTotal(address(a)));
-        assertEq(b.balanceOf(address(core)), handler.open(address(b)) + handler.pendingTotal(address(b)));
+        assertEq(
+            plainToken.balanceOf(address(core)),
+            handler.open(address(plainToken)) + handler.pendingTotal(address(plainToken))
+        );
+        assertEq(
+            blockingToken.balanceOf(address(core)),
+            handler.open(address(blockingToken)) + handler.pendingTotal(address(blockingToken))
+        );
     }
 
     /// Nothing is created or lost: every unit raised is in Core or with an actor.
     function invariant_moneyIsConserved() public view {
-        assertEq(handler.paidIn(address(a)), a.balanceOf(address(core)) + handler.held(address(a)));
-        assertEq(handler.paidIn(address(b)), b.balanceOf(address(core)) + handler.held(address(b)));
+        assertEq(
+            handler.paidIn(address(plainToken)), plainToken.balanceOf(address(core)) + handler.held(address(plainToken))
+        );
+        assertEq(
+            handler.paidIn(address(blockingToken)),
+            blockingToken.balanceOf(address(core)) + handler.held(address(blockingToken))
+        );
     }
 
     /// Everything Core keeps can be rebuilt from its events and the times of their blocks: every
@@ -266,24 +277,24 @@ contract CoreInvariantTest is Test {
             assertEq(abi.encode(indexer.hand(id)), abi.encode(handOf(core, id)));
             assertEq(abi.encode(indexer.thank(id)), abi.encode(thankOf(core, id)));
         }
-        _moneyFromEvents(indexer, a);
-        _moneyFromEvents(indexer, b);
+        _moneyFromEvents(indexer, plainToken);
+        _moneyFromEvents(indexer, blockingToken);
     }
 
     /// For one token: what waits and what each actor holds, then Core's balance as the open
     /// rewards plus everything pending — all of it read from the events.
     function _moneyFromEvents(EventIndexer indexer, MockUSD token) internal view {
         uint256 total;
-        for (uint256 i; i < 3; ++i) {
-            address actor = handler.actors(i);
+        for (uint256 index; index < 3; ++index) {
+            address actor = handler.actors(index);
             uint256 waits = indexer.pending(address(token), actor);
             assertEq(waits, core.pending(address(token), actor));
             assertEq(indexer.received(address(token), actor), token.balanceOf(actor));
             total += waits;
         }
         for (uint256 id = 1; id <= indexer.handsCount(); ++id) {
-            HandView memory h = indexer.hand(id);
-            if (h.token == address(token) && h.closedAt == 0) total += h.reward;
+            HandView memory hand = indexer.hand(id);
+            if (hand.token == address(token) && hand.closedAt == 0) total += hand.reward;
         }
         assertEq(total, token.balanceOf(address(core)));
     }
@@ -292,12 +303,12 @@ contract CoreInvariantTest is Test {
     /// keeps a thank, and a thank that keeps a statement keeps its Give.
     function invariant_timesAreConsistent() public view {
         for (uint256 id = 1; id <= core.handsCount(); ++id) {
-            HandView memory h = handOf(core, id);
-            ThankView memory t = thankOf(core, id);
-            assertGt(h.openedAt, 0);
-            if (h.closedAt != 0) assertGe(h.closedAt, h.openedAt);
-            if (t.giveHash != bytes32(0)) assertGt(h.closedAt, 0);
-            if (t.dataHash != bytes32(0)) assertTrue(t.giveHash != bytes32(0));
+            HandView memory hand = handOf(core, id);
+            ThankView memory thank = thankOf(core, id);
+            assertGt(hand.openedAt, 0);
+            if (hand.closedAt != 0) assertGe(hand.closedAt, hand.openedAt);
+            if (thank.giveHash != bytes32(0)) assertGt(hand.closedAt, 0);
+            if (thank.dataHash != bytes32(0)) assertTrue(thank.giveHash != bytes32(0));
         }
     }
 

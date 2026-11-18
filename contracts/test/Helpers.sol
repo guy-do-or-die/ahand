@@ -19,51 +19,51 @@ function domainOf(address core) view returns (bytes32) {
 
 /// What a Shake or a Give names the Hand by: everything `raise` fixes for good, not reward or expiry.
 function handStructHash(AHandCore core, uint256 handId) view returns (bytes32) {
-    HandView memory h = handOf(core, handId);
+    HandView memory hand = handOf(core, handId);
     return keccak256(
         abi.encode(
             keccak256(
                 "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
             ),
             handId,
-            h.raiser,
-            h.token,
-            h.rootKey,
-            h.payoutGasK,
-            h.minClaimBps,
-            h.dataHash
+            hand.raiser,
+            hand.token,
+            hand.rootKey,
+            hand.payoutGasK,
+            hand.minClaimBps,
+            hand.dataHash
         )
     );
 }
 
-function shakeStructHash(AHandCore core, uint256 handId, Shake memory s) view returns (bytes32) {
+function shakeStructHash(AHandCore core, uint256 handId, Shake memory shake) view returns (bytes32) {
     return keccak256(
         abi.encode(
             keccak256(
                 "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
             ),
             handStructHash(core, handId),
-            s.nextKey,
-            s.payee,
-            s.claimBps,
-            s.nextClaimBps,
-            s.dataHash
+            shake.nextKey,
+            shake.payee,
+            shake.claimBps,
+            shake.nextClaimBps,
+            shake.dataHash
         )
     );
 }
 
-function giveStructHash(AHandCore core, uint256 handId, Give memory g) view returns (bytes32) {
+function giveStructHash(AHandCore core, uint256 handId, Give memory give) view returns (bytes32) {
     return keccak256(
         abi.encode(
             keccak256(
                 "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
             ),
             handStructHash(core, handId),
-            g.signer,
-            g.payee,
-            g.claimBps,
-            g.routeHash,
-            g.dataHash
+            give.signer,
+            give.payee,
+            give.claimBps,
+            give.routeHash,
+            give.dataHash
         )
     );
 }
@@ -98,6 +98,6 @@ function handOf(AHandCore core, uint256 id) view returns (HandView memory) {
     return abi.decode(ret, (HandView));
 }
 
-function thankOf(AHandCore core, uint256 id) view returns (ThankView memory t) {
-    (t.giveHash, t.dataHash) = core.thanks(id);
+function thankOf(AHandCore core, uint256 id) view returns (ThankView memory thank) {
+    (thank.giveHash, thank.dataHash) = core.thanks(id);
 }

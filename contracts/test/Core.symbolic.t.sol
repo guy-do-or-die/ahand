@@ -137,11 +137,11 @@ contract CoreSymbolic is Test {
         shakes[0].shake = Shake(vm.addr(NEXT_PK), shaker, 10_000, next, bytes32(0));
         bytes32 shakeHash = shakeStructHash(core, id, shakes[0].shake);
         shakes[0].keySig = _sign(ROOT_PK, digestOf(address(core), shakeHash));
-        Give memory g =
+        Give memory give =
             Give(vm.addr(GIVER_PK), giverPayee, next, keccak256(abi.encode(bytes32(0), shakeHash)), bytes32(0));
-        bytes32 digest = digestOf(address(core), giveStructHash(core, id, g));
+        bytes32 digest = digestOf(address(core), giveStructHash(core, id, give));
         vm.prank(RAISER);
-        core.thank(id, shakes, SignedGive(g, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest)), stated);
+        core.thank(id, shakes, SignedGive(give, _sign(NEXT_PK, digest), _sign(GIVER_PK, digest)), stated);
 
         assert(token.balanceOf(shaker) + token.balanceOf(giverPayee) == reward);
         assert(token.balanceOf(shaker) == reward * (10_000 - next) / 10_000);

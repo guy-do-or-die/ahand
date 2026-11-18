@@ -42,25 +42,42 @@ contract FactsReader {
         Shake[] calldata shakes,
         Give calldata give
     ) external view returns (address raiser, address giver, Payout[] memory payouts) {
-        HandView memory h = handOf(core, handId);
+        HandView memory hand = handOf(core, handId);
         (bytes32 thankedGive,) = core.thanks(handId);
         if (thankedGive == bytes32(0)) revert NotThanked();
         bytes32 handHash = keccak256(
-            abi.encode(HAND_TYPEHASH, handId, h.raiser, h.token, h.rootKey, h.payoutGasK, h.minClaimBps, h.dataHash)
+            abi.encode(
+                HAND_TYPEHASH,
+                handId,
+                hand.raiser,
+                hand.token,
+                hand.rootKey,
+                hand.payoutGasK,
+                hand.minClaimBps,
+                hand.dataHash
+            )
         );
 
         bytes32 routeHash;
-        uint256 rest = h.reward;
+        uint256 rest = hand.reward;
         payouts = new Payout[](shakes.length + 1);
-        for (uint256 i; i < shakes.length; ++i) {
-            Shake calldata s = shakes[i];
+        for (uint256 position; position < shakes.length; ++position) {
+            Shake calldata shake = shakes[position];
             bytes32 shakeHash = keccak256(
-                abi.encode(SHAKE_TYPEHASH, handHash, s.nextKey, s.payee, s.claimBps, s.nextClaimBps, s.dataHash)
+                abi.encode(
+                    SHAKE_TYPEHASH,
+                    handHash,
+                    shake.nextKey,
+                    shake.payee,
+                    shake.claimBps,
+                    shake.nextClaimBps,
+                    shake.dataHash
+                )
             );
             routeHash = keccak256(abi.encode(routeHash, shakeHash));
-            uint256 margin = Math.mulDiv(h.reward, s.claimBps - s.nextClaimBps, 10_000);
+            uint256 margin = Math.mulDiv(hand.reward, shake.claimBps - shake.nextClaimBps, 10_000);
             rest -= margin;
-            payouts[i] = Payout(s.payee, margin, s.dataHash);
+            payouts[position] = Payout(shake.payee, margin, shake.dataHash);
         }
         if (give.routeHash != routeHash) revert NotTheThankedRoute();
         bytes32 giveHash = keccak256(
@@ -69,6 +86,6 @@ contract FactsReader {
         if (giveHash != thankedGive) revert NotTheThankedGive();
 
         payouts[shakes.length] = Payout(give.payee, rest, give.dataHash);
-        return (h.raiser, give.signer, payouts);
+        return (hand.raiser, give.signer, payouts);
     }
 }
