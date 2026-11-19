@@ -482,14 +482,15 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
     const fresh = (name: string) => privateKeyToAddress(keccak256(stringToBytes(`payee ${name}`)));
 
     // A limit of one thousand gas: no payout can even start, each uses its limit to the last gas
-    // and stays pending. Then the count is exact but for two things it adds on purpose: 16 gas
-    // per payout (the 64/63 of the limit) and 17 100 for the first thank on a Core, which this is not.
+    // and stays pending. Then the count is exact but for three things it adds on purpose: 16 gas
+    // per payout (the 64/63 of the limit), 17 100 for the first thank on a Core, which this is
+    // not, and 580 for a giver's account with an EIP-7702 delegation, which this giver has not.
     await send(usd, Usd.abi, "mint", [raiser.address, REWARD]);
     await send(usd, Usd.abi, "approve", [core, REWARD]);
     const starved = await routeTo(usd, 1, ["one", "two", "three", "four"].map(fresh));
     const exact = await thankWithWorstGas(starved);
-    expect(exact.worst.gasLimit - exact.used - 4 * 16 - 17_100).toBeGreaterThanOrEqual(0);
-    expect(exact.worst.gasLimit - exact.used - 4 * 16 - 17_100).toBeLessThan(100);
+    expect(exact.worst.gasLimit - exact.used - 4 * 16 - 17_100 - 580).toBeGreaterThanOrEqual(0);
+    expect(exact.worst.gasLimit - exact.used - 4 * 16 - 17_100 - 580).toBeLessThan(100);
     expect(await pendingOf(usd, starved.signedGive.give.payee)).toBe((REWARD * 97n) / 100n);
 
     // The limit the price list uses, 200 thousand, a token that calls its recipients, and four

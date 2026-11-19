@@ -21,6 +21,7 @@ import {
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 
 import { dataHashOf, nameOf, textValue, type Statement } from "./data.js";
+import { LONGEST_ROUTE } from "./gas.js";
 import { digest, domainSeparator, giveHash, handHash, shakeHash } from "./hash.js";
 import { CURVE_ORDER, signShake } from "./sign.js";
 import {
@@ -77,8 +78,9 @@ import { checkRoute, isKeySignature, signedBy, type RouteEnd } from "./verify.js
  * terms (read from Core by handId and then proven by the first signature, or by the pin).
  *
  * Every byte is one of three things: signed, checked against a hash that is signed or kept by
- * Core, or the one secret. Anything that could be written in two ways is refused in all but one,
- * so one route is one link.
+ * Core, or the one secret. The one exception is the giver's signature, which travels as it is:
+ * only `checkGive` and, for a contract giver, the chain can judge it. Anything that could be
+ * written in two ways is refused in all but one, so one route is one link.
  */
 
 export const LINK_VERSION = 1;
@@ -216,9 +218,20 @@ class Reader {
 
 /** The text that `bytes` are, if they are text written in the one way UTF-8 allows. */
 function textOf(bytes: Uint8Array, what: string): string {
-  const text = bytesToString(bytes);
+  // A decoder drops a byte-order mark at the start; it is a character of the text like any other.
+  const marked = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+  const text = marked ? `\uFEFF${textOf(bytes.subarray(3), what)}` : bytesToString(bytes);
   if (bytesToHex(stringToBytes(text)) !== bytesToHex(bytes)) throw new LinkError("malformed", `${what} is not text`);
   return text;
+}
+
+/** A statement's name as it is hashed; a name the list's rules refuse is no link. */
+function paddedName(name: string): Hex {
+  try {
+    return nameOf(name);
+  } catch (error) {
+    throw new LinkError("malformed", (error as Error).message);
+  }
 }
 
 /* ------------------------------------------------------------- signatures */
@@ -304,7 +317,7 @@ function compareAttached(a: Attached, b: Attached): number {
 /** A list of statements: how many, then each name's length, the name and the 32-byte value, by name. */
 function packStatements(list: readonly Statement[]): Uint8Array {
   const sorted = list
-    .map(({ name, value }) => ({ name, padded: nameOf(name), value }))
+    .map(({ name, value }) => ({ name, padded: paddedName(name), value }))
     .sort((a, b) => (a.padded < b.padded ? -1 : a.padded > b.padded ? 1 : 0));
   const writer = new Writer().varint(BigInt(sorted.length));
   for (const { name, value } of sorted) {
@@ -323,7 +336,7 @@ function unpackStatements(bytes: Uint8Array): Statement[] {
     const length = reader.byte();
     if (length === 0 || length > 32) throw new LinkError("malformed", "a statement's name is 1 to 32 bytes");
     const name = textOf(reader.take(length), "a statement's name");
-    const padded = nameOf(name);
+    const padded = paddedName(name);
     if (previous !== undefined && padded <= previous) throw new LinkError("non-canonical", "statements out of order");
     previous = padded;
     list.push({ name, value: reader.hex(32) });
@@ -379,7 +392,11 @@ function unpackAttachments(reader: Reader): Required<Attachments> {
 export interface LinkOptions {
   /** The Core that links name by leaving its address out. None is deployed yet. */
   canonicalCore?: Address;
-  /** The most Shakes a link may carry: a rule of the application, not of the format. */
+  /**
+   * The most Shakes a link may carry: a rule of the application, not of the format. Left out, it
+   * is the longest route one transaction can carry (`LONGEST_ROUTE`): a longer one could never
+   * be thanked, and reading it would only cost time.
+   */
   maxShakes?: number;
 }
 
@@ -432,8 +449,13 @@ export function pack(link: WireLink): Uint8Array {
     const paid = !isAddressEqual(payee, zeroAddress);
     const data = dataHash !== zeroHash;
     const first = (paid ? SHAKE_PAYEE : 0) | (data ? SHAKE_DATA : 0);
-    if (paid) writer.byte(first | (nextClaimBps >> 8)).byte(nextClaimBps & 0xff).bytes(payee);
-    else writer.byte(first);
+    if (paid) {
+      // Above the whole it would not fit the six bits left for it beside the flags.
+      if (nextClaimBps > BPS) throw new LinkError("invalid", "a claim above the whole");
+      writer.byte(first | (nextClaimBps >> 8)).byte(nextClaimBps & 0xff).bytes(payee);
+    } else {
+      writer.byte(first);
+    }
     if (data) writer.bytes(dataHash);
     writer.bytes(toWireSig(keySig));
   }
@@ -500,9 +522,8 @@ function readHead(reader: Reader, options: LinkOptions): { head: LinkHead; flags
   if (count * BigInt(SHAKE_MIN_BYTES) > BigInt(reader.left)) {
     throw new LinkError("malformed", "more Shakes named than the link holds");
   }
-  if (options.maxShakes !== undefined && count > BigInt(options.maxShakes)) {
-    throw new LinkError("too-long", `${count} Shakes; this application takes at most ${options.maxShakes}`);
-  }
+  const maxShakes = options.maxShakes ?? LONGEST_ROUTE;
+  if (count > BigInt(maxShakes)) throw new LinkError("too-long", `${count} Shakes; at most ${maxShakes} are taken`);
 
   const kind = flags & FLAG_GIVE ? "give" : flags & FLAG_ADDRESSED ? "addressed" : "live";
   return { head: { version, kind, chainId: Number(chainId), core, handId, shakes: Number(count) }, flags };
@@ -599,13 +620,21 @@ export interface OpenedLink {
   texts: string[];
 }
 
-/** Where the route ends by Core's rules; a route Core would refuse is no link. */
+/**
+ * Where the route ends by Core's rules. A route Core would refuse is no link, and neither is one
+ * that leaves the giver less than the Hand's minimum: Core would refuse every Give that ends it.
+ */
 async function routeEnd(chain: Eip712Domain, hand: Hand, signedShakes: readonly SignedShake[]): Promise<RouteEnd> {
+  let end: RouteEnd;
   try {
-    return await checkRoute(chain, hand, signedShakes);
+    end = await checkRoute(chain, hand, signedShakes);
   } catch (error) {
     throw new LinkError("invalid", `Core would refuse the route: ${(error as Error).message}`);
   }
+  if (end.claimBps < hand.minClaimBps) {
+    throw new LinkError("invalid", "the route leaves the giver less than the Hand's minimum");
+  }
+  return end;
 }
 
 /**
@@ -658,6 +687,9 @@ export async function openLink(
   if (wire.give) {
     const { signer, payee, dataHash, keySig, giverSig } = wire.give;
     const give: Give = { signer, payee, claimBps: end.claimBps, routeHash: end.routeHash, dataHash };
+    // What Core refuses in a Give whoever signed it.
+    if (isAddressEqual(signer, hand.raiser)) throw new LinkError("invalid", "the Give is the raiser's own");
+    if (isAddressEqual(payee, zeroAddress)) throw new LinkError("invalid", "the Give names no payee");
     // The last key's signature is what ties the Give to this route and, without Shakes, to this Hand.
     if (!(await signedBy(end.lastKey, digest(separator, giveHash(hand, give)), keySig))) {
       throw new LinkError("not-this-hand", "the Give is not signed by the route's last key");
@@ -750,7 +782,6 @@ export async function encodeGive(
   const { give, keySig, giverSig } = route.signedGive;
   if (give.claimBps !== end.claimBps) throw new LinkError("invalid", "the Give's claim is not the one the route left");
   if (give.routeHash.toLowerCase() !== end.routeHash.toLowerCase()) throw new LinkError("invalid", "the Give names another route");
-  if (isAddressEqual(give.payee, zeroAddress)) throw new LinkError("invalid", "the Give names no payee");
   if (route.signedShakes.length > 0) wire.lastKey = end.lastKey;
   wire.give = { signer: give.signer, payee: give.payee, dataHash: give.dataHash, keySig, giverSig };
   return written(wire, route, options);
@@ -788,6 +819,7 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 
 /** For a link sent as text: base64url without padding. A version 1 link starts with E or F. */
 export function toText(bytes: Uint8Array): string {
+  if (bytes.length === 0) throw new LinkError("malformed", "not a link");
   let out = "";
   for (let index = 0; index < bytes.length; index += 3) {
     const chunk = (bytes[index] << 16) | ((bytes[index + 1] ?? 0) << 8) | (bytes[index + 2] ?? 0);
@@ -799,6 +831,7 @@ export function toText(bytes: Uint8Array): string {
 
 /** For a QR code: the same bytes as one decimal number, which a QR code packs in its numeric mode. */
 export function toDigits(bytes: Uint8Array): string {
+  if (bytes.length === 0) throw new LinkError("malformed", "not a link");
   return hexToBigInt(bytesToHex(bytes)).toString(10);
 }
 

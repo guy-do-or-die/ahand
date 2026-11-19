@@ -29,10 +29,13 @@ export interface Statement {
   value: Hex;
 }
 
-/** A name as it is hashed: its text, padded on the right to 32 bytes. */
+/**
+ * A name as it is hashed: its text, padded on the right to 32 bytes with zeros. A name with a zero
+ * character in it is refused: padded, it could not be told from a shorter name.
+ */
 export function nameOf(text: string): Hex {
-  if (stringToBytes(text).length === 0 || stringToBytes(text).length > 32) {
-    throw new Error(`a statement's name is 1 to 32 bytes of text: "${text}"`);
+  if (stringToBytes(text).length === 0 || stringToBytes(text).length > 32 || text.includes("\u0000")) {
+    throw new Error(`a statement's name is 1 to 32 bytes of text without a zero character: ${JSON.stringify(text)}`);
   }
   return stringToHex(text, { size: 32 });
 }

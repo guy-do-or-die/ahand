@@ -51,6 +51,12 @@ describe("a list of statements behind a dataHash", () => {
     expect(() => nameOf("")).toThrow();
     expect(() => nameOf("a".repeat(33))).toThrow();
   });
+
+  it("takes no name with a zero character: padded, it would be another name's twin", () => {
+    expect(() => nameOf("content\u0000")).toThrow();
+    expect(() => nameOf("con\u0000tent")).toThrow();
+    expect(() => dataHashOf([{ name: "content\u0000", value: textValue("x") }])).toThrow();
+  });
 });
 
 describe("the value of a statement about a text", () => {

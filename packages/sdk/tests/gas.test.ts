@@ -87,7 +87,7 @@ describe("the worst gas of a thank", () => {
     expect(calldata.length).toBe(644 + 3 * 352);
     expect(worst.gasLimit).toBe(21_000 + bytesGas + worst.execution);
     // Three Shakes, three payouts (two margins and the Give), nothing stated.
-    expect(worst.execution).toBe(80_410 + 3 * 12_197 + 3 * (Math.ceil((200_000 * 64) / 63) + 24_969));
+    expect(worst.execution).toBe(80_990 + 3 * 12_197 + 3 * (Math.ceil((200_000 * 64) / 63) + 24_969));
   });
 
   it("counts a payout only where a margin is kept, and always the Give's", () => {
@@ -106,6 +106,19 @@ describe("the worst gas of a thank", () => {
     const { signedShakes, signedGive } = routeOf(1, 1);
     const plain = worstThankGas(hand, signedShakes, signedGive).execution;
     expect(worstThankGas(hand, signedShakes, signedGive, { giverCodeGas: 63_000 }).execution).toBe(plain + 64_000);
+  });
+
+  it("is never below the floor price of the calldata, which a long signature of a contract giver reaches", () => {
+    // EIP-7623: a transaction pays at least 21 000 and 10 for a zero byte, 40 for any other.
+    const hand = handOf(1);
+    const { signedShakes, signedGive } = routeOf(0, 0);
+    const long: SignedGive = { ...signedGive, giverSig: `0x${"ab".repeat(16_000)}` };
+    const calldata = hexToBytes(thankCalldata(hand.handId, signedShakes, long));
+    let floor = 21_000;
+    for (const byte of calldata) floor += byte === 0 ? 10 : 40;
+    expect(worstThankGas(hand, signedShakes, long).gasLimit).toBe(floor);
+    // With signatures of keys the floor is far below.
+    expect(worstThankGas(hand, signedShakes, signedGive).gasLimit).toBeGreaterThan(21_000 + 644 * 40);
   });
 
   it("says when one transaction can no longer carry the thank: too much gas, or too many bytes", () => {
@@ -159,5 +172,22 @@ describe("how many more times a route can be passed on", () => {
     expect(passesLeft(handOf(1), routeOf(369, 0).signedShakes)).toBe(0);
     expect(passesLeft(handOf(200), routeOf(80, 80).signedShakes)).toBe(0);
     expect(passesLeft(handOf(65_535), [])).toBe(0);
+  });
+
+  it("keeps room for a contract giver when the application names its gas and the size of its signature", () => {
+    // What a contract giver needs comes out of the same transaction: fewer passes are left.
+    const byGas = passesLeft(handOf(200), [], { giverCodeGas: 350_000 });
+    expect(byGas).toBeLessThan(passesLeft(handOf(200), []));
+    const most = routeOf(byGas, byGas);
+    expect(worstThankGas(handOf(200), most.signedShakes, most.signedGive, { dataHash: STATED, giverCodeGas: 350_000 }).fits).toBe(true);
+
+    const long = routeOf(300, 0);
+    const bySize = passesLeft(handOf(1), long.signedShakes, { giverSigBytes: 700 });
+    expect(bySize).toBe(passesLeft(handOf(1), long.signedShakes) - 1);
+    const onePassMore = routeOf(301 + bySize, bySize + 1);
+    expect(worstThankGas(handOf(1), onePassMore.signedShakes, { ...onePassMore.signedGive, giverSig: `0x${"ab".repeat(700)}` }, { dataHash: STATED }).fits).toBe(false);
+    const longest = routeOf(300 + bySize, bySize);
+    const walletGive: SignedGive = { ...longest.signedGive, giverSig: `0x${"ab".repeat(700)}` };
+    expect(worstThankGas(handOf(1), longest.signedShakes, walletGive, { dataHash: STATED }).fits).toBe(true);
   });
 });

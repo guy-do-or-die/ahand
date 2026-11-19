@@ -23,8 +23,8 @@ contract Meter is IHookRecipient {
 ///
 /// The worst case: the token calls its recipients, every payee burns all the gas it is handed,
 /// so every payout uses its whole limit, `payoutGasK` thousand, and then stays pending in a slot
-/// written for the first time; the thank is the first one on this Core and the raiser states
-/// something with it. The gas Core itself spends then has four parts, each measured below:
+/// written for the first time; the thank is the first one on this Core, the giver's account has
+/// an EIP-7702 delegation, and the raiser states something with it. The gas Core itself spends then has four parts, each measured below:
 ///
 ///   BASE + SHAKE * shakes + (limit * 64 / 63 + PAYOUT) * payouts [+ STATING]
 ///
@@ -78,6 +78,9 @@ contract SdkGasTest is Test {
         token = new HookToken();
         raiser = makeAddr("raiser");
         giver = vm.addr(GIVER_PK);
+        // The giver's key signs for an account with an EIP-7702 delegation: Core then reads the
+        // delegation before it takes the key's signature, the costlier of the two ways a key signs.
+        vm.etch(giver, abi.encodePacked(hex"ef0100", address(0x7702)));
         expiry = uint40(block.timestamp + 30 days);
         token.mint(raiser, 1e30);
         vm.prank(raiser);

@@ -21,11 +21,16 @@ import type { Hand, SignedGive, SignedShake } from "./types.js";
  *
  * The four numbers are measured on Core itself (contracts/test/SdkGas.t.sol writes them to
  * contracts/test/fixtures/sdk-gas.json) under the gas prices of one set of network rules; other
- * rules are other numbers. The floor price of calldata (EIP-7623) never comes into play: a
- * Shake's execution costs more than the floor of its bytes.
+ * rules are other numbers. A transaction never costs less than the floor price of its calldata
+ * (EIP-7623); routes signed by keys stay far above it, a contract giver's signature of several
+ * thousand bytes reaches it.
  */
 export interface ThankGasRules {
-  /** A thank without Shakes, before its one payout; counted as the first thank on its Core. */
+  /**
+   * A thank without Shakes, before its one payout; counted as the first thank on its Core, and
+   * with a giver whose key signs for an account with an EIP-7702 delegation, the costlier of the
+   * two ways a key signs.
+   */
   base: number;
   /** Each Shake of the route. */
   shake: number;
@@ -36,7 +41,7 @@ export interface ThankGasRules {
 }
 
 /** The rules of Prague (Ethereum and Base in 2026), as Core's own test measured them. */
-export const THANK_GAS_PRAGUE: ThankGasRules = { base: 80_410, shake: 12_197, payout: 24_969, stating: 22_180 };
+export const THANK_GAS_PRAGUE: ThankGasRules = { base: 80_990, shake: 12_197, payout: 24_969, stating: 22_180 };
 
 /** The gas one transaction may use (EIP-7825). */
 export const TX_GAS_LIMIT = 16_777_216;
@@ -47,9 +52,16 @@ export const TX_ENVELOPE_BYTES = 256;
 const TX_BASE_GAS = 21_000;
 const ZERO_BYTE_GAS = 4;
 const NONZERO_BYTE_GAS = 16;
+/** The floor price of calldata is this many times its ordinary price (EIP-7623: 10 and 40 a byte). */
+const FLOOR_TIMES = 2.5;
 /** The calldata of a thank without Shakes, and what each Shake adds, when every signature is a key's. */
 const DIRECT_THANK_BYTES = 644;
 const SHAKE_BYTES = 352;
+/** A key's signature in the calldata: 65 bytes, in whole words. */
+const KEY_SIGNATURE_BYTES = 96;
+
+/** The longest route one transaction can carry by its size alone: no longer route can ever be thanked. */
+export const LONGEST_ROUTE = Math.floor((TX_BYTES_LIMIT - TX_ENVELOPE_BYTES - DIRECT_THANK_BYTES) / SHAKE_BYTES);
 
 const THANK_ABI = parseAbi([
   "struct Shake { address nextKey; address payee; uint16 claimBps; uint16 nextClaimBps; bytes32 dataHash; }",
@@ -90,8 +102,9 @@ export interface ThankGasOptions {
   /** The network's rules; Prague's if left out. */
   rules?: ThankGasRules;
   /**
-   * For a giver that is a contract: the gas its code needs to answer about the signature. Core
-   * asks it without a limit, so only the application can know this number, from a call to the chain.
+   * For a giver that is a contract: the gas that checking its signature takes beyond a key's, its
+   * code's answer and the carrying of a longer signature. Core asks the code without a limit, so
+   * only the application can know this number, from a call to the chain.
    */
   giverCodeGas?: number;
 }
@@ -122,7 +135,8 @@ export function worstThankGas(
 
   const calldata = hexToBytes(thankCalldata(hand.handId, signedShakes, signedGive, dataHash));
   const zeros = calldata.reduce((count, byte) => (byte === 0 ? count + 1 : count), 0);
-  const gasLimit = TX_BASE_GAS + ZERO_BYTE_GAS * zeros + NONZERO_BYTE_GAS * (calldata.length - zeros) + execution;
+  const bytesGas = ZERO_BYTE_GAS * zeros + NONZERO_BYTE_GAS * (calldata.length - zeros);
+  const gasLimit = TX_BASE_GAS + Math.max(bytesGas + execution, FLOOR_TIMES * bytesGas);
 
   return {
     gasLimit,
@@ -134,15 +148,25 @@ export function worstThankGas(
 
 /**
  * How many more times a route can be passed on and still be thanked in one transaction, counting
- * each further Shake at its worst: it keeps a margin, and its payee burns the payout's limit. The
- * Give is counted as signed by a key, and every byte of the calldata at its highest price, so the
- * answer never promises a pass that the worst gas would then refuse. Zero when the route is
- * already at the limit, or past it.
+ * each further Shake at its worst: it keeps a margin, and its payee burns the payout's limit.
+ * Every byte of the calldata is counted at its highest price, so the answer never promises a pass
+ * that the worst gas would then refuse. The Give is counted as signed by a key, unless the
+ * application names what a contract giver needs: the gas of its check and the size of its
+ * signature. Zero when the route is already at the limit, or past it.
  */
-export function passesLeft(hand: Hand, signedShakes: readonly SignedShake[], rules: ThankGasRules = THANK_GAS_PRAGUE): number {
-  const bytes = DIRECT_THANK_BYTES + SHAKE_BYTES * signedShakes.length;
+export function passesLeft(
+  hand: Hand,
+  signedShakes: readonly SignedShake[],
+  options: { rules?: ThankGasRules; giverCodeGas?: number; giverSigBytes?: number } = {},
+): number {
+  const rules = options.rules ?? THANK_GAS_PRAGUE;
+  const giverSigBytes = Math.ceil((options.giverSigBytes ?? 65) / 32) * 32;
+  const bytes = DIRECT_THANK_BYTES - KEY_SIGNATURE_BYTES + giverSigBytes + SHAKE_BYTES * signedShakes.length;
   const gas =
-    TX_BASE_GAS + NONZERO_BYTE_GAS * bytes + worstExecution(hand, rules, signedShakes.length, payoutsOf(signedShakes), true);
+    TX_BASE_GAS +
+    NONZERO_BYTE_GAS * bytes +
+    worstExecution(hand, rules, signedShakes.length, payoutsOf(signedShakes), true) +
+    Math.ceil(((options.giverCodeGas ?? 0) * 64) / 63);
   const perPass = NONZERO_BYTE_GAS * SHAKE_BYTES + rules.shake + payoutGas(hand, rules);
 
   const byGas = Math.floor((TX_GAS_LIMIT - gas) / perPass);

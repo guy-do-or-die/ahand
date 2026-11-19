@@ -473,6 +473,14 @@ describe("a link of our own, from a seed", () => {
     expect(await code(openLink(unsorted, async () => described, ownOptions))).toBe("non-canonical");
     const twice = Uint8Array.from([...bare, 1, 119, 3, ...author, ...author, ...content, ...textAttachment]);
     expect(await code(openLink(twice, async () => described, ownOptions))).toBe("non-canonical");
+    // A name with a zero byte after it would hash as the same name and hide the statement from a
+    // reader that looks it up by name: "author" written as 7 bytes, the list one byte longer.
+    const padded = Uint8Array.from([...bare, 1, 118, 3, 7, ...author.subarray(1, 7), 0, ...author.subarray(7), ...content, ...lang, ...textAttachment]);
+    expect(await code(openLink(padded, async () => described, ownOptions))).toBe("malformed");
+    const hidden = [{ name: "content\u0000", value: textValue(question) }, ...statements.slice(1)];
+    expect(await code(encodeLive({ ...route, attachments: { statements: [hidden] } }, ownOptions))).toBe("malformed");
+    const longName = [{ name: "n".repeat(33), value: textValue(question) }];
+    expect(await code(encodeLive({ ...route, attachments: { statements: [longName] } }, ownOptions))).toBe("malformed");
     // An attachment of a kind this version does not know.
     expect(await code(openLink(Uint8Array.from([...link, 3, 0]), async () => described, ownOptions))).toBe("unsupported");
 
@@ -484,6 +492,17 @@ describe("a link of our own, from a seed", () => {
     }
     expect(passed).toBe(0);
   }, 120_000);
+
+  it("carries a text that starts with a byte-order mark as it is", async () => {
+    const marked = "\uFEFFhello";
+    const statements: Statement[] = [{ name: "content", value: textValue(marked) }];
+    const described = ownHand(dataHashOf(statements));
+    const link = await encodeLive(
+      { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed, attachments: { statements: [statements], texts: [marked] } },
+      ownOptions,
+    );
+    expect((await openLink(link, async () => described, ownOptions)).texts).toEqual([marked]);
+  });
 
   it("is never written with a seed that is not the route's last key", async () => {
     const { opened } = await liveLink(hand, 2);
@@ -510,12 +529,69 @@ describe("a link of our own, from a seed", () => {
     expect(await code(encodeGive({ ...route, signedGive: { ...signedGive, give: { ...signedGive.give, routeHash: zeroHash } } }, ownOptions))).toBe("invalid");
     expect(await code(encodeGive({ ...route, signedGive: { ...signedGive, give: { ...signedGive.give, claimBps: 9_900 } } }, ownOptions))).toBe("invalid");
     expect(await code(encodeGive({ ...route, signedGive: { ...signedGive, give: { ...signedGive.give, payee: zeroAddress } } }, ownOptions))).toBe("invalid");
+    // The Give of the raiser itself, which Core refuses whatever else is right.
+    const byRaiser = { ...signedGive, give: { ...signedGive.give, signer: hand.raiser } };
+    expect(await code(encodeGive({ ...route, signedGive: byRaiser }, ownOptions))).toBe("invalid");
+    // Written past the encoder, such Gives do not open either: to nobody, and by the raiser.
+    const wire = {
+      chainId: 8453n,
+      handId: hand.handId,
+      shakes: opened.signedShakes.map(({ shake, keySig }) => ({ ...shake, keySig })),
+      lastKey: opened.end.lastKey,
+    };
+    const give = { ...signedGive.give, keySig: signedGive.keySig, giverSig: signedGive.giverSig };
+    expect(await code(openLink(pack({ ...wire, give }), getHand, ownOptions))).toBe("opened");
+    expect(await code(openLink(pack({ ...wire, give: { ...give, payee: zeroAddress } }), getHand, ownOptions))).toBe("invalid");
+    expect(await code(openLink(pack({ ...wire, give: { ...give, signer: hand.raiser } }), getHand, ownOptions))).toBe("invalid");
     // A route with a Shake out of place.
     const swapped = [opened.signedShakes[1], opened.signedShakes[0]];
     expect(await code(encodeAddressed({ ...route, signedShakes: swapped }, ownOptions))).toBe("invalid");
     // Only a live link can be passed on with its key.
     const addressed = await openLink(await encodeAddressed(route, ownOptions), getHand, ownOptions);
     expect(await code(passOn(addressed, { payee: payeeAt(2), nextClaimBps: 9_700 }, ownOptions))).toBe("invalid");
+  }, 60_000);
+
+  it("is never passed on for less than the Hand's minimum for the giver: no Give could end such a route", async () => {
+    // The Hand of these tests leaves the giver at least 5 000 of 10 000.
+    const { opened } = await liveLink(hand, 1);
+    expect(await code(passOn(opened, { payee: payeeAt(1), nextClaimBps: 5_000 }, ownOptions))).toBe("opened");
+    expect(await code(passOn(opened, { payee: payeeAt(1), nextClaimBps: 4_999 }, ownOptions))).toBe("invalid");
+    // Signed and written past the encoder, such a route does not open either.
+    const greedy: Shake = { nextKey: payeeAt(7), payee: payeeAt(1), claimBps: 9_900, nextClaimBps: 4_999, dataHash: zeroHash };
+    const keySig = await signShake(opened.linkKey!, ownDomain, hand, greedy);
+    const forged = pack({
+      chainId: 8453n,
+      handId: hand.handId,
+      shakes: [...opened.signedShakes, { shake: greedy, keySig }].map(({ shake, keySig }) => ({ ...shake, keySig })),
+      lastKey: payeeAt(7),
+    });
+    expect(await code(openLink(forged, getHand, ownOptions))).toBe("invalid");
+  }, 60_000);
+
+  it("refuses to write what its fields cannot hold", async () => {
+    const { opened } = await liveLink(hand, 1);
+    const [{ shake, keySig }] = opened.signedShakes;
+    // A claim above the whole would spill into the flags of the Shake's first byte.
+    expect(() => pack({ chainId: 8453n, handId: hand.handId, shakes: [{ ...shake, nextClaimBps: 0x4000, keySig }], seed: opened.seed })).toThrow(LinkError);
+    expect(() => toDigits(new Uint8Array(0))).toThrow(LinkError);
+    expect(() => toText(new Uint8Array(0))).toThrow(LinkError);
+  }, 60_000);
+
+  it("takes no more Shakes than one transaction can carry, unless the application says otherwise", async () => {
+    // 369 Shakes is the longest route Core's own test thanks; a longer one could never be thanked.
+    const { opened } = await liveLink(hand, 1);
+    const loop: Shake = { nextKey: opened.end.lastKey, payee: zeroAddress, claimBps: 9_900, nextClaimBps: 9_900, dataHash: zeroHash };
+    const keySig = await signShake(opened.linkKey!, ownDomain, hand, loop);
+    const wireOf = (count: number) =>
+      pack({
+        chainId: 8453n,
+        handId: hand.handId,
+        shakes: [...opened.signedShakes, ...Array.from({ length: count - 1 }, () => ({ shake: loop, keySig }))].map(({ shake, keySig }) => ({ ...shake, keySig })),
+        seed: opened.seed,
+      });
+    expect(await code(openLink(wireOf(370), getHand, ownOptions))).toBe("too-long");
+    expect(peekLink(wireOf(369), ownOptions).shakes).toBe(369);
+    expect(peekLink(wireOf(370), { ...ownOptions, maxShakes: 1_000 }).shakes).toBe(370);
   }, 60_000);
 
   it("leaves the longest route to the application", async () => {
