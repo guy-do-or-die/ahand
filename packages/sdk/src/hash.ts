@@ -112,8 +112,11 @@ export function giveHash(hand: Hand, give: Give): Hex {
  */
 export function routeHash(hand: Hand, shakes: readonly Shake[]): Hex {
   let hash: Hex = zeroHash;
-  for (const shake of shakes) {
-    hash = keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "bytes32" }], [hash, shakeHash(hand, shake)]));
-  }
+  for (const shake of shakes) hash = extendRouteHash(hash, shakeHash(hand, shake));
   return hash;
+}
+
+/** One step of the route hash: the hash so far with one more Shake's hash chained onto it. */
+export function extendRouteHash(hashSoFar: Hex, nextShakeHash: Hex): Hex {
+  return keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "bytes32" }], [hashSoFar, nextShakeHash]));
 }

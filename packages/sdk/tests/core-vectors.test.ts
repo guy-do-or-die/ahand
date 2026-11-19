@@ -1,61 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { hashTypedData, isAddressEqual, recoverAddress, zeroHash, type Address, type Hex } from "viem";
+import { hashTypedData, isAddressEqual, recoverAddress, zeroAddress, zeroHash } from "viem";
 
-import vectors from "./core-vectors.json";
+import { accepted, chain, reported } from "./fixtures.js";
 import {
   GIVE_TYPEHASH,
-  GIVE_TYPES,
   HAND_TYPEHASH,
   SHAKE_TYPEHASH,
-  SHAKE_TYPES,
   digest,
-  domain,
   domainSeparator,
   giveHash,
+  giveTypedData,
   routeHash,
   shakeHash,
-  type Give,
-  type Hand,
-  type Shake,
+  shakeTypedData,
 } from "../src/index.js";
 
-/**
- * core-vectors.json is written by contracts/test/SdkVectors.t.sol from Core itself: three signed
- * routes and what `checkRoute` and `checkGive` answer about them. Core is the authority; the SDK
- * must reach the same hashes and recover the same signers from the file alone.
- */
-
-const chain = domain(vectors.domain.chainId, vectors.domain.verifyingContract as Address);
 const separator = domainSeparator(chain);
-
-interface Route {
-  hand: Hand;
-  shakes: { shake: Shake; keySig: Hex }[];
-  give: Give;
-  keySig: Hex;
-  giverSig: Hex;
-  core: { lastKey: Address; claimBps: number; routeHash: Hex; giveHash: Hex };
-}
-
-const routes: Route[] = vectors.routes.map((route) => ({
-  hand: { ...route.hand, handId: BigInt(route.hand.handId) } as Hand,
-  shakes: route.shakes.map(({ keySig, ...shake }) => ({ shake: shake as Shake, keySig: keySig as Hex })),
-  give: {
-    signer: route.give.signer,
-    payee: route.give.payee,
-    claimBps: route.give.claimBps,
-    routeHash: route.give.routeHash,
-    dataHash: route.give.dataHash,
-  } as Give,
-  keySig: route.give.keySig as Hex,
-  giverSig: route.give.giverSig as Hex,
-  core: route.core as Route["core"],
-}));
 
 describe("the domain is Core's own", () => {
   it("name and version are the ones Core reports", () => {
-    expect(chain.name).toBe(vectors.domain.name);
-    expect(chain.version).toBe(vectors.domain.version);
+    expect(chain.name).toBe(reported.name);
+    expect(chain.version).toBe(reported.version);
   });
 });
 
@@ -69,17 +34,18 @@ describe("type hashes", () => {
 
 describe("the fixtures cover the shapes a route takes", () => {
   it("no Shakes, one Shake, and three with one that names no payee", () => {
-    expect(routes.map((route) => route.shakes.length)).toEqual([0, 1, 3]);
-    expect(routes[2].shakes[1].shake.payee).toBe("0x0000000000000000000000000000000000000000");
+    expect(accepted.map((route) => route.shakes.length)).toEqual([0, 1, 3]);
+    expect(accepted[2].shakes[1].shake.payee).toBe(zeroAddress);
   });
 });
 
-describe.each(routes.map((route) => [route.shakes.length, route] as const))("a route of %i Shakes", (_, route) => {
+describe.each(accepted.map((route) => [route.shakes.length, route] as const))("a route of %i Shakes", (_, route) => {
   const shakes = route.shakes.map(({ shake }) => shake);
+  const { give, keySig, giverSig } = route.give;
 
   it("has the route hash Core returns from checkRoute", () => {
     expect(routeHash(route.hand, shakes)).toBe(route.core.routeHash);
-    expect(route.give.routeHash).toBe(route.core.routeHash);
+    expect(give.routeHash).toBe(route.core.routeHash);
   });
 
   it("a route without Shakes hashes to zero", () => {
@@ -87,7 +53,7 @@ describe.each(routes.map((route) => [route.shakes.length, route] as const))("a r
   });
 
   it("has the Give hash Core returns from checkGive", () => {
-    expect(giveHash(route.hand, route.give)).toBe(route.core.giveHash);
+    expect(giveHash(route.hand, give)).toBe(route.core.giveHash);
   });
 
   it("every Shake was signed by the key the link had reached", async () => {
@@ -101,29 +67,17 @@ describe.each(routes.map((route) => [route.shakes.length, route] as const))("a r
   });
 
   it("the Give was signed by the route's last key and by its signer", async () => {
-    const hash = digest(separator, giveHash(route.hand, route.give));
-    const byKey = await recoverAddress({ hash, signature: route.keySig });
-    const byGiver = await recoverAddress({ hash, signature: route.giverSig });
-    expect(isAddressEqual(byKey, route.core.lastKey)).toBe(true);
-    expect(isAddressEqual(byGiver, route.give.signer)).toBe(true);
+    const hash = digest(separator, giveHash(route.hand, give));
+    expect(isAddressEqual(await recoverAddress({ hash, signature: keySig }), route.core.lastKey)).toBe(true);
+    expect(isAddressEqual(await recoverAddress({ hash, signature: giverSig }), give.signer)).toBe(true);
   });
 
   it("a wallet signing typed data signs the same digests", () => {
     for (const { shake } of route.shakes) {
-      const typed = hashTypedData({
-        domain: chain,
-        types: SHAKE_TYPES,
-        primaryType: "Shake",
-        message: { hand: route.hand, ...shake },
-      });
-      expect(typed).toBe(digest(separator, shakeHash(route.hand, shake)));
+      expect(hashTypedData(shakeTypedData(chain, route.hand, shake))).toBe(
+        digest(separator, shakeHash(route.hand, shake)),
+      );
     }
-    const typed = hashTypedData({
-      domain: chain,
-      types: GIVE_TYPES,
-      primaryType: "Give",
-      message: { hand: route.hand, ...route.give },
-    });
-    expect(typed).toBe(digest(separator, giveHash(route.hand, route.give)));
+    expect(hashTypedData(giveTypedData(chain, route.hand, give))).toBe(digest(separator, giveHash(route.hand, give)));
   });
 });
