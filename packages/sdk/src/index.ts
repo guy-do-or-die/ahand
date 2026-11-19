@@ -10,10 +10,13 @@ export {
   encodeAddressed,
   encodeGive,
   encodeLive,
+  fromBase64Url,
   fromText,
   keyOfSeed,
   newSeed,
   openLink,
+  openOutside,
+  packAttachments,
   passOn,
   peekLink,
   pinOf,
@@ -24,6 +27,8 @@ export {
   type LinkHead,
   type LinkOptions,
   type LinkRoute,
+  type MatchedData,
   type OpenedLink,
 } from "./link.js";
+export * from "./address.js";
 export * from "./gas.js";

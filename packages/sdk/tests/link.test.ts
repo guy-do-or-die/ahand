@@ -23,7 +23,9 @@ import {
   keyOfSeed,
   newSeed,
   openLink,
+  openOutside,
   pack,
+  packAttachments,
   passOn,
   peekLink,
   pinOf,
@@ -41,9 +43,9 @@ import { CORE, giveAt, liveLink, ownDomain, ownHand, ownOptions, payeeAt, rootSe
  * Hand of the tests' own. The layout is in src/link.ts.
  */
 
-async function code(run: Promise<unknown>): Promise<LinkErrorCode | "opened" | "other error"> {
+async function code(run: Promise<unknown> | (() => Promise<unknown>)): Promise<LinkErrorCode | "opened" | "other error"> {
   try {
-    await run;
+    await (typeof run === "function" ? run() : run);
     return "opened";
   } catch (error) {
     return error instanceof LinkError ? error.code : "other error";
@@ -326,7 +328,7 @@ describe("a link of our own, from a seed", () => {
       return openLink(Uint8Array.from(bytes), getHand, ownOptions);
     };
     expect(await code(edit((b) => (b[0] = 0x20)))).toBe("unsupported"); // another version
-    expect(await code(edit((b) => (b[0] |= 0x08)))).toBe("unsupported"); // a reserved bit
+    expect(await code(edit((b) => (b[0] |= 0x08)))).toBe("malformed"); // attachments announced where the link ends
     expect(await code(edit((b) => (b[0] = 0x12)))).toBe("non-canonical"); // a Give with a secret
     expect(await code(edit((b) => b.splice(5, 1, b[5] | 0x80, 0x00)))).toBe("non-canonical"); // handId written longer
     expect(await code(edit((b) => b.splice(6, 1, 0x81, 0x00)))).toBe("non-canonical"); // count written longer
@@ -416,19 +418,24 @@ describe("a link of our own, from a seed", () => {
       { name: "lang", value: textValue("ru") },
     ];
     const described = ownHand(dataHashOf(statements));
+    const getDescribed = async () => described;
     const route = { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed };
     const link = await encodeLive({ ...route, attachments: { statements: [statements], texts: [question] } }, ownOptions);
     const bare = await encodeLive(route, ownOptions);
-    const opened = await openLink(link, async () => described, ownOptions);
+    const opened = await openLink(link, getDescribed, ownOptions);
     expect(opened.texts).toEqual([question]);
     expect(dataHashOf(opened.statements[0])).toBe(described.dataHash);
-    // The attachments stand after the route: without them the link is the same link, shorter.
-    expect(bytesToHex(link).startsWith(bytesToHex(bare))).toBe(true);
+    // The attachments stand after the route, announced by a flag in the first byte and by their number.
+    const flagged = Uint8Array.from(bare);
+    flagged[0] |= 0x08;
+    expect(bare[0] & 0x08).toBe(0);
+    expect(bytesToHex(link).startsWith(bytesToHex(flagged))).toBe(true);
+    expect(link[bare.length]).toBe(2);
 
     // What is attached travels on when the link is passed, unless the holder attaches something else:
     // its own Shake's statements beside the Hand's, or nothing.
     const passed1 = await passOn(opened, { payee: payeeAt(0), nextClaimBps: 9_900 }, ownOptions);
-    expect((await openLink(passed1.link, async () => described, ownOptions)).texts).toEqual([question]);
+    expect((await openLink(passed1.link, getDescribed, ownOptions)).texts).toEqual([question]);
     const note: Statement[] = [{ name: "note", value: textValue("from a friend") }];
     const passed2 = await passOn(
       opened,
@@ -436,11 +443,11 @@ describe("a link of our own, from a seed", () => {
       ownOptions,
       { statements: [statements, note], texts: [question, "from a friend"] },
     );
-    const reopened = await openLink(passed2.link, async () => described, ownOptions);
+    const reopened = await openLink(passed2.link, getDescribed, ownOptions);
     expect(reopened.statements.length).toBe(2);
     expect([...reopened.texts].sort()).toEqual([question, "from a friend"].sort());
     const passed3 = await passOn(opened, { payee: payeeAt(0), nextClaimBps: 9_900 }, ownOptions, {});
-    expect((await openLink(passed3.link, async () => described, ownOptions)).statements).toEqual([]);
+    expect((await openLink(passed3.link, getDescribed, ownOptions)).statements).toEqual([]);
 
     // A list behind no dataHash of the link, a text behind no statement: refused when written and when read.
     const stray: Statement[] = [{ name: "content", value: textValue("another question") }];
@@ -448,61 +455,210 @@ describe("a link of our own, from a seed", () => {
     expect(await code(encodeLive({ ...route, attachments: { statements: [statements], texts: ["not the question"] } }, ownOptions))).toBe(
       "unmatched-data",
     );
-    // A text travels in the form it is hashed in.
+    // A text is written in the form it is hashed in.
     expect(await code(encodeLive({ ...route, attachments: { statements: [statements], texts: [question.replace("\n", "\r\n")] } }, ownOptions))).toBe(
       "non-canonical",
     );
-    // Read as written too: the same text with other line ends, in the place of the text, is refused
-    // though its hash is the statement's. The text is the last attachment: kind, length (2 bytes), bytes.
+
+    // The same parts put together by hand: the flagged route, the number of attachments, each as kind, length, bytes.
+    const item = (kind: number, bytes: Uint8Array | number[]) => {
+      const length = bytes.length < 128 ? [bytes.length] : [(bytes.length & 0x7f) | 0x80, bytes.length >> 7];
+      return [kind, ...length, ...bytes];
+    };
+    const withTail = (...items: number[][]) => Uint8Array.from([...flagged, items.length, ...items.flat()]);
     const textBytes = stringToBytes(question);
-    const otherEnds = stringToBytes(question.replace("\n", "\r\n"));
     expect(textBytes.length).toBeGreaterThan(127);
-    const beforeText = [...link.subarray(0, link.length - textBytes.length - 3)];
-    const rewritten = Uint8Array.from([...beforeText, 2, (otherEnds.length & 0x7f) | 0x80, otherEnds.length >> 7, ...otherEnds]);
-    expect(await code(openLink(rewritten, async () => described, ownOptions))).toBe("non-canonical");
-    // The two attachments in the other order.
-    const listBytes = link.subarray(bare.length, link.length - textBytes.length - 3);
-    const swapped = Uint8Array.from([...bare, ...link.subarray(link.length - textBytes.length - 3), ...listBytes]);
-    expect(await code(openLink(swapped, async () => described, ownOptions))).toBe("non-canonical");
-    // The statements of the list in another order than by name. The list: kind, length, count,
-    // then "author" (1 + 6 + 32 bytes), "content" (1 + 7 + 32) and "lang" (1 + 4 + 32).
-    expect([...listBytes.subarray(0, 3)]).toEqual([1, 117, 3]);
-    const [author, content, lang] = [listBytes.subarray(3, 42), listBytes.subarray(42, 82), listBytes.subarray(82)];
-    const textAttachment = link.subarray(link.length - textBytes.length - 3);
-    const unsorted = Uint8Array.from([...bare, 1, 117, 3, ...content, ...author, ...lang, ...textAttachment]);
-    expect(await code(openLink(unsorted, async () => described, ownOptions))).toBe("non-canonical");
-    const twice = Uint8Array.from([...bare, 1, 119, 3, ...author, ...author, ...content, ...textAttachment]);
-    expect(await code(openLink(twice, async () => described, ownOptions))).toBe("non-canonical");
+    // The list: its count, then "author" (1 + 6 + 32 bytes), "content" (1 + 7 + 32) and "lang" (1 + 4 + 32).
+    const listBytes = link.subarray(bare.length + 3, link.length - textBytes.length - 3);
+    expect([...link.subarray(bare.length, bare.length + 3)]).toEqual([2, 1, 117]);
+    expect(listBytes[0]).toBe(3);
+    const [author, content, lang] = [listBytes.subarray(1, 40), listBytes.subarray(40, 80), listBytes.subarray(80)];
+    const list = item(1, listBytes);
+    const text = item(2, textBytes);
+    expect(bytesToHex(withTail(list, text))).toBe(bytesToHex(link));
+
+    // The same text with other line ends is other bytes: its hash is not the statement's.
+    expect(await code(openLink(withTail(list, item(2, stringToBytes(question.replace("\n", "\r\n")))), getDescribed, ownOptions))).toBe("unmatched-data");
+    // The two attachments in the other order, or one of them twice.
+    expect(await code(openLink(withTail(text, list), getDescribed, ownOptions))).toBe("non-canonical");
+    expect(await code(openLink(withTail(list, text, text), getDescribed, ownOptions))).toBe("non-canonical");
+    // The statements of the list in another order than by name, or one of them twice.
+    expect(await code(openLink(withTail(item(1, [3, ...content, ...author, ...lang]), text), getDescribed, ownOptions))).toBe("non-canonical");
+    expect(await code(openLink(withTail(item(1, [3, ...author, ...author, ...content]), text), getDescribed, ownOptions))).toBe("non-canonical");
     // A name with a zero byte after it would hash as the same name and hide the statement from a
-    // reader that looks it up by name: "author" written as 7 bytes, the list one byte longer.
-    const padded = Uint8Array.from([...bare, 1, 118, 3, 7, ...author.subarray(1, 7), 0, ...author.subarray(7), ...content, ...lang, ...textAttachment]);
-    expect(await code(openLink(padded, async () => described, ownOptions))).toBe("malformed");
+    // reader that looks it up by name: "author" written as 7 bytes.
+    const padded = item(1, [3, 7, ...author.subarray(1, 7), 0, ...author.subarray(7), ...content, ...lang]);
+    expect(await code(openLink(withTail(padded, text), getDescribed, ownOptions))).toBe("non-canonical");
     const hidden = [{ name: "content\u0000", value: textValue(question) }, ...statements.slice(1)];
     expect(await code(encodeLive({ ...route, attachments: { statements: [hidden] } }, ownOptions))).toBe("malformed");
     const longName = [{ name: "n".repeat(33), value: textValue(question) }];
     expect(await code(encodeLive({ ...route, attachments: { statements: [longName] } }, ownOptions))).toBe("malformed");
     // An attachment of a kind this version does not know.
-    expect(await code(openLink(Uint8Array.from([...link, 3, 0]), async () => described, ownOptions))).toBe("unsupported");
+    expect(await code(openLink(withTail(list, text, [3, 0]), getDescribed, ownOptions))).toBe("unsupported");
+    // Attachments announced and none written; more or fewer announced than written; a byte after the last.
+    expect(await code(openLink(Uint8Array.from([...flagged, 0]), getDescribed, ownOptions))).toBe("non-canonical");
+    expect(await code(openLink(Uint8Array.from([...flagged, 3, ...list, ...text]), getDescribed, ownOptions))).toBe("malformed");
+    expect(await code(openLink(Uint8Array.from([...flagged, 1, ...list, ...text]), getDescribed, ownOptions))).toBe("malformed");
+    expect(await code(openLink(Uint8Array.from([...link, 0]), getDescribed, ownOptions))).toBe("malformed");
+    // Attachments written and not announced.
+    expect(await code(openLink(Uint8Array.from([...bare, 2, ...list, ...text]), getDescribed, ownOptions))).toBe("malformed");
 
     let passed = 0;
     for (let bit = bare.length * 8; bit < link.length * 8; ++bit) {
       const flipped = Uint8Array.from(link);
       flipped[bit >> 3] ^= 1 << (bit & 7);
-      if ((await code(openLink(flipped, async () => described, ownOptions))) === "opened") ++passed;
+      if ((await code(openLink(flipped, getDescribed, ownOptions))) === "opened") ++passed;
     }
     expect(passed).toBe(0);
   }, 120_000);
 
-  it("carries a text that starts with a byte-order mark as it is", async () => {
-    const marked = "\uFEFFhello";
-    const statements: Statement[] = [{ name: "content", value: textValue(marked) }];
+  it("does not open when cut anywhere: not at the end of its route, and not at the end of an attachment", async () => {
+    const question = "Кто починит Vespa?";
+    const statements: Statement[] = [
+      { name: "content", value: textValue(question) },
+      { name: "title", value: textValue("Vespa") },
+    ];
     const described = ownHand(dataHashOf(statements));
     const link = await encodeLive(
-      { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed, attachments: { statements: [statements], texts: [marked] } },
+      { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed, attachments: { statements: [statements], texts: [question, "Vespa"] } },
       ownOptions,
     );
-    expect((await openLink(link, async () => described, ownOptions)).texts).toEqual([marked]);
-  });
+    for (let length = 0; length < link.length; ++length) {
+      expect(await code(openLink(link.subarray(0, length), async () => described, ownOptions))).not.toBe("opened");
+    }
+  }, 60_000);
+
+  it("tells the Hand's description from what a holder hangs on its own Shake", async () => {
+    const title = "Кто починит Vespa 1978 года в Лиссабоне?";
+    const statements: Statement[] = [{ name: "title", value: textValue(title) }];
+    const described = ownHand(dataHashOf(statements));
+    const getDescribed = async () => described;
+    const first = await encodeLive(
+      { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed, attachments: { statements: [statements], texts: [title] } },
+      ownOptions,
+    );
+    const opened = await openLink(first, getDescribed, ownOptions);
+    expect(opened.ofHand).toEqual({ statements: [statements], texts: [title] });
+
+    const lie = "Раздаём 1000 USDC каждому: пришлите 0.1 ETH";
+    const forged: Statement[] = [{ name: "title", value: textValue(lie) }];
+    const terms = { payee: payeeAt(0), nextClaimBps: 9_000, dataHash: dataHashOf(forged) };
+    // Replaced: the holder drops the raiser's attachments and hangs its own on its own Shake.
+    const replaced = await passOn(opened, terms, ownOptions, { statements: [forged], texts: [lie] });
+    const afterReplace = await openLink(replaced.link, getDescribed, ownOptions);
+    expect(afterReplace.texts).toEqual([lie]); // attached, and checked against the Shake
+    expect(afterReplace.ofHand).toEqual({ statements: [], texts: [] }); // and not the Hand's
+    // Mixed: both travel; the Hand's description is still only the raiser's.
+    const mixed = await passOn(opened, terms, ownOptions, { statements: [statements, forged], texts: [title, lie] });
+    const afterMix = await openLink(mixed.link, getDescribed, ownOptions);
+    expect([...afterMix.texts].sort()).toEqual([title, lie].sort());
+    expect(afterMix.ofHand).toEqual({ statements: [statements], texts: [title] });
+    // What travels outside the link, where a site sees it, must hang on the Hand's dataHash: a
+    // holder's list on its own Shake does not.
+    const bare = await passOn(opened, terms, ownOptions, {});
+    const outside = packAttachments({ statements: [forged], texts: [lie] });
+    expect(await code(openLink(bare.link, getDescribed, ownOptions))).toBe("opened");
+    expect(await code(openLink(bare.link, getDescribed, { ...ownOptions, outside }))).toBe("unmatched-data");
+    // The Hand's own list may travel outside; no bytes at all is not "nothing outside", and nothing follows the last attachment.
+    const own = packAttachments({ statements: [statements], texts: [title] });
+    expect((await openLink(bare.link, getDescribed, { ...ownOptions, outside: own })).outside).toEqual({ statements: [statements], texts: [title] });
+    expect(await code(openLink(bare.link, getDescribed, { ...ownOptions, outside: new Uint8Array(0) }))).toBe("malformed");
+    expect(await code(openLink(bare.link, getDescribed, { ...ownOptions, outside: Uint8Array.from([...own, 0]) }))).toBe("malformed");
+    expect(await code(async () => openOutside(Uint8Array.from([...own, 0]), described))).toBe("malformed");
+    expect(await code(async () => openOutside(Uint8Array.of(0), described))).toBe("non-canonical");
+    // A Shake may repeat the Hand's own dataHash: what hangs on it is the Hand's all the same.
+    const echoed = await passOn(opened, { ...terms, dataHash: described.dataHash }, ownOptions);
+    expect((await openLink(echoed.link, getDescribed, ownOptions)).ofHand).toEqual({ statements: [statements], texts: [title] });
+  }, 60_000);
+
+  it("takes a list behind a statement of another list, and a text only behind a statement", async () => {
+    const content = "Нужен мастер по двухтактным моторам.";
+    const hidden: Statement[] = [
+      { name: "content", value: textValue(content) },
+      { name: "salt", value: keccak256("0x5a17") },
+    ];
+    const shown: Statement[] = [
+      { name: "private", value: dataHashOf(hidden) },
+      { name: "title", value: textValue("Vespa") },
+    ];
+    const described = ownHand(dataHashOf(shown));
+    const route = { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed };
+    const link = await encodeLive({ ...route, attachments: { statements: [shown, hidden], texts: ["Vespa", content] } }, ownOptions);
+    const opened = await openLink(link, async () => described, ownOptions);
+    expect(opened.statements.length).toBe(2);
+    expect([...opened.texts].sort()).toEqual(["Vespa", content].sort());
+    expect([...opened.ofHand.texts].sort()).toEqual(["Vespa", content].sort());
+    // The inner list without the outer one hangs on nothing.
+    expect(await code(encodeLive({ ...route, attachments: { statements: [hidden] } }, ownOptions))).toBe("unmatched-data");
+    // A text whose hash is a dataHash itself, with no list between, is refused.
+    const direct = ownHand(textValue(content));
+    expect(await code(encodeLive({ ...route, hand: direct, attachments: { texts: [content] } }, ownOptions))).toBe("unmatched-data");
+    // A statement of zero proves nothing: no list and no text hangs on it.
+    const empty: Statement[] = [];
+    const zeroed: Statement[] = [{ name: "next", value: zeroHash }];
+    expect(dataHashOf(empty)).not.toBe(zeroHash);
+    const onZero = ownHand(dataHashOf(zeroed));
+    expect(await code(encodeLive({ ...route, hand: onZero, attachments: { statements: [zeroed] } }, ownOptions))).toBe("opened");
+    // An empty list is a list like any other, behind its one hash.
+    const onEmpty = ownHand(dataHashOf(empty));
+    const emptied = await encodeLive({ ...route, hand: onEmpty, attachments: { statements: [empty] } }, ownOptions);
+    expect((await openLink(emptied, async () => onEmpty, ownOptions)).ofHand.statements).toEqual([[]]);
+  }, 60_000);
+
+  it("reads a long chain of lists in the worst order as fast as in the best", async () => {
+    const chainOfLists: Statement[][] = [];
+    let value: Hex = keccak256("0x00");
+    for (let index = 0; index < 1_500; ++index) {
+      const list = [{ name: "next", value }];
+      chainOfLists.push(list);
+      value = dataHashOf(list);
+    }
+    const start = performance.now();
+    expect(openOutside(packAttachments({ statements: chainOfLists }), ownHand(value)).statements.length).toBe(1_500);
+    expect(performance.now() - start).toBeLessThan(3_000);
+  }, 60_000);
+
+  it("hashes an attached text as its bytes are: a byte-order mark, line ends and the form of its letters included", async () => {
+    const marked = "﻿hello";
+    const statements: Statement[] = [{ name: "content", value: textValue(marked) }];
+    const described = ownHand(dataHashOf(statements));
+    const getDescribed = async () => described;
+    const route = { domain: ownDomain, hand: described, signedShakes: [], seed: rootSeed };
+    const link = await encodeLive({ ...route, attachments: { statements: [statements], texts: [marked] } }, ownOptions);
+    expect((await openLink(link, getDescribed, ownOptions)).ofHand.texts).toEqual([marked]);
+
+    const flagged = Uint8Array.from(await encodeLive(route, ownOptions));
+    flagged[0] |= 0x08;
+    const item = (kind: number, bytes: Uint8Array | number[]) => [kind, bytes.length, ...bytes];
+    const withTail = (...items: number[][]) => Uint8Array.from([...flagged, items.length, ...items.flat()]);
+    const list = [...packAttachments({ statements: [statements] }).subarray(1)];
+    expect(await code(openLink(withTail(list, item(2, stringToBytes(marked))), getDescribed, ownOptions))).toBe("opened");
+    // The same text without its mark, or with a second one: other bytes, another hash.
+    expect(await code(openLink(withTail(list, item(2, stringToBytes("hello"))), getDescribed, ownOptions))).toBe("unmatched-data");
+    expect(await code(openLink(withTail(list, item(2, stringToBytes(`﻿${marked}`))), getDescribed, ownOptions))).toBe("unmatched-data");
+    // Bytes that are no text.
+    expect(await code(openLink(withTail(list, item(2, [0xff, 0xfe])), getDescribed, ownOptions))).toBe("malformed");
+    // A name that is only a mark is a name: its list just hangs on nothing here.
+    const named = item(1, [1, 3, 0xef, 0xbb, 0xbf, ...hexToBytes(textValue(marked))]);
+    expect(await code(openLink(withTail(named), getDescribed, ownOptions))).toBe("unmatched-data");
+    // A name with a zero byte inside.
+    expect(await code(openLink(withTail(item(1, [1, 3, 0x74, 0, 0x74, ...hexToBytes(textValue(marked))])), getDescribed, ownOptions))).toBe("non-canonical");
+
+    // A text not in the form the SDK hashes texts in, behind a value made from exactly its bytes:
+    // a reader takes it as it is, and does not depend on its own tables of Unicode for it.
+    const raw = stringToBytes("Café de Alfama\r\n");
+    const odd: Statement[] = [{ name: "content", value: keccak256(raw) }];
+    const oddHand = ownHand(dataHashOf(odd));
+    const oddBare = Uint8Array.from(await encodeLive({ ...route, hand: oddHand }, ownOptions));
+    oddBare[0] |= 0x08;
+    const oddLink = Uint8Array.from([...oddBare, 2, ...packAttachments({ statements: [odd] }).subarray(1), ...item(2, raw)]);
+    expect((await openLink(oddLink, async () => oddHand, ownOptions)).texts).toEqual(["Café de Alfama\r\n"]);
+    // An empty text is a text.
+    const none: Statement[] = [{ name: "content", value: textValue("") }];
+    const noneHand = ownHand(dataHashOf(none));
+    const noneLink = await encodeLive({ ...route, hand: noneHand, attachments: { statements: [none], texts: [""] } }, ownOptions);
+    expect((await openLink(noneLink, async () => noneHand, ownOptions)).texts).toEqual([""]);
+  }, 60_000);
 
   it("is never written with a seed that is not the route's last key", async () => {
     const { opened } = await liveLink(hand, 2);

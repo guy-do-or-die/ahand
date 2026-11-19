@@ -20,7 +20,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 
-import { dataHashOf, nameOf, textValue, type Statement } from "./data.js";
+import { dataHashOf, nameOf, type Statement } from "./data.js";
 import { LONGEST_ROUTE } from "./gas.js";
 import { digest, domainSeparator, giveHash, handHash, shakeHash } from "./hash.js";
 import { CURVE_ORDER, signShake } from "./sign.js";
@@ -44,7 +44,7 @@ import { checkRoute, isKeySignature, signedBy, type RouteEnd } from "./verify.js
  *                               0x01 ADDRESSED  the route's end is named by an address: no secret
  *                               0x02 GIVE       a Give follows (only with ADDRESSED)
  *                               0x04 CORE       Core's address follows (not the canonical Core)
- *                               0x08 reserved, must be 0
+ *                               0x08 DATA       attachments follow the route (and the Give)
  *           chainId           varint
  *           [core 20]         if CORE
  *           handId            varint
@@ -67,10 +67,15 @@ import { checkRoute, isKeySignature, signedBy, type RouteEnd } from "./verify.js
  *           [dataHash 32]     if DATA
  *           keySig 64
  *           giverSig          64 bytes if KEY, else varint length and the bytes as they are
- *   DATA    zero or more attachments to the end of the link, in ascending order:
+ *   DATA    only with the DATA flag: their number (varint, at least 1), then that many
+ *           attachments to the end of the link, in ascending order:
  *           kind 1            1 a list of statements (see data.ts), 2 a text
  *           length            varint
  *           bytes
+ *           A list stands behind a dataHash of the Hand, of a Shake or of the Give, or behind a
+ *           value of another attached list; a text behind a value of an attached list. The same
+ *           DATA bytes may also travel outside the link, where a site can see them (address.ts):
+ *           they are checked the same way, and nothing may stand in both places.
  *
  * Not carried, because the rest gives it: a Shake's nextKey (recovered from the next signature,
  * backwards from the end of the route to the Hand's root key), a Shake's claimBps (the claim
@@ -81,6 +86,10 @@ import { checkRoute, isKeySignature, signedBy, type RouteEnd } from "./verify.js
  * Core, or the one secret. The one exception is the giver's signature, which travels as it is:
  * only `checkGive` and, for a contract giver, the chain can judge it. Anything that could be
  * written in two ways is refused in all but one, so one route is one link.
+ *
+ * Attachments can be taken off a link and it still opens: what is attached is checked, that
+ * everything was attached is not. A link cut anywhere, the end of an attachment included, does
+ * not open.
  */
 
 export const LINK_VERSION = 1;
@@ -92,7 +101,7 @@ export const KEY_TAG = "aHand.key/1";
 const FLAG_ADDRESSED = 0x01;
 const FLAG_GIVE = 0x02;
 const FLAG_CORE = 0x04;
-const FLAG_RESERVED = 0x08;
+const FLAG_DATA = 0x08;
 
 const SHAKE_PAYEE = 0x80;
 const SHAKE_DATA = 0x40;
@@ -108,10 +117,12 @@ const ATTACHED_TEXT = 2;
 
 /** The least a Shake takes on the wire: its first byte and its signature. */
 const SHAKE_MIN_BYTES = 65;
+/** The least an attachment takes: its kind and its length. */
+const ATTACHED_MIN_BYTES = 2;
 
 export type LinkErrorCode =
   | "malformed" // not a link at all: cut short, a wrong alphabet, bytes left over
-  | "unsupported" // another version, a reserved bit, an unknown attachment, no canonical Core known
+  | "unsupported" // another version, a reserved bit of the Give, an unknown attachment, no canonical Core known
   | "non-canonical" // readable, but written in a way the format does not allow
   | "too-long" // more Shakes than this application takes
   | "another-hand" // the Hand given is not the one the link names
@@ -295,10 +306,19 @@ export function pinOf(chain: Eip712Domain, hand: Hand): Hex {
 
 /** What may travel with a link without being part of the route; each is checked against a hash. */
 export interface Attachments {
-  /** Whole lists of statements, each standing behind a dataHash of the Hand, of a Shake or of the Give. */
+  /**
+   * Whole lists of statements, each standing behind a dataHash of the Hand, of a Shake or of the
+   * Give, or behind a value of another attached list.
+   */
   statements?: Statement[][];
   /** Texts, each standing behind a value of one of the attached lists. */
   texts?: string[];
+}
+
+/** Attachments read and checked against the hashes they stand behind. */
+export interface MatchedData {
+  statements: Statement[][];
+  texts: string[];
 }
 
 interface Attached {
@@ -335,7 +355,10 @@ function unpackStatements(bytes: Uint8Array): Statement[] {
   for (let left = reader.varint(); left > 0n; --left) {
     const length = reader.byte();
     if (length === 0 || length > 32) throw new LinkError("malformed", "a statement's name is 1 to 32 bytes");
-    const name = textOf(reader.take(length), "a statement's name");
+    const raw = reader.take(length);
+    // A name is hashed padded with zeros: a zero byte in it would be a byte no hash tells apart.
+    if (raw.includes(0)) throw new LinkError("non-canonical", "a statement's name with a zero character");
+    const name = textOf(raw, "a statement's name");
     const padded = paddedName(name);
     if (previous !== undefined && padded <= previous) throw new LinkError("non-canonical", "statements out of order");
     previous = padded;
@@ -350,41 +373,104 @@ function isHashedForm(text: string): boolean {
   return text.normalize("NFC").replace(/\r\n?/g, "\n") === text;
 }
 
-function packAttachments(attachments: Attachments | undefined): Uint8Array {
+/**
+ * Attachments as they travel, in a link or outside it: their number, then the kind, length and
+ * bytes of each, in ascending order. None at all is no bytes at all.
+ */
+export function packAttachments(attachments: Attachments | undefined): Uint8Array {
   const items: Attached[] = [];
   for (const list of attachments?.statements ?? []) items.push({ kind: ATTACHED_STATEMENTS, bytes: packStatements(list) });
   for (const text of attachments?.texts ?? []) {
-    if (!isHashedForm(text)) throw new LinkError("non-canonical", "a text travels in the form it is hashed in");
+    // A reader hashes a text's bytes as they are; the writer is the one that keeps to the form.
+    if (!isHashedForm(text)) throw new LinkError("non-canonical", "a text is written in the form it is hashed in");
     items.push({ kind: ATTACHED_TEXT, bytes: stringToBytes(text) });
   }
+  if (items.length === 0) return new Uint8Array(0);
   items.sort(compareAttached);
-  const writer = new Writer();
+  // Their number comes first: a link or an address cut at the end of an attachment does not read.
+  const writer = new Writer().varint(BigInt(items.length));
   for (const { kind, bytes } of items) writer.byte(kind).varint(BigInt(bytes.length)).bytes(bytes);
   return writer.done();
 }
 
-/** Reads the attachments to the end of the link. */
-function unpackAttachments(reader: Reader): Required<Attachments> {
-  const statements: Statement[][] = [];
-  const texts: string[] = [];
-  let previous: Attached | undefined;
-  while (reader.left > 0) {
+/** Reads attachments to the end of `reader`: as many as announced, of known kinds, in ascending order, none twice. */
+function readAttachments(reader: Reader): Attached[] {
+  const count = reader.varint();
+  if (count === 0n) throw new LinkError("non-canonical", "attachments announced and none written");
+  // A number the bytes cannot hold is refused before any work is done for it.
+  if (count * BigInt(ATTACHED_MIN_BYTES) > BigInt(reader.left)) {
+    throw new LinkError("malformed", "more attachments named than the link holds");
+  }
+  const attached: Attached[] = [];
+  for (let index = 0n; index < count; ++index) {
     const kind = reader.byte();
     if (kind !== ATTACHED_STATEMENTS && kind !== ATTACHED_TEXT) throw new LinkError("unsupported", `attachment kind ${kind}`);
     const item: Attached = { kind, bytes: reader.take(reader.length()) };
-    if (previous && compareAttached(previous, item) >= 0) {
+    if (attached.length > 0 && compareAttached(attached[attached.length - 1], item) >= 0) {
       throw new LinkError("non-canonical", "attachments out of order or repeated");
     }
-    previous = item;
-    if (kind === ATTACHED_STATEMENTS) {
-      statements.push(unpackStatements(item.bytes));
-    } else {
-      const text = textOf(item.bytes, "an attached text");
-      if (!isHashedForm(text)) throw new LinkError("non-canonical", "a text not in the form it is hashed in");
-      texts.push(text);
+    attached.push(item);
+  }
+  if (reader.left !== 0) throw new LinkError("malformed", "bytes after the last attachment");
+  return attached;
+}
+
+/**
+ * Checks attachments against hashes that are already proven: `roots`. A list is taken when its
+ * dataHash is a root or a value of a list already taken; a text when the hash of its bytes, as
+ * they are, is a value of a list taken. With `all`, anything left over is refused: no byte
+ * travels that no hash stands for. Without it, what does not hang on the roots is left out: this
+ * is how what describes the Hand is told from what a holder hung on its own Shake.
+ */
+function matchAttachments(attached: readonly Attached[], roots: readonly Hex[], all = true): MatchedData {
+  // Each list is hashed once and found by its hash: the work grows with the bytes, not their square.
+  const waiting = new Map<string, Statement[]>();
+  for (const { kind, bytes } of attached) {
+    if (kind !== ATTACHED_STATEMENTS) continue;
+    const list = unpackStatements(bytes);
+    waiting.set(dataHashOf(list).toLowerCase(), list);
+  }
+  const lists = waiting.size;
+  const proven = roots.map((hash) => hash.toLowerCase()).filter((hash) => hash !== zeroHash);
+  const values = new Set<string>();
+  const statements: Statement[][] = [];
+  while (proven.length > 0) {
+    const hash = proven.pop()!;
+    const list = waiting.get(hash);
+    if (!list) continue;
+    waiting.delete(hash);
+    statements.push(list);
+    for (const { value } of list) {
+      const lower = value.toLowerCase();
+      // A value of zero proves nothing.
+      if (lower === zeroHash) continue;
+      values.add(lower);
+      proven.push(lower);
     }
   }
+  if (all && statements.length !== lists) throw new LinkError("unmatched-data", "a list of statements that no hash stands for");
+
+  const texts: string[] = [];
+  for (const { kind, bytes } of attached) {
+    if (kind !== ATTACHED_TEXT) continue;
+    const text = textOf(bytes, "an attached text");
+    // The bytes are hashed as they are, and nothing is brought to a form first: a reader that did
+    // would depend on its own tables of Unicode, and the hash already allows only these bytes.
+    if (!values.has(keccak256(bytes))) {
+      if (all) throw new LinkError("unmatched-data", "a text behind no attached statement");
+      continue;
+    }
+    texts.push(text);
+  }
   return { statements, texts };
+}
+
+/**
+ * What a site may show of a Hand from attachments that travel where it can see them, without the
+ * link: they are checked against the `dataHash` Core keeps for the Hand and nothing else.
+ */
+export function openOutside(outside: Uint8Array, hand: Hand): MatchedData {
+  return matchAttachments(readAttachments(new Reader(outside)), [hand.dataHash]);
 }
 
 /* ------------------------------------------------------------------- wire */
@@ -398,6 +484,11 @@ export interface LinkOptions {
    * be thanked, and reading it would only cost time.
    */
   maxShakes?: number;
+  /**
+   * Attachments that travelled outside the link, where a site can see them (address.ts): they are
+   * read together with the link's own, and must hang on the Hand's own dataHash.
+   */
+  outside?: Uint8Array;
 }
 
 /** A Shake as it stands on the wire. Without a payee its `nextClaimBps` is not written: it is the claim that reached it. */
@@ -440,6 +531,8 @@ export function pack(link: WireLink): Uint8Array {
   if (link.seed === undefined) flags |= FLAG_ADDRESSED;
   if (link.give) flags |= FLAG_GIVE;
   if (link.core) flags |= FLAG_CORE;
+  const attached = packAttachments(link.attachments);
+  if (attached.length > 0) flags |= FLAG_DATA;
 
   const writer = new Writer().byte((LINK_VERSION << 4) | flags).varint(link.chainId);
   if (link.core) writer.bytes(link.core);
@@ -477,7 +570,7 @@ export function pack(link: WireLink): Uint8Array {
     else writer.varint(BigInt(size(giverSig))).bytes(giverSig);
   }
 
-  return writer.bytes(packAttachments(link.attachments)).done();
+  return writer.bytes(attached).done();
 }
 
 /** What a link names: enough to ask Core for the Hand's terms. */
@@ -497,7 +590,6 @@ function readHead(reader: Reader, options: LinkOptions): { head: LinkHead; flags
   const version = first >> 4;
   const flags = first & 0x0f;
   if (version !== LINK_VERSION) throw new LinkError("unsupported", `link version ${version}`);
-  if (flags & FLAG_RESERVED) throw new LinkError("unsupported", "a reserved bit is set");
   if (flags & FLAG_GIVE && !(flags & FLAG_ADDRESSED)) {
     throw new LinkError("non-canonical", "a Give never travels with a secret");
   }
@@ -535,7 +627,7 @@ export function peekLink(bytes: Uint8Array, options: LinkOptions = {}): LinkHead
 }
 
 /** Reads a link into its parts and refuses every way of writing them but `pack`'s. Proves nothing yet. */
-function unpack(bytes: Uint8Array, options: LinkOptions): { head: LinkHead; wire: WireLink } {
+function unpack(bytes: Uint8Array, options: LinkOptions): { head: LinkHead; wire: WireLink; inside: Attached[] } {
   const reader = new Reader(bytes);
   const { head, flags } = readHead(reader, options);
   const addressed = (flags & FLAG_ADDRESSED) !== 0;
@@ -594,9 +686,12 @@ function unpack(bytes: Uint8Array, options: LinkOptions): { head: LinkHead; wire
     give = { signer, payee, dataHash, keySig, giverSig };
   }
 
+  // Without the flag the link ends where its route, or its Give, ends.
+  const inside = flags & FLAG_DATA ? readAttachments(reader) : [];
+  if (reader.left !== 0) throw new LinkError("malformed", "bytes after the end of the link");
+
   const wire: WireLink = { chainId: BigInt(head.chainId), handId: head.handId, shakes, seed, lastKey, pin, give };
-  wire.attachments = unpackAttachments(reader);
-  return { head, wire };
+  return { head, wire, inside };
 }
 
 /* ------------------------------------------------------------------- open */
@@ -615,9 +710,19 @@ export interface OpenedLink {
   linkKey?: Hex;
   /** A Give link only. Its key signature is checked here; the giver's is for `checkGive`. */
   signedGive?: SignedGive;
-  /** The attached lists of statements and texts, each already checked against its hash. */
+  /**
+   * Everything attached, in the link and outside it, each checked against a hash: the Hand's, a
+   * Shake's or the Give's. A holder signs its own Shake and can hang any list on it, so this is
+   * NOT what describes the Hand: that is `ofHand`.
+   */
   statements: Statement[][];
   texts: string[];
+  /** What hangs on the Hand's own dataHash, the one Core keeps: the raiser's words. */
+  ofHand: MatchedData;
+  /** What travelled outside the link: what a site and a preview could see. */
+  outside: MatchedData;
+  /** What travelled in the link: what a holder carries on when passing the link. */
+  inside: MatchedData;
 }
 
 /**
@@ -648,7 +753,16 @@ export async function openLink(
   getHand: (head: LinkHead) => Promise<Hand>,
   options: LinkOptions = {},
 ): Promise<OpenedLink> {
-  const { head, wire } = unpack(bytes, options);
+  const { head, wire, inside } = unpack(bytes, options);
+  const outside = options.outside === undefined ? [] : readAttachments(new Reader(options.outside));
+  const attached = [...inside, ...outside].sort(compareAttached);
+  for (let index = 1; index < attached.length; ++index) {
+    if (compareAttached(attached[index - 1], attached[index]) === 0) {
+      throw new LinkError("non-canonical", "an attachment stands both in the link and outside it");
+    }
+  }
+
+  // From here on the Hand's terms are needed.
   const hand = await getHand(head);
   if (hand.handId !== head.handId) throw new LinkError("another-hand", "the Hand given is not the one the link names");
   const chain = domain(head.chainId, head.core);
@@ -697,22 +811,34 @@ export async function openLink(
     signedGive = { give, keySig, giverSig };
   }
 
-  // Each attached list stands behind a dataHash of the Hand, of a Shake or of the Give; each
-  // attached text behind a value of an attached list.
-  const { statements = [], texts = [] } = wire.attachments ?? {};
-  const hashes = new Set([hand.dataHash, ...wire.shakes.map(({ dataHash }) => dataHash)].map((hash) => hash.toLowerCase()));
-  if (signedGive) hashes.add(signedGive.give.dataHash.toLowerCase());
-  hashes.delete(zeroHash);
-  const values = new Set<string>();
-  for (const list of statements) {
-    if (!hashes.has(dataHashOf(list))) throw new LinkError("unmatched-data", "a list of statements behind no dataHash of the link");
-    for (const { value } of list) values.add(value);
-  }
-  for (const text of texts) {
-    if (!values.has(textValue(text))) throw new LinkError("unmatched-data", "a text behind no attached statement");
-  }
+  // Each attached list stands behind a dataHash of the Hand, of a Shake or of the Give, or behind
+  // a value of another list; each text behind a value of a list. Anything else is refused. What
+  // travelled outside the link must hang on the Hand's own dataHash: a site sees only that.
+  const roots: Hex[] = [hand.dataHash, ...signedShakes.map(({ shake }) => shake.dataHash)];
+  if (signedGive) roots.push(signedGive.give.dataHash);
+  const { statements, texts } = matchAttachments(attached, roots);
+  const seen = matchAttachments(outside, [hand.dataHash]);
+  const ofHand = matchAttachments(attached, [hand.dataHash], false);
+  const carried: MatchedData = {
+    statements: inside.filter(({ kind }) => kind === ATTACHED_STATEMENTS).map((item) => unpackStatements(item.bytes)),
+    texts: inside.filter(({ kind }) => kind === ATTACHED_TEXT).map((item) => textOf(item.bytes, "an attached text")),
+  };
 
-  return { head, domain: chain, hand, signedShakes, end, seed: wire.seed, linkKey, signedGive, statements, texts };
+  return {
+    head,
+    domain: chain,
+    hand,
+    signedShakes,
+    end,
+    seed: wire.seed,
+    linkKey,
+    signedGive,
+    statements,
+    texts,
+    ofHand,
+    outside: seen,
+    inside: carried,
+  };
 }
 
 /* ----------------------------------------------------------------- encode */
@@ -789,14 +915,14 @@ export async function encodeGive(
 
 /**
  * Passes a live link on: a fresh seed, a Shake signed by the link's key to the new seed's key, and
- * the new link, which carries the new seed and not the old one. What was attached to the link
+ * the new link, which carries the new seed and not the old one. What was attached inside the link
  * travels on with it, unless other `attachments` are given.
  */
 export async function passOn(
   opened: OpenedLink,
   terms: { payee: Address; nextClaimBps: number; dataHash?: Hex },
   options: LinkOptions = {},
-  attachments: Attachments = { statements: opened.statements, texts: opened.texts },
+  attachments: Attachments = opened.inside,
 ): Promise<{ link: Uint8Array; seed: Hex }> {
   if (!opened.linkKey) throw new LinkError("invalid", "only a live link can be passed on with its key");
   const seed = newSeed();
@@ -835,6 +961,25 @@ export function toDigits(bytes: Uint8Array): string {
   return hexToBigInt(bytesToHex(bytes)).toString(10);
 }
 
+/** Reads base64url without padding, in its one spelling: no loose bits at the end. */
+export function fromBase64Url(text: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]+$/.test(text) || text.length % 4 === 1) throw new LinkError("malformed", "not base64url");
+  const out: number[] = [];
+  let buffer = 0;
+  let bits = 0;
+  for (const char of text) {
+    buffer = ((buffer << 6) | ALPHABET.indexOf(char)) & 0xffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((buffer >> bits) & 0xff);
+    }
+  }
+  const bytes = Uint8Array.from(out);
+  if (toText(bytes) !== text) throw new LinkError("non-canonical", "base64url with loose bits at its end");
+  return bytes;
+}
+
 /**
  * Reads either form: a string of digits is the decimal form, anything else base64url. Each link
  * has one string in each form: loose bits at the end of base64url and leading zeros are refused.
@@ -847,20 +992,7 @@ export function fromText(text: string): Uint8Array {
     bytes = hexToBytes(`0x${hex}`);
     if (toDigits(bytes) !== text) throw new LinkError("non-canonical", "a decimal link with leading zeros");
   } else {
-    if (!/^[A-Za-z0-9_-]+$/.test(text) || text.length % 4 === 1) throw new LinkError("malformed", "not a link");
-    const out: number[] = [];
-    let buffer = 0;
-    let bits = 0;
-    for (const char of text) {
-      buffer = ((buffer << 6) | ALPHABET.indexOf(char)) & 0xffff;
-      bits += 6;
-      if (bits >= 8) {
-        bits -= 8;
-        out.push((buffer >> bits) & 0xff);
-      }
-    }
-    bytes = Uint8Array.from(out);
-    if (toText(bytes) !== text) throw new LinkError("non-canonical", "base64url with loose bits at its end");
+    bytes = fromBase64Url(text);
   }
   // The first byte carries the version, which is never zero: a number cannot hide leading bytes.
   if (bytes.length === 0 || bytes[0] >> 4 === 0) throw new LinkError("malformed", "not a link");
