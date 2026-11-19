@@ -3,6 +3,7 @@ import { hexToBytes, zeroAddress, zeroHash, type Address, type Hex } from "viem"
 
 import gas from "../../../contracts/test/fixtures/sdk-gas.json" with { type: "json" };
 import {
+  LONGEST_ROUTE,
   THANK_GAS_PRAGUE,
   TX_BYTES_LIMIT,
   TX_ENVELOPE_BYTES,
@@ -132,6 +133,7 @@ describe("the worst gas of a thank", () => {
     expect(worstThankGas(handOf(200), longest.signedShakes, longest.signedGive).fits).toBe(true);
     const tooLong = routeOf(370, 0);
     expect(worstThankGas(handOf(200), tooLong.signedShakes, tooLong.signedGive).fits).toBe(false);
+    expect(LONGEST_ROUTE).toBe(369);
   });
 });
 
