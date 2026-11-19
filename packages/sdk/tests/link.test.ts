@@ -493,6 +493,9 @@ describe("a link of our own, from a seed", () => {
     expect(await code(encodeLive({ ...route, attachments: { statements: [hidden] } }, ownOptions))).toBe("malformed");
     const longName = [{ name: "n".repeat(33), value: textValue(question) }];
     expect(await code(encodeLive({ ...route, attachments: { statements: [longName] } }, ownOptions))).toBe("malformed");
+    // Bytes after the last statement of a list: no hash covers them.
+    expect(await code(openLink(withTail(item(1, [...listBytes, 0]), text), getDescribed, ownOptions))).toBe("malformed");
+    expect(await code(openLink(withTail(item(1, [...listBytes, ...lang]), text), getDescribed, ownOptions))).toBe("malformed");
     // An attachment of a kind this version does not know.
     expect(await code(openLink(withTail(list, text, [3, 0]), getDescribed, ownOptions))).toBe("unsupported");
     // Attachments announced and none written; more or fewer announced than written; a byte after the last.
@@ -566,6 +569,18 @@ describe("a link of our own, from a seed", () => {
     expect(await code(openLink(bare.link, getDescribed, { ...ownOptions, outside: Uint8Array.from([...own, 0]) }))).toBe("malformed");
     expect(await code(async () => openOutside(Uint8Array.from([...own, 0]), described))).toBe("malformed");
     expect(await code(async () => openOutside(Uint8Array.of(0), described))).toBe("non-canonical");
+    // The giver's own words hang on the Give's dataHash: attached and checked, and not the Hand's either.
+    const answer = "Мастер в Алфаме: Rua dos Remédios, 12";
+    const answered: Statement[] = [{ name: "content", value: textValue(answer) }];
+    const signedGive = await giveAt(opened, undefined, dataHashOf(answered));
+    const giveRoute = { domain: ownDomain, hand: described, signedShakes: [], signedGive };
+    const withAnswer = await encodeGive({ ...giveRoute, attachments: { statements: [statements, answered], texts: [title, answer] } }, ownOptions);
+    const afterGive = await openLink(withAnswer, getDescribed, ownOptions);
+    expect([...afterGive.texts].sort()).toEqual([title, answer].sort());
+    expect(afterGive.ofHand).toEqual({ statements: [statements], texts: [title] });
+    // The same list on a Give that does not name it hangs on nothing.
+    const silent = { ...giveRoute, signedGive: await giveAt(opened) };
+    expect(await code(encodeGive({ ...silent, attachments: { statements: [answered], texts: [answer] } }, ownOptions))).toBe("unmatched-data");
     // A Shake may repeat the Hand's own dataHash: what hangs on it is the Hand's all the same.
     const echoed = await passOn(opened, { ...terms, dataHash: described.dataHash }, ownOptions);
     expect((await openLink(echoed.link, getDescribed, ownOptions)).ofHand).toEqual({ statements: [statements], texts: [title] });

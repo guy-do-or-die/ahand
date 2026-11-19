@@ -133,23 +133,33 @@ export interface AddressParts {
   form?: "text" | "digits";
 }
 
-/** Writes the address. The number before `#` is taken from the link itself, so the two cannot differ. */
+/**
+ * Writes the address. The number before `#` is taken from the link itself, so the two cannot
+ * differ. A site whose own address has a query, a fragment or white space is refused: the number
+ * or the link would be lost in it.
+ */
 export function toAddress(parts: AddressParts, options: LinkOptions = {}): string {
   const head = peekLink(parts.link, options);
   const fragment = parts.form === "digits" ? toDigits(parts.link) : toText(parts.link);
+  let before: string;
   if (parts.shape === "bare") {
     if (parts.outside) throw new LinkError("malformed", "a bare address shows nothing");
-    return `${parts.site}/#${fragment}`;
+    before = `${parts.site}/`;
+  } else {
+    const canonical = options.canonicalCore && isAddressEqual(options.canonicalCore, head.core);
+    const path = canonical ? `${head.chainId}/${head.handId}` : `${head.chainId}/${head.core.toLowerCase()}/${head.handId}`;
+    if (parts.shape === "numbered") {
+      if (parts.outside) throw new LinkError("malformed", "a numbered address shows only the number");
+      before = `${parts.site}/${path}`;
+    } else {
+      const data = packAttachments(parts.outside);
+      if (data.length === 0) throw new LinkError("malformed", "a faced address shows something");
+      before = `${parts.site}/${path}?d=${toText(data)}`;
+    }
   }
-  const canonical = options.canonicalCore && isAddressEqual(options.canonicalCore, head.core);
-  const path = canonical ? `${head.chainId}/${head.handId}` : `${head.chainId}/${head.core.toLowerCase()}/${head.handId}`;
-  if (parts.shape === "numbered") {
-    if (parts.outside) throw new LinkError("malformed", "a numbered address shows only the number");
-    return `${parts.site}/${path}#${fragment}`;
-  }
-  const data = packAttachments(parts.outside);
-  if (data.length === 0) throw new LinkError("malformed", "a faced address shows something");
-  return `${parts.site}/${path}?d=${toText(data)}#${fragment}`;
+  // What was written must read back in the shape it was given: a last guard against the site's own address.
+  if (seenIn(before, options).shape !== parts.shape) throw new LinkError("malformed", "this site's address cannot carry the shape");
+  return `${before}#${fragment}`;
 }
 
 export interface OpenedAddress extends OpenedLink {

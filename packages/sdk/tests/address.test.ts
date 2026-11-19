@@ -276,6 +276,14 @@ describe("every option", () => {
     const core = ownDomain.verifyingContract.toLowerCase();
     expect(await code(openAddress(`${SITE}/#${text}`, getHand, ownOptions))).toBe("opened");
     expect(await code(openAddress(`https://ahand .app/#${text}`, getHand, ownOptions))).toBe("malformed");
+    // A bare address ends in a slash: a path that is not the Hand's number is not the link's to guess at.
+    for (const before of [`${SITE}/hands`, `${SITE}/8453`, `${SITE}/8453/abc`, `${SITE}/8453/123456/`]) {
+      expect(await code(openAddress(`${before}#${text}`, getHand, ownOptions))).toBe(before.endsWith("/") ? "opened" : "malformed");
+    }
+    // What stands before `#` is a web address: a scheme, a host, a path.
+    for (const before of ["ahand.app/", "/", "", "ftp://ahand.app/", "https:///", "/8453/123456", "ahand.app/8453/123456"]) {
+      expect(await code(openAddress(`${before}#${text}`, getHand, ownOptions))).toBe("malformed");
+    }
     expect(await code(openAddress(`${SITE}/8453/123456#${text}`, getHand, ownOptions))).toBe("opened");
     expect(await code(openAddress(`${SITE}/8453/123457#${text}`, getHand, ownOptions))).toBe("another-hand");
     expect(await code(openAddress(`${SITE}/1/123456#${text}`, getHand, ownOptions))).toBe("another-hand");
@@ -302,5 +310,15 @@ describe("every option", () => {
     expect(await code(() => toAddress({ site: SITE, link: bare, shape: "numbered", outside: shown }, ownOptions))).toBe("malformed");
     expect(await code(() => toAddress({ site: SITE, link: bare, shape: "faced" }, ownOptions))).toBe("malformed");
     expect(await code(() => toAddress({ site: SITE, link: bare, shape: "faced", outside: {} }, ownOptions))).toBe("malformed");
+    // A site whose own address would swallow the number or the link is not written: what is written reads back.
+    for (const site of ["https://ahand.app/#top", "https://ahand .app", "ahand.app", ""]) {
+      for (const shape of ["bare", "numbered"] as const) {
+        expect(await code(() => toAddress({ site, link: bare, shape }, ownOptions))).toBe("malformed");
+      }
+    }
+    // A query of the site's own would hide the number; a bare address reads past it.
+    expect(await code(() => toAddress({ site: "https://ahand.app/?ref=1", link: bare, shape: "numbered" }, ownOptions))).toBe("malformed");
+    expect(await code(openAddress(toAddress({ site: "https://ahand.app/?ref=1", link: bare, shape: "bare" }, ownOptions), getHand, ownOptions))).toBe("opened");
+    expect(toAddress({ site: "http://localhost:3000", link: bare, shape: "numbered" }, ownOptions)).toBe(`http://localhost:3000/8453/123456#${text}`);
   });
 });
