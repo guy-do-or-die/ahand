@@ -26,3 +26,4 @@ export {
   type LinkRoute,
   type OpenedLink,
 } from "./link.js";
+export * from "./gas.js";

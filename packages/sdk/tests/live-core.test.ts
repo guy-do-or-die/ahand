@@ -11,6 +11,7 @@ import {
   ContractFunctionRevertedError,
   createPublicClient,
   createWalletClient,
+  encodeFunctionData,
   getAddress,
   http,
   keccak256,
@@ -44,9 +45,11 @@ import {
   signGiveWithWallet,
   signShake,
   textValue,
+  thankCalldata,
   toCoreSignature,
   toDigits,
   toText,
+  worstThankGas,
   type Give,
   type Hand,
   type LinkHead,
@@ -103,6 +106,11 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
   const Usd = built ? artifact("MockUSD") : { abi: [], bytecode: "0x" as Hex };
   // The smart wallet of the contracts' tests: it accepts its owner's signature (ERC-1271).
   const SmartWallet = built ? artifact("Wallet", "Core.t.sol") : { abi: [], bytecode: "0x" as Hex };
+  // Their token that calls its recipients, and the code of a payee that burns all the gas it is handed.
+  const HookToken = built ? artifact("HookToken") : { abi: [], bytecode: "0x" as Hex };
+  const burnerCode: Hex = built
+    ? JSON.parse(readFileSync(join(contracts, "Core.t.sol/Burner.json"), "utf8")).deployedBytecode.object
+    : "0x";
 
   async function deploy({ abi, bytecode }: { abi: Abi; bytecode: Hex }, args: unknown[] = []): Promise<Address> {
     const hash = await wallet.deployContract({ abi, bytecode, args, account: raiser, chain: foundry });
@@ -408,5 +416,97 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
       Hex,
     ];
     expect(thanked[0]).toBe(hash);
+  }, 60_000);
+
+  it("is thanked with the worst gas the SDK counts: real transactions use that much and no more", async () => {
+    const chain = domain(foundry.id, core);
+    const stated = keccak256(stringToBytes("thanks"));
+    const { timestamp } = await publicClient.getBlock();
+
+    /** A Hand of `reward` in `token`, three Shakes that each keep 1 % for a payee, and a Give to the fourth payee. */
+    async function routeTo(token: Address, payoutGasK: number, payees: Address[]) {
+      const keys = [newKey(), newKey(), newKey(), newKey()];
+      await send(core, Core.abi, "raise", [token, REWARD, Number(timestamp) + 86_400, keys[0].address, payoutGasK, 0, zeroHash]);
+      const handId = (await publicClient.readContract({ address: core, abi: Core.abi, functionName: "handsCount" })) as bigint;
+      const hand = await readHand(handId);
+      const signedShakes: SignedShake[] = [];
+      for (let position = 0; position < 3; ++position) {
+        const shake: Shake = {
+          nextKey: keys[position + 1].address,
+          payee: payees[position],
+          claimBps: 10_000 - 100 * position,
+          nextClaimBps: 9_900 - 100 * position,
+          dataHash: zeroHash,
+        };
+        signedShakes.push({ shake, keySig: await signShake(keys[position].privateKey, chain, hand, shake) });
+      }
+      const give: Give = {
+        signer: giver.address,
+        payee: payees[3],
+        claimBps: 9_700,
+        routeHash: routeHash(hand, signedShakes.map(({ shake }) => shake)),
+        dataHash: zeroHash,
+      };
+      const signedGive: SignedGive = {
+        give,
+        keySig: await signGiveWithKey(keys[3].privateKey, chain, hand, give),
+        giverSig: await signGiveWithKey("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", chain, hand, give),
+      };
+      return { hand, signedShakes, signedGive };
+    }
+
+    /** Sends the thank with exactly the worst gas the SDK counts. */
+    async function thankWithWorstGas({ hand, signedShakes, signedGive }: Awaited<ReturnType<typeof routeTo>>) {
+      const worst = worstThankGas(hand, signedShakes, signedGive, { dataHash: stated });
+      const args = [hand.handId, signedShakes, signedGive, stated];
+      // The calldata the SDK counts is the calldata the contracts' own ABI makes.
+      expect(thankCalldata(hand.handId, signedShakes, signedGive, stated)).toBe(
+        encodeFunctionData({ abi: Core.abi, functionName: "thank", args }),
+      );
+      const hash = await wallet.writeContract({
+        address: core,
+        abi: Core.abi,
+        functionName: "thank",
+        args,
+        account: raiser,
+        chain: foundry,
+        gas: BigInt(worst.gasLimit),
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      expect(receipt.status).toBe("success");
+      return { worst, used: Number(receipt.gasUsed) };
+    }
+
+    const pendingOf = (token: Address, payee: Address) =>
+      publicClient.readContract({ address: core, abi: Core.abi, functionName: "pending", args: [token, payee] });
+    const fresh = (name: string) => privateKeyToAddress(keccak256(stringToBytes(`payee ${name}`)));
+
+    // A limit of one thousand gas: no payout can even start, each uses its limit to the last gas
+    // and stays pending. Then the count is exact but for two things it adds on purpose: 16 gas
+    // per payout (the 64/63 of the limit) and 17 100 for the first thank on a Core, which this is not.
+    await send(usd, Usd.abi, "mint", [raiser.address, REWARD]);
+    await send(usd, Usd.abi, "approve", [core, REWARD]);
+    const starved = await routeTo(usd, 1, ["one", "two", "three", "four"].map(fresh));
+    const exact = await thankWithWorstGas(starved);
+    expect(exact.worst.gasLimit - exact.used - 4 * 16 - 17_100).toBeGreaterThanOrEqual(0);
+    expect(exact.worst.gasLimit - exact.used - 4 * 16 - 17_100).toBeLessThan(100);
+    expect(await pendingOf(usd, starved.signedGive.give.payee)).toBe((REWARD * 97n) / 100n);
+
+    // The limit the price list uses, 200 thousand, a token that calls its recipients, and four
+    // payees that burn all they are handed: the thank goes through, leaves every payout pending,
+    // and uses nearly all of the worst gas.
+    const hook = await deploy(HookToken);
+    await send(hook, HookToken.abi, "mint", [raiser.address, REWARD]);
+    await send(hook, HookToken.abi, "approve", [core, REWARD]);
+    const burners = ["five", "six", "seven", "eight"].map(fresh);
+    for (const payee of burners) {
+      await publicClient.request({ method: "anvil_setCode" as never, params: [payee, burnerCode] as never });
+      await send(hook, HookToken.abi, "setHooked", [payee, true]);
+    }
+    const burned = await thankWithWorstGas(await routeTo(hook, 200, burners));
+    expect(burned.used).toBeLessThanOrEqual(burned.worst.gasLimit);
+    expect(burned.used).toBeGreaterThan(burned.worst.gasLimit * 0.94);
+    expect(await pendingOf(hook, burners[0])).toBe(REWARD / 100n);
+    expect(await pendingOf(hook, burners[3])).toBe((REWARD * 97n) / 100n);
   }, 60_000);
 });

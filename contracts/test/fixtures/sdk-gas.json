@@ -1,0 +1,17 @@
+{
+"evm": "prague",
+"rules": {"base": 80410, "shake": 12197, "payout": 24969, "stating": 22180},
+"limits": {"txGas": 16777216, "txBytes": 131072, "txEnvelopeBytes": 256},
+"cases": [
+  {"shakes": 0, "paid": 0, "stated": false, "payoutGasK": 200, "calldataBytes": 644, "worstExecution": 308554, "spent": 299999},
+  {"shakes": 1, "paid": 0, "stated": false, "payoutGasK": 200, "calldataBytes": 996, "worstExecution": 320751, "spent": 312196},
+  {"shakes": 1, "paid": 1, "stated": false, "payoutGasK": 200, "calldataBytes": 996, "worstExecution": 548895, "spent": 531785},
+  {"shakes": 0, "paid": 0, "stated": true, "payoutGasK": 200, "calldataBytes": 644, "worstExecution": 330734, "spent": 322179},
+  {"shakes": 10, "paid": 10, "stated": true, "payoutGasK": 200, "calldataBytes": 4164, "worstExecution": 2734144, "spent": 2639985},
+  {"shakes": 10, "paid": 5, "stated": false, "payoutGasK": 200, "calldataBytes": 4164, "worstExecution": 1571244, "spent": 1519860},
+  {"shakes": 20, "paid": 0, "stated": true, "payoutGasK": 200, "calldataBytes": 7684, "worstExecution": 574674, "spent": 566005},
+  {"shakes": 6, "paid": 3, "stated": false, "payoutGasK": 50, "calldataBytes": 2756, "worstExecution": 456644, "spent": 450522},
+  {"shakes": 4, "paid": 2, "stated": true, "payoutGasK": 1000, "calldataBytes": 2052, "worstExecution": 3273907, "spent": 3135712},
+  {"shakes": 60, "paid": 60, "stated": true, "payoutGasK": 200, "calldataBytes": 21764, "worstExecution": 14751194, "spent": 14228985}
+]
+}
