@@ -6,10 +6,9 @@ const OUT_DIR = join(import.meta.dirname, "../src");
 // Raw ABI JSONs for non-TS consumers (e.g. packages/subgraph graph-cli).
 const ABIS_DIR = join(import.meta.dirname, "../abis");
 
+// Core is the one contract of `core-v3`; MockUSD is the test token of local stands.
 const TARGETS = {
   AHandCore: "contracts/out/AHandCore.sol/AHandCore.json",
-  AHandSignals: "contracts/out/AHandSignals.sol/AHandSignals.json",
-  AHandWitness: "contracts/out/AHandWitness.sol/AHandWitness.json",
   MockUSD: "contracts/out/MockUSD.sol/MockUSD.json",
 };
 
