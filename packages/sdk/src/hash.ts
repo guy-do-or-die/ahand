@@ -12,7 +12,7 @@ import {
 
 /**
  * Hashing as Core does it. Every function here is checked against what Core itself returns
- * (tests/core-vectors.json, written by contracts/test/SdkVectors.t.sol).
+ * (contracts/test/fixtures/sdk-vectors.json, written by contracts/test/SdkVectors.t.sol).
  */
 
 export const HAND_TYPEHASH: Hex = keccak256(stringToBytes(HAND_TYPE_STRING));

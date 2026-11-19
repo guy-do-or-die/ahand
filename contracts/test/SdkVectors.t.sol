@@ -15,7 +15,7 @@ import {shakeStructHash, giveStructHash, digestOf, handOf, HandView} from "./Hel
 /// The file is part of the repository. This test fails when Core no longer says what the file
 /// says; `WRITE_VECTORS=true forge test --match-contract SdkVectorsTest` writes it anew.
 contract SdkVectorsTest is Test {
-    string constant PATH = "../packages/sdk/tests/core-vectors.json";
+    string constant PATH = "test/fixtures/sdk-vectors.json";
 
     // Keys of this test only, written into the file so that the SDK can sign with them too.
     uint256 constant ROOT_PK = 0xA0A0; // the link's root key

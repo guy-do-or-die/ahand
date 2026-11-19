@@ -1,11 +1,11 @@
 import type { Address, Hex } from "viem";
 
-import vectors from "./core-vectors.json" with { type: "json" };
+import vectors from "../../../contracts/test/fixtures/sdk-vectors.json" with { type: "json" };
 import { domain, type Hand, type SignedGive, type SignedShake } from "../src/index.js";
 import type { RefusalName } from "../src/index.js";
 
 /**
- * core-vectors.json is written by contracts/test/SdkVectors.t.sol from Core itself: signed routes
+ * contracts/test/fixtures/sdk-vectors.json is written by contracts/test/SdkVectors.t.sol from Core itself: signed routes
  * and what `checkRoute` and `checkGive` answer about them, or the error they refuse them with.
  * Core is the authority; the SDK must agree with the file.
  */

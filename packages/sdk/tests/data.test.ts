@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pad, type Hex } from "viem";
 
-import vectors from "./core-vectors.json" with { type: "json" };
+import vectors from "../../../contracts/test/fixtures/sdk-vectors.json" with { type: "json" };
 import { DATA_FORMAT, dataHashOf, isDataOf, nameOf, textValue, type Statement } from "../src/index.js";
 
 /** The list and its hash as Solidity computes them: written by contracts/test/SdkVectors.t.sol. */

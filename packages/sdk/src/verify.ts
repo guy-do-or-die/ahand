@@ -16,7 +16,7 @@ import { BPS, type Eip712Domain, type Hand, type SignedGive, type SignedShake } 
 /**
  * The checks Core makes on a route and on the Give that ends it, in Core's order and with Core's
  * errors, so that an application learns before sending a transaction what `thank` would say.
- * Checked against Core's own answers (tests/core-vectors.json).
+ * Checked against Core's own answers (contracts/test/fixtures/sdk-vectors.json).
  *
  * What only the chain knows is not here: whether the Hand is still open and before its expiry,
  * who calls, and what the code at the signer's address says about a signature.
