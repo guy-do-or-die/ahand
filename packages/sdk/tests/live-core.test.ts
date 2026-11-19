@@ -57,8 +57,8 @@ const anvilPath = [process.env.ANVIL, join(homedir(), ".foundry/bin/anvil")].fin
 );
 const built = existsSync(join(contracts, "AHandCore.sol/AHandCore.json"));
 
-function artifact(name: string): { abi: Abi; bytecode: Hex } {
-  const json = JSON.parse(readFileSync(join(contracts, `${name}.sol/${name}.json`), "utf8"));
+function artifact(name: string, file = `${name}.sol`): { abi: Abi; bytecode: Hex } {
+  const json = JSON.parse(readFileSync(join(contracts, `${file}/${name}.json`), "utf8"));
   return { abi: json.abi, bytecode: json.bytecode.object };
 }
 
@@ -88,9 +88,11 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
   let usd: Address;
   const Core = built ? artifact("AHandCore") : { abi: [], bytecode: "0x" as Hex };
   const Usd = built ? artifact("MockUSD") : { abi: [], bytecode: "0x" as Hex };
+  // The smart wallet of the contracts' tests: it accepts its owner's signature (ERC-1271).
+  const SmartWallet = built ? artifact("Wallet", "Core.t.sol") : { abi: [], bytecode: "0x" as Hex };
 
-  async function deploy({ abi, bytecode }: { abi: Abi; bytecode: Hex }): Promise<Address> {
-    const hash = await wallet.deployContract({ abi, bytecode, account: raiser, chain: foundry });
+  async function deploy({ abi, bytecode }: { abi: Abi; bytecode: Hex }, args: unknown[] = []): Promise<Address> {
+    const hash = await wallet.deployContract({ abi, bytecode, args, account: raiser, chain: foundry });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     return getAddress(receipt.contractAddress!);
   }
@@ -117,8 +119,8 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
     }
     core = await deploy(Core);
     usd = await deploy(Usd);
-    await send(usd, Usd.abi, "mint", [raiser.address, REWARD]);
-    await send(usd, Usd.abi, "approve", [core, REWARD]);
+    await send(usd, Usd.abi, "mint", [raiser.address, 2n * REWARD]);
+    await send(usd, Usd.abi, "approve", [core, 2n * REWARD]);
   }, 60_000);
 
   afterAll(() => {
@@ -227,5 +229,60 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
       args: [handId],
     })) as readonly [Hex, Hex];
     expect(thanked[0]).toBe(hash);
+  }, 60_000);
+
+  it("a giver that is a smart wallet is answered for by its code, on Core and through the SDK", async () => {
+    const chain = domain(foundry.id, core);
+    const root = newKey();
+    const smartWallet = await deploy(SmartWallet, [giver.address]);
+
+    const { timestamp } = await publicClient.getBlock();
+    await send(core, Core.abi, "raise", [usd, REWARD, Number(timestamp) + 86_400, root.address, 200, 0, zeroHash]);
+    const handId = (await publicClient.readContract({ address: core, abi: Core.abi, functionName: "handsCount" })) as bigint;
+    const hand: Hand = {
+      handId,
+      raiser: raiser.address,
+      token: usd,
+      rootKey: root.address,
+      payoutGasK: 200,
+      minClaimBps: 0,
+      dataHash: zeroHash,
+    };
+
+    // The wallet is the Give's signer; its owner's key makes the signature the wallet's code accepts.
+    const give: Give = { signer: smartWallet, payee: smartWallet, claimBps: 10_000, routeHash: zeroHash, dataHash: zeroHash };
+    const signedGive: SignedGive = {
+      give,
+      keySig: await signGiveWithKey(root.privateKey, chain, hand, give),
+      giverSig: toCoreSignature(await signGiveWithWallet(giver, chain, hand, give)),
+    };
+
+    // Without the chain the SDK cannot tell: the wallet's own address signed nothing.
+    await expect(checkGive(chain, hand, [], signedGive)).rejects.toEqual(new Refusal("InvalidGiverSig"));
+
+    // With the chain asked, the SDK says what Core says.
+    const askSignerCode = async (signer: Address, hash: Hex, signature: Hex) => {
+      const answer = await publicClient
+        .readContract({ address: signer, abi: SmartWallet.abi, functionName: "isValidSignature", args: [hash, signature] })
+        .catch(() => undefined);
+      return answer === "0x1626ba7e";
+    };
+    const hash = await checkGive(chain, hand, [], signedGive, askSignerCode);
+    expect(
+      await publicClient.readContract({ address: core, abi: Core.abi, functionName: "checkGive", args: [handId, [], signedGive] }),
+    ).toBe(hash);
+
+    // Another key's signature: the wallet's code refuses it, and so do the SDK and Core.
+    const forged: SignedGive = { ...signedGive, giverSig: await signGiveWithKey(root.privateKey, chain, hand, give) };
+    await expect(checkGive(chain, hand, [], forged, askSignerCode)).rejects.toEqual(new Refusal("InvalidGiverSig"));
+    await expect(
+      publicClient.readContract({ address: core, abi: Core.abi, functionName: "checkGive", args: [handId, [], forged] }),
+    ).rejects.toThrow();
+
+    const receipt = await send(core, Core.abi, "thank", [handId, [], signedGive, zeroHash]);
+    expect(receipt.status).toBe("success");
+    expect(await publicClient.readContract({ address: usd, abi: Usd.abi, functionName: "balanceOf", args: [smartWallet] })).toBe(
+      REWARD,
+    );
   }, 60_000);
 });
