@@ -49,6 +49,9 @@ contract SdkVectorsTest is Test {
             '"keys": ',
             _keysJson(),
             ",\n",
+            '"data": ',
+            _dataJson(),
+            ",\n",
             '"routes": [\n',
             _direct(),
             ",\n",
@@ -62,6 +65,47 @@ contract SdkVectorsTest is Test {
         );
         if (vm.envOr("WRITE_VECTORS", false)) vm.writeFile(PATH, json);
         assertEq(vm.readFile(PATH), json);
+    }
+
+    /*//////////////////////////// a list of statements ////////////////////////////*/
+
+    /// What applications put behind a `dataHash`: a list of named statements, sorted by name and
+    /// hashed whole under a format tag. Core never reads it; the formula is written out here so
+    /// that the SDK's hash of the same list is checked against Solidity's.
+    function _dataJson() internal returns (string memory) {
+        bytes32 format = keccak256("aHand.data/1");
+        string[4] memory texts = ["author", "content", "judge", "series"]; // sorted
+        bytes32[] memory names = new bytes32[](4);
+        bytes32[] memory values = new bytes32[](4);
+        for (uint256 index; index < 4; ++index) {
+            names[index] = bytes32(bytes(texts[index]));
+        }
+        values[0] = bytes32(uint256(uint160(makeAddr("author"))));
+        values[1] = keccak256("Who can fix a 1978 Vespa in Lisbon?");
+        values[2] = bytes32(uint256(uint160(makeAddr("judge"))));
+        values[3] = bytes32(uint256(7));
+
+        string memory statements;
+        for (uint256 index; index < 4; ++index) {
+            statements = string.concat(
+                statements,
+                index == 0 ? "\n    " : ",\n    ",
+                '{"name": "',
+                texts[index],
+                '", "value": "',
+                vm.toString(values[index]),
+                '"}'
+            );
+        }
+        return string.concat(
+            '{\n  "format": "',
+            vm.toString(format),
+            '",\n  "statements": [',
+            statements,
+            '\n  ],\n  "dataHash": "',
+            vm.toString(keccak256(abi.encode(format, names, values))),
+            '"\n}'
+        );
     }
 
     /*//////////////////////////// routes Core accepts ////////////////////////////*/
