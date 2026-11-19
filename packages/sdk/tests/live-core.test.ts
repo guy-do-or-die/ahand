@@ -21,26 +21,39 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
 import {
   Refusal,
   checkGive,
   checkRoute,
+  dataHashOf,
   domain,
+  encodeGive,
+  encodeLive,
+  fromText,
   giveHash,
+  keyOfSeed,
   newKey,
+  newSeed,
+  openLink,
+  passOn,
   routeHash,
   signGiveWithKey,
   signGiveWithWallet,
   signShake,
+  textValue,
   toCoreSignature,
+  toDigits,
+  toText,
   type Give,
   type Hand,
+  type LinkHead,
   type Shake,
   type SignedGive,
   type SignedShake,
+  type Statement,
 } from "../src/index.js";
 
 /**
@@ -102,6 +115,33 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
     return publicClient.waitForTransactionReceipt({ hash });
   }
 
+  /** The Hand's signed terms, read from Core as an application reads them. */
+  async function readHand(handId: bigint): Promise<Hand> {
+    const onChain = (await publicClient.readContract({
+      address: core,
+      abi: Core.abi,
+      functionName: "hands",
+      args: [handId],
+    })) as readonly [Address, number, number, number, Address, number, number, bigint, Address, Hex];
+    return {
+      handId,
+      raiser: onChain[0],
+      token: onChain[4],
+      payoutGasK: onChain[5],
+      minClaimBps: onChain[6],
+      rootKey: onChain[8],
+      dataHash: onChain[9],
+    };
+  }
+
+  /** What the code at the signer's address says about a signature (ERC-1271), asked on the chain. */
+  async function askSignerCode(signer: Address, hash: Hex, signature: Hex): Promise<boolean> {
+    const answer = await publicClient
+      .readContract({ address: signer, abi: SmartWallet.abi, functionName: "isValidSignature", args: [hash, signature] })
+      .catch(() => undefined);
+    return answer === "0x1626ba7e";
+  }
+
   beforeAll(async () => {
     const port = await freePort();
     anvil = spawn(anvilPath!, ["--port", String(port), "--silent"], { stdio: "ignore" });
@@ -139,22 +179,7 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
     await send(core, Core.abi, "raise", [usd, REWARD, Number(timestamp) + 86_400, root.address, 200, 5_000, ask]);
     const handId = (await publicClient.readContract({ address: core, abi: Core.abi, functionName: "handsCount" })) as bigint;
 
-    // The Hand's signed terms, read from Core as an application reads them.
-    const onChain = (await publicClient.readContract({
-      address: core,
-      abi: Core.abi,
-      functionName: "hands",
-      args: [handId],
-    })) as readonly [Address, number, number, number, Address, number, number, bigint, Address, Hex];
-    const hand: Hand = {
-      handId,
-      raiser: onChain[0],
-      token: onChain[4],
-      payoutGasK: onChain[5],
-      minClaimBps: onChain[6],
-      rootKey: onChain[8],
-      dataHash: onChain[9],
-    };
+    const hand = await readHand(handId);
     expect(hand).toMatchObject({ raiser: raiser.address, token: usd, rootKey: root.address, dataHash: ask });
 
     // Two Shakes: the first keeps a tenth for its payee, the second names no payee and keeps nothing.
@@ -261,12 +286,6 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
     await expect(checkGive(chain, hand, [], signedGive)).rejects.toEqual(new Refusal("InvalidGiverSig"));
 
     // With the chain asked, the SDK says what Core says.
-    const askSignerCode = async (signer: Address, hash: Hex, signature: Hex) => {
-      const answer = await publicClient
-        .readContract({ address: signer, abi: SmartWallet.abi, functionName: "isValidSignature", args: [hash, signature] })
-        .catch(() => undefined);
-      return answer === "0x1626ba7e";
-    };
     const hash = await checkGive(chain, hand, [], signedGive, askSignerCode);
     expect(
       await publicClient.readContract({ address: core, abi: Core.abi, functionName: "checkGive", args: [handId, [], signedGive] }),
@@ -284,5 +303,110 @@ describe.skipIf(!anvilPath || !built)("a Hand's whole way on a running Core", ()
     expect(await publicClient.readContract({ address: usd, abi: Usd.abi, functionName: "balanceOf", args: [smartWallet] })).toBe(
       REWARD,
     );
+  }, 60_000);
+
+  it("travels as links: each holder opens the text it got, and the raiser thanks from the Give link", async () => {
+    const chain = domain(foundry.id, core);
+    const balanceOf = (who: Address) =>
+      publicClient.readContract({ address: usd, abi: Usd.abi, functionName: "balanceOf", args: [who] });
+    await send(usd, Usd.abi, "mint", [raiser.address, REWARD]);
+    await send(usd, Usd.abi, "approve", [core, REWARD]);
+
+    // Raise: the root key comes from a seed, and the Hand's dataHash stands for a list of statements.
+    const question = "Who can fix a 1978 Vespa in Lisbon?";
+    const statements: Statement[] = [{ name: "content", value: textValue(question) }];
+    const seed = newSeed();
+    const { timestamp } = await publicClient.getBlock();
+    await send(core, Core.abi, "raise", [
+      usd,
+      REWARD,
+      Number(timestamp) + 86_400,
+      privateKeyToAddress(keyOfSeed(seed)),
+      200,
+      5_000,
+      dataHashOf(statements),
+    ]);
+    const handId = (await publicClient.readContract({ address: core, abi: Core.abi, functionName: "handsCount" })) as bigint;
+
+    // What an application does with a link: it asks the Core the link names for the Hand it names.
+    // No canonical Core is known here, so every link names Core by its address.
+    const getHand = (head: LinkHead): Promise<Hand> => {
+      expect(head).toMatchObject({ chainId: foundry.id, core, handId });
+      return readHand(head.handId);
+    };
+
+    // The raiser's link carries the question; every holder opens the text it was sent and passes on.
+    let text = toText(
+      await encodeLive({
+        domain: chain,
+        hand: await readHand(handId),
+        signedShakes: [],
+        seed,
+        attachments: { statements: [statements], texts: [question] },
+      }),
+    );
+    expect((await openLink(fromText(text), getHand)).texts).toEqual([question]);
+
+    const holders = ["first", "second", "third"].map((name) => privateKeyToAddress(keccak256(stringToBytes(`holder ${name}`))));
+    const passes = [
+      { payee: holders[0], nextClaimBps: 9_000 },
+      { payee: zeroAddress, nextClaimBps: 9_000 },
+      { payee: holders[2], nextClaimBps: 8_500, dataHash: keccak256(stringToBytes("a note of the third holder")) },
+    ];
+    for (const [position, terms] of passes.entries()) {
+      const opened = await openLink(fromText(text), getHand);
+      expect(opened.signedShakes.length).toBe(position);
+      // Core says about the route what the link said.
+      expect(
+        await publicClient.readContract({ address: core, abi: Core.abi, functionName: "checkRoute", args: [handId, opened.signedShakes] }),
+      ).toEqual([opened.end.lastKey, opened.end.claimBps, opened.end.routeHash]);
+      const { link } = await passOn(opened, terms);
+      text = position % 2 ? toDigits(link) : toText(link);
+    }
+
+    // The giver is a smart wallet: its owner opens the link and signs the Give with the link's key and with its own.
+    const smartWallet = await deploy(SmartWallet, [giver.address]);
+    const last = await openLink(fromText(text), getHand);
+    const give: Give = {
+      signer: smartWallet,
+      payee: smartWallet,
+      claimBps: last.end.claimBps,
+      routeHash: last.end.routeHash,
+      dataHash: keccak256(stringToBytes("the answer, salted")),
+    };
+    const signedGive: SignedGive = {
+      give,
+      keySig: await signGiveWithKey(last.linkKey!, chain, last.hand, give),
+      giverSig: toCoreSignature(await signGiveWithWallet(giver, chain, last.hand, give)),
+    };
+    const giveLink = await encodeGive({ domain: chain, hand: last.hand, signedShakes: last.signedShakes, signedGive });
+    // What goes to the raiser carries neither the seed nor the key of the link.
+    expect(toText(giveLink)).not.toBe(text);
+    expect(giveLink.length).toBeLessThan(600);
+
+    // The raiser opens the Give link, checks it as Core would, and thanks with what the link gave.
+    const received = await openLink(fromText(toText(giveLink)), getHand);
+    expect(received.head.kind).toBe("give");
+    expect(received.seed).toBeUndefined();
+    const hash = await checkGive(chain, received.hand, received.signedShakes, received.signedGive!, askSignerCode);
+    expect(
+      await publicClient.readContract({
+        address: core,
+        abi: Core.abi,
+        functionName: "checkGive",
+        args: [handId, received.signedShakes, received.signedGive],
+      }),
+    ).toBe(hash);
+
+    const receipt = await send(core, Core.abi, "thank", [handId, received.signedShakes, received.signedGive, zeroHash]);
+    expect(receipt.status).toBe("success");
+    expect(await balanceOf(holders[0])).toBe(REWARD / 10n);
+    expect(await balanceOf(holders[2])).toBe((REWARD * 5n) / 100n);
+    expect(await balanceOf(smartWallet)).toBe((REWARD * 85n) / 100n);
+    const thanked = (await publicClient.readContract({ address: core, abi: Core.abi, functionName: "thanks", args: [handId] })) as readonly [
+      Hex,
+      Hex,
+    ];
+    expect(thanked[0]).toBe(hash);
   }, 60_000);
 });

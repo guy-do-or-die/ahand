@@ -55,15 +55,19 @@ export interface RouteEnd {
 
 const HALF_ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n >> 1n;
 
-/**
- * Whether `key` signed `hash`, as Core's `_signedBy` judges it: only 65 bytes with `v` 27 or 28 and
- * `s` in the lower half count, and a signature that cannot be read never counts.
- */
-export async function signedBy(key: Address, hash: Hex, signature: Hex): Promise<boolean> {
+/** Whether `signature` has the one form Core takes from a key: 65 bytes, `v` 27 or 28, `s` in the lower half. */
+export function isKeySignature(signature: Hex): boolean {
   if (size(signature) !== 65) return false;
   const v = Number(hexToBigInt(slice(signature, 64, 65)));
-  if (v !== 27 && v !== 28) return false;
-  if (hexToBigInt(slice(signature, 32, 64)) > HALF_ORDER) return false;
+  return (v === 27 || v === 28) && hexToBigInt(slice(signature, 32, 64)) <= HALF_ORDER;
+}
+
+/**
+ * Whether `key` signed `hash`, as Core's `_signedBy` judges it: only a signature in the form Core
+ * takes counts, and one that cannot be read never counts.
+ */
+export async function signedBy(key: Address, hash: Hex, signature: Hex): Promise<boolean> {
+  if (!isKeySignature(signature)) return false;
   try {
     return isAddressEqual(await recoverAddress({ hash, signature }), key);
   } catch {

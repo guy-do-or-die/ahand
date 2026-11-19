@@ -49,7 +49,7 @@ export function signGiveWithWallet(
 }
 
 /** The order of the secp256k1 curve, and its half: Core takes only signatures whose `s` is in the lower half. */
-const CURVE_ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+export const CURVE_ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 const HALF_ORDER = CURVE_ORDER >> 1n;
 
 /**
