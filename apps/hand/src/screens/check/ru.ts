@@ -1,8 +1,67 @@
 import type en from "./en";
 
-// The check screen's words in Russian: the same keys as en.ts, checked by the type.
+// The /check screen's words in Russian: the same keys as en.ts, checked by the type.
 const ru: Record<keyof typeof en, string> = {
   "check.title": "Проверить любую ссылку.",
+  "check.intro": "Вставь адрес или ссылку. Страница измерит её без сети, пройдёт собственные проверки контракта в его же порядке, а потом спросит сам контракт и поставит два ответа рядом.",
+  "check.privacy": "Ничего из вставленного сюда никуда не уходит, кроме обращения к контракту. Поле очищается, как только ссылка прочитана; секретная часть не показывается.",
+  "check.label": "Адрес или ссылка",
+  "check.placeholder": "https://…#… или одна ссылка",
+  "check.run": "Проверить",
+  "check.another": "Проверить другую",
+  "check.cleared": "Прочитано и стёрто из поля.",
+
+  "check.ruler.title": "1 · Измерено здесь, без сети",
+  "check.ruler.total": "{n, plural, one {# байт} few {# байта} many {# байт} other {# байта}} в ссылке",
+  "check.ruler.outside": "{n, plural, one {# байт} few {# байта} many {# байт} other {# байта}} в открытой части до #, которую видит сайт",
+  "check.ruler.head": "Заголовок",
+  "check.ruler.shake": "Передача {n}",
+  "check.ruler.secret": "Секрет",
+  "check.ruler.secretNote": "Секретная часть заштрихована и не печатается: тот, у кого она есть, может передать руку дальше.",
+  "check.ruler.last-key": "Последний ключ",
+  "check.ruler.pin": "Метка",
+  "check.ruler.give": "Ответ",
+  "check.ruler.attachments": "Слова",
+  "check.ruler.none": "Эти байты не следуют устройству ссылки, поэтому их не измерить.",
+  "check.kind.live": "Живая ссылка: её можно передать дальше.",
+  "check.kind.addressed": "Ссылка, которая кончается адресом: на неё можно ответить, но не передать дальше.",
+  "check.kind.give": "Ответ: путь, который кончается ответом помощника.",
+  "check.names": "Она называет руку №{hand} в сети {chain}, {n, plural, =0 {без передач} one {после # передачи} few {после # передач} many {после # передач} other {после # передачи}}.",
+
+  "check.here.title": "2 · Проверено здесь, в порядке контракта",
+  "check.here.body": "Те же проверки, что делает контракт, выполнены в этом браузере над условиями руки, один раз прочитанными из контракта.",
+  "check.here.chainOnly": "До них только сеть знает, открыта ли ещё рука, кто обращается и который час; здесь они не проверяются.",
+  "check.step.shake.InvalidClaim": "Передача {n}: её доля — та, что до неё дошла, и она не растёт.",
+  "check.step.shake.AnonymousMargin": "Передача {n}: если она что-то оставила себе, то сказала, куда это придёт.",
+  "check.step.shake.InvalidKeySig": "Передача {n}: сделана тем самым ключом, что держал ссылку.",
+  "check.step.give.GiverIsRaiser": "Помощник — не автор.",
+  "check.step.give.ZeroPayee": "Ответ говорит, куда придут деньги.",
+  "check.step.give.InvalidClaim": "Часть помощника — ровно то, что оставил путь.",
+  "check.step.give.InvalidRouteHash": "Ответ дан именно на этот путь.",
+  "check.step.give.BelowMinClaim": "Путь оставляет помощнику не меньше обещанного автором.",
+  "check.step.give.InvalidKeySig": "Ответ сделан последним ключом пути.",
+  "check.step.give.InvalidGiverSig": "Собственное подтверждение помощника сходится.",
+  "check.status.pass": "Сходится",
+  "check.status.fail": "Здесь не проходит",
+  "check.status.not-reached": "Не дошли",
+  "check.status.account": "Помощник — аккаунт: это решает его собственный код, поэтому ответить может только контракт.",
+  "check.here.verdict.pass": "Здесь сходится всё.",
+  "check.here.verdict.fail": "Здесь останавливается на {name}.",
+
+  "check.core.title": "3 · Ответ самого контракта",
+  "check.core.body": "Тот же путь, заданный контракту вызовом только на чтение. Ничего не отправляется и ничего не тратится.",
+  "check.core.asking": "Спрашиваем контракт…",
+  "check.core.accepted.route": "Контракт принимает этот путь. Тот, кто на него ответит, получит {share} награды.",
+  "check.core.accepted.give": "Контракт принимает этот ответ. Автор может за него поблагодарить.",
+  "check.core.refused": "Контракт его отклоняет.",
+  "check.core.offline": "Сеть сейчас недоступна. Ничего не отправлено.",
+
+  "check.agree": "Обе колонки сходятся.",
+  "check.finding": "Расхождение: этот браузер и контракт отвечают по-разному. Здесь: {here}. Контракт: {core}.",
+  "check.finding.accepted": "принято",
+
+  "check.error.title": "Эту ссылку не проверить.",
+  "check.error.kept": "Ничего не отправлено.",
 };
 
 export default ru;

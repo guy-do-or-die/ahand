@@ -1,0 +1,177 @@
+/* The passport (UX-SPEC §10.1): one timeline, a numbered node per part joined by a 2px ink line,
+   like the chain rail. Ink and paper only; a finding is a solid ink frame and words. */
+
+.proof-tally {
+  margin: 0;
+  border-top: var(--bw-emph) solid var(--ink);
+  border-bottom: var(--bw-hair) solid var(--ink-a20);
+  padding: 10px 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a70);
+}
+
+.proof-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proof-section {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 14px;
+  padding-bottom: 26px;
+}
+/* The line that joins the nodes. */
+.proof-section::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 32px;
+  bottom: 0;
+  width: 2px;
+  background: var(--ink);
+}
+.proof-section:last-child::before {
+  background: none;
+  border-left: 2px dashed var(--ink-a25);
+  width: 0;
+}
+
+.proof-section__node {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-content: center;
+  width: 32px;
+  height: 32px;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+}
+
+.proof-section__title {
+  margin: 4px 0 10px;
+  font-size: var(--fs-card-title);
+  font-weight: var(--fw-heavy);
+  letter-spacing: -0.02em;
+  line-height: var(--lh-headline);
+}
+
+.proof-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  grid-column: 2;
+}
+
+.proof-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.proof-line + .proof-line {
+  border-top: var(--bw-hair) solid var(--ink-a12);
+  padding-top: 14px;
+}
+.proof-line__sentence {
+  margin: 0;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+}
+.proof-line--pending .proof-line__sentence {
+  color: var(--ink-a40);
+}
+.proof-line__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.proof-line__wait {
+  letter-spacing: 0.3em;
+}
+
+/* A line that ticks in. */
+.proof-line:not(.proof-line--pending) .proof-line__marks {
+  animation: proof-tick 220ms ease-out;
+}
+@keyframes proof-tick {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .proof-line:not(.proof-line--pending) .proof-line__marks {
+    animation: none;
+  }
+}
+
+.proof-nc {
+  margin: 0;
+  font-size: var(--fs-body-sm);
+  line-height: 1.45;
+  color: var(--ink-a70);
+}
+
+.proof-finding {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  align-self: stretch;
+  border: var(--bw-focus) solid var(--ink);
+  border-radius: var(--r-control);
+  padding: 10px 12px;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+.proof-evidence {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 0;
+  width: 100%;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-xs);
+  line-height: 1.5;
+  color: var(--ink-a70);
+}
+.proof-evidence dt {
+  margin-top: 6px;
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a50);
+}
+.proof-evidence dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.proof-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

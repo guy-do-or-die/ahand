@@ -1,6 +1,76 @@
-// The core screen's words in English. Keys are dotted ids; ru.ts has the same keys.
+// The /core screen's words in English (UX-SPEC §10.3). Keys are dotted ids; ru.ts has the same keys.
+// `core.<Error>` keys belong to i18n/common; this screen's keys never take an error's name.
 const en = {
   "core.title": "This contract.",
+  "core.intro": "Every hand on this site lives in one contract. Here is how to know it is the one built from the published code, without taking this site's word for it.",
+  "core.address": "The contract in use",
+  "core.chain": "Network",
+  "core.code": "Its code is there: {bytes} bytes.",
+  "core.code.none": "No code was found at this address.",
+  "core.reading": "Reading the contract…",
+  "core.offline": "Can't reach the network right now.",
+  "core.offline.kept": "The figures read from the contract are missing below; the rest still stands.",
+
+  "core.domainTitle": "Its name for confirmations",
+  "core.domain.body": "Every confirmation on a route names this contract and this network, so it can't be replayed anywhere else. Read from the contract now:",
+  "core.capTitle": "The longest a hand can stay open",
+  "core.cap.body": "At most {days} days ahead, at each raise and each extension. Read from the contract now:",
+
+  "core.deriveTitle": "Where its address comes from",
+  "core.derive.body": "The address is not looked up anywhere: it follows from three facts. A deployer at a fixed address, a fixed salt, and the hash of the contract's code as compiled. Code at that address can only have come from that code.",
+  "core.derive.match": "The derived address is the contract in use.",
+  "core.derive.mismatch": "Finding: the derived address is not the contract in use.",
+  "core.derive.none": "This site was built without the deployment facts, so the address can't be derived here.",
+
+  "core.commitTitle": "The source",
+  "core.commit.body": "Built from commit {commit}.",
+  "core.commit.unknown": "This site doesn't say which commit the contract was built from.",
+  "core.commit.clean": "The contract's source was clean: no change on top of that commit.",
+  "core.commit.dirty": "The contract's source had changes on top of that commit: the commit alone does not rebuild it.",
+
+  "core.buildTitle": "This site's own files",
+  "core.build.served": "Served by this site",
+  "core.build.body": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare.",
+  "core.build.none": "There is no build to hash: this server makes its pages as they are asked for (a development server), so it serves no /build.json.",
+  "core.build.reading": "Reading /build.json…",
+  "core.build.files": "{n, plural, one {# file} other {# files}}",
+
+  "core.reproduceTitle": "Check it from a clone",
+  "core.reproduce.body": "In a clone of the code, this line rebuilds the contract and prints the hash of its code. It must equal the hash above.",
+  "core.comesWith": "These numbers come with this site. The command above checks them without it.",
+
+  "core.limitsTitle": "What it accepts it can't do",
+  "core.limits.body": "The twelve accepted limits of the project's record, word for word. Plain sentences are on the page “What it can't promise”.",
+  "core.limits.plain": "In plain words",
+  "core.unaudited": "Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.",
+
+  // The specialist layer: the record's own words, verbatim (brief 02 §2).
+  "core.lens.domain": "eip712Domain()",
+  "core.lens.cap": "MAX_EXPIRY_PERIOD()",
+  "core.lens.limit.1": "Thanking is voluntary.",
+  "core.lens.limit.1.body": "A raiser can get help and let the Hand expire. The money then goes back to the raiser. Only trust in the raiser, or a contract raiser with objective rules, protects the giver (accepted limits; R-3).",
+  "core.lens.limit.2": "Shakers rely on the raiser and the giver.",
+  "core.lens.limit.2.body": "Anyone holding an earlier key, the raiser included, can sign a shorter route and cut later shakers out if the giver signs the new route (R-29; onedollaraudit M-3). Core only makes this visible and provable.",
+  "core.lens.limit.3": "A second wallet is invisible.",
+  "core.lens.limit.3.body": "`GiverIsRaiser` compares addresses. Collusion looks like a normal deal (R-4, accepted limits).",
+  "core.lens.limit.4": "Route length.",
+  "core.lens.limit.4.body": "A route over about 369 separately encoded Shakes, or about 70 gas-burning payees with a hooking token, cannot be thanked in one transaction. Only that branch is affected: someone can pad a branch with empty Shakes (R-45, R-46; onedollaraudit M-1).",
+  "core.lens.limit.5": "Tokens that change balances by themselves.",
+  "core.lens.limit.5.body": "Rebasing, fee-switching and share tokens can leave the last payees short, or keep a payout pending until transfers become exact again. Positive surplus and tokens sent to Core directly stay in Core forever (R-2, R-26, R-102; onedollaraudit M-2, L-8).",
+  "core.lens.limit.6": "Blocked payees wait.",
+  "core.lens.limit.6.body": "A blacklisted or refusing payee's share stays pending. Only that payee can redirect it (R-26).",
+  "core.lens.limit.7": "No deadline and no revocation",
+  "core.lens.limit.7.body": "on Shakes or Gives. They live while the Hand is open, including after `extend` (R-20).",
+  "core.lens.limit.8": "Expiry cap.",
+  "core.lens.limit.8.body": "Each raise or extend can reach at most 180 days ahead. A missed extension returns the money and kills every collected route (R-98, R-99).",
+  "core.lens.limit.9": "Lost root key",
+  "core.lens.limit.9.body": ": only refund after expiry remains (R-19).",
+  "core.lens.limit.10": "Unaudited.",
+  "core.lens.limit.10.body": "Seven AI reviews and one AI scan found no defect. No professional audit has been done, and signatures have not been tested with real wallets beyond Coinbase Smart Wallet and Safe 1.4.1. The AuditAgent report forbids calling it a Nethermind audit (DR; AC §4; LF).",
+  "core.lens.limit.11": "Immutable, no owner, no fee, no rescue function.",
+  "core.lens.limit.11.body": "Mistakes in Core are permanent (AC §1, §5).",
+  "core.lens.limit.12": "Gas-heavy refund",
+  "core.lens.limit.12.body": "can be pushed into pending by an outsider who under-gasses it. The cost is one `withdraw` (R-33).",
 };
 
 export default en;
