@@ -137,6 +137,7 @@ export const TID = {
     firstSeen: "thank-first-seen",
     payeeRefused: "thank-payee-refused",
     payeeFlag: "thank-payee-flag",
+    keyFlag: "thank-key-flag",
     tooLong: "thank-too-long",
     setupBand: "thank-setup-band",
     twoSteps: "thank-two-steps",

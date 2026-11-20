@@ -192,7 +192,7 @@ export function Shell({ path, children }: { path: string; children: ReactNode })
       <button
         type="button"
         onClick={() => main.current?.focus()}
-        className="absolute left-2 top-2 z-50 -translate-y-24 rounded-[var(--r-control)] border-[1.5px] border-solid border-ink bg-card px-3 py-2 text-[length:var(--fs-body-sm)] text-ink focus:translate-y-0"
+        className="absolute left-2 top-2 z-50 -translate-y-24 rounded-[var(--r-control)] border-[1.5px] border-solid border-ink bg-card min-h-[44px] px-3 py-2 text-[length:var(--fs-body-sm)] text-ink focus:translate-y-0"
       >
         {t("common.skip")}
       </button>

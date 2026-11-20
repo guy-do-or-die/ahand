@@ -5,7 +5,7 @@ import { isAddressEqual, type Address } from "viem";
 import { useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
-import { navigate, usePlace } from "../../router";
+import { navigate, unmarkHandView, usePlace } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { addressOf, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
@@ -35,6 +35,13 @@ export default function HandViewScreen({ params }: ScreenProps) {
   useLang();
   const held: Held | undefined = opened ? { before: opened.before, fragment: opened.fragment } : undefined;
   const arrival = arrivalOf({ path: place.path, search: place.search, params }, held, peekHeld);
+  // "/" marked as the Hand view, with no link left in memory (a reload, or Back to a link this tab
+  // forgot): this screen says so once, and the entry loses its mark, so the next reload or the
+  // site's root typed into this tab shows the start page again (FINDINGS O-2).
+  const unmark = arrival.kind === "nothing" && place.path === "/";
+  useEffect(() => {
+    if (unmark) unmarkHandView();
+  }, [unmark]);
 
   return (
     <section className="mx-auto w-full max-w-[1040px] px-6 pb-14 pt-8 md:px-10 md:pt-12" data-screen="hand" data-arrival={arrival.kind}>

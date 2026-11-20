@@ -52,7 +52,7 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-3">
-        <a href="/my" className="ah-meta self-start">
+        <a href="/my" className="ah-meta inline-flex min-h-[44px] items-center self-start">
           ← {t("my.hand.back")}
         </a>
         {record?.title && words !== "attached" ? (

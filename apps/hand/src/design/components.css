@@ -972,7 +972,7 @@ dialog.ah-sheet::backdrop {
 .ah-mark--button::after {
   content: "";
   position: absolute;
-  inset: -11px -4px;
+  inset: -12px -4px;
 }
 
 /* ── Evidence: what a disclosure, a mark or a figure opens. Mono lines under a dashed rule. ── */

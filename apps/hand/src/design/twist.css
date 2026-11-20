@@ -118,6 +118,7 @@
 }
 .ah-flip--row .ah-flip__front {
   width: 100%;
+  min-height: 44px;
 }
 .ah-flip--row .ah-flip__back {
   border: var(--bw-emph) solid var(--ink);

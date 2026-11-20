@@ -266,15 +266,43 @@ function Answer({ opened }: { opened: OpenedAddress }) {
     );
   }
 
+  // Until the chain has answered, no form: its first line names the amount "if they thank you",
+  // and before the reward is read it would say "$0" (or promise something the Hand may not hold).
+  if (!view) {
+    return (
+      <Frame>
+        <Title />
+        {dealCard}
+      </Frame>
+    );
+  }
+
+  // Past its end or closed: say so and stop. No form, no amount "if they thank you", no swipe:
+  // nothing here could come true any more (FINDINGS O-1).
+  if (state && state !== "open") {
+    return (
+      <Frame>
+        <Title />
+        {dealCard}
+        <div data-testid={TID.give.error} data-value={`state-${state}`}>
+          <ErrorBand
+            what={t("give.closed")}
+            kept={t(state === "expired" ? "core.Expired" : "core.NotOpen")}
+            action={
+              <QuietButton compact onClick={() => navigate("/", { state: { view: "hand" } })}>
+                {t("common.word.back")}
+              </QuietButton>
+            }
+          />
+        </div>
+      </Frame>
+    );
+  }
+
   return (
     <Frame>
       <Title />
       {dealCard}
-      {state && state !== "open" ? (
-        <div data-testid={TID.give.error} data-value={`state-${state}`}>
-          <ErrorBand what={t("give.closed")} kept={t(state === "expired" ? "core.Expired" : "core.NotOpen")} />
-        </div>
-      ) : null}
 
       <Step title={t("give.step.words")}>
         <label className="ah-field">

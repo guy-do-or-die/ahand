@@ -19,7 +19,7 @@ const en = {
   "give.words.count": "{n} of {max} characters",
   "give.land.noReward": "There is no reward now. If the asker adds one before thanking, it lands here.",
 
-  "give.agree.intro": "This is exactly what your answer says. Nothing else goes with it.",
+  "give.agree.intro": "This is exactly what your answer says. Nothing else goes with it. The asker decides whether to thank.",
   "give.agree.network": "Network",
   "give.agree.contract": "The contract",
   "give.agree.hand": "Hand",
@@ -61,7 +61,7 @@ const en = {
   "give.delivering": "Sending it to the asker…",
   "give.relay.what": "What is a relay?",
   "give.relay.body":
-    "A relay is a small server that holds sealed messages until the asker's device picks them up. It can see that a message arrived, not what it says. If none can be reached, the link below works by any other way too.",
+    "A relay is a small server that holds sealed messages until the asker's device picks them up. It can see that a message arrived, not what it says. If none can be reached, you can send the link below any other way.",
   "give.fallback":
     "We couldn't reach them directly. Send this back to whoever sent you the link — each person knows the one before.",
   "give.retrying": "We keep trying on this device while this page is open.",
@@ -76,7 +76,7 @@ const en = {
   "give.thread.you": "You",
   "give.thread.yourWords": "Your words, with the answer",
   "give.thread.queued": "waiting to be delivered",
-  "give.thread.reply": "Answer the asker",
+  "give.thread.reply": "Write to the asker",
   "give.thread.send": "Send",
   "give.thread.noInbox": "This hand doesn't say where to write, so there are no messages here. Your answer travels by the link above.",
   "give.waiting": "If they thank you, the money lands at {payee}.",

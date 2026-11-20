@@ -17,7 +17,7 @@ const en = {
   "pass.making": "Making your link here, in this tab…",
   "pass.made": "Your link is ready.",
   "pass.readBack.share": "This link pays {payee} {pct} if its route is thanked.",
-  "pass.readBack.none": "This link keeps no share for you: the whole claim travels on.",
+  "pass.readBack.none": "This link keeps no share for you: everything travels on.",
   "pass.sendIt": "Send it to people who might know someone. Passing it on is free for them.",
   "pass.oldLink": "Whoever had the old link can still pass it another way.",
   "pass.toHand": "See what they will see",

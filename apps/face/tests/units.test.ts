@@ -116,6 +116,9 @@ describe("headers", () => {
     const html = `<script type="module" src="/a.js"></script><script type="module">console.log(1)</script>`;
     expect(inlineScriptHashes(html)).toEqual(["'sha256-CihokcEcBW4atb/CW/XWsvWwbTjqwQlE9nj9ii5ww5M='"]);
     expect(cspFor({ rpc: "http://r.test", relays: [] }, { anyRpc: true })).toContain("connect-src 'self' http://r.test https: http://127.0.0.1:* http://localhost:*");
+    // exit.html carries its fonts inline (one self-contained file); the app's pages do not.
+    expect(cspFor({ rpc: "http://r.test", relays: [] }, { anyRpc: true })).toContain("font-src 'self' data:;");
+    expect(cspFor({ rpc: "http://r.test", relays: [] })).toContain("font-src 'self';");
   });
 });
 

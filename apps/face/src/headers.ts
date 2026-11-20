@@ -12,7 +12,8 @@ import type { FaceConfig } from "./config.ts";
  * Two additions, both for pages of the build that carry their code inline (exit.html is one
  * self-contained file): script-src also names the sha256 of each inline script of the very file
  * served, so exactly the shipped code runs and nothing injected does; and exit.html, which takes
- * any RPC address its reader types, may connect to any https address and to this machine.
+ * any RPC address its reader types, may connect to any https address and to this machine, and
+ * may load the fonts it carries inside itself as data: URLs (a font cannot send anything anywhere).
  */
 
 /** A CSP source for a URL: its origin (scheme, host, port). */
@@ -39,7 +40,7 @@ export function cspFor(config: Pick<FaceConfig, "rpc" | "relays">, page: { inlin
     `script-src ${script.join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
-    "font-src 'self'",
+    page.anyRpc ? "font-src 'self' data:" : "font-src 'self'",
     `connect-src ${[...new Set(connect)].join(" ")}`,
     "worker-src 'none'",
     "object-src 'none'",

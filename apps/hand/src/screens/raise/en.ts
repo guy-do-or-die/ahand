@@ -115,8 +115,8 @@ const en = {
   "raise.error.cannotSend": "This account can't send from here. Nothing was sent.",
   "raise.error.reverted": "The raise didn't go through. The reward stayed with you.",
   "raise.error.lostSight": "We lost sight of your raise. Reload this page to look for it again: nothing is sent twice.",
-  "raise.error.copyLost": "This device can no longer open its locked copy of the link. The reward still comes back to you after the hand's end.",
-  "raise.error.otherTerms": "The contract recorded other terms than this screen sent. Don't share this hand: it goes back to you after its end.",
+  "raise.error.copyLost": "This device can no longer open its locked copy of the link. After the hand's end, the reward can still be sent back to you.",
+  "raise.error.otherTerms": "The contract recorded other terms than this screen sent. Don't share this hand; after its end, it can be sent back to you.",
   "raise.error.facts": "Can't read the contract's limits or the token right now. Nothing was sent.",
 };
 

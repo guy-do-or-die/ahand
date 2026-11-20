@@ -37,7 +37,7 @@ const en = {
   "defaults.d39.title": "A reload forgets an opened link.",
   "defaults.d39.body": "The link is read once and taken out of the address bar, so it isn't kept anywhere. Keep the message it came in.",
 
-  "defaults.d40.title": "Answers travel through a relay on this machine.",
+  "defaults.d40.title": "Answers travel through a relay on this computer.",
   "defaults.d40.body": "A helper's answer reaches the asker through a test relay running on this computer, then back along the route, then by pasting. No public relay is used in this build.",
 
   "defaults.d49.title": "Dollar costs use dated test prices.",
@@ -49,7 +49,7 @@ const en = {
 
   "defaults.d62.title": "A helper's account can be set up at the thanks.",
   "defaults.d62.body":
-    "If the helper's account doesn't exist on the network yet, the thanks first sets it up through a go-between contract that holds nothing, so the setup can never spend the asker's money. Without one, the helper is asked to answer with a key and name the account for the money.",
+    "If the helper's account doesn't exist on the network yet, the thanks first sets it up through a go-between contract that holds nothing and acts in no one's name. The asker pays only what the setup costs. Without one, the helper is asked to answer with a key and name the account for the money.",
 
   "defaults.d63.title": "A locked copy for accounts that answer differently each time.",
   "defaults.d63.body":

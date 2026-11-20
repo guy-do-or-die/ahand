@@ -39,6 +39,15 @@ export function navigate(to: string, options: { replace?: boolean; state?: Place
   refresh();
 }
 
+/**
+ * Takes the Hand-view mark off this history entry without moving or re-rendering, so the next
+ * reload of "/" (or the root typed into this tab) shows the start page. The address is unchanged.
+ */
+export function unmarkHandView(): void {
+  if ((window.history.state as Place["state"])?.view !== "hand") return;
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+}
+
 /** Matches a pattern like "/:chain/:hand/proof" against a path; each param must pass its rule. */
 export function matchPath(pattern: string, path: string, rules: Record<string, RegExp> = {}): Params | undefined {
   const want = pattern.split("/").filter(Boolean);

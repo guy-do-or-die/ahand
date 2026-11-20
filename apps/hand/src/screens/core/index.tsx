@@ -230,7 +230,7 @@ export default function CoreScreen() {
             );
           })}
         </ol>
-        <a href="/limits" className="ah-label underline decoration-dashed underline-offset-4">
+        <a href="/limits" className="ah-label inline-flex min-h-[44px] items-center self-start underline decoration-dashed underline-offset-4">
           {t("core.limits.plain")}
         </a>
       </Part>

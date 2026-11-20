@@ -40,7 +40,7 @@ const en = {
   "hand.timesUp": "Time's up. Anyone can send the reward back to the asker now.",
   "hand.timesUp.noReward": "Time's up. Anyone can close this hand now.",
   "hand.sendBack.noReward": "Close this hand",
-  "hand.sendBack.needs": "Any connected account can do it. The reward lands with the asker, whoever presses.",
+  "hand.sendBack.needs": "Any connected account can do it. The reward goes back to the asker, whoever presses.",
   "hand.sendBack.cannot": "This account can't send anything yet. Connect another one.",
   "hand.sendBack.checking": "Trying it against the network first…",
   "hand.sendBack.done": "The reward went back.",

@@ -1,4 +1,4 @@
-import { handLogs, handLogsAt, readDescription, readThank, setupCall, thankCall, type Call, type Receipt } from "@ahand/sdk";
+import { handLogs, handLogsAt, raiserHops, readDescription, readThank, setupCall, thankCall, type Call, type Receipt } from "@ahand/sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAddressEqual, parseAbi, type Address, type Hex } from "viem";
 
@@ -51,10 +51,13 @@ function failureOf(result: Exclude<SendResult, { ok: true }>, of: number): Outco
   switch (result.reason) {
     case "refused":
       return { kind: "failed", what: t(`core.${result.refusal.name}`), kept, code: result.refusal.name };
-    case "reverted":
+    case "reverted": {
+      // A revert on the chain spent the cost of trying, so "nothing left your account" would be untrue.
+      const spent = firstLanded ? t("thank.firstStepOnly") : t("thank.reverted.kept");
       return result.refusal
-        ? { kind: "failed", what: t(`core.${result.refusal.name}`), kept, code: result.refusal.name }
-        : { kind: "failed", what: t("thank.reverted"), kept };
+        ? { kind: "failed", what: t(`core.${result.refusal.name}`), kept: spent, code: result.refusal.name }
+        : { kind: "failed", what: t("thank.reverted"), kept: spent };
+    }
     case "rejected":
       return { kind: "failed", what: t("common.error.refused"), kept: firstLanded ? kept : "" };
     case "offline":
@@ -94,6 +97,9 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
 
   const payouts = useMemo(() => (view ? predictPayouts(view.reward, signedShakes, signedGive.give) : undefined), [view, signedShakes, signedGive]);
   const findings = useMemo(() => (payouts && view ? payeeFindings(payouts, { core, raiser: view.raiser, token: view.token }) : []), [payouts, view, core]);
+  // Duty 11: a payee at the raiser's address is already among `findings`; a link handed to a key at
+  // the raiser's address pays nothing by itself, so it is named here once per Shake.
+  const keyHops = useMemo(() => raiserHops(hand.raiser, signedShakes).filter((hop) => hop.as !== "payee"), [hand.raiser, signedShakes]);
   const isRaiser = wallet.status === "connected" && wallet.address !== undefined && isAddressEqual(wallet.address, hand.raiser);
   const resigned = checked.verdict === "resigned";
 
@@ -303,6 +309,11 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
           data-value={finding.payee}
         >
           {t(`thank.payee.${finding.problem}`)} <span className="ah-exact break-all">{finding.payee}</span>
+        </p>
+      ))}
+      {keyHops.map((hop) => (
+        <p key={`key-${hop.position}`} className="ah-note m-0" data-testid={TID.thank.keyFlag} data-value={hop.position}>
+          {t("thank.key.raiser", { n: hop.position + 1 })}
         </p>
       ))}
 

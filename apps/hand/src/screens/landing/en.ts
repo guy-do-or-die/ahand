@@ -6,7 +6,7 @@ const en = {
   "landing.hero.lead": "Raise a hand.",
   "landing.hero.line": "*Your people* take it from there.",
   "landing.lead":
-    "Ask for what you need and put a reward on it. The link travels from person to person until it reaches someone who can help. They are paid only if you thank them. If nobody is thanked, the whole reward comes back to you.",
+    "Ask for what you need and put a reward on it. The link travels from person to person until it reaches someone who can help. The helper, and everyone who passed it on, are paid only if you thank. If nobody is thanked, the whole reward goes back to you.",
 
   "landing.how": "Three gestures",
   "landing.turn": "Turn it over",

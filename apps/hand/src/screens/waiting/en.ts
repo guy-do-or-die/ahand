@@ -33,7 +33,7 @@ const en = {
 
   // When nobody here can pay the cost
   "waiting.safe": "Your money is safe where it is. Anyone can press Deliver for you; it always lands at your address.",
-  "waiting.friend": "Send this page to a friend who can press Deliver:",
+  "waiting.friend": "Send this page to anyone who can press Deliver:",
 
   // When it doesn't go
   "waiting.stuck": "The token won't move this money to this address right now.",

@@ -8,19 +8,19 @@ const en = {
   "thank.input.hint": "An address that ends in #… — from a message, or from My hands.",
   "thank.open": "Check it",
   "thank.again": "Check another",
-  "thank.checking": "Checking this with the contract…",
+  "thank.checking": "Checking this answer with the contract…",
 
   // Errors before anything is sent
-  "thank.error.notGive": "This is a hand's own link, not someone's reply to it. Open it from the start page.",
+  "thank.error.notGive": "This is a hand's own link, not an answer to it. Open it from the start page.",
   "thank.error.noForwarder":
-    "The helper's account isn't set up on this network yet, and this site has no way to set it up without acting in your name. Ask the helper to reply from an address they already use.",
+    "The helper's account isn't set up on this network yet, and this site has no way to set it up without acting in your name. Ask the helper to answer again from an address they already use.",
   "thank.error.checkFailed": "The contract couldn't check this. Nothing was sent.",
   "thank.error.notRaiser": "Only the account that raised this hand can say thanks. Connect that one.",
   "thank.error.closed": "This hand is already closed.",
-  "thank.error.thankedOther": "This hand was already thanked for another reply.",
+  "thank.error.thankedOther": "This hand was already thanked for another answer.",
 
   // Step 2 passed
-  "thank.checked": "The contract checked this reply: the route adds up and the helper confirmed it.",
+  "thank.checked": "The contract checked this answer: the route adds up and the helper confirmed it.",
   "thank.lens.checked": "checkGive · eth_call · block {block} · ok",
   "thank.lens.checkedSetup": "checkGive through the forwarder, setup counted in · block {block} · ok",
   "thank.lens.giveHash": "giveHash {hash}",
@@ -35,11 +35,12 @@ const en = {
   "thank.resigned.anyway": "Thank this route anyway",
   "thank.resigned.overridden": "You chose to thank this route anyway.",
   "thank.resigned.earlier": "Seen earlier on this device: {time}",
-  "thank.branch": "Another reply came for this hand by a different path. Both paths are fair; you choose which one to thank.",
+  "thank.branch": "Another answer came for this hand by a different route. Both routes are fair; you choose which one to thank.",
 
   // Payees
   "thank.payee.core": "That address is the contract itself; money sent there waits forever.",
   "thank.payee.raiser": "One share on this route lands at your own address.",
+  "thank.key.raiser": "Pass {n} on this route handed the link to a key at your own address.",
   "thank.payee.token": "One share on this route lands at the token's own address, which usually keeps what it gets.",
 
   // Fit
@@ -80,7 +81,7 @@ const en = {
 
   // After
   "thank.done": "Thanked. Here's who got what — straight from the chain.",
-  "thank.done.before": "This hand was thanked for this reply. Here's who got what — straight from the chain.",
+  "thank.done.before": "This hand was thanked for this answer. Here's who got what — straight from the chain.",
   "thank.left": "{amount} left the contract for {payee}",
   "thank.waiting": "{amount} is waiting for {payee}",
   "thank.waiting.why": "Their payout couldn't move, so it waits in the contract. They can take it out, or anyone can deliver it to them.",
@@ -95,8 +96,9 @@ const en = {
 
   // Failures after asking
   "thank.reverted": "The network refused it.",
+  "thank.reverted.kept": "The reward is still in the contract; only the cost of trying was spent.",
   "thank.firstStepOnly": "The helper's account is set up; the thanks didn't go. Only the first step's cost was spent.",
-  "thank.resumed": "A thanks for this reply was sent from this device. Following it…",
+  "thank.resumed": "A thanks for this answer was sent from this device. Following it…",
 };
 
 export default en;

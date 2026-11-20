@@ -22,6 +22,13 @@ describe("clock: no device time where the chain's time belongs", () => {
     });
   }
 
+  test("nowhere else in src/ either: wallet, lib, i18n, config, the gallery and the top-level files", () => {
+    const covered = new Set([...DIRS.map((dir) => `${dir}/`), "store/"]);
+    const rest = filesUnder("", /\.(ts|tsx)$/).filter((file) => ![...covered].some((dir) => file.startsWith(dir)));
+    expect(rest.length).toBeGreaterThan(10);
+    expect(rest.flatMap((file) => hits(file, code(file), DEVICE_CLOCK))).toEqual([]);
+  });
+
   test("the pattern catches each form and spares a date built from a value", () => {
     for (const bad of ["Date.now()", "new Date()", "new Date", "const d = Date()", "performance.now()"]) expect(DEVICE_CLOCK.test(bad)).toBe(true);
     for (const good of ["new Date(block.timestamp * 1000)", "new Date(ms)", "format(Date.UTC(2026, 0, 1))"]) expect(DEVICE_CLOCK.test(good)).toBe(false);

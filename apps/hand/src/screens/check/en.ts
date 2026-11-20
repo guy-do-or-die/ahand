@@ -23,7 +23,7 @@ const en = {
   "check.ruler.none": "These bytes don't follow the link's layout, so they can't be measured.",
   "check.kind.live": "A live link: it can be passed on.",
   "check.kind.addressed": "A link that ends at an address: it can be answered, not passed on.",
-  "check.kind.give": "An answer: a route that ends with a helper's reply.",
+  "check.kind.give": "An answer: a route with a helper's confirmation at its end.",
   "check.names": "It names hand #{hand} on network {chain}, after {n, plural, =0 {no passes} one {# pass} other {# passes}}.",
 
   "check.here.title": "2 · Checked here, in the contract's order",
@@ -49,7 +49,7 @@ const en = {
   "check.core.title": "3 · The contract's own answer",
   "check.core.body": "The same route asked of the contract by a read-only call. Nothing is sent and nothing is spent.",
   "check.core.asking": "Asking the contract…",
-  "check.core.accepted.route": "The contract accepts this route. Whoever answers it gets {share} of the reward.",
+  "check.core.accepted.route": "The contract accepts this route. If the asker thanks whoever answers it, they get {share} of the reward.",
   "check.core.accepted.give": "The contract accepts this answer. The asker can thank it.",
   "check.core.refused": "The contract refuses it.",
   "check.core.offline": "Can't reach the network right now. Nothing was sent.",
