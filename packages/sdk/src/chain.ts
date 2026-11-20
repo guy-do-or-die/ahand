@@ -313,20 +313,55 @@ export async function checkGiveOnChain(
 }
 
 /**
- * The first block at or after `timestamp`; a binary search of about 25 reads. Where several
- * blocks share one second, this is the first of them. Throws when no block has reached the time.
+ * The first block at or after `timestamp`. Where several blocks share one second, this is the
+ * first of them. Throws when no block has reached the time.
+ *
+ * Searched from the latest block backwards, never from genesis: a public node keeps only recent
+ * history (Base Sepolia's public RPC refused every block before 47 500 000 on 2026-11-20, "pruned
+ * history unavailable"), and a Hand's blocks are recent. The first guess is the time's distance
+ * divided by the chain's pace (its viem chain's `blockTime`); from there the bracket grows by
+ * doubling steps toward the time, then a binary search inside it. On a chain with an even pace
+ * (Base: 2 s) the guess lands on the block or next to it, so the search takes a handful of reads,
+ * and no read is ever further from the time than twice the guess's error.
  */
 export async function findBlockAt(client: PublicClient, timestamp: number): Promise<bigint> {
   const latest = await client.getBlock({ blockTag: "latest" });
   if (Number(latest.timestamp) < timestamp) {
     throw new RangeError(`no block at or after ${timestamp} yet: the latest is ${latest.timestamp}`);
   }
-  let low = 0n;
-  let high = latest.number; // invariant: block `high` is at or after the time
-  while (low < high) {
+  const timeOf = async (blockNumber: bigint) => Number((await client.getBlock({ blockNumber })).timestamp);
+  // The chain's pace as its viem chain states it (the app's chains do: `blockTimeMs`), else a second.
+  const pace = Math.max((client.chain?.blockTime ?? 1_000) / 1_000, 0.001);
+  const distance = BigInt(Math.floor((Number(latest.timestamp) - timestamp) / pace));
+  const guess = latest.number > distance ? latest.number - distance : 0n;
+
+  // Invariants: block `high` is at or after the time; block `low` (once known) is before it.
+  let high: bigint = latest.number;
+  let low: bigint = guess;
+  if ((await timeOf(guess)) >= timestamp) {
+    high = guess;
+    for (let step = 1n; ; step *= 2n) {
+      if (high === 0n) return 0n;
+      const at: bigint = high > step ? high - step : 0n;
+      if ((await timeOf(at)) < timestamp) {
+        low = at;
+        break;
+      }
+      high = at;
+    }
+  } else {
+    for (let step = 1n; ; step *= 2n) {
+      const at: bigint = low + step < latest.number ? low + step : latest.number;
+      if (at === latest.number || (await timeOf(at)) >= timestamp) {
+        high = at;
+        break;
+      }
+      low = at;
+    }
+  }
+  while (high - low > 1n) {
     const middle = (low + high) / 2n;
-    const block = await client.getBlock({ blockNumber: middle });
-    if (Number(block.timestamp) < timestamp) low = middle + 1n;
+    if ((await timeOf(middle)) < timestamp) low = middle;
     else high = middle;
   }
   return high;

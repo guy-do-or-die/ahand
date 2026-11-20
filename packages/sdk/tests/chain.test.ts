@@ -428,7 +428,8 @@ describe("where a Hand's events sit", () => {
 
     const counted = recording();
     expect(await findBlockAt(counted.client, openedAt)).toBe(block);
-    expect(counted.requests.length).toBeLessThanOrEqual(2 + Math.ceil(Math.log2(Number(block) + 1)));
+    // The latest block, the guess, then a doubling bracket and a binary search inside it (find-block.test.ts).
+    expect(counted.requests.length).toBeLessThanOrEqual(3 + 2 * Math.ceil(Math.log2(Number(block) + 1)));
 
     const path = await route(hand, rootKey, [
       { payee: fresh(), keep: 0 },
