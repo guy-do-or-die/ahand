@@ -200,7 +200,7 @@ test("in Russian at 390 px: /care and /print speak Russian and nothing runs past
   await expect(page.getByText("Позаботиться о руке.")).toBeVisible({ timeout: 20_000 });
   await connectAs(page, 1, ASKER.address);
   await expect(page.getByText("Все уже разосланные ссылки остаются в силе.").first()).toBeVisible();
-  await expect(page.locator('[data-testid="care-extend-chip"][data-value="max"]')).toContainText("до 180 дней от сегодня");
+  await expect(page.locator('[data-testid="care-extend-chip"][data-value="max"]')).toContainText("до 180 дней с сегодняшнего дня");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await shot(page, "care-390-ru");
   await printAddress(page, made.address);
