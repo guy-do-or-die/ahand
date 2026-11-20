@@ -10,7 +10,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { erc20Abi, type Address } from "viem";
 
 import { account, pickDevAccount } from "../lib/accounts";
-import { craft, getLogsCount, logRequests, quietDevServer, type SeedRun } from "../lib/feat-hand/helpers";
+import { craft, cutRpc, getLogsCount, logRequests, quietDevServer, type SeedRun } from "../lib/feat-hand/helpers";
 import { hands, rpc, type Rpc } from "../lib/rpc";
 import { readStand, seed, tokenOf } from "../lib/stand";
 
@@ -61,6 +61,7 @@ test("the fresh hand opens with no account, passes at 0%, and the next person se
   await expect(card).toContainText(unlisted.title);
   await expect(card).toHaveAttribute("data-state", "open");
   await expect(page.getByTestId("hand-rail")).toHaveAttribute("data-value", "1");
+  await expect(page.getByTestId("hand-hands-so-far")).toHaveText("So far only the asker.");
   await expect(page.getByTestId("hand-help-note")).toContainText("The asker decides whether to thank.");
   await expect(page.getByTestId("hand-tab-only")).toBeVisible();
   expect(page.url()).not.toContain("#");
@@ -79,7 +80,7 @@ test("the fresh hand opens with no account, passes at 0%, and the next person se
   const other = await openElsewhere(browser, next);
   await expect(other.getByTestId("hand-deal-card")).toContainText(unlisted.title);
   await expect(other.getByTestId("hand-rail")).toHaveAttribute("data-value", "2");
-  await expect(other.getByTestId("hand-hands-so-far")).toHaveText("2 hands so far.");
+  await expect(other.getByTestId("hand-hands-so-far")).toHaveText("So far: the asker and 1 more.");
   await other.context().close();
 
   const allowed = new Set([new URL(stand.site!).origin, new URL(stand.rpc).origin]);
@@ -171,7 +172,10 @@ test("past its end by the network's clock (the browser's two years behind) it re
 
   await page.goto(expired.address);
   await expect(page.getByTestId("hand-deal-card")).toHaveAttribute("data-state", "expired");
-  await expect(page.getByTestId("hand-times-up")).toContainText("Time's up. Anyone can send the reward back to the asker now.");
+  // The sentence stands in the card; the column under it is where it is sent back (FINDINGS F7).
+  await expect(page.getByTestId("hand-deal-card")).toContainText("Time's up.");
+  await expect(page.getByTestId("hand-times-up")).toContainText("Send the reward back");
+  await expect(page.getByTestId("hand-times-up")).not.toContainText("Time's up.");
   await expect(page.getByTestId("hand-pass")).toHaveCount(0);
 
   await pickDevAccount(page, 3);
@@ -181,6 +185,8 @@ test("past its end by the network's clock (the browser's two years behind) it re
   await expect(page.getByTestId("hand-closed")).toHaveAttribute("data-value", "refunded", { timeout: 20_000 });
   await expect(page.getByTestId("hand-deal-card")).toContainText("The reward went back on");
   await expect(page.getByTestId("hand-closed").locator("table")).toContainText("$15.00");
+  // Under the receipt, the way to the Hand's passport (FINDINGS E-6).
+  await expect(page.getByTestId("hand-closed").getByTestId("hand-proof-link")).toHaveAttribute("href", `/${run.chainId}/${expired.handId}/proof`);
 
   const row = await hands(chain, run.core, BigInt(expired.handId));
   expect(Number(row.closedAt)).toBeGreaterThan(0);
@@ -221,6 +227,9 @@ test("a give link opened by a holder says pass it back; opened by the asker it l
   const band = page.getByTestId("hand-give-link");
   await expect(band).toHaveAttribute("data-value", "holder");
   await expect(band).toContainText("Someone answered this hand. Pass it back to whoever sent you the link.");
+  // Core's own checkGive was asked, as the flip asks it, and it takes this answer (FINDINGS H-5).
+  await expect(band).toHaveAttribute("data-check", "ok", { timeout: 10_000 });
+  await expect(page.getByTestId("hand-give-refused")).toHaveCount(0);
   await expect(page.getByTestId("hand-copy")).toBeVisible();
   await expect(page.getByTestId("hand-rail")).toHaveAttribute("data-value", "3");
   await expect(page.getByTestId("hand-pass")).toHaveCount(0);
@@ -259,4 +268,90 @@ test("a hand with no reward says so and never shows $0; the address bar keeps no
   await expect(page.getByTestId("pass-no-reward")).toBeVisible();
   await expect(page.getByTestId("pass-slider")).toHaveCount(0);
   expect(await page.locator("body").innerText()).not.toMatch(/\$0(?![.,]?\d*[1-9])/);
+});
+
+test("while the network can't be reached the card claims nothing, says the block it was read at, and passing and helping wait; it comes back by itself", async ({ page }) => {
+  const unlisted = fixture("unlisted");
+  await page.goto(unlisted.address);
+  const card = page.getByTestId("hand-deal-card");
+  await expect(card).toHaveAttribute("data-state", "open");
+  await expect(page.getByTestId("hand-offline")).toHaveCount(0);
+
+  const restore = await cutRpc(page, stand.rpc);
+  // The watcher gives a read 4 s and one retry: well inside 20 s (FINDINGS E-5).
+  await expect(page.getByTestId("hand-offline")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("hand-offline")).toContainText(/^Can't reach the network right now\. This was read at block \d+ and may have changed\.$/);
+  await expect(card).not.toHaveAttribute("data-state", "open");
+  await expect(card).not.toContainText("open until");
+  await expect(page.getByTestId("hand-pass")).toBeDisabled();
+  await expect(page.getByTestId("hand-help")).toBeDisabled();
+
+  await restore();
+  await expect(card).toHaveAttribute("data-state", "open", { timeout: 20_000 });
+  await expect(page.getByTestId("hand-offline")).toHaveCount(0);
+  await expect(page.getByTestId("hand-pass")).toBeEnabled();
+  await expect(page.getByTestId("hand-help")).toBeEnabled();
+});
+
+test("a link opened while the network is down says NETWORK and that the link is still in this tab; Try again opens it once the network is back", async ({ page }) => {
+  const unlisted = fixture("unlisted");
+  const restore = await cutRpc(page, stand.rpc);
+  await page.goto(unlisted.address);
+  const error = page.getByTestId("hand-error");
+  await expect(error).toHaveAttribute("data-code", "NETWORK", { timeout: 20_000 });
+  await expect(error).toContainText("NETWORK");
+  await expect(error).toContainText("Can't reach the network right now. Your link is still open in this tab; nothing was sent.");
+  await expect(error).not.toContainText("ContractFunctionExecutionError");
+  await restore();
+  await page.getByTestId("hand-retry").click();
+  await expect(page.getByTestId("hand-deal-card")).toHaveAttribute("data-state", "open", { timeout: 20_000 });
+  await expect(page.getByTestId("hand-deal-card")).toContainText(unlisted.title);
+  expect(page.url()).not.toContain("#");
+});
+
+test("every Hand leads to its proof: a thanked one under its receipt with no count beside it; an open one at the end of what its link proves, and to /check with nothing in the address", async ({ page }) => {
+  const thanked = fixture("thanked");
+  await page.goto(thanked.address);
+  await expect(page.getByTestId("hand-closed")).toHaveAttribute("data-value", "thanked");
+  await expect(page.getByTestId("hand-closed").getByTestId("hand-proof-link")).toHaveAttribute("href", `/${run.chainId}/${thanked.handId}/proof`);
+  await expect(page.getByTestId("hand-hands-so-far")).toHaveCount(0);
+  await page.getByTestId("hand-closed").getByTestId("hand-proof-link").click();
+  await expect(page).toHaveURL(new RegExp(`/${run.chainId}/${thanked.handId}/proof$`));
+  await expect(page.locator('[data-screen="proof"]')).toBeVisible();
+
+  const unlisted = fixture("unlisted");
+  await page.goto("about:blank");
+  await page.goto(unlisted.address);
+  await page.getByRole("button", { name: /What this link proves/i }).click();
+  await expect(page.getByTestId("hand-proof-link")).toHaveAttribute("href", `/${run.chainId}/${unlisted.handId}/proof`);
+  await expect(page.getByTestId("hand-proof-link")).toHaveText("See the proof →");
+  const toCheck = page.getByTestId("hand-check-link");
+  await expect(toCheck).toHaveText("Check this link in detail →");
+  await toCheck.click();
+  await expect(page).toHaveURL(/\/check$/);
+  const url = new URL(page.url());
+  expect(url.hash).toBe("");
+  expect(url.search).toBe("");
+  await expect(page.locator('[data-screen="check"]')).toBeVisible();
+});
+
+test("a screen whose code cannot arrive draws the offline band, not the crash screen, and Try again loads it with the link still in the tab (U-1)", async ({ page }) => {
+  const unlisted = fixture("unlisted");
+  // /give's own chunk never arrives, as when the network drops before it was fetched.
+  const giveChunk = /\/assets\/give-[^/]*\.js$/;
+  await page.route(giveChunk, (route) => route.abort("internetdisconnected"));
+  await page.goto(unlisted.address);
+  await expect(page.getByTestId("hand-deal-card")).toHaveAttribute("data-state", "open");
+  await page.getByTestId("hand-help").click();
+  const band = page.getByTestId("shell-offline");
+  await expect(band).toBeVisible({ timeout: 20_000 });
+  await expect(band).toContainText("Can't reach the network right now.");
+  await expect(band).toContainText("Everything open in this tab is still here; nothing was sent.");
+  await expect(page.getByTestId("shell-crash")).toHaveCount(0);
+
+  await page.unroute(giveChunk);
+  await page.getByTestId("shell-offline-retry").click();
+  // /give drew from the link this tab still holds: no reload, nothing in the address.
+  await expect(page.getByTestId("give-words")).toBeVisible({ timeout: 20_000 });
+  expect(new URL(page.url()).hash).toBe("");
 });

@@ -8,12 +8,13 @@ import { t } from "../../i18n";
 import { navigate } from "../../router";
 import { TID } from "../../testids";
 import { Mark, QuietButton, ReceiptTable } from "../../ui";
-import { laterPlan } from "./held";
+import { laterPlan, proofPathOf } from "./held";
 
 /**
  * A closed Hand (UX-SPEC §8.2 "Closed"): how it ended, read from Core's own events in the block
  * that closed it, then the bounded look for a newer Hand by the same asker (R-27, D-64) and,
- * always, the line that sends the reader back to whoever sent the link.
+ * always, the line that sends the reader back to whoever sent the link. Under the receipt, the
+ * way to the Hand's passport, where the receipt checks itself (UX-SPEC §10.1, FINDINGS E-6).
  */
 
 type ReceiptRead = { status: "reading" } | { status: "read"; rows: ReceiptRow[]; endedBlock: bigint } | { status: "failed"; endedBlock?: bigint };
@@ -67,6 +68,13 @@ export function Closed({ core, handId, raiser, closedAt, state, decimals }: Clos
           </>
         ) : null}
         {receipt.status === "failed" ? <p className="ah-label m-0">{t("hand.receipt.failed")}</p> : null}
+        <a
+          href={proofPathOf(config.chain.id, core, handId, config.cores.canonical)}
+          className="ah-label inline-flex min-h-[44px] items-center self-start font-bold"
+          data-testid={TID.hand.proofLink}
+        >
+          {t("hand.proofLink")}
+        </a>
       </div>
       {ended !== undefined ? <Newer core={core} handId={handId} raiser={raiser} endedBlock={ended} /> : null}
       <p className="ah-label m-0" data-testid={TID.hand.askSender}>

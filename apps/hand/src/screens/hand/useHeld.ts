@@ -1,8 +1,22 @@
-import { fromText, getHandFor, peekLink, readDescription, type LinkHead, type LinkOptions, type OpenedAddress } from "@ahand/sdk";
+import {
+  checkGiveOnChain,
+  fromText,
+  getHandFor,
+  isCoreRefusal,
+  isErc6492,
+  peekLink,
+  readDescription,
+  unwrap6492,
+  type AccountSetup,
+  type CoreRefusal,
+  type LinkHead,
+  type LinkOptions,
+  type OpenedAddress,
+} from "@ahand/sdk";
 import { useEffect, useState } from "react";
 import { erc20Abi, isAddressEqual, type Address } from "viem";
 
-import { CLIENTS, clientOf } from "../../chain";
+import { CLIENTS, clientOf, useBlockRead } from "../../chain";
 import { config } from "../../config";
 import type { DealDescription } from "../../ui";
 import { failureOf, openHeld, type Failure, type Held } from "./held";
@@ -34,9 +48,10 @@ export type Opening = { status: "checking" } | { status: "open"; opened: OpenedA
  * Opens the held link and proves it against the Hand Core keeps (openAddress, or openLink for a
  * bare link pasted alone). The link's text is only ever a dependency here: it is not logged,
  * stored or sent anywhere but into the SDK in this tab. `held` undefined: nothing to open.
+ * `attempt` is the reader's "Try again": a new number opens the same link once more (FINDINGS F2).
  */
-export function useOpening(held: Held | undefined): Opening | undefined {
-  const key = held ? `${held.before}#${held.fragment}` : undefined;
+export function useOpening(held: Held | undefined, attempt = 0): Opening | undefined {
+  const key = held ? `${attempt}:${held.before}#${held.fragment}` : undefined;
   const [state, setState] = useState<{ key?: string; opening: Opening }>({ opening: { status: "checking" } });
   useEffect(() => {
     if (!held) return;
@@ -90,4 +105,40 @@ export function cardDescription(opened: OpenedAddress): DealDescription {
     return { status: "attached", title: description.title, ...(description.content ? { content: description.content } : {}) };
   }
   return description.status === "none" ? { status: "none" } : { status: "lost" };
+}
+
+/** The forwarder's setup for an account not deployed yet, as the thank screen and the flip ask Core (D-62). */
+export function setupOf(giverSig: `0x${string}`): AccountSetup | undefined {
+  if (!isErc6492(giverSig) || !config.forwarder) return undefined;
+  const wrapped = unwrap6492(giverSig);
+  return wrapped ? { forwarder: config.forwarder, factory: wrapped.factory, factoryData: wrapped.factoryData } : undefined;
+}
+
+export type GiveCheck = { status: "none" | "checking" | "ok" | "unknown" } | { status: "refused"; refusal: CoreRefusal };
+
+/**
+ * Core's own `checkGive` on a give link this tab holds, asked again on every block, as the
+ * helper's flip asks it (ui/GiveBack). "refused" carries Core's name; a network failure is
+ * "unknown" and changes nothing on the front (the offline line says it). FINDINGS H-5: the front
+ * must not tell holders to pass back, or the asker to open, an answer Core refuses.
+ */
+export function useGiveCheck(core: Address, opened: OpenedAddress | undefined): GiveCheck {
+  const signed = opened?.signedGive;
+  const key = opened && signed ? `give:${opened.head.chainId}:${core}:${opened.hand.handId}:${signed.keySig}:${signed.giverSig}` : undefined;
+  const read = useBlockRead(
+    key,
+    async (): Promise<GiveCheck> => {
+      try {
+        await checkGiveOnChain(clientOf(opened!.head.chainId), core, opened!.hand.handId, opened!.signedShakes, signed!, setupOf(signed!.giverSig));
+        return { status: "ok" };
+      } catch (error) {
+        if (isCoreRefusal(error)) return { status: "refused", refusal: error };
+        throw error;
+      }
+    },
+    opened?.head.chainId,
+  );
+  if (!key) return { status: "none" };
+  if (read.data) return read.data;
+  return read.error ? { status: "unknown" } : { status: "checking" };
 }

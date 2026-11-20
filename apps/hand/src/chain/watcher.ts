@@ -7,8 +7,12 @@ import type { Hex, PublicClient } from "viem";
  *
  * Staleness is counted in polls, not in seconds of the device's clock: after `staleAfter` polls in
  * a row that brought no new block, the tip is marked stale (the network may have stopped, or this
- * RPC fell behind). A poll that fails marks the chain offline until one succeeds again. Before the
- * first block there is no tip at all, and the screens claim nothing that depends on "now".
+ * RPC fell behind). A poll that fails counts as one with no new block, so "stale" comes within a
+ * bounded time whether the RPC answers or not. A poll that fails, or that gets no answer within
+ * `readTimeoutMs`, marks the chain offline at once, until one succeeds again (FINDINGS E-5: an RPC
+ * that hangs must not keep a Hand "open"). The last tip read stays, so a screen can say which
+ * block it last saw. Before the first block there is no tip at all, and the screens claim nothing
+ * that depends on "now".
  */
 
 /** The latest block as last read. */
@@ -22,9 +26,9 @@ export interface Tip {
 export interface ChainStatus {
   /** Undefined until the first block arrives. */
   tip?: Tip;
-  /** No new block for `staleAfter` polls in a row. */
+  /** No new block for `staleAfter` polls in a row (a failed poll counts as one). */
   stale: boolean;
-  /** The last poll failed: the network can't be reached right now. */
+  /** The last poll failed or got no answer in time: the network can't be reached right now. */
   offline: boolean;
 }
 
@@ -46,6 +50,35 @@ export interface BlockWatcherOptions {
   /** How often to poll, in milliseconds: the chain's block time. */
   intervalMs: number;
   staleAfter?: number;
+  /** A read with no answer by then counts as failed: the chain is marked offline. Default 5 s. */
+  readTimeoutMs?: number;
+}
+
+/** How long one read of the tip may take before the chain counts as unreachable. */
+export const READ_TIMEOUT_MS = 5_000;
+
+class ReadTimeout extends Error {
+  constructor(ms: number) {
+    super(`no answer for the latest block within ${ms} ms`);
+    this.name = "ReadTimeout";
+  }
+}
+
+/** `read()`, or a ReadTimeout once `ms` pass with no answer. A late answer is dropped. */
+function within<T>(read: () => Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ReadTimeout(ms)), ms);
+    read().then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
@@ -56,6 +89,7 @@ export class BlockWatcher {
   private readonly read: () => Promise<Tip>;
   private readonly intervalMs: number;
   private readonly staleAfter: number;
+  private readonly readTimeoutMs: number;
   private readonly listeners = new Set<() => void>();
   private current: ChainStatus = { stale: false, offline: false };
   private quiet = 0;
@@ -66,6 +100,7 @@ export class BlockWatcher {
     this.read = read;
     this.intervalMs = options.intervalMs;
     this.staleAfter = options.staleAfter ?? staleAfterPolls(options.intervalMs);
+    this.readTimeoutMs = options.readTimeoutMs ?? READ_TIMEOUT_MS;
   }
 
   /** The status now. The same object until it changes. */
@@ -119,13 +154,15 @@ export class BlockWatcher {
     this.halt();
     this.polling = (async () => {
       try {
-        const tip = await this.read();
+        const tip = await within(this.read, this.readTimeoutMs);
         const before = this.current.tip;
         const news = !before || tip.number !== before.number || tip.hash !== before.hash;
         this.quiet = news ? 0 : this.quiet + 1;
         this.set({ tip: news ? tip : before, stale: this.quiet >= this.staleAfter, offline: false });
       } catch {
-        this.set({ ...this.current, offline: true });
+        // No new block came with this poll either: it counts toward stale, and the chain is offline now.
+        this.quiet += 1;
+        this.set({ ...this.current, stale: this.quiet >= this.staleAfter, offline: true });
       } finally {
         this.polling = undefined;
         if (this.listeners.size > 0) this.timer = setTimeout(() => void this.poll(), this.intervalMs);

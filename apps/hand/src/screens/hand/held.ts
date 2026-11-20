@@ -20,7 +20,7 @@ import {
   type OpenedAddress,
   type Statement,
 } from "@ahand/sdk";
-import { BaseError, isAddressEqual, zeroAddress, type Address } from "viem";
+import { BaseError, ContractFunctionRevertedError, isAddressEqual, zeroAddress, type Address } from "viem";
 
 /**
  * The logic of the Hand view and the pass, kept free of React, of the configuration and of the
@@ -102,10 +102,32 @@ export async function openHeld(held: Held, getHand: (head: LinkHead) => Promise<
   return openAddress(`${held.before}#${held.fragment}`, getHand, options);
 }
 
-/** A failure as the screen says it: a message id (UX-SPEC §12) and, for the lens, its exact name. */
+/**
+ * A failure as the screen says it: a message id (UX-SPEC §12), the label over it, and, for the
+ * lens only, the error's own class name.
+ */
 export interface Failure {
   id: string;
+  /**
+   * The label in mono, as written in English: Core's own names (`CORE · NotRaised`) or the app's
+   * (`LINK · NOT-THIS-HAND`, `NETWORK`). Tests and the lens read it.
+   */
   code: string;
+  /** The app-made label in the reader's language (hand/en.ts, ru.ts); absent when the label is Core's own. */
+  label?: { id: string; values?: Record<string, string> };
+  /** The error's own class name (viem's, say): shown in the lens only, never as the label. */
+  detail?: string;
+}
+
+/** The label of a failure that the network caused: the reader can try again. */
+export const NETWORK = "NETWORK";
+
+/** The LinkError codes the SDK has; each one has its label in hand/en.ts and ru.ts. */
+export const LINK_CODES = ["malformed", "unsupported", "non-canonical", "too-long", "another-hand", "not-this-hand", "invalid", "unmatched-data"] as const;
+
+/** Whether a reverted call is somewhere in the error's chain: that is an answer, not the network. */
+function reverted(error: BaseError): boolean {
+  return error.walk((cause) => cause instanceof ContractFunctionRevertedError) !== null;
 }
 
 /**
@@ -113,17 +135,40 @@ export interface Failure {
  * "names a contract this site doesn't read", "made by a newer app" and "doesn't know a main
  * contract" are three ids (the SDK's messageIdOf). A route that leaves the helper less than the
  * asker's minimum has its own sentence, Core's `BelowMinClaim`. A transport failure is the
- * network's; anything else is said as unknown, never as a verdict on the link.
+ * network's: labelled NETWORK, said as "your link is still open in this tab" when the tab holds
+ * one (`held`), with viem's class name kept for the lens (FINDINGS F2). Anything else is said as
+ * unknown, never as a verdict on the link.
  */
-export function failureOf(error: unknown): Failure {
-  if (error instanceof UntrustedCore) return { id: messageIdOf(error), code: `UNTRUSTED · CHAIN ${error.chainId} · CORE ${error.core}` };
+export function failureOf(error: unknown, { held = true }: { held?: boolean } = {}): Failure {
+  if (error instanceof UntrustedCore) {
+    const values = { chain: String(error.chainId), core: error.core };
+    return { id: messageIdOf(error), code: `UNTRUSTED · CHAIN ${values.chain} · CORE ${values.core}`, label: { id: "hand.code.untrusted", values } };
+  }
   if (error instanceof LinkError) {
-    if (error.code === "invalid" && /less than the Hand's minimum/.test(error.message)) return { id: "core.BelowMinClaim", code: "LINK · INVALID · BELOWMINCLAIM" };
-    return { id: messageIdOf(error), code: `LINK · ${error.code.toUpperCase()}` };
+    if (error.code === "invalid" && /less than the Hand's minimum/.test(error.message)) {
+      return { id: "core.BelowMinClaim", code: "LINK · INVALID · BELOWMINCLAIM", label: { id: "hand.code.belowMinClaim" } };
+    }
+    return { id: messageIdOf(error), code: `LINK · ${error.code.toUpperCase()}`, label: { id: `hand.code.link.${error.code}` } };
   }
   if (isCoreRefusal(error)) return { id: messageIdOf(error), code: `CORE · ${error.name}` };
-  if (error instanceof BaseError) return { id: "common.time.offline", code: error.name };
-  return { id: "common.error.unknown", code: error instanceof Error ? error.name : "ERROR" };
+  if (error instanceof BaseError && !reverted(error)) {
+    return { id: held ? "hand.offline.opening" : "common.time.offline", code: NETWORK, label: { id: "hand.code.network" }, detail: error.name };
+  }
+  return { id: "common.error.unknown", code: "ERROR", label: { id: "hand.code.error" }, ...(error instanceof Error ? { detail: error.name } : {}) };
+}
+
+/** Whether trying again could change the answer: the network's failures and unknown ones, never a verdict on the link. */
+export function canRetry(failure: Failure): boolean {
+  return failure.code === NETWORK || failure.id === "common.error.unknown";
+}
+
+/**
+ * The passport's path of a Hand (UX-SPEC §10.1): `/<chain>/<hand>/proof`, with the Core named
+ * only when it is not the main contract (the route table has both forms).
+ */
+export function proofPathOf(chainId: number, core: Address, handId: bigint, canonical: Address | null | undefined): string {
+  const named = canonical && isAddressEqual(canonical, core) ? "" : `${core.toLowerCase()}/`;
+  return `/${chainId}/${named}${handId}/proof`;
 }
 
 /** One hand on the rail (ui/ChainRail's RailHand, kept structural so this module needs no UI). */

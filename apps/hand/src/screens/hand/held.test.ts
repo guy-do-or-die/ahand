@@ -18,10 +18,12 @@ import {
   type AddressShape,
   type Hand,
 } from "@ahand/sdk";
-import { HttpRequestError, zeroAddress, type Address } from "viem";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequestError, TimeoutError, zeroAddress, type Address } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
-import { arrivalOf, failureOf, holderStatements, keepMax, laterPlan, makePass, openHeld, pathOf, readBackOf, routeHands, shareOf } from "./held";
+import en from "./en";
+import { LINK_CODES, NETWORK, arrivalOf, canRetry, failureOf, holderStatements, keepMax, laterPlan, makePass, openHeld, pathOf, proofPathOf, readBackOf, routeHands, shareOf } from "./held";
+import ru from "./ru";
 
 /**
  * The Hand view's and the pass's logic, offline: a Hand is made here (its terms, a first link in
@@ -128,8 +130,56 @@ describe("openHeld and failureOf: every way a link fails has its own sentence", 
     expect(failureOf(new CoreRefused({ name: "NotRaised" })).id).toBe("core.NotRaised");
     expect(failureOf(new LinkError("invalid", "the route leaves the giver less than the Hand's minimum")).id).toBe("core.BelowMinClaim");
     expect(failureOf(new LinkError("invalid", "Core would refuse the route: InvalidClaim")).id).toBe("link.invalid");
-    expect(failureOf(new HttpRequestError({ url: "http://127.0.0.1:1" })).id).toBe("common.time.offline");
+    expect(failureOf(new HttpRequestError({ url: "http://127.0.0.1:1" })).id).toBe("hand.offline.opening");
+    expect(failureOf(new HttpRequestError({ url: "http://127.0.0.1:1" }), { held: false }).id).toBe("common.time.offline");
     expect(failureOf(new Error("odd")).id).toBe("common.error.unknown");
+  });
+
+  test("a network failure while opening is labelled NETWORK, not viem's class name, which goes to the lens only; it can be tried again (FINDINGS F2)", () => {
+    const abi = [{ type: "function", name: "hands", stateMutability: "view", inputs: [{ name: "id", type: "uint256" }], outputs: [] }] as const;
+    // What getHandFor throws when the RPC refuses the connection or never answers: viem wraps it.
+    for (const cause of [new HttpRequestError({ url: "http://127.0.0.1:18545" }), new TimeoutError({ body: {}, url: "http://127.0.0.1:18545" })]) {
+      const error = new ContractFunctionExecutionError(cause, { abi, functionName: "hands", args: [3n] });
+      const failure = failureOf(error);
+      expect(failure.code).toBe(NETWORK);
+      expect(failure.code).not.toBe("ContractFunctionExecutionError");
+      expect(failure.label).toEqual({ id: "hand.code.network" });
+      expect(failure.detail).toBe("ContractFunctionExecutionError");
+      expect(failure.id).toBe("hand.offline.opening");
+      expect(canRetry(failure)).toBe(true);
+    }
+    expect(en["hand.offline.opening"]).toBe("Can't reach the network right now. Your link is still open in this tab; nothing was sent.");
+    expect(ru["hand.offline.opening"]).toBe("Сеть сейчас недоступна. Ссылка всё ещё открыта в этой вкладке, ничего не отправлено.");
+    expect([en["hand.code.network"], ru["hand.code.network"]]).toEqual(["NETWORK", "СЕТЬ"]);
+    // A call that reverted is an answer from the chain, not the network.
+    const revert = new ContractFunctionExecutionError(new ContractFunctionRevertedError({ abi, functionName: "hands" }), { abi, functionName: "hands", args: [3n] });
+    expect(failureOf(revert).code).not.toBe(NETWORK);
+    expect(canRetry(failureOf(new LinkError("malformed", "cut short")))).toBe(false);
+    expect(canRetry(failureOf(new CoreRefused({ name: "NotRaised" })))).toBe(false);
+  });
+
+  test("the app's own labels are in the reader's language; Core's names stay as written (FINDINGS F10)", () => {
+    for (const code of LINK_CODES) {
+      const failure = failureOf(new LinkError(code, "test"));
+      expect(failure.code).toBe(`LINK · ${code.toUpperCase()}`);
+      const id = failure.label!.id as keyof typeof en;
+      expect(en[id]).toBe(failure.code);
+      expect(ru[id]).toMatch(/^ССЫЛКА · [А-ЯЁ ]+$/);
+    }
+    expect(ru["hand.code.link.not-this-hand"]).toBe("ССЫЛКА · НЕ ОТ ЭТОЙ РУКИ");
+    expect(ru["hand.code.link.malformed"]).toBe("ССЫЛКА · ПОВРЕЖДЕНА");
+    const untrusted = failureOf(new UntrustedCore(31337, OTHER));
+    expect(untrusted.label).toEqual({ id: "hand.code.untrusted", values: { chain: "31337", core: OTHER } });
+    expect(ru["hand.code.untrusted"]).toBe("НЕ ДОВЕРЕНО · СЕТЬ {chain} · CORE {core}");
+    expect(ru["hand.code.belowMinClaim"]).toContain("BelowMinClaim");
+    const core = failureOf(new CoreRefused({ name: "NotRaised" }));
+    expect(core).toEqual({ id: "core.NotRaised", code: "CORE · NotRaised" });
+  });
+
+  test("the passport's path names the Core only when it is not the main contract (FINDINGS E-6)", () => {
+    expect(proofPathOf(31337, CORE, 3n, CORE)).toBe("/31337/3/proof");
+    expect(proofPathOf(31337, OTHER, 3n, CORE)).toBe(`/31337/${OTHER.toLowerCase()}/3/proof`);
+    expect(proofPathOf(31337, CORE, 3n, null)).toBe(`/31337/${CORE.toLowerCase()}/3/proof`);
   });
 });
 
