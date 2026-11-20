@@ -671,6 +671,37 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* A link's row under its buttons: the link itself, to read or to select whole by hand. */
+.ah-linkrow--field {
+  cursor: text;
+}
+.ah-linkrow--field .ah-linkrow__value {
+  user-select: all;
+}
+/* "Copy link": the one thing a done screen is for (F12), so the first and largest button. */
+.ah-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 56px;
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 0 22px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: var(--fs-btn);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.ah-copy:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+.ah-copyrow__share {
+  width: 100%;
+}
 
 /* ── Grouped settings panel (fine-tune) — a quiet cluster that reads as
       secondary to the main flow. Flat tint, hairline, no shadow. ── */
@@ -1252,6 +1283,93 @@ dialog.ah-sheet::backdrop {
   .ah-deal__title {
     font-size: var(--fs-title-m);
   }
+}
+
+/* ── The asker's words: labelled, isolated, clamped (E-8, H-2, H-4) ──
+   The words are the asker's and Core does not check them. A quiet mono line says so above
+   them, in no shape of the three marks. The title keeps its size and place. */
+.ah-asker {
+  min-width: 0;
+}
+.ah-asker__label {
+  margin: 0 0 4px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  line-height: 14px;
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.ah-asker__text {
+  unicode-bidi: isolate;
+}
+/* About three lines of title and eight of details, until "Read all". */
+.ah-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ah-clamp--title {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.ah-clamp--content {
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+}
+.ah-asker__more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 -4px -8px;
+  border: 0;
+  padding: 0 4px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+/* A character that is not seen, drawn as a small mono token in its place: ⟨RLO⟩, ⟨ZWSP⟩. */
+.ah-hidden {
+  display: inline-block;
+  margin: 0 1px;
+  border: var(--bw-hair) dotted var(--ink-a50);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-family: var(--font-meta);
+  font-size: max(9.5px, 0.5em);
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
+  letter-spacing: 0;
+  vertical-align: 0.2em;
+  color: var(--ink-quiet);
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+.ah-hidden--direction {
+  border-style: solid;
+  color: var(--ink);
+}
+/* A word that mixes alphabets, or digits and signs in another form: a wavy underline. */
+.ah-odd {
+  text-decoration: underline wavy var(--ink-a50);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.18em;
+}
+/* What the card found in the words, said beside them. Dashed: "check this", not an error. */
+.ah-asker__flag {
+  margin: 0;
+  overflow-wrap: break-word;
+  border: var(--bw-emph) dashed var(--ink-a30);
+  border-radius: var(--r-control);
+  padding: 8px 12px;
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
 }
 
 /* ── Note: a dashed band for "not here" and "check this". Not an error. ── */

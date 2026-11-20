@@ -165,26 +165,26 @@ function TermsBack({ route }: { route: RailRoute }) {
     <div className="ah-back" lang={lang}>
       <p className="ah-back__label">{twist.terms}</p>
       <dl className="ah-back__facts">
-        <Fact label="handId" testId={TID.twist.hand} value={hand.handId.toString()}>
+        <Fact core label="handId" testId={TID.twist.hand} value={hand.handId.toString()}>
           {count(hand.handId)}
         </Fact>
-        <Fact label="raiser">
+        <Fact core label="raiser">
           <Exact>{hand.raiser}</Exact>
         </Fact>
-        <Fact label="token">
+        <Fact core label="token">
           <Exact>{hand.token}</Exact>
         </Fact>
-        <Fact label="rootKey">
+        <Fact core label="rootKey">
           <Exact>{hand.rootKey}</Exact>
         </Fact>
-        <Fact label="payoutGasK">{count(hand.payoutGasK)}</Fact>
-        <Fact label="minClaimBps">
+        <Fact core label="payoutGasK">{count(hand.payoutGasK)}</Fact>
+        <Fact core label="minClaimBps">
           {count(hand.minClaimBps)} · {percent(hand.minClaimBps, lang)}
         </Fact>
-        <Fact label="dataHash">
+        <Fact core label="dataHash">
           <Exact>{hand.dataHash}</Exact>
         </Fact>
-        <Fact label="handHash">
+        <Fact core label="handHash">
           <Exact>{handHash(hand)}</Exact>
         </Fact>
         <Fact label={twist.rewardNow}>

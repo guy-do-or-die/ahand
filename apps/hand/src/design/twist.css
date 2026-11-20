@@ -184,6 +184,14 @@
   overflow-wrap: anywhere;
   letter-spacing: 0;
 }
+/* An address or a hash breaks only between its groups of four: never one digit alone (F15). */
+.ah-back__exact.ah-hex {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ah-hex__group ~ .ah-hex__group {
+  margin-inline-start: 0.3ch;
+}
 .ah-back__steps,
 .ah-back__events {
   display: flex;

@@ -1,6 +1,9 @@
 import type { ReceiptRow } from "@ahand/sdk";
 import type { Address } from "viem";
 
+import type { Lang } from "./ambient";
+import { money, moneyExact } from "./format";
+
 /**
  * Turns the SDK's receipt rows (Core's events, in Core's order) into the lines a person reads.
  * Core logs a thank as: Thanked; for each Shake, Shaken and then its payout; Given and then
@@ -82,4 +85,31 @@ export function receiptLines(rows: readonly ReceiptRow[]): ReceiptLines {
 /** Whether every SDK row behind a line has been read; with no flags, everything has. */
 export function lineLanded(line: ReceiptLine, landed: readonly boolean[] | undefined): boolean {
   return landed === undefined || line.rows.every((index) => landed[index] === true);
+}
+
+// ── Writing the amounts ──────────────────────────────────────────────────
+
+export interface ReceiptAmounts {
+  /** Each amount as the receipt writes it, in the order given. */
+  rows: string[];
+  total: string;
+  /** True when the amounts are written with every digit, because cents would not add up. */
+  exact: boolean;
+}
+
+/**
+ * How a receipt writes its amounts so that the rows a person reads add up to the total they
+ * read (M-4). Cut to cents when that adds up; otherwise every amount, the total too, with every
+ * digit: $0.165 + $0.000033 + $0.164967 = $0.33, where cents read $0.16 + under $0.01 + $0.16.
+ * A zero row is written as words by the caller ("kept nothing"), never as "$0".
+ *
+ * Shared by the receipt, the thank screen's prediction and the passport.
+ */
+export function receiptAmounts(amounts: readonly bigint[], total: bigint, decimals: number, lang: Lang): ReceiptAmounts {
+  const unit = 10n ** BigInt(decimals);
+  const cents = (amount: bigint) => (amount * 100n) / unit;
+  const cutSum = amounts.reduce((sum, amount) => sum + cents(amount), 0n);
+  const exact = cutSum !== cents(total) || amounts.some((amount) => amount > 0n && cents(amount) === 0n);
+  const write = (amount: bigint) => (exact ? moneyExact(amount, decimals, lang) : money(amount, decimals, lang, { cents: true }));
+  return { rows: amounts.map(write), total: write(total), exact };
 }

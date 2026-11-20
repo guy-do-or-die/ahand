@@ -38,6 +38,30 @@ test("what is not an amount is refused, and nothing is rounded", () => {
   expect(readMoney("1.5", 0)).toEqual({ status: "invalid" });
 });
 
+// C-3, ported from the early review (scratch/code-correctness/app-tests/money.test.ts): an
+// English reader writes a thousand as "1,000", and the field read it as $1, "$1,500" as $1.50.
+test("'1,000' is not read as one dollar: a comma before three digits is refused with a hint", () => {
+  const r = readMoney("1,000", 6);
+  expect(r.status === "ok" && r.amount === 1_000_000n).toBe(false);
+  expect(r).toEqual({ status: "invalid", hint: "thousands", plain: "1000" });
+});
+
+test("'$1,500' is refused the same way, never read as $1.50", () => {
+  expect(readMoney("$1,500", 6)).toEqual({ status: "invalid", hint: "thousands", plain: "1500" });
+  expect(readMoney("12,345,678", 6)).toEqual({ status: "invalid", hint: "thousands", plain: "12345678" });
+  expect(readMoney("1,000.50", 6)).toEqual({ status: "invalid", hint: "thousands", plain: "1000.50" });
+  expect(readMoney("$ 1,000 ", 6)).toEqual({ status: "invalid", hint: "thousands", plain: "1000" });
+});
+
+test("a comma with one, two or more than three digits after it stays a decimal comma", () => {
+  expect(readMoney("1,5", 6)).toEqual({ status: "ok", amount: 1_500_000n });
+  expect(readMoney("1,50", 6)).toEqual({ status: "ok", amount: 1_500_000n });
+  expect(readMoney("1,0000", 6)).toEqual({ status: "ok", amount: 1_000_000n });
+  // A whole part of 0 is never a thousand: 0,500 is half a dollar.
+  expect(readMoney("0,500", 6)).toEqual({ status: "ok", amount: 500_000n });
+  expect(readMoney(",500", 6)).toEqual({ status: "ok", amount: 500_000n });
+});
+
 test("an amount above the limit says so", () => {
   expect(readMoney("41", 6, 40_000_000n)).toEqual({ status: "too-much", amount: 41_000_000n });
   expect(readMoney("40", 6, 40_000_000n)).toEqual({ status: "ok", amount: 40_000_000n });

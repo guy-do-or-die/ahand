@@ -34,6 +34,24 @@ test("Russian has a sentence for every English one, and none is left in English"
   expect(untranslated).toEqual([]);
 });
 
+test("the Russian deal card keeps the condition, and the hand is what is open (F4, F16)", () => {
+  expect(WORDS.ru.deal.ifHelp).toBe("Если поможешь и тебя поблагодарят");
+  expect(WORDS.ru.deal.openUntil("29 янв")).toBe("рука открыта до 29 янв");
+  expect(WORDS.ru.deal.wasOpenUntil("29 янв")).toBe("рука была открыта до 29 янв");
+  expect(`${WORDS.ru.deal.reward[0]}$50 · ${WORDS.ru.deal.openUntil("29 янв")}`).toBe("Награда $50 · рука открыта до 29 янв");
+});
+
+test("the asker's words, the amount note and the copy buttons are said in both languages", () => {
+  expect(WORDS.en.deal.wordsLabel).toBe("In the asker's words — not checked");
+  expect(WORDS.ru.deal.wordsLabel).toBe("Словами автора — не проверено");
+  expect(WORDS.en.deal.amountFlag("$5,000", "$1")).toBe("The words mention $5,000. The reward on chain is $1.");
+  expect(WORDS.ru.deal.amountFlag("$5 000", "$1")).toBe("В тексте написано $5 000. Награда в контракте — $1.");
+  expect([WORDS.en.deal.readAll, WORDS.ru.deal.readAll]).toEqual(["Read all", "Читать целиком"]);
+  expect([WORDS.en.copy.link, WORDS.ru.copy.link, WORDS.en.copy.share, WORDS.ru.copy.share]).toEqual(["Copy link", "Скопировать ссылку", "Share", "Поделиться"]);
+  expect(WORDS.en.money.thousands("1000")).toBe("Is that a thousand or more? Write it without a comma: 1000.");
+  expect(WORDS.ru.money.thousands("1000")).toBe("Это тысяча или больше? Напиши без запятой: 1000.");
+});
+
 test("hands are counted in proper Russian", () => {
   expect([1, 2, 5, 11, 21, 22].map(WORDS.ru.rail.count)).toEqual(["Уже 1 рука.", "Уже 2 руки.", "Уже 5 рук.", "Уже 11 рук.", "Уже 21 рука.", "Уже 22 руки."]);
   expect([1, 2].map(WORDS.en.rail.count)).toEqual(["1 hand so far.", "2 hands so far."]);

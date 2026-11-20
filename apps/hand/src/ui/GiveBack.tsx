@@ -14,7 +14,7 @@ import { zeroHash, type PublicClient } from "viem";
 
 import { config } from "../config";
 import type { RailRoute } from "./ChainRail";
-import { useTwistWords, type TwistWords } from "./Flip";
+import { CoreText, useTwistWords, type TwistWords } from "./Flip";
 import { count, money, percent } from "./format";
 import { useLang } from "./ambient";
 import { coreAnswer, Exact, Fact, mulDiv, ProofBody, shareText, useProof, type CoreAnswer } from "./ShakeBack";
@@ -123,7 +123,7 @@ function giveSentence(step: Step, words: TwistWords): string {
 function RebuiltLine({ rebuilt, words }: { rebuilt: `0x${string}`; words: TwistWords }) {
   return (
     <p className="ah-back__line ah-back__exact" data-testid={TID.twist.givehash} data-value={rebuilt}>
-      {words.rebuilt}: {rebuilt}
+      <CoreText text={words.rebuilt} />: <Exact>{rebuilt}</Exact>
     </p>
   );
 }
@@ -136,7 +136,7 @@ function HashMatch({ rebuilt, stored, answer, words }: { rebuilt: `0x${string}`;
       <RebuiltLine rebuilt={rebuilt} words={words} />
       <p className="ah-back__verdict" data-testid={TID.twist.match} data-status={same ? "match" : "differ"} data-block={count(answer.block)}>
         <span aria-hidden="true">{same ? "✓ " : "✗ "}</span>
-        {same ? words.match : words.differ}
+        <CoreText text={same ? words.match : words.differ} />
       </p>
     </>
   );

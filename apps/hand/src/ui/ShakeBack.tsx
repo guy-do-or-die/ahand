@@ -9,12 +9,12 @@ import {
   type Step,
   type StepResult,
 } from "@ahand/sdk";
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { zeroAddress, type Address, type PublicClient } from "viem";
 
 import { clientOf } from "../chain/hooks";
 import type { RailRoute } from "./ChainRail";
-import { refusalSentence, useTicks, useTwistWords, type TwistWords } from "./Flip";
+import { CoreText, refusalSentence, useTicks, useTwistWords, type TwistWords } from "./Flip";
 import { count, money, percent } from "./format";
 import { useLang, type Lang } from "./ambient";
 import { TID } from "../testids";
@@ -212,7 +212,10 @@ export function ProofBody({ proof, sentence, checks = true }: { proof: ProofStat
               <span>
                 {step.status === "fail" ? (refusalSentence(step.check, lang) ?? sentence(step)) : sentence(step)}
                 {step.status === "not-reached" ? ` · ${words.notReached}` : null}
-                <span className="ah-back__name"> · {step.check}</span>
+                <span className="ah-back__name">
+                  {" · "}
+                  {step.status === "fail" ? words.refusedAs : words.wouldRevert} <span className="ah-exact">{step.check}</span>
+                </span>
               </span>
             </li>
           ))}
@@ -240,24 +243,58 @@ function AnswerLine({ answer }: { answer: CoreAnswer }) {
       <p className="ah-back__label">{words.coreAnswer}</p>
       <p className="ah-back__answer">
         <span aria-hidden="true">{answer.kind === "ok" ? "⛓️ " : "✗ "}</span>
-        {words.callLine(answer.fn, count(answer.block), name)}
+        <CoreText text={words.callLine(answer.fn, count(answer.block), name)} />
       </p>
-      {answer.kind === "ok" && answer.detail ? <p className="ah-back__line ah-back__exact">{answer.detail}</p> : null}
+      {answer.kind === "ok" && answer.detail ? (
+        <p className="ah-back__line ah-back__exact">
+          <ExactLine text={answer.detail} />
+        </p>
+      ) : null}
       {answer.kind === "refused" ? <p className="ah-back__line">{refusalSentence(answer.refusal.name, lang) ?? answer.refusal.name}</p> : null}
     </div>
   );
 }
 
-export function Fact({ label, children, testId, value }: { label: string; children: ReactNode; testId?: string; value?: string }) {
+/** A fact on a back. A label that is Core's own name (`core`) keeps Core's spelling (F15). */
+export function Fact({ label, children, testId, value, core = false }: { label: string; children: ReactNode; testId?: string; value?: string; core?: boolean }) {
   return (
     <div className="ah-back__fact" data-testid={testId} data-value={value}>
-      <dt>{label}</dt>
+      <dt>{core ? <span className="ah-exact">{label}</span> : <CoreText text={label} />}</dt>
       <dd>{children}</dd>
     </div>
   );
 }
 
-/** An address or a hash: exact letters, may break anywhere. */
+const HEX = /^0x(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
+
+/**
+ * An address or a hash: exact letters. It breaks only between groups of four, so no line ends
+ * with one orphaned digit (F15); the groups stand a little apart, and what is copied is the
+ * value itself, with no spaces in it. Anything else may break anywhere.
+ */
 export function Exact({ children }: { children: Address | string }) {
-  return <span className="ah-back__exact">{children}</span>;
+  if (!HEX.test(children)) return <span className="ah-back__exact">{children}</span>;
+  const groups = children.slice(2).match(/.{4}/g)!;
+  return (
+    <span className="ah-back__exact ah-hex" data-value={children}>
+      0x
+      {groups.map((group, index) => (
+        <Fragment key={index}>
+          <wbr />
+          <span className="ah-hex__group">{group}</span>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
+/** A mono line of names and values: each hex value grouped, each Core name in its own spelling. */
+export function ExactLine({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(0x[0-9a-fA-F]{40,64}\b)/).map((part, index) =>
+        index % 2 === 1 ? <Exact key={index}>{part}</Exact> : <CoreText key={index} text={part} />,
+      )}
+    </>
+  );
 }

@@ -2,18 +2,28 @@ import type { ThankGas } from "@ahand/sdk";
 
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { Disclose, Mark, count, money, percent, shortAddress, useLens } from "../../ui";
+import { Disclose, Mark, count, percent, receiptAmounts, shortAddress, useLens, useWords } from "../../ui";
 import { namesNoOne, type Payout } from "./model";
 
 /**
  * Who gets what, before anything is sent: worked out here from the route and the reward Core
  * holds at the latest block, row by row as Core will pay it. Each row opens its formula. A Hand
  * with no reward shows no money at all, only the sentence that the thanks moves none.
+ *
+ * Written as the receipt writes them (M-4): a share of nothing is "kept nothing", never "$0.00",
+ * and when rows cut to cents would not add up to the total, every amount has every digit.
  */
 export function Predicted({ payouts, decimals, noReward, gas }: { payouts: Payout[]; decimals: number; noReward: boolean; gas: ThankGas }) {
   const lang = useLang();
   const lens = useLens();
   const total = payouts.reduce((sum, payout) => sum + payout.amount, 0n);
+  const kept = useWords().receipt.keptNothing;
+  const written = receiptAmounts(
+    payouts.map((payout) => payout.amount),
+    total,
+    decimals,
+    lang,
+  );
   const units = (amount: bigint) => amount.toString();
 
   return (
@@ -32,6 +42,8 @@ export function Predicted({ payouts, decimals, noReward, gas }: { payouts: Payou
           {payouts.map((payout, index) => {
             const helper = payout.kind === "helped";
             const nobody = payout.kind === "passed" && (payout.bps === 0 || namesNoOne(payout.payee));
+            // A share that rounds to nothing reads like one that was never taken: in words.
+            const nothing = nobody || (payout.kind === "passed" && payout.amount === 0n);
             return (
               <li
                 key={index}
@@ -48,11 +60,11 @@ export function Predicted({ payouts, decimals, noReward, gas }: { payouts: Payou
                     {nobody ? null : <span className="ah-exact ml-2 text-[length:var(--fs-mono-md)]">{shortAddress(payout.payee)}</span>}
                     {payout.bps > 0 ? <span className="ah-meta ml-2">{percent(payout.bps, lang)}</span> : null}
                   </span>
-                  {nobody ? (
-                    <span className="ah-label shrink-0">{t("thank.predicted.keptNothing")}</span>
+                  {nothing ? (
+                    <span className="ah-label shrink-0">{kept}</span>
                   ) : (
                     <span className={helper ? "ah-receipt__amount--chip shrink-0 tabular-nums font-extrabold" : "shrink-0 tabular-nums font-bold"}>
-                      {money(payout.amount, decimals, lang, { cents: true })}
+                      {written.rows[index]}
                     </span>
                   )}
                 </div>
@@ -71,7 +83,9 @@ export function Predicted({ payouts, decimals, noReward, gas }: { payouts: Payou
           })}
           <li className="flex items-baseline justify-between gap-3 pt-3">
             <span className="font-semibold">{t("thank.predicted.total")}</span>
-            <span className="tabular-nums font-extrabold">{money(total, decimals, lang, { cents: true })}</span>
+            <span className="tabular-nums font-extrabold" data-exact={written.exact ? "true" : undefined}>
+              {written.total}
+            </span>
           </li>
         </ol>
       )}

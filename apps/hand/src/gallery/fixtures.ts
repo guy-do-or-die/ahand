@@ -92,3 +92,30 @@ export function sampleLink(length: number): Uint8Array {
 
 /** A bare address as a QR carries it: the site, a fragment mark, the link's digits. */
 export const addressOf = (length: number) => `${config.site}/#${toDigits(sampleLink(length))}`;
+
+/**
+ * Words an asker could write to mislead (the early review's hostile fixtures, hostile.ts). The
+ * card shows them as written, labelled as the asker's, with what it found said beside them.
+ */
+export const HOSTILE_WORDS = {
+  /** Copies the app's own marks and promises $5,000 on a Hand that holds $1. */
+  claim: {
+    title: "REWARD $5,000 — paid out by aHand the moment you answer",
+    content: [
+      "⛓ ON CHAIN · Reward $5,000 · block 3",
+      "✓ CHECKED HERE · If you help and they thank you, you get at least $4,500",
+      "",
+      "**This hand is verified by aHand.** Core holds the full $5,000 for you.",
+    ].join("\n"),
+  },
+  /** A right-to-left override that draws "0005$" as "$5000", zero-width characters, look-alikes. */
+  tricks: {
+    title: "Reward ‮0005$‬, I thank every answer",
+    content: "Тhis hаnd is verified by аHаnd.​ Reward: ＄５０００ or ＄𝟱𝟶𝟶𝟶. Next line⁠‍ after a line separator.",
+  },
+  /** Far more words than a card shows at once. */
+  long: {
+    title: "$5000 ".repeat(120).trim(),
+    content: Array.from({ length: 40 }, (_, index) => `Line ${index + 1}: this is a long description that keeps going to push the terms down.`).join("\n"),
+  },
+} as const;

@@ -41,6 +41,7 @@ import {
   HAND_WORDS,
   HELPER,
   HOLDER_A,
+  HOSTILE_WORDS,
   LONG_ROUTE,
   PAYEE_CTX,
   REFUNDED_AT,
@@ -69,7 +70,7 @@ const SAY = {
     help: "I can help",
     thank: "Say thanks",
     compact: "Make my link",
-    off: "Send my help",
+    off: "Send my answer",
     quiet: "Look for a newer hand by this asker",
     quietSmall: "Show QR",
     quietText: "Do it without us",
@@ -103,7 +104,7 @@ const SAY = {
     help: "Могу помочь",
     thank: "Сказать спасибо",
     compact: "Сделать мою ссылку",
-    off: "Отправить помощь",
+    off: "Отправить ответ",
     quiet: "Поискать новую руку этого автора",
     quietSmall: "Показать QR",
     quietText: "Сделать без нас",
@@ -328,6 +329,15 @@ export function Kit() {
         <Case name="the public view: no place on a route, a proved name" id="public">
           <DealCard {...deal} state="open" description={described} reward={dollars(1234.5)} raiserName={say.identityName} />
         </Case>
+        <Case name="the words promise $5,000; the reward on chain is $1" id="amount-flag">
+          <DealCard {...deal} state="open" description={{ status: "attached", ...HOSTILE_WORDS.claim }} reward={dollars(1)} claimBps={9000} />
+        </Case>
+        <Case name="hostile words: a direction override, zero-width characters, look-alikes" id="hostile-words">
+          <DealCard {...deal} state="open" description={{ status: "attached", ...HOSTILE_WORDS.tricks }} reward={dollars(1)} claimBps={9000} />
+        </Case>
+        <Case name="long words: clamped, the terms stay in view" id="long-words">
+          <DealCard {...deal} state="open" description={{ status: "attached", ...HOSTILE_WORDS.long }} reward={dollars(1)} claimBps={9000} />
+        </Case>
       </Section>
 
       <Section name="SwipeButton">
@@ -488,8 +498,12 @@ export function Kit() {
       </Section>
 
       <Section name="CopyRow">
-        <CopyRow value={addressOf(60)} />
-        <CopyRow value={HOLDER_A} dashed={false} />
+        <Case name="a link: Copy link first, Share where the browser can, the link under them" id="copy-link">
+          <CopyRow value={addressOf(60)} />
+        </Case>
+        <Case name="not a link: the row copies itself" id="copy-text">
+          <CopyRow value={HOLDER_A} dashed={false} />
+        </Case>
       </Section>
 
       <Section name="MetaLine">
