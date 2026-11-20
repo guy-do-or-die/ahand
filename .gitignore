@@ -37,4 +37,6 @@ local/
 contracts/deployments/31337*.json
 tests/e2e/test-results/
 tests/e2e/playwright-report/
+# shots.spec.ts writes ~215 screenshots (~62 MB) here on every run; the chosen ones live in the knowledge folder
+tests/e2e/shots/
 !.github/
