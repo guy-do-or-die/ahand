@@ -79,6 +79,48 @@ export function hashDirCommand(dir: string): string {
   return `cd ${dir} && find . -type f ! -path ./build.json -printf '%P\\n' | LC_ALL=C sort | xargs -d '\\n' sha256sum | sha256sum`;
 }
 
+/** What `build.json` beside a built app holds (the `/core` screen reads it: facts.ts `readServedBuild`). */
+export interface BuildRecord {
+  hash: string;
+  algorithm: string;
+  command: string;
+  /** The commit the app was built from, or null when it can't be told. */
+  commit: string | null;
+  /** Whether the app's inputs (apps/hand, packages) differed from that commit; null when it can't be told. */
+  dirty: boolean | null;
+  files: HashedFile[];
+}
+
+/**
+ * Where a build's commit and dirty flag come from: this clone's git, or, where the build runs
+ * without a .git folder (a hosted build of a pushed commit), `VERCEL_GIT_COMMIT_SHA`, which names
+ * the very commit that host checked out, unchanged.
+ */
+export function appTreeState(env: Record<string, string | undefined> = process.env): { commit: string | null; dirty: boolean | null } {
+  const git = (args: string[]) => spawnSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" });
+  const head = git(["rev-parse", "HEAD"]);
+  if (head.status === 0) {
+    const status = git(["status", "--porcelain", "--", "apps/hand", "packages"]);
+    return { commit: head.stdout.trim(), dirty: status.status === 0 ? status.stdout.trim() !== "" : null };
+  }
+  const hosted = env.VERCEL_GIT_COMMIT_SHA;
+  if (hosted && /^[0-9a-f]{40}$/.test(hosted)) return { commit: hosted, dirty: false };
+  return { commit: null, dirty: null };
+}
+
+/** The `build.json` of a built folder: the stand and the public build both write this. */
+export function buildRecord(dir: string, tree: { commit: string | null; dirty: boolean | null } = appTreeState()): BuildRecord {
+  const hashed = hashDir(dir);
+  return {
+    hash: hashed.hash,
+    algorithm: "sha256 over the lines `<sha256>  <path>` of every file but build.json, sorted by path, as sha256sum writes them",
+    command: hashDirCommand(".").replace(/^cd \. && /, ""),
+    commit: tree.commit,
+    dirty: tree.dirty,
+    files: hashed.files,
+  };
+}
+
 /* ----------------------------------------------------------- Core's build */
 
 export interface CompilerSettings {

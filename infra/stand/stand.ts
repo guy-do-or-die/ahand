@@ -35,7 +35,7 @@ import { parseDeployment } from "@ahand/abi";
 import { getContractAddress } from "viem";
 
 import type { AppConfig } from "../../apps/hand/src/config/schema.ts";
-import { hashDir, hashDirCommand } from "../../tools/manifest.ts";
+import { buildRecord } from "../../tools/manifest.ts";
 import { forge, foundryPath } from "./foundry.ts";
 import { checkSlot, pathsOf, portsOf, REPO_ROOT, slotFromEnv, SLOT_COUNT, type SlotPorts } from "./ports.ts";
 
@@ -527,17 +527,10 @@ async function build(slot: number): Promise<string> {
     if (!existsSync(join(paths.dist, page))) throw new Error(`the build made no ${page} in ${paths.dist}`);
   }
 
-  const hashed = hashDir(paths.dist);
-  writeJson(join(paths.dist, "build.json"), {
-    hash: hashed.hash,
-    algorithm: "sha256 over the lines `<sha256>  <path>` of every file but build.json, sorted by path, as sha256sum writes them",
-    command: hashDirCommand(".").replace(/^cd \. && /, ""),
-    commit: git(["rev-parse", "HEAD"]) ?? null,
-    // The app's inputs differ from the commit (tracked changes or new files in apps/hand or packages).
-    dirty: git(["status", "--porcelain", "--", "apps/hand", "packages"]) !== "",
-    files: hashed.files,
-  });
-  return hashed.hash;
+  // The app's inputs may differ from the commit (tracked changes or new files in apps/hand or packages): `dirty`.
+  const record = buildRecord(paths.dist);
+  writeJson(join(paths.dist, "build.json"), record);
+  return record.hash;
 }
 
 async function startStatic(slot: number): Promise<void> {
