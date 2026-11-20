@@ -100,10 +100,31 @@ explain() {
   ((found)) || echo "$out" >&2
 }
 
+# Replays a mined, failed transaction as a call on the block before it, so that Core's error
+# can be named. Best effort: an earlier transaction in the same block may change the answer.
+replay() {
+  local hash=$1 from to input block out
+  [[ -n $hash ]] || return 0
+  from=$(c tx "$hash" from 2>/dev/null) || return 0
+  to=$(c tx "$hash" to 2>/dev/null) || return 0
+  input=$(c tx "$hash" input 2>/dev/null) || return 0
+  block=$(c tx "$hash" blockNumber 2>/dev/null) || return 0
+  [[ $block -gt 0 ]] || return 0
+  if ! out=$(c call --from "$from" "$to" "$input" --block $((block - 1)) 2>&1); then
+    explain "$out"
+  fi
+}
+
 send() { # send <to> <sig or --data hex> [args...]
   local out
   if out=$("$CAST" send --rpc-url "$RPC" "$@" "${SEND[@]}" 2>&1); then
     echo "$out" | grep -E '^(transactionHash|status|blockNumber)' || echo "$out"
+    # With --gas-limit cast does not simulate first, so a refused call is mined and fails.
+    if grep -qE '^status +0 \(failed\)' <<<"$out"; then
+      echo "ahand: the transaction was mined and reverted; nothing changed on Core" >&2
+      replay "$(awk '$1 == "transactionHash" {print $2}' <<<"$out")"
+      exit 1
+    fi
   else
     explain "$out"
     exit 1

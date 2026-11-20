@@ -6,6 +6,15 @@ solc = "0.8.35"
 evm_version = "prague" # tests need EIP-7702 accounts; Core's code is the same under cancun, prague and osaka
 optimizer = true
 optimizer_runs = 200
+# Remappings are written into Core's metadata, and the metadata hash is the tail of its initcode.
+# Foundry's auto-detected remappings include one with this folder's absolute path, which made the
+# initcode hash, and so Core's CREATE2 address, depend on where the clone sits (D-10 needs anyone
+# to rebuild it from the commit). Only relative remappings, named here, keep it the same anywhere.
+auto_detect_remappings = false
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
 fs_permissions = [
     { access = "read-write", path = "./test/fixtures" }, # the fixtures Core writes for the SDK
     { access = "read-write", path = "./deployments" },   # the deployment JSON script/Deploy.s.sol writes

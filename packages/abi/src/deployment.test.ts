@@ -3,10 +3,10 @@ import { DeploymentError, parseDeployment } from "./deployment.js";
 
 const local = {
   chainId: 31337,
-  core: "0x5137D66BDD57872362b1ed470817B54c2324CbB0",
+  core: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
   factory: "0x4e59b44847b379578588920cA78FbF26c0B4956C",
   salt: "0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d",
-  initcodeHash: "0xebbc87bb28d2678fe9d3747d50e5dc1b645ee39fab96e5c1223b47a0514a1f77",
+  initcodeHash: "0x9f4031e9df87b432822254b2e546d1fc8b88a6bb8798522e7b47d1ab5a08de65",
   runtimeHash: "0xc82f010e03eb6a7d131f566e499da5fe9e00bff94b470641d4521439f1455c83",
   deployBlock: 1,
   tokens: [
