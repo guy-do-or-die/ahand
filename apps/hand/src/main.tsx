@@ -8,7 +8,7 @@ import { initLang } from "./i18n";
 import { startIntake } from "./link-intake";
 import { initLens, listenForLensKey } from "./shell/lens";
 import { applyTheme, watchTheme } from "./shell/theme";
-import { loadPrefs, type Prefs } from "./store/db";
+import { loadPrefs, outboxStore, type Prefs } from "./store/db";
 
 /**
  * Boot, in this order: take the link out of the address bar first (before anything waits), then
@@ -37,6 +37,26 @@ async function boot(): Promise<void> {
       <App />
     </StrictMode>,
   );
+  void resumeOutbox();
+}
+
+/**
+ * A give written into the outbox but not yet acknowledged by a relay is retried on every screen,
+ * not only on /give: when this device holds one, the giver's outbox (screens/give/deliver.ts) is
+ * opened, which retries until a relay holds it. A device with nothing waiting loads no delivery
+ * code and contacts no relay.
+ */
+async function resumeOutbox(): Promise<void> {
+  try {
+    const store = outboxStore<{ acks?: number }>();
+    const keys = await store.keys();
+    const entries = await Promise.all(keys.map((key) => store.get(key)));
+    if (!entries.some((entry) => entry && !(Number(entry.acks) >= 1))) return;
+    const { giverOutbox } = await import("./screens/give/deliver");
+    await giverOutbox();
+  } catch {
+    // Storage refused or the delivery code failed to load: /give itself still retries.
+  }
 }
 
 void boot();

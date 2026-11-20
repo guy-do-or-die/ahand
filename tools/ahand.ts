@@ -509,6 +509,7 @@ async function inspect(args: Args): Promise<void> {
     row("ends with", `a Give by ${give.signer}${isAddressEqual(give.payee, give.signer) ? "" : `, paid to ${give.payee}`}`);
     row("giver gets", `${pct(give.claimBps)} of the reward`);
     row("signature", signatureKind(giverSig));
+    row("give data", give.dataHash === zeroHash ? `${give.dataHash} (none: the words travel by message)` : give.dataHash);
   } else if (opened.seed) {
     row("ends at", `${opened.end.lastKey}, the key of this link's secret: whoever holds the link signs for it`);
     row("giver gets", `${pct(opened.end.claimBps)} of the reward, if no one else keeps a share`);
