@@ -8,6 +8,7 @@ const en = {
   "check.run": "Check",
   "check.another": "Check another",
   "check.cleared": "Read and cleared from the box.",
+  "check.fromMemory": "This is the link open in this tab. Nothing was pasted, and it stays in this tab only.",
 
   "check.ruler.title": "1 · Measured here, with no network",
   "check.ruler.total": "{n, plural, one {# byte} other {# bytes}} in the link",
@@ -20,6 +21,7 @@ const en = {
   "check.ruler.pin": "Pin",
   "check.ruler.give": "Answer",
   "check.ruler.attachments": "Words",
+  "check.ruler.span": "{from}–{to} · {n} B",
   "check.ruler.none": "These bytes don't follow the link's layout, so they can't be measured.",
   "check.kind.live": "A live link: it can be passed on.",
   "check.kind.addressed": "A link that ends at an address: it can be answered, not passed on.",
@@ -51,7 +53,15 @@ const en = {
   "check.core.asking": "Asking the contract…",
   "check.core.accepted.route": "The contract accepts this route. If the asker thanks whoever answers it, they get {share} of the reward.",
   "check.core.accepted.give": "The contract accepts this answer. The asker can thank it.",
+  "check.core.accepted.route.ended": "The contract accepts this route. Its check doesn't look at the end date or at whether the hand is closed.",
+  "check.core.accepted.give.ended": "The contract accepts this answer. Its check doesn't look at the end date or at whether the hand is closed.",
   "check.core.refused": "The contract refuses it.",
+
+  // The hand's state, said before the contract's sentence, at the latest block's time.
+  "check.state.thanked": "This hand is closed: thanked on {date}.",
+  "check.state.refunded": "This hand is closed: the reward went back to the asker on {date}.",
+  "check.state.closed.valid": "The route is valid, but nobody can be paid through it any more.",
+  "check.state.expired": "Time's up on {date}; only sending the reward back is possible now.",
   "check.core.offline": "Can't reach the network right now. Nothing was sent.",
 
   "check.agree": "Both columns agree.",

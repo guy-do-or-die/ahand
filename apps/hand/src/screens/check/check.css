@@ -168,3 +168,17 @@
   font-weight: var(--fw-heavy);
   overflow-wrap: anywhere;
 }
+
+/* Column 3: where the Hand stands at the latest block, said before the contract's own sentence. */
+.check-said {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.check-said__state {
+  border-left: var(--bw-focus) solid var(--ink);
+  padding-left: 12px;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-heavy);
+  line-height: 1.35;
+}

@@ -9,6 +9,11 @@
  * `verifyBundle` run in a child process over the bundle the page downloaded; /core's derived
  * address with the Core in stand.json; /check's DOM is searched for the live link's seed in three
  * forms (craft.ts `secrets`).
+ *
+ * The early review's fixes (F1, E-6, F6, E-8, F10, F14) are held here too: /check states a closed
+ * or ended Hand's state before Core's sentence and checks a link held in tab memory without a
+ * paste; the passport says "Pass n" and that the words are the asker's, unchecked; the printed
+ * receipt has its head and its amounts in one column on paper.
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,7 +31,14 @@ interface HandFixture {
   address: string;
 }
 interface SeedRun {
-  fixtures: { thanked: HandFixture; refunded: HandFixture; twoPasses: HandFixture; give: HandFixture & { giveAddress: string } };
+  fixtures: {
+    thanked: HandFixture & { giveAddress: string; title: string };
+    refunded: HandFixture;
+    expired: HandFixture;
+    unlisted: HandFixture;
+    twoPasses: HandFixture;
+    give: HandFixture & { giveAddress: string };
+  };
 }
 interface Line {
   id: string;
@@ -39,7 +51,7 @@ let fixtures: SeedRun["fixtures"];
 
 test.beforeAll(() => {
   stand = readStand();
-  fixtures = seed<SeedRun>(standSlot(), ["refunded", "thanked", "twoPasses", "give"]).fixtures;
+  fixtures = seed<SeedRun>(standSlot(), ["refunded", "expired", "thanked", "unlisted", "twoPasses", "give"]).fixtures;
 });
 
 /** Opens a passport and waits until every line has ticked in. */
@@ -47,6 +59,26 @@ async function openPassport(page: Page, handId: string): Promise<Line[]> {
   await page.goto(`/${stand.chainId}/${handId}/proof`);
   await expect(page.getByTestId("proof-tally")).toHaveAttribute("data-done", "true", { timeout: 30_000 });
   return linesOf(page);
+}
+
+/** Moves inside the app, as a link on a screen does, keeping this tab's memory. */
+async function inApp(page: Page, to: string): Promise<void> {
+  await page.evaluate((path) => {
+    history.pushState(null, "", path);
+    dispatchEvent(new PopStateEvent("popstate"));
+  }, to);
+}
+
+async function toRussian(page: Page): Promise<void> {
+  await page.getByTestId("shell-lang-ru").click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+}
+
+async function checkPasted(page: Page, address: string): Promise<void> {
+  await page.goto("/check");
+  await page.getByTestId("check-input").fill(address);
+  await page.getByTestId("check-run").click();
+  await expect(page.getByTestId("check-core-answer")).toHaveAttribute("data-state", "done", { timeout: 30_000 });
 }
 
 async function linesOf(page: Page): Promise<Line[]> {
@@ -207,4 +239,88 @@ test("/core derives the Core in use, lists the twelve limits, and labels the ser
   await expect(page.getByTestId("core-build-hash")).toHaveAttribute("data-state", "served");
   await expect(page.getByTestId("core-build-label")).toHaveText(/served by this site/i);
   await expect(page.getByTestId("core-build-value")).toHaveText(hash);
+});
+
+test("/check says a thanked, refunded or ended Hand's state before Core's sentence, and promises no payout on it (F1)", async ({ page }) => {
+  await checkPasted(page, fixtures.thanked.giveAddress);
+  const state = page.getByTestId("check-hand-state");
+  await expect(state).toHaveAttribute("data-value", "thanked");
+  await expect(state).toContainText(/This hand is closed: thanked on \d{1,2} \w{3}\. The route is valid, but nobody can be paid through it any more\./);
+  await expect(page.getByTestId("check-core-answer")).toHaveAttribute("data-value", "accepted");
+  await expect(page.getByTestId("check-core-answer")).not.toContainText("The asker can thank it");
+
+  await checkPasted(page, fixtures.refunded.address);
+  await expect(state).toHaveAttribute("data-value", "refunded");
+  await expect(state).toContainText(/This hand is closed: the reward went back to the asker on \d{1,2} \w{3}\./);
+  await expect(page.getByTestId("check-core-answer")).not.toContainText("of the reward");
+
+  await checkPasted(page, fixtures.expired.address);
+  await expect(state).toHaveAttribute("data-value", "expired");
+  await expect(state).toContainText(/Time's up on \d{1,2} \w{3}; only sending the reward back is possible now\./);
+
+  await checkPasted(page, fixtures.unlisted.address);
+  await expect(state).toHaveAttribute("data-value", "open");
+  await expect(page.getByTestId("check-core-answer")).toContainText("The contract accepts this route. If the asker thanks whoever answers it, they get 100% of the reward.");
+
+  await checkPasted(page, fixtures.thanked.giveAddress);
+  await toRussian(page);
+  await expect(state).toContainText(/Эта рука закрыта: спасибо сказано \d{1,2} [а-я]{3}\. Путь верный, но заплатить по нему уже никому нельзя\./);
+});
+
+test("/check reached with a link in this tab's memory checks it without a paste, and never prints it (E-6)", async ({ page }) => {
+  await page.goto(fixtures.twoPasses.address);
+  await expect(page.getByTestId("hand-deal-card")).toBeVisible({ timeout: 20_000 });
+  await inApp(page, "/check");
+  await expect(page.getByTestId("check-ruler")).toBeVisible();
+  await expect(page.getByTestId("check-core-answer")).toHaveAttribute("data-value", "accepted", { timeout: 30_000 });
+  await expect(page.getByTestId("check-hand-state")).toHaveAttribute("data-value", "open");
+  await expect(page.getByTestId("check-input")).toHaveValue("");
+  expect(new URL(page.url()).pathname).toBe("/check");
+  expect(page.url()).not.toContain("#");
+  expect(await page.content()).not.toContain(fixtures.twoPasses.address.split("#")[1]!);
+});
+
+test("the passport names a route position as a pass and says the words are the asker's, unchecked (F6, E-8, F10)", async ({ page }) => {
+  await openPassport(page, fixtures.thanked.handId);
+  const sentences = await page.locator(".proof-line__sentence").allInnerTexts();
+  expect(sentences.filter((line) => /^Hand \d/.test(line))).toEqual([]);
+  expect(sentences).toContain("Pass 1 was made with the very key that held the link.");
+  expect(sentences).toContain("These are the asker's own words, unchanged since the hand was raised. Nobody checked whether they are true.");
+  await toRussian(page);
+  await expect(page.locator(".proof-line__sentence").filter({ hasText: /^Передача 1 сделана тем самым ключом/ })).toHaveCount(1);
+  await expect(page.locator(".proof header .ah-meta")).toContainText(/^Сеть \d+ · Core 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4} · Рука \d+ · Прочитано в блоке/);
+});
+
+test("the printed receipt says what was asked, how and when the hand closed and who asked; on paper the amounts stand in one column (F14)", async ({ page }) => {
+  await page.goto(fixtures.thanked.address);
+  await expect(page.getByTestId("hand-deal-card")).toBeVisible({ timeout: 20_000 });
+  await inApp(page, `/${stand.chainId}/${fixtures.thanked.handId}/proof`);
+  await expect(page.getByTestId("proof-tally")).toHaveAttribute("data-done", "true", { timeout: 30_000 });
+  await page.getByTestId("proof-print").click();
+  const head = page.getByTestId("print-header");
+  await expect(head).toHaveAttribute("data-closing", "thanked", { timeout: 20_000 });
+  await expect(head).toContainText(`Receipt · hand #${fixtures.thanked.handId}`);
+  await expect(head).toContainText(fixtures.thanked.title);
+  await expect(head).toContainText(/Thanked on \d{1,2} \w{3} \d{4}, block \d+/);
+  await expect(head).toContainText(/Asked by 0x[0-9a-fA-F]{40}/);
+
+  await page.emulateMedia({ media: "print" });
+  const paper = await page.evaluate(() => ({
+    feet: Array.from(document.querySelectorAll(".ah-print-sheet .ah-receipt__what")).map((node) => getComputedStyle(node).textDecorationLine),
+    chips: Array.from(document.querySelectorAll(".ah-print-sheet .ah-receipt__amount--chip")).map((node) => getComputedStyle(node).paddingRight),
+    rights: Array.from(document.querySelectorAll(".ah-print-sheet tbody .ah-receipt__sum")).map((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return Math.round(range.getBoundingClientRect().right);
+    }),
+  }));
+  expect(paper.feet.length).toBeGreaterThan(0);
+  expect(new Set(paper.feet)).toEqual(new Set(["none"]));
+  expect(paper.chips).toEqual(["0px"]);
+  expect(new Set(paper.rights).size).toBe(1);
+  await page.emulateMedia({ media: "screen" });
+
+  await toRussian(page);
+  await expect(head).toContainText(`Квитанция · рука №${fixtures.thanked.handId}`);
+  await expect(head).toContainText(/Спасибо сказано \d{1,2} [а-я]{3} \d{4}, блок \d+/);
 });

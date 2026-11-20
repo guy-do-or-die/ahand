@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { describeHand, domain, encodeLive, fromText, keyOfSeed, newSeed, openLink, packAttachments, toAddress, type Hand } from "@ahand/sdk";
+import { readFileSync } from "node:fs";
+import { describeHand, domain, encodeLive, fromText, keyOfSeed, newSeed, openLink, packAttachments, toAddress, type Hand, type ReceiptRow } from "@ahand/sdk";
 import { getAddress, zeroAddress } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
+import { day } from "../../ui/format";
 import { QR_QUIET_MODULES, qrOf } from "../../ui/qr-code";
 import { CODE_MM, MIN_MODULE_MM, QUIET_MODULES, TAG_MAX_VERSION, fits, maxVersionOf, moduleMm, offered, sideOf } from "./fit";
 import { NotPrintable, openHeldLink, passportAddress, printableOf, receiptOfSearch } from "./link";
+import { closingOf, namesHand, paperDate } from "./head";
+import en from "./en";
+import ru from "./ru";
 
 const CORE = getAddress("0x65ac707E2AE7392583de5d6192C619F1D8862309");
 const RAISER = getAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
@@ -90,5 +95,47 @@ describe("the receipt variant", () => {
     expect(passportAddress(SITE, 31337, CORE, 7n, CORE)).toBe(`${SITE}/31337/7/proof`);
     expect(passportAddress(SITE, 31337, CORE, 7n)).toBe(`${SITE}/31337/${CORE.toLowerCase()}/7/proof`);
     expect(passportAddress(SITE, 31337, CORE, 7n, zeroAddress)).toBe(`${SITE}/31337/${CORE.toLowerCase()}/7/proof`);
+  });
+});
+
+describe("the printed receipt's head (F14)", () => {
+  const log = (eventName: ReceiptRow["eventName"], blockNumber: bigint): ReceiptRow => ({
+    eventName,
+    log: { eventName, args: {}, blockNumber, blockHash: `0x${"00".repeat(32)}`, transactionHash: `0x${"11".repeat(32)}`, logIndex: 0 },
+  });
+
+  test("it says how the Hand closed and in which block, from Core's closing row", () => {
+    expect(closingOf([log("Thanked", 19n), log("Shaken", 19n), log("Given", 19n), log("Paid", 19n)])).toEqual({ how: "thanked", block: 19n });
+    expect(closingOf([log("Refunded", 16n), log("Paid", 16n)])).toEqual({ how: "refunded", block: 16n });
+    expect(closingOf([])).toBeUndefined();
+  });
+
+  test("a date on paper carries its year, in the same time zone as the day", () => {
+    const second = Date.UTC(2026, 11, 30, 12) / 1000;
+    expect(paperDate(second, (at) => day(at, "en", "UTC"), "UTC")).toBe("30 Dec 2026");
+    expect(paperDate(second, (at) => day(at, "ru", "UTC"), "UTC")).toBe("30 дек 2026");
+  });
+
+  test("the question comes only from a held link that names this very Hand", () => {
+    const head = { chainId: 31337, core: CORE, handId: 3n };
+    expect(namesHand(head, 31337, CORE.toLowerCase(), 3n)).toBe(true);
+    expect(namesHand(head, 31337, CORE, 4n)).toBe(false);
+    expect(namesHand(head, 8453, CORE, 3n)).toBe(false);
+    expect(namesHand({ ...head, core: zeroAddress }, 31337, CORE, 3n)).toBe(false);
+    expect(namesHand(undefined, 31337, CORE, 3n)).toBe(false);
+  });
+
+  test("its words exist in both languages, in the wording of the review", () => {
+    expect(en["print.header"]).toBe("Receipt · hand #{id}");
+    expect(ru["print.header"]).toBe("Квитанция · рука №{id}");
+    expect(en["print.closed.thanked"]).toBe("Thanked on {date}, block {block}");
+    expect(ru["print.closed.thanked"]).toBe("Спасибо сказано {date}, блок {block}");
+  });
+
+  test("on paper the rows lose the dashed flip foot and the amount loses the chip's padding", () => {
+    const css = readFileSync(new URL("../../design/print.css", import.meta.url), "utf8");
+    const print = css.slice(css.indexOf("@media print"));
+    expect(print).toMatch(/\.ah-print-sheet \.ah-receipt__what \{\s*text-decoration: none;/);
+    expect(print).toMatch(/\.ah-print-sheet \.ah-receipt__amount--chip \{[^}]*padding: 0;/);
   });
 });

@@ -3,7 +3,8 @@ import type { Check } from "@ahand/sdk";
 
 import en from "./en";
 import ru from "./ru";
-import { amountOfCheck, bundleLine, markOf, notCheckableKeyOf, sectionsOf, sentenceKeyOf, tallyOf, verdictOf, verifyLine } from "./model";
+import { receiptAmounts } from "../../ui/receipt";
+import { amountOfCheck, bundleLine, markOf, notCheckableKeyOf, payoutRowsOf, sectionsOf, sentenceKeyOf, tallyOf, verdictOf, verifyLine } from "./model";
 
 const A = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 /** The SDK's sentence key for each id (proof.ts). */
@@ -102,6 +103,45 @@ describe("proof: the timeline's arrangement", () => {
     expect(amountOfCheck(thanked[6]!)).toBe(1_500_000n);
     expect(amountOfCheck(thanked[13]!)).toBe(1_500_000n);
     expect(amountOfCheck(thanked[0]!)).toBeUndefined();
+  });
+
+  test("the payout rows decide cents or every digit as the receipt does, so the lines add up (M-4)", () => {
+    expect(payoutRowsOf(thanked)).toEqual([1_500_000n, 3n]);
+    const payout = (id: string, amount: string) => chain(id, { sentence: "proof.payout", actual: `Paid · ${amount} · x`, inputs: { payee: A, amount } });
+    // Hand E of the review: $0.165 + $0.000033 + $0.164967 = $0.33; cut to cents the rows read $0.16 + under $0.01 + $0.16.
+    const handE = [payout("payout.shake.0", "165000"), payout("payout.shake.1", "33"), payout("payout.giver", "164967")];
+    const rows = payoutRowsOf(handE);
+    expect(rows).toEqual([165_000n, 33n, 164_967n]);
+    const written = receiptAmounts(rows, 330_000n, 6, "en");
+    expect(written.exact).toBe(true);
+    expect(written.rows).toEqual(["$0.165", "$0.000033", "$0.164967"]);
+    // Whole cents stay in cents.
+    expect(receiptAmounts(payoutRowsOf([payout("payout.shake.0", "1500000"), payout("payout.giver", "38500000")]), 40_000_000n, 6, "en").exact).toBe(false);
+  });
+
+  test("a position on the route is a pass, the word /check uses, never a hand (F6)", () => {
+    for (const key of ["proof.route", "proof.keys", "proof.share", "proof.share.none"]) {
+      expect((en as Record<string, string>)[key], key).toStartWith("Pass {n} ");
+      expect((ru as Record<string, string>)[key], key).toStartWith("Передача {n} ");
+    }
+  });
+
+  test("the description line says whose words they are and that nobody checked them, not that they are true (E-8)", () => {
+    expect(en["proof.description"]).toBe("These are the asker's own words, unchanged since the hand was raised. Nobody checked whether they are true.");
+    expect(ru["proof.description"]).toBe("Это слова самого автора, и с момента, как рука поднята, они не менялись. Правдивы ли они, никто не проверял.");
+  });
+
+  test("a pass that kept nothing is said in words, as the receipt says it, not as $0 (M-4)", () => {
+    const zero = chain("share.0", { actual: "0", expected: "0" });
+    expect(sentenceKeyOf(zero)).toBe("proof.share.none");
+    expect(en["proof.share.none"]).not.toContain("{amount}");
+    expect(ru["proof.share.none"]).not.toContain("{amount}");
+    expect(sentenceKeyOf(thanked[6]!)).toBe("proof.share");
+  });
+
+  test("the mono line under the title is the catalogue's, in Russian too (F10)", () => {
+    expect(en["proof.meta"]).toBe("Chain {chain} · Core {core} · Hand {hand}");
+    expect(ru["proof.meta"]).toBe("Сеть {chain} · Core {core} · Рука {hand}");
   });
 
   test("the lines without this site name the CLI from a clone, never a registry package", () => {

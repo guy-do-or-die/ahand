@@ -57,6 +57,19 @@ const en = {
 
   "defaults.d66.title": "A hand can carry no reward.",
   "defaults.d66.body": "A thank-you only. No money moves, and the card says so.",
+
+  // The setting itself, in mono, as this build has it: Core's own names stay as written.
+  "defaults.value.d21": "GIVE · ONE-TIME KEY OR NEW ADDRESS · NO KEY KEPT",
+  "defaults.value.d26b": "expiry = block time + {days} d",
+  "defaults.value.d31": "SHARE AT · IN A BLOCK",
+  "defaults.value.d32": "MODE = UNLISTED",
+  "defaults.value.d37": "ASKER = SOMEONE",
+  "defaults.value.d39": "FRAGMENT · READ ONCE · REPLACESTATE",
+  "defaults.value.d40none": "NIP-17 · NO RELAY CONFIGURED",
+  "defaults.value.d61": "NOW = LATEST BLOCK · EXPIRY_MARGIN = 10 MIN",
+  "defaults.value.d62none": "forwarder = NONE",
+  "defaults.value.d63": "AES-GCM · NON-EXTRACTABLE DEVICE KEY · UNTIL SAVED",
+  "defaults.value.d66": "reward = 0 ALLOWED",
 };
 
 export default en;

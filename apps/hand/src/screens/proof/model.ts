@@ -120,6 +120,8 @@ export function sentenceKeyOf(check: Check): string {
   if (check.sentence === "proof.payout") return check.actual.startsWith("Pending") ? "proof.payout.pending" : "proof.payout.paid";
   if (check.sentence === "proof.description" && check.expected === "none") return "proof.description.none";
   if (check.sentence === "proof.now" && check.actual === "0") return "proof.now.none";
+  // A pass that kept nothing is said in words, as the receipt says it, never as "$0" (M-4).
+  if (check.sentence === "proof.share" && check.actual === "0") return "proof.share.none";
   return check.sentence;
 }
 
@@ -147,6 +149,18 @@ export function amountOfCheck(check: Check): bigint | undefined {
     return digits(check.actual);
   }
   return undefined;
+}
+
+/**
+ * The amounts the payout lines name, in route order: the rows a reader adds up. With the
+ * kit's `receiptAmounts` they decide whether the passport writes cents or every digit, so the
+ * lines add up to the total as the receipt's rows do (M-4).
+ */
+export function payoutRowsOf(checks: readonly Check[]): bigint[] {
+  return checks.filter((check) => check.id.startsWith("payout.")).flatMap((check) => {
+    const amount = amountOfCheck(check);
+    return amount === undefined ? [] : [amount];
+  });
 }
 
 /** A source as one mono line: `GIVEN · BLOCK 41 · TX 0xab…cd · LOG 3`, `HANDS(ID) · BLOCK 41`, `COMPUTED HERE`. */

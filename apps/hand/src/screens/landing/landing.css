@@ -13,9 +13,12 @@
   padding: 0 0.16em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  /* «твои люди» stays on one line, with its full stop (F17). */
+  white-space: nowrap;
 }
 
 .lp-flip {
+  position: relative;
   display: grid;
   perspective: 900px;
 }
@@ -60,6 +63,14 @@
   background: var(--paper);
   border-style: dashed;
 }
+/* Each side takes its own height (F17): the side turned away leaves the flow and lies over the
+   one in view, so a closed card is as tall as its front, not as its back. */
+.lp-flip:not([data-open="true"]) .lp-flip__back,
+.lp-flip[data-open="true"] .lp-flip__front {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
 .lp-flip[data-open="true"] .lp-flip__front {
   transform: rotateY(180deg);
   visibility: hidden;
@@ -100,6 +111,17 @@
   text-decoration: underline dashed var(--ink-a40);
   text-underline-offset: 4px;
   cursor: pointer;
+}
+
+/* "Got a link? Paste it": one quiet row after the gestures, not a card. */
+.lp-paste {
+  border-top: var(--bw-hair) solid var(--ink-a30);
+  padding-top: 14px;
+}
+.lp-paste__label {
+  flex: none;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
 }
 
 @media (prefers-reduced-motion: reduce) {

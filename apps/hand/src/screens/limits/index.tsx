@@ -1,10 +1,12 @@
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
 import { useLens } from "../../ui";
+import { leadOf } from "./lead";
 
 /**
  * "What it can't promise" (UX-SPEC §11, ARCHITECTURE §11): sixteen limits, each one plain
- * sentence and one small example. The twelve accepted limits of the record (brief 02 §2) come
+ * sentence and one small example. Only the entry's first sentence, the limit itself, is bold; what
+ * it means follows in body weight. The twelve accepted limits of the record (brief 02 §2) come
  * first, starting with "Thanking is voluntary", then the two token risks of the plan's token
  * policy, then this build's own two, and the page ends with the unaudited sentence. The lens
  * adds where each one is recorded, in mono.
@@ -43,27 +45,33 @@ export default function LimitsScreen() {
       </header>
 
       <ol className="m-0 flex list-none flex-col p-0">
-        {LIMITS.map(({ id, source }, index) => (
-          <li
-            key={id}
-            data-testid={TID.about.limit}
-            data-index={index + 1}
-            data-value={id}
-            className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-t-[1.5px] border-[color:var(--ink)] py-5 md:grid-cols-[3rem_minmax(0,1fr)]"
-          >
-            <span className="ah-meta ah-meta--ink pt-[3px] text-[length:var(--fs-mono-lg)]" aria-hidden="true">
-              {two(index + 1)}
-            </span>
-            <div className="flex min-w-0 flex-col gap-2">
-              <p className="m-0 text-[length:var(--fs-body-xl)] font-semibold leading-[1.4]">{t(`limits.${id}.say`)}</p>
-              <p className="m-0 text-[length:var(--fs-body-md)] leading-[1.45] text-[color:var(--ink-a70)]">
-                <span className="ah-meta mr-2 align-[1px]">{t("limits.example")}</span>
-                {t(`limits.${id}.example`)}
-              </p>
-              {lens ? <p className="ah-meta m-0">{source}</p> : null}
-            </div>
-          </li>
-        ))}
+        {LIMITS.map(({ id, source }, index) => {
+          const { lead, rest } = leadOf(t(`limits.${id}.say`));
+          return (
+            <li
+              key={id}
+              data-testid={TID.about.limit}
+              data-index={index + 1}
+              data-value={id}
+              className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-t-[1.5px] border-[color:var(--ink)] py-5 md:grid-cols-[3rem_minmax(0,1fr)]"
+            >
+              <span className="ah-meta ah-meta--ink pt-[3px] text-[length:var(--fs-mono-lg)]" aria-hidden="true">
+                {two(index + 1)}
+              </span>
+              <div className="flex min-w-0 flex-col gap-2">
+                <p className="m-0 text-[length:var(--fs-body-lg)] leading-[1.45]">
+                  <strong className="font-bold">{lead}</strong>
+                  {rest ? ` ${rest}` : null}
+                </p>
+                <p className="m-0 text-[length:var(--fs-body-md)] leading-[1.45] text-[color:var(--ink-a70)]">
+                  <span className="ah-meta mr-2 align-[1px]">{t("limits.example")}</span>
+                  {t(`limits.${id}.example`)}
+                </p>
+                {lens ? <p className="ah-meta m-0">{source}</p> : null}
+              </div>
+            </li>
+          );
+        })}
       </ol>
 
       <nav className="flex flex-wrap gap-3 border-t-[1.5px] border-[color:var(--ink)] pt-5" aria-label={t("limits.title")}>

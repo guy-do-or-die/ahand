@@ -33,6 +33,12 @@ const en = {
   "print.receipt.scan": "Scan to check it all again.",
   "print.receipt.verify": "Check it without any site, from a copy of the code:",
   "print.receipt.unknown": "This hand is on a network this site doesn't read. Nothing was opened.",
+  "print.header": "Receipt · hand #{id}",
+  "print.closed.thanked": "Thanked on {date}, block {block}",
+  "print.closed.refunded": "The reward went back to the asker on {date}, block {block}",
+  "print.asker": "Asked by {who}",
+  "print.receipt.mark": "aHand · chain {chain}",
+  "print.question.none": "The question travels only inside the hand's link. To print it too, open that link in this tab first.",
 };
 
 export default en;

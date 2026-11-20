@@ -12,6 +12,7 @@ import {
   openAddress,
   openLink,
   peekLink,
+  readHand,
   runSteps,
   unwrap6492,
   type AccountSetup,
@@ -25,8 +26,9 @@ import { CLIENTS, clientOf } from "../../chain";
 import { config } from "../../config";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
-import { ErrorBand, Mark, QuietButton, count, percent, useLang } from "../../ui";
-import { agree, answerName, hereAnswer, stepKey, type CoreAnswer, type HereAnswer } from "./model";
+import { addressOf, openedLink } from "../../store/memory";
+import { ErrorBand, Mark, QuietButton, count, day, percent, useLang } from "../../ui";
+import { agree, answerName, coreSentences, hereAnswer, standingOf, stepKey, type CoreAnswer, type HereAnswer, type Standing } from "./model";
 import { outsideLength, rulerOf, splitPasted, type Ruler } from "./ruler";
 import "./check.css";
 
@@ -37,9 +39,15 @@ import "./check.css";
  * answer by `eth_call` (`checkRoute`, or `checkGive` for an answer), beside it. A disagreement
  * between the columns is a finding.
  *
+ * Core's two checks look at neither the expiry nor `closedAt`, so column 3 first says where the
+ * Hand stands at the latest block's time (thanked, refunded, time's up), and an accepted route on
+ * a Hand that is no longer open is called valid, never a payout.
+ *
  * Secret hygiene: the box is uncontrolled and is emptied the moment it is read, so the link is
  * never in the page's markup; the text is held in this component's memory only, and nothing of
- * it is rendered but lengths and what the link names (chain, Hand number, passes).
+ * it is rendered but lengths and what the link names (chain, Hand number, passes). Reached with
+ * a link in this tab's memory (store/memory.ts, from a Hand view), the page checks that link at
+ * once, read from memory the same way: nothing is pasted, written to the address or stored.
  */
 
 const CANONICAL = config.cores.canonical ?? undefined;
@@ -51,7 +59,11 @@ type Measured = { ruler?: Ruler; head?: LinkHead; outside: number };
 
 type Here = { state: "reading" } | { state: "done"; steps: StepResult[]; answer: HereAnswer; opened: OpenedLink } | { state: "failed"; messageId: string };
 
-type Core = { state: "waiting" } | { state: "reading" } | { state: "done"; answer: CoreAnswer; block: bigint; share?: number } | { state: "offline" };
+type Core =
+  | { state: "waiting" }
+  | { state: "reading" }
+  | { state: "done"; answer: CoreAnswer; block: bigint; share?: number; standing?: { state: Standing; at?: number } }
+  | { state: "offline" };
 
 function reducedMotion(): boolean {
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -90,7 +102,7 @@ function RulerView({ measured }: { measured: Measured }) {
             <span className={`check-legend__swatch check-ruler__seg--${segment.kind}`} aria-hidden="true" />
             <span>{segment.kind === "shake" ? t("check.ruler.shake", { n: (segment.position ?? 0) + 1 }) : t(`check.ruler.${segment.kind}`)}</span>
             <span className="ah-meta ah-meta--exact">
-              {segment.start}–{segment.start + segment.length - 1} · {segment.length} B
+              {t("check.ruler.span", { from: segment.start, to: segment.start + segment.length - 1, n: segment.length })}
             </span>
           </li>
         ))}
@@ -133,6 +145,31 @@ function StepsView({ here, shown }: { here: Extract<Here, { state: "done" }>; sh
   );
 }
 
+/* ─────────────────────────────────────────────────── column 3's sentences ── */
+
+/** Where the Hand stands (none while open), then Core's own sentence. */
+function CoreSaid({ core, give, lang }: { core: Extract<Core, { state: "done" }>; give: boolean; lang: ReturnType<typeof useLang> }) {
+  const said = coreSentences(core.standing?.state, core.answer, give);
+  const date = core.standing?.at !== undefined ? day(core.standing.at, lang) : "";
+  const coreText =
+    core.answer.kind === "refused"
+      ? `${t(said.core)} ${t(`core.${core.answer.name}`)}`
+      : said.core === "check.core.accepted.route"
+        ? t(said.core, { share: percent(core.share ?? 0, lang) })
+        : t(said.core);
+  return (
+    <div className="check-said" data-testid={TID.check.handState} data-value={core.standing?.state ?? ""}>
+      {said.state ? (
+        <p className="check-said__state m-0">
+          {t(said.state, { date })}
+          {said.valid ? ` ${t(said.valid)}` : ""}
+        </p>
+      ) : null}
+      <p className="m-0 font-bold">{coreText}</p>
+    </div>
+  );
+}
+
 /* ──────────────────────────────────────────────────────────── the screen ── */
 
 export default function CheckScreen() {
@@ -143,6 +180,7 @@ export default function CheckScreen() {
   const [core, setCore] = useState<Core>({ state: "waiting" });
   const [shown, setShown] = useState(0);
   const [failure, setFailure] = useState<string | undefined>();
+  const [fromMemory, setFromMemory] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const run = useRef(0);
 
@@ -214,30 +252,53 @@ export default function CheckScreen() {
     setHere({ state: "done", steps, answer: hereAnswer(steps, giverIsKey), opened });
     tick(steps.length);
 
-    // 3. Core's own answer, by eth_call.
+    // 3. Core's own answer, by eth_call, after where the Hand stands at the latest block: its
+    //    `hands(id)` and `thanks(id)` against that block's time, never this device's clock.
     setCore({ state: "reading" });
     const client = clientOf(opened.head.chainId);
     const { core: address, handId } = opened.head;
+    let block = 0n;
+    let standing: { state: Standing; at?: number } | undefined;
     try {
-      const block = await client.getBlockNumber({ cacheTime: 0 });
+      const latest = await client.getBlock({ blockTag: "latest" });
+      block = latest.number;
+      const read = await readHand(client, address, handId);
+      standing = standingOf(read.stateAt(Number(latest.timestamp)), read.view);
+      const known = standing ? { standing } : {};
       if (opened.signedGive) {
         const wrapped = unwrap6492(opened.signedGive.giverSig);
         const setup: AccountSetup | undefined = wrapped && config.forwarder ? { forwarder: config.forwarder, factory: wrapped.factory, factoryData: wrapped.factoryData } : undefined;
         await checkGiveOnChain(client, address, handId, opened.signedShakes, opened.signedGive, setup);
-        if (current()) setCore({ state: "done", answer: { kind: "accepted" }, block });
+        if (current()) setCore({ state: "done", answer: { kind: "accepted" }, block, ...known });
       } else {
         const end = await checkRouteOnChain(client, address, handId, opened.signedShakes);
-        if (current()) setCore({ state: "done", answer: { kind: "accepted" }, block, share: end.claimBps });
+        if (current()) setCore({ state: "done", answer: { kind: "accepted" }, block, share: end.claimBps, ...known });
       }
     } catch (error) {
       const refusal = error instanceof CoreRefused ? error : decodeCoreError(error);
       if (!current()) return;
       if (refusal) {
-        const block = await client.getBlockNumber({ cacheTime: 0 }).catch(() => 0n);
-        setCore({ state: "done", answer: { kind: "refused", name: refusal.name, ...(refusal.position === undefined ? {} : { position: refusal.position }) }, block });
+        if (block === 0n) block = await client.getBlockNumber({ cacheTime: 0 }).catch(() => 0n);
+        setCore({
+          state: "done",
+          answer: { kind: "refused", name: refusal.name, ...(refusal.position === undefined ? {} : { position: refusal.position }) },
+          block,
+          ...(standing ? { standing } : {}),
+        });
       } else setCore({ state: "offline" });
     }
   }
+
+  // Reached with a link in this tab's memory (a Hand view's "Check this link in detail"): check it
+  // at once, without a paste. The text goes from memory to `check` and nowhere else.
+  useEffect(() => {
+    const held = openedLink();
+    const text = held ? addressOf(held) : undefined;
+    if (!text) return;
+    setFromMemory(true);
+    void check(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -246,6 +307,7 @@ export default function CheckScreen() {
     const text = field.value;
     field.value = ""; // the link leaves the box at once: it lives in this function's memory only
     if (text.trim() === "") return;
+    setFromMemory(false);
     void check(text);
   };
 
@@ -287,7 +349,7 @@ export default function CheckScreen() {
           <QuietButton type="submit" data-testid={TID.check.run}>
             {measured || failure ? t("check.another") : t("check.run")}
           </QuietButton>
-          {measured || failure ? <span className="ah-label ah-label--dim normal-case">{t("check.cleared")}</span> : null}
+          {measured || failure ? <span className="ah-label ah-label--dim normal-case">{fromMemory ? t("check.fromMemory") : t("check.cleared")}</span> : null}
         </div>
         <p className="ah-label m-0 normal-case">{t("check.privacy")}</p>
       </form>
@@ -329,13 +391,7 @@ export default function CheckScreen() {
             {core.state === "offline" ? <ErrorBand what={t("check.core.offline")} /> : null}
             {core.state === "done" ? (
               <div className="flex flex-col items-start gap-2">
-                <p className="m-0 font-bold">
-                  {core.answer.kind === "accepted"
-                    ? core.share !== undefined
-                      ? t("check.core.accepted.route", { share: percent(core.share, lang) })
-                      : t("check.core.accepted.give")
-                    : `${t("check.core.refused")} ${t(`core.${core.answer.name}`)}`}
-                </p>
+                <CoreSaid core={core} give={Boolean(doneHere?.opened.signedGive)} lang={lang} />
                 <span className="ah-meta ah-meta--exact">{answerName(core.answer, "accepted")}</span>
                 <Mark kind="chain" source={`${doneHere?.opened.signedGive ? "checkGive" : "checkRoute"} · eth_call · BLOCK ${count(core.block)}`} />
               </div>
