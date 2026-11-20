@@ -1,0 +1,113 @@
+/*
+ * The landing's own pieces (UX-SPEC §7.1): the marker under "Your people" and the gesture cards
+ * that turn over. Tokens only; no shadows. The cards are the fallback the brief allows while the
+ * shared Flip is being written; they follow the same rules (UX-SPEC §3, §13): a button with
+ * aria-expanded, the back right after it in the document, 360ms rotateY, sides swapped under
+ * reduced motion.
+ */
+
+.lp-mark {
+  background: var(--amber);
+  color: var(--on-amber);
+  border-radius: var(--r-control-lg);
+  padding: 0 0.16em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.lp-flip {
+  display: grid;
+  perspective: 900px;
+}
+.lp-flip__face {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card);
+  background: var(--card);
+  padding: 18px 18px 16px;
+  text-align: left;
+  color: var(--ink);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition:
+    transform 360ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    visibility 0s linear 0s;
+}
+/* A side turning away stays visible until it is edge-on; a side turning in is visible at once. */
+.lp-flip__back,
+.lp-flip[data-open="true"] .lp-flip__front {
+  transition-delay: 0s, 180ms;
+}
+.lp-flip[data-open="true"] .lp-flip__back {
+  transition-delay: 0s, 0s;
+}
+.lp-flip__front {
+  font: inherit;
+  cursor: pointer;
+}
+.lp-flip__front:focus-visible,
+.lp-flip__back button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.lp-flip__back {
+  transform: rotateY(-180deg);
+  visibility: hidden;
+  background: var(--paper);
+  border-style: dashed;
+}
+.lp-flip[data-open="true"] .lp-flip__front {
+  transform: rotateY(180deg);
+  visibility: hidden;
+}
+.lp-flip[data-open="true"] .lp-flip__back {
+  transform: rotateY(0deg);
+  visibility: visible;
+}
+.lp-flip__emoji {
+  font-family: var(--emoji);
+  font-size: 46px;
+  line-height: 1;
+}
+.lp-flip__code {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-md);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.lp-flip__turn {
+  margin-top: auto;
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a70);
+  text-decoration: underline dashed var(--ink-a40);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-flip__face {
+    transition: none;
+  }
+  .lp-flip[data-open="true"] .lp-flip__front,
+  .lp-flip__back {
+    transform: none;
+  }
+}
