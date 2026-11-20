@@ -10,9 +10,10 @@ import "./landing.css";
 
 /**
  * The landing `/` (UX-SPEC §7.1): what this is in one breath, then the three ways in: raise a
- * hand, open a link someone sent, or come back to your own hands. Each of the three gestures
+ * hand, come back to your own hands, or open a link someone sent. Each of the three gestures
  * turns over to Core's own function, so the plain sentence and the exact call are one object
- * (UX-SPEC §3). A pasted link is held in this tab's memory only and opened by the Hand view.
+ * (UX-SPEC §3). A newcomer has no link yet, so the paste box comes after the gestures, as one
+ * quiet row (F17). A pasted link is held in this tab's memory only and opened by the Hand view.
  */
 
 type Gesture = "raise" | "pass" | "thank";
@@ -108,18 +109,15 @@ function OpenLink() {
     openPaste(paste);
   };
   return (
-    <section className="ah-card ah-card--lg flex flex-col gap-3 p-5 md:p-6" aria-labelledby={inputId + "-title"}>
-      <h2 id={inputId + "-title"} className="m-0 text-[length:var(--fs-card-title-lg)] font-extrabold leading-[1.1] tracking-[-0.02em]">
-        {t("landing.open.title")}
-      </h2>
-      <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row sm:items-stretch" noValidate>
-        <label htmlFor={inputId} className="sr-only">
+    <section className="lp-paste flex flex-col gap-2" aria-label={t("landing.open.title")}>
+      <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" noValidate>
+        <label htmlFor={inputId} className="lp-paste__label">
           {t("landing.open.title")}
         </label>
         <input
           id={inputId}
           data-testid={TID.landing.openInput}
-          className="ah-input min-h-[52px] min-w-0 flex-1 font-mono text-[length:var(--fs-mono-lg)]"
+          className="ah-input min-h-[44px] min-w-0 flex-1 font-mono text-[length:var(--fs-mono-md)]"
           value={text}
           onChange={(event) => {
             setText(event.target.value);
@@ -134,15 +132,11 @@ function OpenLink() {
           inputMode="url"
           placeholder="https://…/#…"
         />
-        <button
-          type="submit"
-          data-testid={TID.landing.openSubmit}
-          className="inline-flex min-h-[52px] items-center justify-center rounded-[var(--r-btn)] border-[1.5px] border-[color:var(--ink)] bg-[color:var(--ink)] px-6 font-bold text-[color:var(--paper)]"
-        >
+        <button type="submit" data-testid={TID.landing.openSubmit} className="ah-quiet min-h-[44px] self-start sm:self-auto">
           {t("landing.open.go")}
         </button>
       </form>
-      <p id={hintId} className="ah-label m-0">
+      <p id={hintId} className="ah-label ah-label--dim m-0">
         {t("landing.open.hint")} {t("landing.open.tab")}
       </p>
       {said?.kind === "empty" ? <ErrorBand what={t("landing.open.empty")} /> : null}
@@ -189,10 +183,6 @@ export default function LandingScreen() {
         </div>
       </div>
 
-      <div className="max-w-[720px]">
-        <OpenLink />
-      </div>
-
       <section className="flex flex-col gap-4" aria-labelledby="landing-how">
         <h2 id="landing-how" className="m-0 text-[length:var(--fs-card-title-lg)] font-extrabold leading-[1.1] tracking-[-0.02em]">
           {t("landing.how")}
@@ -209,6 +199,10 @@ export default function LandingScreen() {
           </a>
         </p>
       </section>
+
+      <div className="max-w-[720px]">
+        <OpenLink />
+      </div>
     </section>
   );
 }

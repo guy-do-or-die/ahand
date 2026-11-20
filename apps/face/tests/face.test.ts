@@ -33,6 +33,7 @@ import {
 } from "@ahand/sdk";
 import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 
+import { isolate } from "../src/bidi.ts";
 import type { FaceConfig } from "../src/config.ts";
 import { createFace, type FaceOptions } from "../src/server.ts";
 
@@ -175,13 +176,13 @@ describe("previews of a Hand", () => {
 
     const page = await get(before);
     expect(page.status).toBe(200);
-    expect(unescape(metaOf(page.text, "og:title"))).toBe(title);
-    expect(unescape(metaOf(page.text, "twitter:title"))).toBe(title);
-    expect(metaOf(page.text, "og:description")).toBe("$40 reward · open until " + metaOf(page.text, "og:description")!.split("until ")[1]);
+    expect(unescape(metaOf(page.text, "og:title"))).toBe(isolate(title));
+    expect(unescape(metaOf(page.text, "twitter:title"))).toBe(isolate(title));
+    expect(metaOf(page.text, "og:description")).toMatch(/^\$40 reward on chain · open until \d{1,2} [A-Z][a-z]{2}\.$/);
     expect(page.text).toContain("$40 reward");
     expect(page.text).not.toContain("Hidden from robots");
     expect(unescape(metaOf(page.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}`);
-    expect(page.text).toContain(`<title>${title} · aHand</title>`);
+    expect(page.text).toContain(`<title>${isolate(title)} · aHand</title>`);
     // The app still loads: the page is index.html with tags added.
     expect(page.text).toContain(`<script type="module" crossorigin src="/assets/index-abc.js"></script>`);
 
@@ -202,8 +203,8 @@ describe("previews of a Hand", () => {
 
     // In Russian, by Accept-Language.
     const ru = await get(before, { "Accept-Language": "ru-RU,ru;q=0.9" });
-    expect(unescape(metaOf(ru.text, "og:title"))).toBe(title);
-    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 · открыта до ");
+    expect(unescape(metaOf(ru.text, "og:title"))).toBe(isolate(title));
+    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 в сети · открыта до ");
     expect(unescape(metaOf(ru.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}&l=ru`);
   });
 
@@ -212,17 +213,17 @@ describe("previews of a Hand", () => {
     const numbered = before.split("?")[0]!;
     const page = await get(numbered);
     expect(unescape(metaOf(page.text, "og:title"))).toBe("Someone raised a hand.");
-    expect(metaOf(page.text, "og:description")).toStartWith("$25 reward · open until ");
+    expect(metaOf(page.text, "og:description")).toStartWith("$25 reward on chain · open until ");
     expect(page.text).not.toContain("Not for robots");
   });
 
   it("a public Hand with no reward says a thank-you only, and shows its details", async () => {
     const { before } = await raise({ mode: "public", title: "Who can fix a 1978 Vespa?", content: "It stalls at idle.", reward: 0n });
     const page = await get(before);
-    expect(unescape(metaOf(page.text, "og:title"))).toBe("Who can fix a 1978 Vespa?");
+    expect(unescape(metaOf(page.text, "og:title"))).toBe(isolate("Who can fix a 1978 Vespa?"));
     const description = metaOf(page.text, "og:description")!;
-    expect(description).toStartWith("No reward: a thank-you only · open until ");
-    expect(description).toEndWith(". It stalls at idle.");
+    expect(description).toStartWith("No reward on chain: a thank-you only · open until ");
+    expect(description).toEndWith(`. The asker wrote: “${isolate("It stalls at idle.")}”`);
     expect(page.text).not.toContain("$");
   });
 
@@ -242,19 +243,19 @@ describe("previews of a Hand", () => {
 
   it("judges time's up by the chain's clock, then shows the reward went back", async () => {
     const { handId, before } = await raise({ mode: "unlisted", title: "Short one", reward: 3n * USD, seconds: 3_600 });
-    expect(metaOf((await get(before)).text, "og:description")).toStartWith("$3 reward · open until ");
+    expect(metaOf((await get(before)).text, "og:description")).toStartWith("$3 reward on chain · open until ");
 
     // The chain moves two hours on; this machine's clock (40 days behind the chain) does not.
     await rpc("evm_increaseTime", [7_200]);
     await rpc("evm_mine");
     await pause(TTL + 50);
-    expect(unescape(metaOf((await get(before)).text, "og:description"))).toStartWith("$3 reward · time's up on ");
+    expect(unescape(metaOf((await get(before)).text, "og:description"))).toStartWith("$3 reward on chain · time's up on ");
 
     await send(ANVIL_KEYS[4]!, refundCall(chain.core, handId));
     await pause(TTL + 50);
     const closed = await get(before);
     expect(metaOf(closed.text, "og:description")).toStartWith("The $3 reward went back on ");
-    expect(unescape(metaOf(closed.text, "og:title"))).toBe("Short one");
+    expect(unescape(metaOf(closed.text, "og:title"))).toBe(isolate("Short one"));
   });
 });
 
@@ -460,7 +461,7 @@ describe("compression", () => {
     expect(br.headers.vary).toBe("Accept-Language, Accept-Encoding");
     expect(brotliDecompressSync(br.body).equals(plain.body)).toBe(true);
     expect(gunzipSync(gz.body).equals(plain.body)).toBe(true);
-    expect(plain.body.toString("utf8")).toContain('content="Compressed page"');
+    expect(plain.body.toString("utf8")).toContain('content="\u2068Compressed page\u2069"') // the asker's words isolated (H-2);
 
     const tiny = await raw(PORT, "/assets/tiny.js", { "Accept-Encoding": "br" });
     expect(tiny.headers["content-encoding"]).toBeUndefined();
@@ -538,7 +539,7 @@ describe("under a burst of cold cards", () => {
     const counted = await startFace({ port }, { client: counting, previewTtlMs: 5_000 });
     try {
       const card = `/og${before.replace("?", ".png?")}`;
-      expect(metaOf((await raw(port, before)).body.toString("utf8"), "og:title")).toBe("Read once");
+      expect(metaOf((await raw(port, before)).body.toString("utf8"), "og:title")).toBe("\u2068Read once\u2069"); // the asker's words isolated (H-2)
       const once = calls;
       expect(once).toBeGreaterThan(0);
       await Promise.all([raw(port, before), raw(port, `${before}&l=ru`), raw(port, card), raw(port, `${card}&th=d`), raw(port, `${card}&l=ru`)]);
@@ -586,7 +587,7 @@ describe("face as its own program", () => {
 
     const { before } = await raise({ mode: "unlisted", title: "From the program", reward: 2n * USD });
     const page = await fetch(`${base}${before}`).then((r) => r.text());
-    expect(page).toContain(`content="From the program"`);
+    expect(page).toContain(`content="${isolate("From the program")}"`);
     const png = await fetch(`${base}/og${before.replace("?", ".png?")}`);
     expect(png.headers.get("content-type")).toBe("image/png");
     await png.arrayBuffer();

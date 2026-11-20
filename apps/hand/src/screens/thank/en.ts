@@ -62,7 +62,6 @@ const en = {
   "thank.predicted.note": "Worked out here from the route and the reward the contract holds now.",
   "thank.predicted.passed": "Passed it on",
   "thank.predicted.helper": "Helped",
-  "thank.predicted.keptNothing": "kept nothing",
   "thank.predicted.formula": "how it's counted",
   "thank.predicted.total": "The whole reward",
   "thank.predicted.waitsIfBlocked":
@@ -120,6 +119,9 @@ const en = {
   "thank.reverted.kept": "The reward is still in the contract; only the cost of trying was spent.",
   "thank.firstStepOnly": "The helper's account is set up; the thanks didn't go. Only the first step's cost was spent.",
   "thank.resumed": "A thanks for this answer was sent from this device. Following it…",
+  "thank.onWay": "A thanks sent from this device is on its way: hand {id}. Nothing is sent again.",
+  "thank.onWay.done": "That thanks went through: hand {id}.",
+  "thank.onWay.open": "See what was sent to whom",
 };
 
 export default en;

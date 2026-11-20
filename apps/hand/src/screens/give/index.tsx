@@ -29,9 +29,10 @@ import {
 } from "../../ui";
 import { ConnectSheet, switchToAppChain, useTypedSigner, useWallet } from "../../wallet";
 import { answerLink, confirmWithAccount, confirmWithKey, confirmWithWallet, type AnswerOutcome, type AnswerStep, type Confirm } from "./answer";
-import { relayCount, retryNow, sendToInbox, useEntry, useReplies, useThreadSent } from "./deliver";
-import { claimAmount, deliveryState, keyFileOf, MAX_WORDS, shareText, signatureKind, wordsOf } from "./flow";
-import { LINK_OPTIONS, useOpening } from "./open";
+import { relayCount, retryNow, sendToInbox, useEntry, useMyAnswers } from "./deliver";
+import { claimAmount, claimText, deliveryState, keyFileOf, MAX_WORDS, onAppChain, shareText, signatureKind, wordsOf } from "./flow";
+import { LINK_OPTIONS, isOffline, useOpening } from "./open";
+import { AnswerThread } from "./Thread";
 import { chainName } from "../../i18n/common/chain";
 
 /**
@@ -50,6 +51,7 @@ type Phase =
   | { kind: "busy"; step: AnswerStep }
   | { kind: "failed"; outcome: Exclude<AnswerOutcome, { ok: true }> }
   | { kind: "no-forwarder" }
+  | { kind: "wrong-network" }
   | { kind: "done"; result: Extract<AnswerOutcome, { ok: true }>; words: string; payee: Address; entryKey?: string; chatKey?: Hex; keyFile: boolean };
 
 function Frame({ children }: { children: ReactNode }) {
@@ -102,11 +104,25 @@ export default function GiveScreen() {
     );
   }
   if (opening.status === "error") {
+    // The network did not answer: the offline band, with a way to try again (U-1). The link stays in this tab.
+    const offline = isOffline(opening);
     return (
       <Frame>
         <Title />
         <div data-testid={TID.give.error} data-value={opening.messageId}>
-          <ErrorBand what={t(opening.messageId)} kept={t("common.error.nothingSent")} />
+          <ErrorBand
+            what={t(opening.messageId)}
+            kept={offline ? t("give.offline.kept") : t("common.error.nothingSent")}
+            {...(offline
+              ? {
+                  action: (
+                    <QuietButton compact onClick={opening.retry}>
+                      {t("give.offline.retry")}
+                    </QuietButton>
+                  ),
+                }
+              : {})}
+          />
         </div>
       </Frame>
     );
@@ -165,6 +181,10 @@ function Answer({ opened }: { opened: OpenedAddress }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 
   const account = wallet.status === "connected" && !picker.hideAccount ? wallet.address : undefined;
+  // An answer this device already sent to this Hand (a reload loses the tab's link, not the outbox):
+  // say so before a second one is made, and point to where it and its thread are.
+  const mine = useMyAnswers().entries;
+  const answeredBefore = mine.some((entry) => entry.envelope.hand.chainId === opened.domain.chainId && entry.envelope.hand.core.toLowerCase() === core.toLowerCase() && entry.envelope.hand.handId === handId.toString());
   const ctx = { core, raiser: opened.hand.raiser, token: opened.hand.token };
   const busy = phase.kind === "busy";
   const canSwipe = landing !== undefined && state === "open" && !busy;
@@ -176,13 +196,17 @@ function Answer({ opened }: { opened: OpenedAddress }) {
     let signer: Address;
     let keyFile = false;
     if (landing.signing.kind === "account") {
+      // The wallet confirms on the app's network or not at all: a switch it refuses stops here (W-4).
+      setPhase({ kind: "busy", step: "confirm" });
+      if (!(await onAppChain(wallet.chainId, config.chain.id, switchToAppChain))) {
+        setPhase({ kind: "wrong-network" });
+        return;
+      }
       signer = landing.signing.address;
       const account = signer;
+      // The network was switched before this (onAppChain above), so the wallet is only asked to sign.
       confirm = confirmWithWallet(
-        async (typedData) => {
-          if (wallet.chainId !== config.chain.id) await switchToAppChain();
-          return typed.sign(typedData as unknown as TypedDataDefinition);
-        },
+        (typedData) => typed.sign(typedData as unknown as TypedDataDefinition),
         () => walletKind(clientOf(config.chain.id), account),
       );
     } else if (landing.signing.kind === "one-time") {
@@ -249,8 +273,12 @@ function Answer({ opened }: { opened: OpenedAddress }) {
       lang={lang}
       heading="h2"
     />
+  ) : offline ? (
+    <div data-testid={TID.give.error} data-value="common.time.offline">
+      <ErrorBand what={t("common.time.offline")} kept={t("give.offline.kept")} />
+    </div>
   ) : (
-    <p className="ah-meta m-0">{offline ? t("common.time.offline") : t("give.opening")}</p>
+    <p className="ah-meta m-0">{t("give.opening")}</p>
   );
 
   if (phase.kind === "done") {
@@ -309,9 +337,18 @@ function Answer({ opened }: { opened: OpenedAddress }) {
         </p>
       ) : null}
 
+      {answeredBefore ? (
+        <div className="ah-note flex flex-col gap-2" role="status" data-value="answered-before">
+          <p className="m-0">{t("give.again")}</p>
+          <a href="/my" className="ah-quiet ah-quiet--compact self-start">
+            {t("give.again.go")}
+          </a>
+        </div>
+      ) : null}
+
       <Step title={t("give.step.words")}>
         <label className="ah-field">
-          <span className="ah-field__label">{noReward ? t("give.words.askNoReward") : t("give.words.ask", { amount: money(claim, decimals, lang) })}</span>
+          <span className="ah-field__label">{noReward ? t("give.words.askNoReward") : t("give.words.ask", { amount: claimText(claim, decimals, lang, money) })}</span>
           <textarea
             className="ah-input min-h-[120px] resize-y"
             data-testid={TID.give.words}
@@ -372,6 +409,11 @@ function Answer({ opened }: { opened: OpenedAddress }) {
         </SwipeButton>
         {busy ? <Progress step={phase.step} /> : null}
         {phase.kind === "failed" ? <Failure outcome={phase.outcome} /> : null}
+        {phase.kind === "wrong-network" ? (
+          <div data-testid={TID.give.wrongNetwork} data-value={String(config.chain.id)}>
+            <ErrorBand what={t("common.error.wrongNetwork", { network: config.chain.name })} kept={t("give.error.kept")} />
+          </div>
+        ) : null}
         {offline ? <p className="ah-label m-0">{t("common.time.offline")}</p> : null}
       </div>
 
@@ -391,9 +433,9 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 function AgreeCard({ opened, landing, claim, decimals, noReward, lang }: { opened: OpenedAddress; landing: Landing; claim: bigint; decimals: number; noReward: boolean; lang: "en" | "ru" }) {
   const core = opened.domain.verifyingContract;
-  const claimText = noReward
+  const claimLine = noReward
     ? t("give.agree.claimNoReward", { percent: percent(opened.end.claimBps, lang) })
-    : t("give.agree.claimMoney", { percent: percent(opened.end.claimBps, lang), amount: money(claim, decimals, lang) });
+    : t("give.agree.claimMoney", { percent: percent(opened.end.claimBps, lang), amount: claimText(claim, decimals, lang, money) });
   const by = landing.signing.kind === "account" ? "give.agree.byAccount" : landing.signing.kind === "one-time" ? "give.agree.byOneTime" : "give.agree.byWords";
   return (
     <div className="ah-card flex flex-col gap-1 px-4 py-3" data-payee={landing.payee} data-claim={String(opened.end.claimBps)}>
@@ -408,7 +450,7 @@ function AgreeCard({ opened, landing, claim, decimals, noReward, lang }: { opene
           </span>
         </Row>
         <Row label={t("give.agree.hand")}>{t("give.agree.handNumber", { n: opened.hand.handId.toString() })}</Row>
-        <Row label={t("give.agree.claim")}>{claimText}</Row>
+        <Row label={t("give.agree.claim")}>{claimLine}</Row>
         <Row label={t("give.agree.lands")}>
           <Identity address={landing.payee} full />
         </Row>
@@ -459,7 +501,6 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
   const entry = useEntry(phase.entryKey);
   const delivery = deliveryState(inbox, relayCount(), entry);
   const [showQr, setShowQr] = useState(false);
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const give = result.signedGive.give;
   const sig = signatureKind(result.signedGive.giverSig);
   const lensLines = [
@@ -519,15 +560,10 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
       <div className="flex flex-col gap-3">
         <span className="ah-field__label">{t("give.answer.label")}</span>
         <div data-testid={TID.give.copy} data-value={result.address}>
-          <CopyRow value={result.address} />
+          <CopyRow value={result.address} shareText={shareText(phase.words, result.address)} />
         </div>
         <p className="ah-label ah-label--dim m-0">{t("give.answer.copyHint")}</p>
         <div className="flex flex-wrap gap-3">
-          {canShare ? (
-            <QuietButton compact data-testid={TID.give.share} onClick={() => void navigator.share({ text: shareText(phase.words, result.address) }).catch(() => undefined)}>
-              {t("common.word.share")}
-            </QuietButton>
-          ) : null}
           <QuietButton compact data-testid={TID.give.qr} aria-expanded={showQr} onClick={() => setShowQr((open) => !open)}>
             {t("common.word.showQr")}
           </QuietButton>
@@ -564,70 +600,5 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
 function Thread({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }>; opened: OpenedAddress; inbox: Hex | undefined }) {
   const hand = useMemo(() => ({ chainId: opened.domain.chainId, core: opened.domain.verifyingContract, handId: opened.hand.handId.toString() }), [opened]);
   const first = useEntry(phase.entryKey);
-  const sent = useThreadSent(phase.chatKey);
-  const replies = useReplies(phase.chatKey, inbox, hand, first?.at);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-
-  if (!inbox || relayCount() === 0) {
-    return <p className="ah-label ah-label--dim m-0">{t("give.thread.noInbox")}</p>;
-  }
-
-  const lines = [
-    ...sent.filter((entry) => entry.envelope.text).map((entry) => ({ id: entry.key, at: entry.at, mine: true, text: entry.envelope.text!, first: entry.envelope.kind === "give", queued: entry.acks === 0 })),
-    ...replies.map((reply) => ({ id: reply.id, at: reply.at, mine: false, text: reply.text, first: false, queued: false })),
-  ].sort((a, b) => a.at - b.at);
-
-  async function answer() {
-    const words = wordsOf(draft);
-    if (!words || !phase.chatKey || !inbox) return;
-    setSending(true);
-    try {
-      // Answers go to the Hand's inbox, the key the asker writes from.
-      await sendToInbox(inbox, { v: 1, kind: "note", hand, text: words }, phase.chatKey);
-      setDraft("");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <section className="flex flex-col gap-3" aria-labelledby="give-thread-title">
-      <h2 id="give-thread-title" className="ah-meta ah-meta--ink m-0">
-        {t("give.thread.title")}
-      </h2>
-      <ol className="m-0 flex list-none flex-col gap-3 p-0" data-testid={TID.give.thread} data-count={String(lines.length)}>
-        {lines.map((line) => (
-          <li key={line.id} className={line.mine ? "ah-panel self-end" : "ah-card self-start px-4 py-3"} data-from={line.mine ? "you" : "asker"} style={{ maxWidth: "88%" }}>
-            <span className="ah-meta block pb-1">
-              {line.mine ? (line.first ? t("give.thread.yourWords") : t("give.thread.you")) : t("give.thread.asker")}
-              {line.queued ? ` · ${t("give.thread.queued")}` : ""}
-            </span>
-            <span className="whitespace-pre-wrap break-words">{line.text}</span>
-          </li>
-        ))}
-      </ol>
-      {replies.length === 0 ? <p className="ah-label ah-label--dim m-0">{t("give.thread.empty")}</p> : null}
-      <form
-        className="flex flex-col gap-2 sm:flex-row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void answer();
-        }}
-      >
-        <input
-          className="ah-chatline min-h-[44px] flex-1"
-          data-testid={TID.give.replyInput}
-          aria-label={t("give.thread.reply")}
-          placeholder={t("give.thread.reply")}
-          value={draft}
-          maxLength={MAX_WORDS}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <QuietButton type="submit" compact data-testid={TID.give.replySend} disabled={sending || wordsOf(draft) === ""}>
-          {t("give.thread.send")}
-        </QuietButton>
-      </form>
-    </section>
-  );
+  return <AnswerThread chatKey={phase.chatKey} inbox={inbox} hand={hand} since={first?.at} testId={TID.give.thread} titleId="give-thread-title" />;
 }

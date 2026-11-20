@@ -1,8 +1,22 @@
-import { fromText, getHandFor, peekLink, readDescription, type LinkHead, type LinkOptions, type OpenedAddress } from "@ahand/sdk";
+import {
+  checkGiveOnChain,
+  fromText,
+  getHandFor,
+  isCoreRefusal,
+  isErc6492,
+  peekLink,
+  readDescription,
+  unwrap6492,
+  type AccountSetup,
+  type CoreRefusal,
+  type LinkHead,
+  type LinkOptions,
+  type OpenedAddress,
+} from "@ahand/sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { erc20Abi, isAddressEqual, type Address } from "viem";
 
-import { CLIENTS, clientOf, watcherOf } from "../../chain";
+import { CLIENTS, clientOf, useBlockRead, watcherOf } from "../../chain";
 import { config } from "../../config";
 import { dealDescriptionOf, type DealDescription } from "../../ui";
 import { failureOf, openHeld, type Failure, type Held, type Trusts } from "./held";
@@ -40,7 +54,8 @@ export type Opening =
    * started twice.
    */
   | { status: "unreachable"; failure: Failure; retry: () => void }
-  | { status: "failed"; failure: Failure };
+  /** A verdict on the link, or a failure of unknown cause; `retry` opens it once more (the screen offers it only when `canRetry`). */
+  | { status: "failed"; failure: Failure; retry: () => void };
 
 type Settled = { status: "checking" } | { status: "open"; opened: OpenedAddress } | { status: "unreachable"; failure: Failure } | { status: "failed"; failure: Failure };
 
@@ -51,7 +66,8 @@ type Settled = { status: "checking" } | { status: "open"; opened: OpenedAddress 
  *
  * A failure of the network is not a verdict (UX-SPEC §15): the status is "unreachable", the held
  * link is untouched, and each `retry` opens it again. While a later try runs, the status stays
- * "unreachable", so the screen does not flicker between the band and the skeleton.
+ * "unreachable", so the screen does not flicker between the band and the skeleton. A failure
+ * whose cause is unknown carries the same `retry`, for the reader's "Try again" (FINDINGS F2).
  */
 export function useOpening(held: Held | undefined): Opening | undefined {
   const key = held ? `${held.before}#${held.fragment}` : undefined;
@@ -85,7 +101,7 @@ export function useOpening(held: Held | undefined): Opening | undefined {
   }, []);
   if (!held) return undefined;
   const opening = state.key === key ? state.opening : { status: "checking" as const };
-  return opening.status === "unreachable" ? { ...opening, retry } : opening;
+  return opening.status === "unreachable" || opening.status === "failed" ? { ...opening, retry } : opening;
 }
 
 /** Asks the block watcher for the latest block now, without waiting for its next poll. */
@@ -140,4 +156,40 @@ export function useDecimals(token: Address | undefined, chainId: number = config
  */
 export function cardDescription(opened: OpenedAddress): DealDescription {
   return dealDescriptionOf(readDescription(opened));
+}
+
+/** The forwarder's setup for an account not deployed yet, as the thank screen and the flip ask Core (D-62). */
+export function setupOf(giverSig: `0x${string}`): AccountSetup | undefined {
+  if (!isErc6492(giverSig) || !config.forwarder) return undefined;
+  const wrapped = unwrap6492(giverSig);
+  return wrapped ? { forwarder: config.forwarder, factory: wrapped.factory, factoryData: wrapped.factoryData } : undefined;
+}
+
+export type GiveCheck = { status: "none" | "checking" | "ok" | "unknown" } | { status: "refused"; refusal: CoreRefusal };
+
+/**
+ * Core's own `checkGive` on a give link this tab holds, asked again on every block, as the
+ * helper's flip asks it (ui/GiveBack). "refused" carries Core's name; a network failure is
+ * "unknown" and changes nothing on the front (the offline line says it). FINDINGS H-5: the front
+ * must not tell holders to pass back, or the asker to open, an answer Core refuses.
+ */
+export function useGiveCheck(core: Address, opened: OpenedAddress | undefined): GiveCheck {
+  const signed = opened?.signedGive;
+  const key = opened && signed ? `give:${opened.head.chainId}:${core}:${opened.hand.handId}:${signed.keySig}:${signed.giverSig}` : undefined;
+  const read = useBlockRead(
+    key,
+    async (): Promise<GiveCheck> => {
+      try {
+        await checkGiveOnChain(clientOf(opened!.head.chainId), core, opened!.hand.handId, opened!.signedShakes, signed!, setupOf(signed!.giverSig));
+        return { status: "ok" };
+      } catch (error) {
+        if (isCoreRefusal(error)) return { status: "refused", refusal: error };
+        throw error;
+      }
+    },
+    opened?.head.chainId,
+  );
+  if (!key) return { status: "none" };
+  if (read.data) return read.data;
+  return read.error ? { status: "unknown" } : { status: "checking" };
 }

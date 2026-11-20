@@ -4,6 +4,8 @@ import { Resvg } from "@resvg/resvg-js";
 import satori from "satori";
 
 import { Lru } from "./lru.ts";
+import { visible } from "./bidi.ts";
+import { oneLine } from "./meta.ts";
 import { termsOf, type Preview } from "./preview.ts";
 import { WORDS, type Lang } from "./words.ts";
 
@@ -60,7 +62,10 @@ function marksOnce() {
 export interface CardModel {
   lang: Lang;
   dark: boolean;
-  /** The Hand's title, only when it matched the dataHash Core keeps. */
+  /**
+   * The Hand's title, only when it matched the dataHash Core keeps: the asker's words, drawn in
+   * quotes under a small "in the asker's words", cut to what three lines hold.
+   */
   title?: string;
   /** The terms line in three parts; the amount, if any, sits on the amber marker. */
   terms?: { before: string; amount?: string; after: string };
@@ -72,26 +77,37 @@ export interface CardModel {
 export function modelOf(preview: Preview, lang: Lang, dark: boolean): CardModel {
   if (preview.kind === "generic") return { lang, dark, closed: false };
   const words = WORDS[lang];
+  const title = preview.title === undefined ? "" : oneLine(drawable(preview.title), TITLE_MAX);
   return {
     lang,
     dark,
-    ...(preview.title && drawable(preview.title) ? { title: drawable(preview.title) } : {}),
+    ...(title ? { title } : {}),
     terms: words.terms(termsOf(preview, lang)),
     label: `HAND ${preview.handId} · CHAIN ${preview.chainId}`,
     closed: preview.state === "thanked" || preview.state === "refunded",
   };
 }
 
+/** The most characters of a title the card draws: three lines at the smallest size, with quotes. */
+const TITLE_MAX = 110;
+
+/** One pictograph with its modifiers and tags, and the pictographs a joiner ties to it. */
+const PICTOGRAPH =
+  /\p{Extended_Pictographic}[\uFE0E\uFE0F\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]*(?:\u200D\p{Extended_Pictographic}[\uFE0E\uFE0F\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]*)*/gu;
+
 /**
  * The title as the card can draw it. The card has no emoji font, and a missing glyph would draw
  * as an empty box, so pictographs (with their joiners, variation selectors and skin tones) are
  * left out of the picture only; og:title keeps the words exactly, and messengers draw emoji there.
+ * The card has no bidi either, so every direction control and invisible character left is drawn
+ * as a token (`visible`): the card reads the bytes in their order and cannot read differently
+ * from the app (early review H-2).
  */
 export function drawable(text: string): string {
-  return text
-    .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\u{1F3FB}-\u{1F3FF}\u200D\uFE0E\uFE0F\u20E3]/gu, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
+  const pictureless = text
+    .replace(PICTOGRAPH, "")
+    .replace(/[\p{Regional_Indicator}\u{1F3FB}-\u{1F3FF}\uFE0E\uFE0F\u20E3]/gu, "");
+  return visible(pictureless).replace(/[ \t]{2,}/g, " ").trim();
 }
 
 /**
@@ -119,7 +135,9 @@ function Card({ model }: { model: CardModel }) {
   const words = WORDS[lang];
   const fg = dark ? PAPER : INK;
   const bg = dark ? INK : PAPER;
-  const heading = title ?? words.genericTitle;
+  // The asker's title is a quote: marks around it and a small line over it say whose words they
+  // are; the terms under it are the chain's (early review E-8). It stays the largest type (§4, §11).
+  const heading = title ? `${words.openQuote}${title}${words.closeQuote}` : words.genericTitle;
   const markWidth = 64 * 2.56;
   return (
     <div
@@ -164,6 +182,20 @@ function Card({ model }: { model: CardModel }) {
           padding: "0 72px 28px",
         }}
       >
+        {title ? (
+          <div
+            style={{
+              display: "flex",
+              marginBottom: 12,
+              fontFamily: familyFor(words.askersWords),
+              fontSize: 24,
+              fontWeight: 700,
+              opacity: 0.6,
+            }}
+          >
+            {words.askersWords}
+          </div>
+        ) : null}
         <div
           style={{
             display: "block",

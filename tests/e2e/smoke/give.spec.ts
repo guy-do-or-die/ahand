@@ -179,6 +179,22 @@ test("a pasted payee and no wallet: a one-time key confirms, Core accepts, deliv
   await expect(thread.locator('[data-from="you"]').filter({ hasText: back })).toBeVisible();
   const both = craft<{ envelopes: { kind: string; text?: string }[] }>(["deliver-listen", "--n", String(hand.n), "--count", "2", "--wait", "8000"]);
   expect(both.envelopes.some((e) => e.kind === "note" && e.text === back)).toBe(true);
+
+  // After a reload the tab's link is gone (D-39), but the answer and its thread are on /my (FINDINGS R-4).
+  await page.reload();
+  await page.goto("/my");
+  const mine = page.locator(`[data-testid="my-answer-mine"][data-value="${address}"]`);
+  await expect(page.getByTestId("my-answers-mine")).toBeVisible({ timeout: 20_000 });
+  await expect(mine).toHaveAttribute("data-delivery", "delivered");
+  await expect(mine).toContainText(words);
+  const kept = mine.getByTestId("my-answer-thread");
+  await expect(kept.locator('[data-from="asker"]')).toContainText(answer, { timeout: 20_000 });
+  await expect(kept.locator('[data-from="you"]').filter({ hasText: back })).toBeVisible();
+
+  // The same link opened again: /give says this device already answered it.
+  await page.goto(hand.address);
+  await page.getByTestId("hand-help").click();
+  await expect(page.locator('[data-value="answered-before"]')).toBeVisible({ timeout: 20_000 });
 });
 
 test("dev account 4 as the wallet: it confirms and receives", async ({ page }) => {

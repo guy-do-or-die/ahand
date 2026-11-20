@@ -30,9 +30,10 @@ import { CLIENTS, clientOf, isNetworkError } from "../../chain";
 import { config } from "../../config";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
-import { ErrorBand, Mark, QuietButton, count, minute, percent, shortAddress, useLang, type Lang } from "../../ui";
 import { ccipReadIsHere } from "../../chain/ccip";
-import { agree, answerName, canStillThank, handNow, hereAnswer, stepKey, type CoreAnswer, type HandNow, type HereAnswer } from "./model";
+import { addressOf, openedLink } from "../../store/memory";
+import { ErrorBand, Mark, QuietButton, count, day, minute, percent, shortAddress, useLang, type Lang } from "../../ui";
+import { agree, answerName, canStillThank, coreSentences, handNow, hereAnswer, standingOf, stepKey, type CoreAnswer, type HandNow, type HereAnswer, type Standing } from "./model";
 import { readOffline, type OfflineReading, type OfflineWords } from "./offline";
 import { outsideLength, rulerOf, splitPasted, type Ruler } from "./ruler";
 import "./check.css";
@@ -51,10 +52,16 @@ import "./check.css";
  *    thanked". A thanked Hand's own answer is named as the one that was thanked.
  * A disagreement between columns 2 and 3 is a finding.
  *
+ * Core's two checks look at neither the expiry nor `closedAt`, so column 3 first says where the
+ * Hand stands at the latest block's time (thanked, refunded, time's up), and an accepted route on
+ * a Hand that is no longer open is called valid, never a payout.
+ *
  * Secret hygiene: the box is uncontrolled and is emptied the moment it is read, so the link is
  * never in the page's markup; the text is held in this component's memory only (for "Try again"
  * when the network was away), and nothing of it is rendered but lengths, what the link names
- * (chain, Hand number, passes) and, with no network, the parts the format keeps public.
+ * (chain, Hand number, passes) and, with no network, the parts the format keeps public. Reached
+ * with a link in this tab's memory (store/memory.ts, from a Hand view), the page checks that link
+ * at once, read from memory the same way: nothing is pasted, written to the address or stored.
  */
 
 const CANONICAL = config.cores.canonical ?? undefined;
@@ -76,7 +83,11 @@ type Here =
 type Core =
   | { state: "waiting" }
   | { state: "reading" }
-  | { state: "done"; answer: CoreAnswer; block: bigint; time: number; share?: number; now: HandNow; proofPath: string }
+  /**
+   * `now` is what the Hand is for what was pasted (the answer that was thanked, or another);
+   * `standing` is its state as column 3 says it first (none for a Hand that is not raised).
+   */
+  | { state: "done"; answer: CoreAnswer; block: bigint; time: number; share?: number; now: HandNow; standing?: { state: Standing; at?: number }; proofPath: string }
   /** The network could not be reached: Core was not asked. */
   | { state: "offline" }
   /** The read failed for another reason than the network or Core's own refusal. */
@@ -150,7 +161,7 @@ function RulerView({ measured }: { measured: Measured }) {
             <span className={`check-legend__swatch check-ruler__seg--${segment.kind}`} aria-hidden="true" />
             <span>{segment.kind === "shake" ? t("check.ruler.shake", { n: (segment.position ?? 0) + 1 }) : t(`check.ruler.${segment.kind}`)}</span>
             <span className="ah-meta ah-meta--exact">
-              {segment.start}–{segment.start + segment.length - 1} · {segment.length} B
+              {t("check.ruler.span", { from: segment.start, to: segment.start + segment.length - 1, n: segment.length })}
             </span>
           </li>
         ))}
@@ -266,15 +277,59 @@ function OfflineView({ reading, lang }: { reading: OfflineReading; lang: Lang })
   );
 }
 
-/** The sentence of the Hand's state, said for what was pasted and for what Core answered. */
-function nowSentence(core: Extract<Core, { state: "done" }>, lang: Lang): string {
+/* ─────────────────────────────────────────────────── column 3's sentences ── */
+
+/**
+ * The first sentence of the Hand itself: an open Hand's date and what this paste can still get
+ * (with no answer, the share the route leaves); a closed or ended Hand's state with its date, and
+ * on a closed one that the route is valid but pays nobody (coreSentences).
+ */
+function stateSentence(core: Extract<Core, { state: "done" }>, said: ReturnType<typeof coreSentences>, lang: Lang): string {
   const { now } = core;
   if (now.state === "open") {
     const date = minute(now.expiry, lang);
     if (core.answer.kind !== "accepted") return t("check.now.open.refused", { date });
     return core.share !== undefined ? t("check.now.open.route", { date, share: percent(core.share, lang) }) : t("check.now.open.give", { date });
   }
-  return t(`check.now.${now.state}`, { date: minute(now.state === "expired" ? now.expiry : now.closedAt, lang) });
+  const date = core.standing?.at !== undefined ? day(core.standing.at, lang) : "";
+  return said.state ? `${t(said.state, { date })}${said.valid ? ` ${t(said.valid)}` : ""}` : "";
+}
+
+/**
+ * Column 3 once Core has answered: first where the Hand stands at that block (hands(id) and
+ * thanks(id), whether the pasted answer is the one thanked, the passport of a closed Hand), then
+ * Core's own sentence, which on a Hand that is no longer open calls a route valid and nothing more.
+ * A Hand that is not raised has no standing: Core's own refusal says it.
+ */
+function CoreSaid({ core, give, lang }: { core: Extract<Core, { state: "done" }>; give: boolean; lang: Lang }) {
+  const said = coreSentences(core.standing?.state, core.answer, give);
+  const { now } = core;
+  const coreText = core.answer.kind === "refused" ? `${t(said.core)} ${t(`core.${core.answer.name}`)}` : t(said.core);
+  return (
+    <>
+      {core.standing ? (
+        <div className={`check-now ${canStillThank(now) ? "" : "check-now--over"}`} role="note" data-testid={TID.check.handNow} data-state={now.state} data-block={String(core.block)}>
+          <h3 className="check-part__title">{t("check.now.title")}</h3>
+          <p className="check-said__state m-0" data-testid={TID.check.handState} data-value={core.standing.state}>
+            {stateSentence(core, said, lang)}
+          </p>
+          {now.state === "thanked-this" || now.state === "thanked-other" ? <p className="m-0 font-bold">{t(`check.now.${now.state}`)}</p> : null}
+          {now.state === "open" || now.state === "expired" ? null : (
+            <a href={core.proofPath} className="ah-label inline-flex min-h-[44px] items-center self-start underline decoration-dashed underline-offset-4" data-testid={TID.check.passport}>
+              {t("check.now.passport")}
+            </a>
+          )}
+          <Mark kind="chain" source={t("check.lens.now", { block: count(core.block), time: minute(core.time, lang) })} />
+        </div>
+      ) : null}
+      <div className="flex flex-col items-start gap-2">
+        <p className="m-0 font-bold">{coreText}</p>
+        <span className="ah-meta ah-meta--exact">{answerName(core.answer, "accepted")}</span>
+        <Mark kind="chain" source={`${give ? "checkGive" : "checkRoute"} · eth_call · BLOCK ${count(core.block)}`} />
+        {core.answer.kind === "accepted" && !said.state ? <p className="ah-label ah-label--dim m-0 normal-case">{t("check.core.scope")}</p> : null}
+      </div>
+    </>
+  );
 }
 
 /* ──────────────────────────────────────────────────────────── the screen ── */
@@ -287,6 +342,7 @@ export default function CheckScreen() {
   const [core, setCore] = useState<Core>({ state: "waiting" });
   const [shown, setShown] = useState(0);
   const [failure, setFailure] = useState<string | undefined>();
+  const [fromMemory, setFromMemory] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const run = useRef(0);
   /** The last text checked, kept in memory only, so "Try again" works once the network is back. */
@@ -379,8 +435,9 @@ export default function CheckScreen() {
     tick(steps.length);
 
     // 3. Core's own answer by eth_call, and the Hand itself, all at one block: the latest, whose
-    //    timestamp is the network's clock. checkRoute and checkGive do not look at whether the Hand
-    //    is closed or past its time; hands(id) and thanks(id) say that.
+    //    timestamp is the network's clock, never this device's. checkRoute and checkGive do not
+    //    look at whether the Hand is closed or past its time; hands(id) and thanks(id) say that,
+    //    and the screen says it before Core's sentence.
     setCore({ state: "reading" });
     const { chainId, core: address, handId } = opened.head;
     try {
@@ -402,7 +459,8 @@ export default function CheckScreen() {
           return { answer: { kind: "refused", name: refusal.name, ...(refusal.position === undefined ? {} : { position: refusal.position }) } };
         }
       };
-      const [{ view }, thank, { answer, share }] = await Promise.all([readHand(at, address, handId), readThank(at, address, handId), asked()]);
+      const [read, thank, { answer, share }] = await Promise.all([readHand(at, address, handId), readThank(at, address, handId), asked()]);
+      const { view } = read;
       if (!current()) return;
       const now = handNow({
         closedAt: view.closedAt,
@@ -411,13 +469,26 @@ export default function CheckScreen() {
         now: tip.timestamp,
         ...(opened.signedGive ? { pastedGiveHash: giveHash(opened.hand, opened.signedGive.give) } : {}),
       });
+      const standing = standingOf(read.stateAt(tip.timestamp), view);
       const canonical = CANONICAL !== undefined && isAddressEqual(CANONICAL, address);
       const proofPath = canonical ? `/${chainId}/${handId}/proof` : `/${chainId}/${address.toLowerCase()}/${handId}/proof`;
-      setCore({ state: "done", answer, block: tip.number, time: tip.timestamp, ...(share === undefined ? {} : { share }), now, proofPath });
+      setCore({ state: "done", answer, block: tip.number, time: tip.timestamp, ...(share === undefined ? {} : { share }), now, ...(standing ? { standing } : {}), proofPath });
     } catch (error) {
       if (current()) setCore({ state: isNetworkError(error) ? "offline" : "failed" });
     }
   }
+
+  // Reached with a link in this tab's memory (a Hand view's "Check this link in detail"): check it
+  // at once, without a paste. The text goes from memory to `check` and nowhere else.
+  useEffect(() => {
+    const held = openedLink();
+    const text = held ? addressOf(held) : undefined;
+    if (!text) return;
+    setFromMemory(true);
+    last.current = text; // "Try again" reads it from memory too
+    void check(text);
+    // once, on arrival
+  }, []);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -427,6 +498,7 @@ export default function CheckScreen() {
     field.value = ""; // the link leaves the box at once: it lives in this component's memory only
     if (text.trim() === "") return;
     last.current = text;
+    setFromMemory(false);
     void check(text);
   };
 
@@ -469,7 +541,7 @@ export default function CheckScreen() {
           <QuietButton type="submit" data-testid={TID.check.run}>
             {measured || failure ? t("check.another") : t("check.run")}
           </QuietButton>
-          {measured || failure ? <span className="ah-label ah-label--dim normal-case">{t("check.cleared")}</span> : null}
+          {measured || failure ? <span className="ah-label ah-label--dim normal-case">{fromMemory ? t("check.fromMemory") : t("check.cleared")}</span> : null}
         </div>
         <p className="ah-label m-0 normal-case">{t("check.privacy")}</p>
       </form>
@@ -527,36 +599,9 @@ export default function CheckScreen() {
             {core.state === "skipped" ? <p className="check-unchecked m-0">{t("check.core.skipped")}</p> : null}
             {core.state === "failed" ? <ErrorBand what={t(UNKNOWN)} kept={t("check.error.kept")} /> : null}
             {core.state === "done" ? (
-              <>
-                <div className="flex flex-col items-start gap-2">
-                  <p className="m-0 font-bold">
-                    {core.answer.kind === "accepted"
-                      ? doneHere?.opened.signedGive
-                        ? t("check.core.accepted.give")
-                        : t("check.core.accepted.route")
-                      : `${t("check.core.refused")} ${t(`core.${core.answer.name}`)}`}
-                  </p>
-                  <span className="ah-meta ah-meta--exact">{answerName(core.answer, "accepted")}</span>
-                  <Mark kind="chain" source={`${doneHere?.opened.signedGive ? "checkGive" : "checkRoute"} · eth_call · BLOCK ${count(core.block)}`} />
-                  {core.answer.kind === "accepted" ? <p className="ah-label ah-label--dim m-0 normal-case">{t("check.core.scope")}</p> : null}
-                </div>
-                <div
-                  className={`check-now ${canStillThank(core.now) ? "" : "check-now--over"}`}
-                  role="note"
-                  data-testid={TID.check.handNow}
-                  data-state={core.now.state}
-                  data-block={String(core.block)}
-                >
-                  <h3 className="check-part__title">{t("check.now.title")}</h3>
-                  <p className="m-0 font-bold">{nowSentence(core, lang)}</p>
-                  {core.now.state === "open" || core.now.state === "expired" ? null : (
-                    <a href={core.proofPath} className="ah-label inline-flex min-h-[44px] items-center self-start underline decoration-dashed underline-offset-4" data-testid={TID.check.passport}>
-                      {t("check.now.passport")}
-                    </a>
-                  )}
-                  <Mark kind="chain" source={t("check.lens.now", { block: count(core.block), time: minute(core.time, lang) })} />
-                </div>
-              </>
+              <div className="flex flex-col items-start gap-2">
+                <CoreSaid core={core} give={Boolean(doneHere?.opened.signedGive)} lang={lang} />
+              </div>
             ) : null}
           </section>
         </div>

@@ -99,7 +99,7 @@ export function confirmWithAccount(account: { signTypedData: (typed: GiveTyped) 
 }
 
 /** What the connected wallet answered: its signature, or why there is none. */
-export type WalletAnswer = { ok: true; signature: Hex } | { ok: false; reason: "rejected" | "no-wallet" | "failed"; message?: string };
+export type WalletAnswer = { ok: true; signature: Hex } | { ok: false; reason: "rejected" | "no-wallet" | "wrong-network" | "failed"; message?: string };
 
 /**
  * The connected wallet confirms. Its answer is brought to the form Core takes by the SDK's own

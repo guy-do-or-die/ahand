@@ -5,7 +5,7 @@ const en = {
   "hand.title": "A hand.",
   "hand.helpNote": "The asker decides whether to thank. If they don't by {date}, the reward goes back to them.",
   "hand.helpNote.noReward": "The asker decides whether to thank. If they don't by {date}, the hand closes.",
-  "hand.handsSoFar": "{n, plural, one {# hand so far.} other {# hands so far.}}",
+  "hand.soFar": "{n, plural, =0 {So far only the asker.} other {So far: the asker and # more.}}",
   "hand.passesLeft": "Room for {n, plural, one {# more pass} other {# more passes}}.",
   "hand.passesNone": "This route can't go further. You can still help.",
   "hand.noLink": "To pass it on or help, open the link you were sent.",
@@ -14,8 +14,6 @@ const en = {
   "hand.toStart": "To the start",
   "hand.addressed": "This link shows a route that ends at an address. It can't be passed on or answered from here.",
 
-  "hand.offline.kept": "Your link is still here.",
-  "hand.offline.retry": "Try again",
   "hand.offline.auto": "Trying again on its own every few seconds.",
 
   "hand.closed": "This hand is closed.",
@@ -43,6 +41,8 @@ const en = {
 
   "hand.timesUp": "Time's up. Anyone can send the reward back to the asker now.",
   "hand.timesUp.noReward": "Time's up. Anyone can close this hand now.",
+  "hand.sendBack.title": "Send the reward back",
+  "hand.sendBack.title.noReward": "Close this hand",
   "hand.sendBack.noReward": "Close this hand",
   "hand.sendBack.needs": "Any connected account can do it. The reward goes back to the asker, whoever presses.",
   "hand.sendBack.cannot": "This account can't send anything yet. Connect another one.",
@@ -59,6 +59,30 @@ const en = {
   "hand.lens.statements": "Added by a holder, not the asker",
   "hand.lens.statementAt": "Pass {n}",
   "hand.lens.statementGive": "The answer",
+
+  // The network, while the page shows a Hand (FINDINGS E-5, F2): said instead of "open".
+  "hand.offline": "Can't reach the network right now. This was read at block {n} and may have changed.",
+  "hand.offline.opening": "Can't reach the network right now. Your link is still open in this tab; nothing was sent.",
+  "hand.retry": "Try again",
+
+  // The way to the Hand's own proof (FINDINGS E-6).
+  "hand.proofLink": "See the proof →",
+  "hand.checkLink": "Check this link in detail →",
+
+  // The labels the app writes over an error, in mono (FINDINGS F10). Core's own names stay as written.
+  "hand.code.network": "NETWORK",
+  "hand.code.error": "ERROR",
+  "hand.code.untrusted": "UNTRUSTED · CHAIN {chain} · CORE {core}",
+  "hand.code.noCanonical": "NO MAIN CONTRACT",
+  "hand.code.belowMinClaim": "LINK · INVALID · BELOWMINCLAIM",
+  "hand.code.link.malformed": "LINK · MALFORMED",
+  "hand.code.link.unsupported": "LINK · UNSUPPORTED",
+  "hand.code.link.non-canonical": "LINK · NON-CANONICAL",
+  "hand.code.link.too-long": "LINK · TOO-LONG",
+  "hand.code.link.another-hand": "LINK · ANOTHER-HAND",
+  "hand.code.link.not-this-hand": "LINK · NOT-THIS-HAND",
+  "hand.code.link.invalid": "LINK · INVALID",
+  "hand.code.link.unmatched-data": "LINK · UNMATCHED-DATA",
 };
 
 export default en;

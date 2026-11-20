@@ -1,10 +1,12 @@
-import { useId, useState, type ReactNode } from "react";
+import { Fragment, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Address } from "viem";
 
 import { clsx } from "../lib/clsx";
+import { TID } from "../testids";
 import { Ambient, useLang, useLens, type Lang } from "./ambient";
-import { count, day, inBothZones, minute, money, percent, unitsText } from "./format";
+import { atLeast, count, day, inBothZones, minute, money, moneyExact, percent, unitsText } from "./format";
 import { Identity } from "./Identity";
+import { amountsIn, readAskerWords, type MentionedAmount, type WordsReading } from "./judge";
 import { Mark } from "./Mark";
 import { RewardBar } from "./RewardBar";
 import { useWords } from "./words";
@@ -56,7 +58,10 @@ export interface DealCardProps {
    * `minClaimBps`) is labelled as the floor they set.
    */
   viewer?: "holder" | "asker";
-  /** The raiser's address. Left out (the raise screen's preview, before any account) the "Asked by" row is not drawn. */
+  /**
+   * `hands(id).raiser`. Absent only on /raise's preview before an account is connected: the row
+   * then says the address comes once one is, never a zero address (F5).
+   */
   raiser?: Address;
   /** A name proved for the raiser's address (ENS both ways); the card still says "Someone". */
   raiserName?: string;
@@ -72,6 +77,11 @@ export interface DealCardProps {
   lang?: Lang;
   /** Dates are written in the reader's time zone; a fixed one is for tests and prints. */
   timeZone?: string;
+  /**
+   * The screen says itself, right under the card, that the network is out of reach (the Hand
+   * view's line with the block it last read), so the card leaves out its own shorter one.
+   */
+  offlineSaid?: boolean;
   /** "h1" where the card is the page's own heading (the Hand view). */
   heading?: "h1" | "h2";
   /** What follows the state line: the receipt of a thanked Hand, for one. */
@@ -85,6 +95,12 @@ export interface DealCardProps {
  * thanked, what you keep if you pass it on, and that the reward goes back if nobody is
  * thanked. Each figure opens to its source: the reward and the dates to Core's own fields, the
  * floor to its sum.
+ *
+ * The title and details are the asker's own words, which Core does not check (E-8). They are
+ * labelled so, drawn isolated from the card's own text (H-2), with hidden characters shown as
+ * tokens and look-alikes marked, clamped behind "Read all" so the terms Core backs stay on the
+ * first screen (H-4), and any amount they mention that differs from the reward is said beside
+ * them. The words themselves are never altered: this is display only.
  */
 export function DealCard(props: DealCardProps) {
   if (props.lang === undefined) return <Card {...props} />;
@@ -95,11 +111,12 @@ export function DealCard(props: DealCardProps) {
   );
 }
 
-function Card({ state, description, reward, decimals, expiry, closedAt, claimBps, viewer = "holder", raiser, raiserName, handId, block, timeZone, heading = "h2", children, className }: DealCardProps) {
+function Card({ state, description, reward, decimals, expiry, closedAt, claimBps, viewer = "holder", raiser, raiserName, handId, block, timeZone, offlineSaid, heading = "h2", children, className }: DealCardProps) {
   const lang = useLang();
   const lens = useLens();
   const words = useWords().deal;
-  const asker = viewer === "asker" ? words.asker : undefined;
+  // The words the asker reads on their own screens (viewer "asker"); undefined for anyone else.
+  const own = viewer === "asker" ? words.asker : undefined;
   const titleId = useId();
   const rewardId = useId();
   const expiryId = useId();
@@ -110,11 +127,20 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
   const [closedOpen, setClosedOpen] = useState(false);
   const [floorOpen, setFloorOpen] = useState(false);
   const Heading = heading;
+  const attached = description.status === "attached" ? description : undefined;
+  // The asker's words as drawn: read once, for the words and for the note on what they hide.
+  const asker = useMemo(
+    () => (attached ? { title: readAskerWords(attached.title), content: attached.content ? readAskerWords(attached.content) : undefined } : undefined),
+    [attached?.title, attached?.content],
+  );
+  const found = asker ? [...new Set([...asker.title.found, ...(asker.content?.found ?? [])])] : [];
 
   const funded = reward > 0n;
-  const until = day(expiry, lang, timeZone);
+  // "29 Jan" stays on one line: a date cut from its month reads as two facts.
+  const until = day(expiry, lang, timeZone).replace(" ", "\u00a0");
   const closedOn = closedAt ? day(closedAt, lang, timeZone) : until;
-  const floor = claimBps !== undefined ? (reward * BigInt(claimBps)) / 10_000n : undefined;
+  // Core rounds every pass's share down and leaves the dust to the helper: the least is the ceiling (M-1).
+  const floor = claimBps !== undefined ? atLeast(reward, claimBps) : undefined;
   // Only a Hand with a number was read from the chain; a preview has no source to open.
   const onChain = handId !== undefined;
   const showReward = onChain && (lens || rewardOpen);
@@ -128,8 +154,10 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
   const closedSentence = state === "thanked" ? around(words.thanked) : state === "refunded" ? around(funded ? words.refunded : words.closed) : undefined;
   const blockLine = block ? `${words.block} ${count(block.number)}` : undefined;
   const amount = money(reward, decimals, lang);
-  const floorText = floor === undefined ? "" : asker ? asker.floor(money(floor, decimals, lang), percent(claimBps ?? 0, lang)) : words.atLeast(money(floor, decimals, lang));
-  const ifHelp = asker ? asker.ifHelp : words.ifHelp;
+  // The least a helper gets: every digit below a cent (floorAmount), said as the floor the asker set on their own screens.
+  const floorMoney = floor === undefined ? "" : floorAmount(floor, decimals, lang);
+  const floorText = floor === undefined ? "" : own ? own.floor(floorMoney, percent(claimBps ?? 0, lang)) : words.atLeast(floorMoney);
+  const ifHelp = own ? own.ifHelp : words.ifHelp;
 
   return (
     <article className={clsx("ah-deal", className)} aria-labelledby={titleId} data-state={state ?? "unknown"} data-funded={funded} data-viewer={viewer}>
@@ -138,23 +166,23 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
           ✋
         </span>
         <div className="min-w-0 flex-1">
-          {description.status === "attached" ? (
-            <>
-              <p className="ah-deal__intro">{asker ? asker.intro : words.intro}</p>
-              <Heading id={titleId} className="ah-deal__title">
-                {description.title}
-              </Heading>
-              {description.content ? <p className="ah-deal__content">{description.content}</p> : null}
-            </>
+          {description.status === "attached" && asker ? (
+            <AskerWords title={description.title} content={description.content} reading={asker} titleId={titleId} heading={Heading} intro={own ? own.intro : words.intro} label={own ? own.wordsLabel : words.wordsLabel} />
           ) : (
             <Heading id={titleId} className="ah-deal__title">
-              {asker ? asker.bare : words.bare}
+              {own ? own.bare : words.bare}
             </Heading>
           )}
         </div>
       </div>
 
       {description.status === "lost" ? <p className="ah-note">{words.lost}</p> : null}
+      {found.length > 0 ? (
+        <p className="ah-asker__flag" data-testid={TID.kit.dealHiddenChars} data-value={found.join(" ")}>
+          {words.hiddenChars}
+        </p>
+      ) : null}
+      {description.status === "attached" ? <AmountFlag title={description.title} content={description.content} reward={reward} decimals={decimals} /> : null}
 
       <div className="ah-stack">
         <p className="ah-deal__money">
@@ -218,7 +246,7 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
       {state === "expired" ? (
         <div className="ah-stack">
           <p className="ah-deal__state">{words.timeUp}</p>
-          <p className="ah-label">{funded ? (asker ? asker.sendBack : words.sendBack) : words.closeNow}</p>
+          <p className="ah-label">{funded ? (own ? own.sendBack : words.sendBack) : words.closeNow}</p>
         </div>
       ) : null}
       {closedSentence ? (
@@ -243,7 +271,7 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
           ) : null}
         </div>
       ) : null}
-      {state === undefined ? <p className="ah-note">{words.noClock}</p> : null}
+      {state === undefined && !offlineSaid ? <p className="ah-note">{words.noClock}</p> : null}
 
       {state === "open" ? (
         <dl className="ah-deal__rows">
@@ -256,10 +284,10 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
                 </button>
                 {showFloor ? (
                   <div id={floorId} className="ah-evidence">
-                    <span className="ah-label">{asker ? asker.floorWhy : words.floorWhy}</span>
-                    <span className="ah-meta ah-meta--exact">reward × claimBps / 10 000</span>
+                    <span className="ah-label">{own ? own.floorWhy : words.floorWhy}</span>
+                    <span className="ah-meta ah-meta--exact">⌈reward × claimBps / 10 000⌉</span>
                     <span className="ah-meta ah-meta--exact">
-                      {unitsText(reward, decimals)} × {claimBps} / 10 000 = {unitsText(floor, decimals)}
+                      ⌈{unitsText(reward, decimals)} × {claimBps} / 10 000⌉ = {unitsText(floor, decimals)}
                     </span>
                     <Mark kind="checked" />
                   </div>
@@ -268,24 +296,22 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
             </div>
           ) : null}
           <div className="ah-deal__row">
-            <dt>{asker ? asker.ifPass : words.ifPass}</dt>
-            <dd>{funded ? (asker ? asker.keepShare : words.keepShare) : words.passFree}</dd>
+            <dt>{own ? own.ifPass : words.ifPass}</dt>
+            <dd>{funded ? (own ? own.keepShare : words.keepShare) : words.passFree}</dd>
           </div>
           <div className="ah-deal__row">
-            <dt>{asker ? asker.ifNobody(until) : words.ifNobody(until)}</dt>
-            <dd>{funded ? (asker ? asker.goesBack : words.goesBack) : words.closes}</dd>
+            <dt>{own ? own.ifNobody(until) : words.ifNobody(until)}</dt>
+            <dd>{funded ? (own ? own.goesBack : words.goesBack) : words.closes}</dd>
           </div>
         </dl>
       ) : null}
 
       {children}
 
-      {raiser ? (
-        <div className="ah-deal__foot">
-          <span className="ah-label">{asker ? asker.askedBy : words.askedBy}</span>
-          <Identity address={raiser} name={raiserName} />
-        </div>
-      ) : null}
+      <div className="ah-deal__foot" data-raiser={raiser ? "known" : "later"}>
+        <span className="ah-label">{own ? own.askedBy : words.askedBy}</span>
+        {raiser ? <Identity address={raiser} name={raiserName} /> : <span className="ah-label">{words.askedByLater}</span>}
+      </div>
       {lens && block ? (
         <p className="ah-meta">
           {words.networkTime} · {blockLine} · {minute(block.timestamp, lang, timeZone)}
@@ -325,4 +351,139 @@ function DateSource({ id, field, handId, seconds, timeZone, children }: { id: st
       {children}
     </div>
   );
+}
+
+// ── The asker's words ───────────────────────────────────────────────────
+
+/**
+ * The asker's text, shown and never altered: isolated from the text around it (`<bdi>`, so a
+ * direction control inside cannot turn the card's own words), with each invisible or
+ * direction-changing character drawn as a small token such as ⟨RLO⟩ in place of the character
+ * itself, and look-alike words and digits marked. For any screen that shows an asker's words.
+ */
+export function AskerText({ text, reading, block = false }: { text: string; reading?: WordsReading; block?: boolean }) {
+  const words = useWords().deal;
+  const read = useMemo(() => reading ?? readAskerWords(text), [reading, text]);
+  return (
+    <bdi dir="auto" className="ah-asker__text">
+      {read.pieces.map((piece, index) => {
+        if (piece.kind === "text") return <Fragment key={index}>{piece.text}</Fragment>;
+        if (piece.kind === "hidden") {
+          const breaks = block && (piece.name === "LS" || piece.name === "PS");
+          return (
+            <span key={index}>
+              <span
+                className={clsx("ah-hidden", piece.direction && "ah-hidden--direction")}
+                title={words.hiddenToken(piece.name)}
+                data-char={`U+${piece.char.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}`}
+              >
+                ⟨{piece.name}⟩
+              </span>
+              {breaks ? "\n" : null}
+            </span>
+          );
+        }
+        return (
+          <span key={index} className="ah-odd" data-why={piece.why} title={piece.why === "compat" ? words.compat : words.mixedScript}>
+            {piece.text}
+          </span>
+        );
+      })}
+    </bdi>
+  );
+}
+
+/** Title and details: labelled as the asker's, clamped to a few lines until "Read all". */
+function AskerWords({
+  title,
+  content,
+  reading,
+  titleId,
+  heading: Heading,
+  intro,
+  label,
+}: {
+  title: string;
+  content?: string;
+  reading: { title: WordsReading; content?: WordsReading | undefined };
+  titleId: string;
+  heading: "h1" | "h2";
+  /** The line over the words: the holder's, or the asker's own on their screens. */
+  intro: string;
+  /** Whose words these are, and that nobody checked them. */
+  label: string;
+}) {
+  const words = useWords().deal;
+  const titleRead = reading.title;
+  const contentRead = reading.content;
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const contentRef = useRef<HTMLParagraphElement>(null);
+  const wordsId = useId();
+
+  // Whether the clamp hides anything: measured, so "Read all" shows only when there is more.
+  useLayoutEffect(() => {
+    if (open) return;
+    const measure = () => {
+      // A clamp hides at least one whole line; a few pixels more are the glyphs' own overhang.
+      const cut = [titleRef.current, contentRef.current].some((node) => !!node && node.scrollHeight - node.clientHeight > 8);
+      setLong(cut);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    for (const node of [titleRef.current, contentRef.current]) if (node) observer.observe(node);
+    void document.fonts?.ready.then(measure);
+    return () => observer.disconnect();
+  }, [open, title, content]);
+
+  return (
+    <div className="ah-asker" id={wordsId} data-open={open ? "true" : "false"}>
+      <p className="ah-asker__label" data-testid={TID.kit.dealWordsLabel}>
+        {label}
+      </p>
+      <p className="ah-deal__intro">{intro}</p>
+      <Heading id={titleId} ref={titleRef} className={clsx("ah-deal__title", !open && "ah-clamp ah-clamp--title")}>
+        <AskerText text={title} reading={titleRead} />
+      </Heading>
+      {content && contentRead ? (
+        <p ref={contentRef} className={clsx("ah-deal__content", !open && "ah-clamp ah-clamp--content")}>
+          <AskerText text={content} reading={contentRead} block />
+        </p>
+      ) : null}
+      {long || open ? (
+        <button type="button" className="ah-asker__more" aria-expanded={open} aria-controls={wordsId} data-testid={TID.kit.dealReadAll} onClick={() => setOpen(!open)}>
+          {open ? words.readLess : words.readAll}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Amounts the words mention that are not the reward Core holds, said beside the words (E-8). */
+function AmountFlag({ title, content, reward, decimals }: { title: string; content?: string; reward: bigint; decimals: number }) {
+  const lang = useLang();
+  const words = useWords().deal;
+  const differing = useMemo(() => {
+    const all: MentionedAmount[] = [...amountsIn(title, decimals), ...(content ? amountsIn(content, decimals) : [])];
+    const seen = new Set<bigint>();
+    return all.filter((found) => found.amount !== reward && !seen.has(found.amount) && seen.add(found.amount));
+  }, [title, content, reward, decimals]);
+  if (differing.length === 0) return null;
+  const shown = differing.slice(0, 3).map((found) => money(found.amount, decimals, lang));
+  const list = new Intl.ListFormat(lang === "ru" ? "ru" : "en", { type: "conjunction" }).format(shown);
+  return (
+    <p className="ah-asker__flag ah-asker__flag--amount" data-testid={TID.kit.dealAmountFlag} data-value={differing.map((found) => unitsText(found.amount, decimals)).join(" ")}>
+      {reward > 0n ? words.amountFlag(list, money(reward, decimals, lang)) : words.amountFlagNone(list)}
+    </p>
+  );
+}
+
+/**
+ * The least a helper gets, as the card says it: cents when it is a cent or more (cut down, so
+ * still a floor), every digit below a cent, never "at least under $0.01" (M-1).
+ */
+function floorAmount(floor: bigint, decimals: number, lang: Lang): string {
+  return floor > 0n && floor * 100n < 10n ** BigInt(decimals) ? moneyExact(floor, decimals, lang) : money(floor, decimals, lang);
 }

@@ -68,7 +68,7 @@ function Failed({ failure }: { failure: Failure }) {
   return (
     <div className="mx-auto flex max-w-[620px] flex-col gap-4" data-testid={TID.pass.error} data-value={failure.id}>
       <h1 className="m-0 text-[length:var(--fs-title-m)] font-extrabold leading-[1.06] tracking-[-0.03em]">{t("pass.title")}</h1>
-      <ErrorBand what={t(failure.id)} code={failure.code} />
+      <ErrorBand what={t(failure.id)} code={failure.label ? t(failure.label.id, failure.label.values) : failure.code} />
     </div>
   );
 }
@@ -235,7 +235,7 @@ function Pass({ opened, onRetry }: { opened: OpenedAddress; onRetry: () => void 
         ) : null}
         {failure ? (
           <div data-testid={TID.pass.error} data-value={failure.id}>
-            <ErrorBand what={t(failure.id)} code={failure.code} />
+            <ErrorBand what={t(failure.id)} code={failure.label ? t(failure.label.id, failure.label.values) : failure.code} />
           </div>
         ) : null}
         <p className="ah-label ah-label--dim m-0">{t("common.tabOnly")}</p>
@@ -268,7 +268,6 @@ function MadeView({ made, decimals, reward }: { made: Made; decimals: number; re
   const lang = useLang();
   const [qr, setQr] = useState(false);
   const { readBack } = made;
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const see = () => {
     const path = pathOf(made.address.slice(0, made.address.indexOf("#")));
     if (made.shape === "bare" || !path) navigate("/", { state: { view: "hand" } });
@@ -281,11 +280,6 @@ function MadeView({ made, decimals, reward }: { made: Made; decimals: number; re
         <CopyRow value={made.address} />
       </div>
       <div className="flex flex-wrap gap-3">
-        {canShare ? (
-          <QuietButton data-testid={TID.pass.share} onClick={() => void navigator.share({ text: made.address }).catch(() => undefined)}>
-            {t("common.word.share")}
-          </QuietButton>
-        ) : null}
         <QuietButton data-testid={TID.pass.qr} aria-expanded={qr} onClick={() => setQr(!qr)}>
           {t("common.word.showQr")}
         </QuietButton>

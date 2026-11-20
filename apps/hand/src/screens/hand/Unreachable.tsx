@@ -8,8 +8,9 @@ import { retryWhileVisible } from "./held";
 /**
  * The network can't be reached (UX-SPEC §15, §10 "RPC off"): the place of the Deal card stays as
  * its outline, and a band says what happened and what was not lost. Nothing here is a verdict on
- * the link. With a link held in this tab, the band says it is still here, and the line under it
- * says why not to reload: the address bar no longer carries it.
+ * the link. With a link held in this tab, the band says it is still open here and nothing was sent
+ * (FINDINGS F2), and the line under it says why not to reload: the address bar no longer carries
+ * it. The label is NETWORK in the reader's language; viem's class name is never shown.
  *
  * `retry` reads again without asking for the link: on the button, and (as `auto`, the same
  * unless another is given) every few seconds on its own while the tab is visible, and at once
@@ -18,7 +19,7 @@ import { retryWhileVisible } from "./held";
 export function Unreachable({ retry, auto = retry, held, heading }: { retry: () => void; auto?: () => void; held: boolean; heading?: string }) {
   useEffect(() => retryWhileVisible(auto, document), [auto]);
   return (
-    <div className="mx-auto flex w-full max-w-[620px] flex-col gap-4" data-testid={TID.hand.unreachable} data-held={held}>
+    <div className="mx-auto flex w-full max-w-[620px] flex-col gap-4" data-testid={TID.hand.unreachable} data-held={held} data-code="NETWORK">
       <h1 className={heading ? "m-0 text-[length:var(--fs-title-m)] font-extrabold leading-[1.06] tracking-[-0.03em]" : "sr-only"}>{heading ?? t("hand.title")}</h1>
       <div className="ah-card ah-card--lg flex flex-col gap-4 p-6" aria-hidden="true">
         <span className="text-[44px] leading-none opacity-30">✋</span>
@@ -27,12 +28,11 @@ export function Unreachable({ retry, auto = retry, held, heading }: { retry: () 
         <span className="h-4 w-2/5 rounded-[var(--r-bar)] bg-[var(--ink-a10)]" />
       </div>
       <ErrorBand
-        what={t("common.time.offline")}
-        {...(held ? { kept: t("hand.offline.kept") } : {})}
-        code="NETWORK"
+        what={t(held ? "hand.offline.opening" : "common.time.offline")}
+        code={t("hand.code.network")}
         action={
           <QuietButton compact data-testid={TID.hand.retry} onClick={retry}>
-            {t("hand.offline.retry")}
+            {t("hand.retry")}
           </QuietButton>
         }
       />

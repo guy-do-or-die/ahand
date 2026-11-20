@@ -121,6 +121,37 @@
 .ah-print-receipt__head {
   margin: 0;
 }
+/* Its head: what it is, what was asked, how and when it closed, and who asked. */
+.ah-print-receipt__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+}
+.ah-print-receipt__title {
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.ah-print-receipt__question {
+  margin: 0;
+  font-size: 11pt;
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ah-print-receipt__when {
+  margin: 0;
+  font-size: 10pt;
+  font-weight: 700;
+}
+.ah-print-receipt__asker {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 8pt;
+  overflow-wrap: anywhere;
+}
 .ah-print-receipt__foot {
   display: flex;
   flex-wrap: wrap;
@@ -210,5 +241,17 @@
   }
   .ah-print-sheet .ah-marker {
     background: none;
+  }
+  /* Paper does not turn over: no dashed "tap me" foot under a row's label. */
+  .ah-print-sheet .ah-receipt__what {
+    text-decoration: none;
+  }
+  /* The helper's amount loses its amber chip on paper, and with it the chip's padding, so its
+     last digit stands in the same column as every other amount. */
+  .ah-print-sheet .ah-receipt__amount--chip {
+    background: none;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
   }
 }

@@ -3,11 +3,13 @@ import { useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { useHand, useNow } from "../../chain";
+import { config } from "../../config";
 import { t } from "../../i18n";
 import { navigate } from "../../router";
 import { handKey, type HandRecord } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
+import { proofPathOf } from "../hand/held";
 import { CopyRow, DealCard, dealDescriptionOf, Mark, QuietButton, shortAddress, useLens, type DealDescription } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
 import { AnswerCard } from "./Answer";
@@ -88,6 +90,13 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
       ) : (
         <Line>{t("common.loading")}</Line>
       )}
+
+      {view && core ? (
+        // The Hand's passport, where its record and receipt check themselves (UX-SPEC §10.1, FINDINGS E-6).
+        <a href={proofPathOf(chainId, core, handId, config.cores.canonical)} className="ah-label inline-flex min-h-[44px] items-center self-start font-bold" data-testid={TID.my.proofLink}>
+          {t("hand.proofLink")}
+        </a>
+      ) : null}
 
       {view && wantsCare(state, left) ? (
         <a href={`/care/${chainId}/${handId}`} className="ah-alert no-underline" data-testid={TID.my.careBand}>

@@ -8,7 +8,7 @@ import { t } from "../../i18n";
 import { navigate } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, ErrorBand, Mark, QuietButton, count, day, money, shortAddress, useLang, type Lang } from "../../ui";
+import { CopyRow, Disclose, ErrorBand, Mark, QuietButton, count, day, money, moneyExact, receiptAmounts, shortAddress, useLang, type Lang } from "../../ui";
 import { reproduceLine } from "../core/facts";
 import {
   amountOfCheck,
@@ -18,6 +18,7 @@ import {
   markOf,
   notCheckableKeyOf,
   payeeOfCheck,
+  payoutRowsOf,
   positionOf,
   sectionsOf,
   sentenceKeyOf,
@@ -71,18 +72,34 @@ function coreOf(params: ScreenProps["params"]): Address | undefined {
   return config.cores.canonical ?? undefined;
 }
 
-function amountText(record: HandRecord, amount: bigint, lang: Lang): string {
-  const token = config.tokens.find((entry) => isAddressEqual(entry.address, record.view.token));
-  return token ? money(amount, token.decimals, lang) : `${count(amount)}`;
+function decimalsOf(record: HandRecord): number | undefined {
+  return config.tokens.find((entry) => isAddressEqual(entry.address, record.view.token))?.decimals;
 }
 
-function sentenceOf(check: Check, record: HandRecord, lang: Lang): string {
+/**
+ * Whether the passport writes every digit: when the payout rows cut to cents would not add up
+ * to their total, or a row is below a cent, as the receipt decides it (M-4).
+ */
+function exactOf(checks: readonly Check[], record: HandRecord, lang: Lang): boolean {
+  const decimals = decimalsOf(record);
+  if (decimals === undefined) return false;
+  const rows = payoutRowsOf(checks);
+  return receiptAmounts(rows, rows.reduce((sum, amount) => sum + amount, 0n), decimals, lang).exact;
+}
+
+function amountText(record: HandRecord, amount: bigint, lang: Lang, exact: boolean): string {
+  const decimals = decimalsOf(record);
+  if (decimals === undefined) return `${count(amount)}`;
+  return exact ? moneyExact(amount, decimals, lang) : money(amount, decimals, lang);
+}
+
+function sentenceOf(check: Check, record: HandRecord, lang: Lang, exact: boolean): string {
   const position = positionOf(check.id);
   const amount = amountOfCheck(check);
   const payee = payeeOfCheck(check);
   return t(sentenceKeyOf(check), {
     n: position === undefined ? "" : String(position + 1),
-    amount: amount === undefined ? "" : amountText(record, amount, lang),
+    amount: amount === undefined ? "" : amountText(record, amount, lang, exact),
     who: payee ? shortAddress(payee) : "",
   });
 }
@@ -208,7 +225,7 @@ function SentLine({ sent, record, refunded, shown, lang }: { sent: Sent | undefi
 
 /* ─────────────────────────────────────────────────────────────── a line ── */
 
-function Line({ check, record, facts, section, shown, lang }: { check: Check; record: HandRecord; facts: PageFacts | undefined; section: number; shown: boolean; lang: Lang }) {
+function Line({ check, record, facts, section, shown, lang, exact }: { check: Check; record: HandRecord; facts: PageFacts | undefined; section: number; shown: boolean; lang: Lang; exact: boolean }) {
   const verdict = verdictOf(check);
   const mark = markOf(check);
   const source = sourceLine(check.source);
@@ -225,7 +242,7 @@ function Line({ check, record, facts, section, shown, lang }: { check: Check; re
       data-mark={mark}
       aria-busy={!shown}
     >
-      <p className="proof-line__sentence">{sentenceOf(check, record, lang)}</p>
+      <p className="proof-line__sentence">{sentenceOf(check, record, lang, exact)}</p>
       {askerHop ? (
         <p className="ah-note m-0" data-testid={TID.proof.askerHop} data-value={check.id}>
           {t(askerHop)}
@@ -277,7 +294,7 @@ function Line({ check, record, facts, section, shown, lang }: { check: Check; re
             <div className="proof-move" data-testid={TID.proof.move} data-found={String(move !== undefined)} data-log={move ? move.logIndex : ""} data-to={move?.to ?? ""} data-amount={move ? String(move.amount) : ""}>
               {move ? (
                 <>
-                  <p className="m-0">{t("proof.move", { amount: amountText(record, move.amount, lang), who: shortAddress(move.to) })}</p>
+                  <p className="m-0">{t("proof.move", { amount: amountText(record, move.amount, lang, exact), who: shortAddress(move.to) })}</p>
                   <span className="ah-meta ah-meta--exact break-all">{t("proof.lens.move", { token: move.token, to: move.to, amount: String(move.amount), index: move.logIndex })}</span>
                 </>
               ) : (
@@ -396,7 +413,7 @@ export default function ProofScreen({ params }: ScreenProps) {
         <h1 className="m-0 text-[length:var(--fs-title-m)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title)]">{t("proof.title")}</h1>
         <p className="m-0 text-[length:var(--fs-body-lg)] leading-snug">{t("proof.intro", { hand: params.hand ?? "" })}</p>
         <p className="ah-meta m-0 break-all">
-          CHAIN {chainId} · CORE {core ? shortAddress(core) : "—"} · HAND {params.hand}
+          {t("proof.meta", { chain: chainId, core: core ? shortAddress(core) : "—", hand: params.hand ?? "" })}
           {load.phase === "ready" ? ` · ${t("proof.readAt", { block: count(load.record.block) })}` : ""}
         </p>
       </header>
@@ -455,6 +472,7 @@ function Passport({
   // The line about how the closing was sent opens the part that holds the payouts.
   const sentIn = record.closingTx ? (refunded ? "back" : "payouts") : undefined;
   const tally = tallyOf(checks);
+  const exact = exactOf(checks, record, lang);
   const done = shown >= checks.length;
   const commit = config.deployment?.commit || undefined;
   const rpc = config.chain.rpcUrls[0];
@@ -486,7 +504,7 @@ function Passport({
               {section.key === sentIn ? <SentLine sent={facts?.sent} record={record} refunded={refunded} shown={ordinal < shown} lang={lang} /> : null}
               {section.checks.map((check) => {
                 ordinal += 1;
-                return <Line key={check.id} check={check} record={record} facts={facts} section={section.index} shown={ordinal <= shown} lang={lang} />;
+                return <Line key={check.id} check={check} record={record} facts={facts} section={section.index} shown={ordinal <= shown} lang={lang} exact={exact} />;
               })}
             </ul>
           </li>

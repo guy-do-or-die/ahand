@@ -18,28 +18,28 @@ interface Row {
   key: string;
   /** Listed under "Left for the owner" in DECISIONS.md. */
   owner?: boolean;
-  /** The setting itself, in mono: exact data from this build. */
-  value: string;
+  /** The setting itself, in mono: exact data from this build, or the catalogue key that says it. */
+  value: string | { key: string };
 }
 
 const { defaults, prices } = config;
 
 const ROWS: readonly Row[] = [
-  { number: "D-21", key: "d21", owner: true, value: "GIVE · ONE-TIME KEY OR NEW ADDRESS · NO KEY KEPT" },
+  { number: "D-21", key: "d21", owner: true, value: { key: "d21" } },
   { number: "D-26", key: "d26a", owner: true, value: `minClaimBps = ${defaults.minClaimBps}` },
-  { number: "D-26", key: "d26b", owner: true, value: `expiry = block time + ${defaults.expiryDays} d` },
+  { number: "D-26", key: "d26b", owner: true, value: { key: "d26b" } },
   { number: "D-26", key: "d26c", owner: true, value: `payoutGasK = ${defaults.payoutGasK}` },
   { number: "D-27", key: "d27", value: config.tokens.map((token) => `${token.symbol} ${shortAddress(token.address)}`).join(" · ") },
-  { number: "D-31", key: "d31", value: "SHARE AT · IN A BLOCK" },
-  { number: "D-32", key: "d32", value: "MODE = UNLISTED" },
-  { number: "D-37", key: "d37", value: "ASKER = SOMEONE" },
-  { number: "D-39", key: "d39", value: "FRAGMENT · READ ONCE · REPLACESTATE" },
-  { number: "D-40", key: "d40", value: config.relays.length ? `NIP-17 · ${config.relays.join(" · ")}` : "NIP-17 · NO RELAY CONFIGURED" },
+  { number: "D-31", key: "d31", value: { key: "d31" } },
+  { number: "D-32", key: "d32", value: { key: "d32" } },
+  { number: "D-37", key: "d37", value: { key: "d37" } },
+  { number: "D-39", key: "d39", value: { key: "d39" } },
+  { number: "D-40", key: "d40", value: config.relays.length ? `NIP-17 · ${config.relays.join(" · ")}` : { key: "d40none" } },
   { number: "D-49", key: "d49", value: `${prices.date} · ETH $${prices.ethUsd} · BASE ${prices.base.gwei} GWEI · ETHEREUM ${prices.ethereum.gwei} GWEI` },
-  { number: "D-61", key: "d61", value: "NOW = LATEST BLOCK · EXPIRY_MARGIN = 10 MIN" },
-  { number: "D-62", key: "d62", owner: true, value: config.forwarder ? `forwarder = ${config.forwarder}` : "forwarder = NONE" },
-  { number: "D-63", key: "d63", owner: true, value: "AES-GCM · NON-EXTRACTABLE DEVICE KEY · UNTIL SAVED" },
-  { number: "D-66", key: "d66", owner: true, value: "reward = 0 ALLOWED" },
+  { number: "D-61", key: "d61", value: { key: "d61" } },
+  { number: "D-62", key: "d62", owner: true, value: config.forwarder ? `forwarder = ${config.forwarder}` : { key: "d62none" } },
+  { number: "D-63", key: "d63", owner: true, value: { key: "d63" } },
+  { number: "D-66", key: "d66", owner: true, value: { key: "d66" } },
 ];
 
 export default function DefaultsScreen() {
@@ -73,7 +73,7 @@ export default function DefaultsScreen() {
             </div>
             <h2 className="m-0 text-[length:var(--fs-card-title)] font-extrabold leading-[1.15] tracking-[-0.015em]">{t(`defaults.${row.key}.title`, values)}</h2>
             <p className="m-0 text-[length:var(--fs-body-md)] leading-[1.45]">{t(`defaults.${row.key}.body`, values)}</p>
-            <p className="ah-meta ah-meta--exact m-0">{row.value}</p>
+            <p className="ah-meta ah-meta--exact m-0">{typeof row.value === "string" ? row.value : t(`defaults.value.${row.value.key}`, values)}</p>
             <p className="m-0 border-t border-dashed border-[color:var(--ink-a30)] pt-2 text-[length:var(--fs-body-xs)] font-semibold">{t("defaults.chosen")}</p>
           </li>
         ))}

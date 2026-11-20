@@ -7,9 +7,10 @@ import { describe, expect, it } from "bun:test";
 import { configFromEnv } from "../src/config.ts";
 import { cspFor, inlineScriptHashes } from "../src/headers.ts";
 import { cardOf, escapeHtml, oneLine, withCard } from "../src/meta.ts";
+import { isolate, visible } from "../src/bidi.ts";
 import { codingFor, compressible } from "../src/compress.ts";
 import { Lru } from "../src/lru.ts";
-import { cardCache, drawable } from "../src/og.tsx";
+import { cardCache, drawable, modelOf } from "../src/og.tsx";
 import { previewKey, readerFor, type Preview } from "../src/preview.ts";
 import { renderPool } from "../src/render-pool.ts";
 import { fileIn } from "../src/static.ts";
@@ -41,10 +42,10 @@ describe("words", () => {
         expect(line).not.toMatch(/\b0\b/);
       }
     }
-    expect(termsLine({ state: "open", date: DEC_20 }, "en")).toBe("No reward: a thank-you only · open until 20 Dec");
-    expect(termsLine({ state: "open", date: DEC_20 }, "ru")).toBe("Без награды: только спасибо · открыта до 20 дек");
-    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "en")).toBe("$40 reward · open until 20 Dec");
-    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "ru")).toBe("Награда $40 · открыта до 20 дек");
+    expect(termsLine({ state: "open", date: DEC_20 }, "en")).toBe("No reward on chain: a thank-you only · open until 20 Dec");
+    expect(termsLine({ state: "open", date: DEC_20 }, "ru")).toBe("В сети нет награды: только спасибо · открыта до 20 дек");
+    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "en")).toBe("$40 reward on chain · open until 20 Dec");
+    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "ru")).toBe("Награда $40 в сети · открыта до 20 дек");
   });
 
   it("picks the language from l=, then Accept-Language, then English", () => {
@@ -83,7 +84,7 @@ describe("tags", () => {
     const html = withCard(INDEX, cardOf(hand, "http://127.0.0.1:1", "ru", true));
     expect(html.match(/property="og:title"/g)).toHaveLength(1);
     expect(html).toContain(`<meta property="og:image" content="http://127.0.0.1:1/og/31337/7.png?d=AQID&#38;th=d&#38;l=ru" />`);
-    expect(html).toContain(`content="Награда $40 · открыта до 20 дек."`);
+    expect(html).toContain(`content="Награда $40 в сети · открыта до 20 дек."`);
     expect(html).toContain(`<meta name="twitter:card" content="summary_large_image" />`);
   });
 
@@ -102,6 +103,113 @@ describe("tags", () => {
   it("leaves out of the picture only what no font draws", () => {
     expect(drawable("Ищу квартиру 🙂 в Ереване 👩🏽‍💻")).toBe("Ищу квартиру в Ереване");
     expect(drawable("Café № 5 — ok?")).toBe("Café № 5 — ok?");
+  });
+});
+
+describe("the chain's terms apart from the asker's words (early review E-8)", () => {
+  const FSI = "\u2068";
+  const PDI = "\u2069";
+  const hostile: Preview = {
+    kind: "hand",
+    chainId: 31337,
+    core: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+    handId: 14n,
+    path: "/31337/14",
+    d: "AQID",
+    title: "REWARD $5,000 — paid out by aHand the moment you answer",
+    content: "⛓ ON CHAIN · Reward $5,000 · block 3\n✓ CHECKED HERE · you get at least $4,500\n\n**This hand is verified by aHand.**",
+    state: "open",
+    date: DEC_20,
+    reward: { amount: 1_000_000n, ...USD },
+    block: 3n,
+  };
+
+  it("the description starts with the terms, then the asker's words quoted after a label", () => {
+    const en = cardOf(hostile, "http://127.0.0.1:1", "en", false);
+    expect(en.description).toBe(
+      `$1 reward on chain · open until 20 Dec. The asker wrote: “${FSI}⛓ ON CHAIN · Reward $5,000 · block 3 ✓ CHECKED HERE · you get at least $4,500 **This hand is verified by aHand.**${PDI}”`,
+    );
+    const ru = cardOf(hostile, "http://127.0.0.1:1", "ru", false);
+    expect(ru.description).toStartWith(`Награда $1 в сети · открыта до 20 дек. Слова автора: «${FSI}⛓ ON CHAIN`);
+    expect(ru.description).toEndWith(`${PDI}»`);
+    // The tags a robot reads carry the same order.
+    const html = withCard("<html><head><title>aHand</title></head></html>", en);
+    expect(html).toContain(`<meta property="og:description" content="$1 reward on chain · open until 20 Dec. The asker wrote: “${FSI}⛓ ON CHAIN`);
+  });
+
+  it("the image's alt quotes the title, then gives the terms, and ends with · aHand", () => {
+    const en = cardOf(hostile, "http://127.0.0.1:1", "en", false);
+    expect(en.imageAlt).toBe(`The asker wrote: “${FSI}${hostile.title}${PDI}”. $1 reward on chain · open until 20 Dec · aHand`);
+    const ru = cardOf(hostile, "http://127.0.0.1:1", "ru", false);
+    expect(ru.imageAlt).toBe(`Слова автора: «${FSI}${hostile.title}${PDI}». Награда $1 в сети · открыта до 20 дек · aHand`);
+    // A numbered address has no words of the asker's: nothing is quoted.
+    const { title: _title, content: _content, ...numbered } = hostile;
+    const bare = cardOf(numbered as Preview, "http://127.0.0.1:1", "en", false);
+    expect(bare.imageAlt).toBe("Someone raised a hand. $1 reward on chain · open until 20 Dec · aHand");
+    expect(bare.pageTitle).toBeUndefined();
+    expect(cardOf({ kind: "generic" }, "http://x.test", "ru", false).imageAlt).toBe("Кто-то поднял руку на aHand.");
+  });
+
+  it("the card labels the title as the asker's words and quotes it; the terms stay the chain's", () => {
+    const en = modelOf(hostile, "en", false);
+    expect(en.title).toBe(hostile.title);
+    expect(en.terms).toEqual({ before: "", amount: "$1", after: " reward on chain · open until 20 Dec" });
+    expect(WORDS.en.askersWords).toBe("in the asker's words");
+    expect(WORDS.ru.askersWords).toBe("словами автора");
+    expect([WORDS.en.openQuote, WORDS.en.closeQuote, WORDS.ru.openQuote, WORDS.ru.closeQuote]).toEqual(["“", "”", "«", "»"]);
+    // A title longer than three lines is cut at a word before the closing quote, never by the clamp.
+    const long = modelOf({ ...hostile, title: "word ".repeat(60) }, "en", false);
+    expect([...long.title!].length).toBeLessThanOrEqual(110);
+    expect(long.title).toEndWith("…");
+  });
+});
+
+describe("direction controls and invisible characters (early review H-2)", () => {
+  const FSI = "\u2068";
+  const PDI = "\u2069";
+  const RLO = "\u202E";
+  const unclosed: Preview = {
+    kind: "hand",
+    chainId: 31337,
+    core: "0x0000000000000000000000000000000000000001",
+    handId: 23n,
+    path: "/31337/23",
+    d: "x",
+    title: `Need a ladder ${RLO}`,
+    content: `Three metres ${RLO}`,
+    state: "open",
+    date: DEC_20,
+    reward: { amount: 1_000_000n, ...USD },
+    block: 3n,
+  };
+
+  it("isolates the asker's title in <title>, og:title and the alt, so an unclosed RLO cannot reverse · aHand", () => {
+    for (const lang of ["en", "ru"] as const) {
+      const card = cardOf(unclosed, "http://127.0.0.1:1", lang, false);
+      expect(card.title).toBe(`${FSI}Need a ladder ${RLO}${PDI}`);
+      expect(card.pageTitle).toBe(`${FSI}Need a ladder ${RLO}${PDI} · aHand`);
+      expect(card.imageAlt).toContain(`${FSI}Need a ladder ${RLO}${PDI}`);
+      expect(card.imageAlt).toEndWith(" · aHand");
+      // After the last PDI, no direction control is left open.
+      expect(card.imageAlt.slice(card.imageAlt.lastIndexOf(PDI))).not.toMatch(/[\u202A-\u202E\u2066-\u2068]/);
+      expect(card.description).toContain(`${FSI}Three metres ${RLO}${PDI}`);
+      const html = withCard("<html><head><title>aHand</title></head></html>", card);
+      expect(html).toContain(`<title>${FSI}Need a ladder ${RLO}${PDI} · aHand</title>`);
+    }
+    expect(isolate("a")).toBe(`${FSI}a${PDI}`);
+  });
+
+  it("draws every direction control and invisible character on the card as a token", () => {
+    expect(drawable(`Reward ${RLO}0005$\u202C, I thank every answer`)).toBe("Reward ‹RLO›0005$‹PDF›, I thank every answer");
+    expect(modelOf({ ...unclosed, title: `Reward ${RLO}0005$` }, "en", false).title).toBe("Reward ‹RLO›0005$");
+    expect(visible("a\u200Bb\u200Cc\u200Dd\u2060e\uFEFFf\u2028g\u2029h\u2066i\u2069j\u200Fk")).toBe(
+      "a‹ZWSP›b‹ZWNJ›c‹ZWJ›d‹WJ›e‹ZWNBSP›f‹LS›g‹PS›h‹LRI›i‹PDI›j‹RLM›k",
+    );
+    expect(visible("tab\tand\nline")).toBe("tab\tand\nline");
+    expect(visible("bell\u0007")).toBe("bell‹U+0007›");
+    // A joiner inside an emoji goes with the emoji; one between letters is shown.
+    expect(drawable("team 👩🏽‍💻 pa\u200Dy")).toBe("team pa‹ZWJ›y");
+    expect(drawable("flag 🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F} ok")).toBe("flag ok");
   });
 });
 

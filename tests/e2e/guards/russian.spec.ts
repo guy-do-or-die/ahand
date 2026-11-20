@@ -93,7 +93,7 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   await expect(asker.locator("html")).toHaveAttribute("lang", "ru");
   await expect(asker.getByTestId("shell-main")).toContainText("Кого или что ищешь?");
   await expect(asker.getByTestId("raise-swipe")).toContainText("Поднять руку");
-  await expect(asker.getByTestId("raise-issuer-line")).toContainText("может заморозить адрес — тогда эти деньги ждут.");
+  await expect(asker.getByTestId("raise-issuer-line")).toContainText("может заморозить адрес — тогда деньги подождут в контракте.");
   await compose(asker, { title: "Кто одолжит палатку на выходные?", details: "На двоих, верну в понедельник.", reward: "20" });
   await noEnglish(asker, "/raise");
   await swipe(asker, 1);
@@ -136,7 +136,7 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   await helper.getByTestId("give-words").fill("У меня есть палатка на двоих, могу привезти в пятницу.");
   await helper.getByRole("button", { name: "Подключить кошелёк" }).click();
   await pickDevAccount(helper, 4);
-  await expect(helper.getByTestId("give-swipe")).toContainText("Отправить помощь");
+  await expect(helper.getByTestId("give-swipe")).toContainText("Отправить ответ");
   await helper.getByTestId("give-swipe").click();
   await expect(helper.getByTestId("give-delivered")).toHaveText("Доставлено на 1 из 1 реле.", { timeout: 30_000 });
   await noEnglish(helper, "/give, delivered");

@@ -104,3 +104,17 @@ export async function quietDevServer(context: BrowserContext, site: string): Pro
 export function getLogsCount(seen: readonly Seen[]): number {
   return seen.reduce((sum, item) => sum + item.methods.filter((method) => method === "eth_getLogs").length, 0);
 }
+
+/**
+ * Makes every JSON-RPC request of this page fail as a refused connection (FINDINGS E-5, F2), as
+ * the network would when it is down. Returns the undo: the network is back.
+ */
+export async function cutRpc(page: Page, rpc: string): Promise<() => Promise<void>> {
+  const refuse = (route: import("@playwright/test").Route) => route.abort("connectionrefused");
+  await page.route(`${rpc}/**`, refuse);
+  await page.route(rpc, refuse);
+  return async () => {
+    await page.unroute(`${rpc}/**`, refuse);
+    await page.unroute(rpc, refuse);
+  };
+}

@@ -68,7 +68,7 @@ function Clocks() {
   );
 }
 
-type Asked = { ok: true; answers: [TypedAnswer, TypedAnswer] } | { ok: false; reason: "rejected" | "failed" | "no-wallet"; message?: string };
+type Asked = { ok: true; answers: [TypedAnswer, TypedAnswer] } | { ok: false; reason: "rejected" | "failed" | "no-wallet" | "wrong-network"; message?: string };
 
 function Sign() {
   const wallet = useWallet();
@@ -123,7 +123,15 @@ function Sign() {
         </div>
       ) : null}
       {asked && !asked.ok ? (
-        <ErrorBand what={asked.reason === "rejected" ? t("dev-wallet.sign.refused") : t("dev-wallet.sign.failed", { message: asked.message ?? asked.reason })} />
+        <ErrorBand
+          what={
+            asked.reason === "rejected"
+              ? t("dev-wallet.sign.refused")
+              : asked.reason === "wrong-network"
+                ? t("common.error.wrongNetwork", { network: config.chain.name })
+                : t("dev-wallet.sign.failed", { message: asked.message ?? asked.reason })
+          }
+        />
       ) : null}
     </Section>
   );

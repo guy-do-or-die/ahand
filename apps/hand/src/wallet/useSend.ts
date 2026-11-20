@@ -5,7 +5,7 @@ import type { Hex } from "viem";
 import { config as app } from "../config";
 import type { Reached } from "../chain/finality";
 import { clientOf, watcherOf } from "../chain/hooks";
-import { resume as resumeIntent, sendCalls, type Intent, type SendEnv, type SendOptions, type SendProgress, type SendResult } from "./send";
+import { resume as resumeIntent, sendCalls, type Intent, type Probe, type SendEnv, type SendOptions, type SendProgress, type SendResult } from "./send";
 import { connectedWallet, switchToAppChain } from "./state";
 
 /**
@@ -19,6 +19,9 @@ import { connectedWallet, switchToAppChain } from "./state";
  *
  * The send resolves when the last step is in a block (its receipt is in `result.receipt`); the
  * state goes on to Final by itself. Leaving the screen stops the following, never the action.
+ * A result "unknown" (the wallet's answer may have come after the transaction left) is settled by
+ * `resume(result.intent, { probe })`, which reads the account's nonce and the action's effect and
+ * sends nothing; `useKeptSend` does that, and keeps the intent on the device across a reload.
  */
 
 export interface SendState {
@@ -38,9 +41,9 @@ const IDLE: SendState = { phase: "idle", step: 0, of: 0, atomic: false };
 
 export interface UseSend {
   state: SendState;
-  send(calls: readonly Call[], options?: Pick<SendOptions, "onIntent" | "between">): Promise<SendResult>;
-  /** Watches a stored intent; sends nothing. */
-  resume(intent: Intent, options?: Pick<SendOptions, "onIntent">): Promise<SendResult>;
+  send(calls: readonly Call[], options?: Pick<SendOptions, "onIntent" | "between" | "steps">): Promise<SendResult>;
+  /** Watches a stored intent, or settles an "unknown" one by its nonce and `probe`; sends nothing. */
+  resume(intent: Intent, options?: Pick<SendOptions, "onIntent"> & { probe?: Probe }): Promise<SendResult>;
   reset(): void;
 }
 
@@ -90,8 +93,9 @@ export function useSend(): UseSend {
       let wallet = await connectedWallet();
       if (!wallet) return finish({ ok: false, reason: "needs-wallet", step: 0, sent: [], message: "no wallet is connected" });
       if ((await wallet.getChainId().catch(() => undefined)) !== app.chain.id) {
-        if (!(await switchToAppChain())) return finish({ ok: false, reason: "error", step: 0, sent: [], message: "the wallet is on another network" });
+        if (!(await switchToAppChain())) return finish({ ok: false, reason: "wrong-network", step: 0, sent: [] });
         wallet = (await connectedWallet()) ?? wallet;
+        if ((await wallet.getChainId().catch(() => undefined)) !== app.chain.id) return finish({ ok: false, reason: "wrong-network", step: 0, sent: [] });
       }
       return finish(await sendCalls(env, wallet, calls, { ...options, onProgress }));
     },
@@ -101,8 +105,8 @@ export function useSend(): UseSend {
   const resume = useCallback<UseSend["resume"]>(
     async (intent, options = {}) => {
       const env = begin();
-      setState({ ...IDLE, phase: "watching", of: intent.of, atomic: intent.kind === "batch", reached: "sent", ...(intent.hash ? { hash: intent.hash } : {}) });
-      const wallet = intent.kind === "batch" && !intent.hash ? await connectedWallet() : undefined;
+      setState({ ...IDLE, phase: "watching", step: intent.kind === "tx" ? intent.step : 0, of: intent.of, atomic: intent.kind === "batch", reached: "sent", ...(intent.hash ? { hash: intent.hash } : {}) });
+      const wallet = intent.kind === "batch" && !intent.hash && intent.id ? await connectedWallet() : undefined;
       return finish(await resumeIntent(env, intent, { ...options, onProgress, ...(wallet ? { wallet } : {}) }));
     },
     [begin, finish, onProgress],

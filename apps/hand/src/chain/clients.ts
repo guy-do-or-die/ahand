@@ -21,11 +21,25 @@ export function chainOf(chain: ChainConfig): Chain {
   });
 }
 
+/** How each request of a transport is tried: viem's default is 10 s and three retries. */
+export interface TransportTiming {
+  timeout?: number;
+  retryCount?: number;
+}
+
+/**
+ * The block watcher's timing (FINDINGS E-5): one read of the latest block gets 4 s and one retry.
+ * With viem's defaults (10 s, three retries) an RPC that hangs was noticed only after about 40 s,
+ * and the Hand view went on saying "open" all that time.
+ */
+export const WATCH_TIMING: Required<TransportTiming> = { timeout: 4_000, retryCount: 1 };
+
 /** The RPC transport: the first URL, the others as fallbacks in order. */
-export function transportOf(chain: ChainConfig): Transport {
+export function transportOf(chain: ChainConfig, timing: TransportTiming = {}): Transport {
   const [first, ...rest] = chain.rpcUrls;
   if (!first) throw new Error("a chain needs at least one RPC URL");
-  return rest.length === 0 ? http(first) : fallback([http(first), ...rest.map((url) => http(url))]);
+  const one = (url: string) => http(url, timing);
+  return rest.length === 0 ? one(first) : fallback([one(first), ...rest.map(one)], timing.retryCount === undefined ? {} : { retryCount: timing.retryCount });
 }
 
 /**
@@ -33,8 +47,13 @@ export function transportOf(chain: ChainConfig): Transport {
  * helper (./ccip.ts), so the helper ships with the chain layer and a failed call on any screen
  * never asks the site for one more file; with the helper present the setting is viem's default.
  */
-export function publicClientOf(chain: ChainConfig): PublicClient {
-  return createPublicClient({ chain: chainOf(chain), transport: transportOf(chain), pollingInterval: chain.blockTimeMs, ...(ccipReadIsHere ? {} : { ccipRead: false }) }) as PublicClient;
+export function publicClientOf(chain: ChainConfig, timing: TransportTiming = {}): PublicClient {
+  return createPublicClient({ chain: chainOf(chain), transport: transportOf(chain, timing), pollingInterval: chain.blockTimeMs, ...(ccipReadIsHere ? {} : { ccipRead: false }) }) as PublicClient;
+}
+
+/** The block watcher's own client: the same RPC, with WATCH_TIMING, so a dead network shows within seconds. */
+export function watchClientOf(chain: ChainConfig): PublicClient {
+  return publicClientOf(chain, WATCH_TIMING);
 }
 
 /** One client per chain id, for the SDK's `getHandFor`. */

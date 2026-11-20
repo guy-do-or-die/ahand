@@ -22,7 +22,7 @@ const en = {
   "landing.honest": "Thanking is voluntary: the asker decides.",
   "landing.limits": "What it can't promise",
 
-  "landing.open.title": "Open a link",
+  "landing.open.title": "Got a link? Paste it",
   "landing.open.hint": "Paste an address, a link, or the digits under a QR code.",
   "landing.open.go": "Open",
   "landing.open.empty": "Paste an address or a link first.",

@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { openAddress, toAddress, type AddressShape, type OpenedAddress } from "../src/address.js";
 import { dataHashOf } from "../src/data.js";
+import * as Sdk from "../src/index.js";
 import {
+  DescriptionTooLarge,
+  PUBLIC_DATA_MAX_BYTES,
   STATEMENT,
   canReshape,
   carryFor,
@@ -111,6 +114,67 @@ describe("describeHand", () => {
     const bare = describeHand({ mode: "unlisted", title, content: "", salt });
     expect(bare.inside!.texts).toEqual([]);
     expect(bare.inside!.statements![0].map(({ name }) => name)).toEqual([STATEMENT.salt]);
+  });
+});
+
+describe("the size of a public description (early review E-7)", () => {
+  /** The longest details, in ASCII letters, that a public description with this title still takes. */
+  function longestPublic(): number {
+    let low = 0;
+    let high = 2 * PUBLIC_DATA_MAX_BYTES;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      try {
+        describeHand({ mode: "public", title, content: "a".repeat(mid), inbox });
+        low = mid;
+      } catch {
+        high = mid - 1;
+      }
+    }
+    return low;
+  }
+
+  it("is exported from the SDK's entry with an 8 KiB limit on d", () => {
+    expect(PUBLIC_DATA_MAX_BYTES).toBe(8192);
+    expect(Sdk.PUBLIC_DATA_MAX_BYTES).toBe(8192);
+    expect(Sdk.DescriptionTooLarge).toBe(DescriptionTooLarge);
+  });
+
+  it("a public description at the limit is written; its d takes at most 8192 characters", async () => {
+    const n = longestPublic();
+    // 8192 characters of base64url are 6144 bytes: the texts, the list and their framing.
+    expect(n).toBeGreaterThan(5_900);
+    expect(n).toBeLessThan(6_144);
+    const { address } = await raise("public", { content: "a".repeat(n) });
+    const d = address.split("#")[0]!.split("?d=")[1]!;
+    expect(d.length).toBeLessThanOrEqual(PUBLIC_DATA_MAX_BYTES);
+    expect(d.length).toBeGreaterThan(PUBLIC_DATA_MAX_BYTES - 4);
+  });
+
+  it("one more byte of words throws DescriptionTooLarge with the size of d and the limit", () => {
+    const n = longestPublic();
+    let thrown: unknown;
+    try {
+      describeHand({ mode: "public", title, content: "a".repeat(n + 1), inbox });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(DescriptionTooLarge);
+    const tooLarge = thrown as DescriptionTooLarge;
+    expect(tooLarge.name).toBe("DescriptionTooLarge");
+    expect(tooLarge.max).toBe(PUBLIC_DATA_MAX_BYTES);
+    expect(tooLarge.bytes).toBeGreaterThan(PUBLIC_DATA_MAX_BYTES);
+    expect(tooLarge.bytes).toBeLessThanOrEqual(PUBLIC_DATA_MAX_BYTES + 2);
+  });
+
+  it("counts bytes, not letters: 4,200 Cyrillic letters (8.4 kB) are refused in public", () => {
+    expect(() => describeHand({ mode: "public", title, content: "ж".repeat(4_200) })).toThrow(DescriptionTooLarge);
+  });
+
+  it("unlisted and dark carry the same 50 kB of details: they ride after #", () => {
+    const huge = "a".repeat(50_000);
+    expect(describeHand({ mode: "unlisted", title, content: huge, salt }).inside!.texts).toEqual([huge]);
+    expect(describeHand({ mode: "dark", title, content: huge, salt }).inside!.texts).toEqual([title, huge]);
   });
 });
 

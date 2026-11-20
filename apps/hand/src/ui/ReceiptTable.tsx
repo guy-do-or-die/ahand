@@ -6,7 +6,8 @@ import { useLang, type Lang } from "./ambient";
 import { Flip, useTwistWords, type TwistWords } from "./Flip";
 import { count, money, shortAddress } from "./format";
 import { Mark } from "./Mark";
-import { lineLanded, receiptLines, type ReceiptLine } from "./receipt";
+import { Exact } from "./ShakeBack";
+import { lineLanded, receiptAmounts, receiptLines, type ReceiptLine } from "./receipt";
 import { Sweep, useSweep, type SweepState } from "./Sweep";
 import { useWords, type Words } from "./words";
 import { TID } from "../testids";
@@ -50,6 +51,13 @@ export function ReceiptTable({ rows, landed, decimals, caption, className }: Rec
   const twist = useTwistWords();
   const lang = useLang();
   const { lines, total } = receiptLines(rows);
+  // Cut to cents when the rows still add up to the total; every digit when they would not (M-4).
+  const written = receiptAmounts(
+    lines.map((line) => line.amount ?? 0n),
+    total,
+    decimals,
+    lang,
+  );
   const sweep = useSweep(landed ? lines.map((line) => lineLanded(line, landed)) : undefined);
   if (lines.length === 0) return null;
 
@@ -60,7 +68,8 @@ export function ReceiptTable({ rows, landed, decimals, caption, className }: Rec
         {lines.map((line, index) => {
           const read = lineLanded(line, landed);
           const helper = line.kind === "helped";
-          const amount = line.amount !== undefined && line.amount > 0n ? money(line.amount, decimals, lang, { cents: true }) : undefined;
+          // A row with no payout is said in words, the same words everywhere: "kept nothing" (M-4).
+          const amount = line.amount !== undefined && line.amount > 0n ? written.rows[index] : undefined;
           const what = label(line, words);
           // Core logs a pass that kept nothing with the zero address as its payee: nobody to name.
           const payee = line.payee && line.payee !== zeroAddress ? line.payee : undefined;
@@ -119,7 +128,7 @@ export function ReceiptTable({ rows, landed, decimals, caption, className }: Rec
         <tfoot>
           <tr>
             <th scope="row">{words.receipt.total}</th>
-            <td>{money(total, decimals, lang, { cents: true })}</td>
+            <td data-exact={written.exact ? "true" : undefined}>{written.total}</td>
           </tr>
         </tfoot>
       ) : null}
@@ -159,7 +168,7 @@ function RowBack({ line, rows, total, decimals, lang, words }: { line: ReceiptLi
             <li key={at} data-testid={TID.twist.event} data-value={row.eventName} data-block={row.log.blockNumber.toString()} data-tx={row.log.transactionHash}>
               <span className="ah-back__line">{words.row.eventLine(row.eventName, count(row.log.blockNumber), row.log.logIndex)}</span>
               <span className="ah-back__line ah-back__exact">
-                {words.row.tx} {row.log.transactionHash}
+                {words.row.tx} <Exact>{row.log.transactionHash}</Exact>
               </span>
             </li>
           );

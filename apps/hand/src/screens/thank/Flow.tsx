@@ -3,11 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAddressEqual, parseAbi, type Address, type Hex, type TransactionReceipt } from "viem";
 
 import { config } from "../../config";
-import { clientOf, useCost, useHand, useNow } from "../../chain";
+import { clientOf, useChainStatus, useCost, useHand, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
 import { ChainRail, CostLine, DealCard, dealDescriptionOf, ErrorBand, Mark, QuietButton, SwipeButton, TxRail, minute, percent, railHandsOf, shortAddress, type RailHand } from "../../ui";
-import { canBatch, ConnectButton, connectedWallet, useSend, useWallet, type SendResult } from "../../wallet";
+import { canBatch, ConnectButton, connectedWallet, thankedProbe, useSend, useWallet, type Intent, type SendResult } from "../../wallet";
 import { keepIntent, recheck, type Checked } from "./check";
 import { handLogsOf, landedFlags, payeeFindings, payeeRefusedIn, predictPayouts, verifyThanked, type Payout } from "./model";
 import { Predicted } from "./Predicted";
@@ -76,6 +76,12 @@ function failureOf(result: Exclude<SendResult, { ok: true }>, of: number): Outco
       return { kind: "failed", what: firstLanded ? t("core.InvalidGiverSig") : t("common.error.nothingSent"), kept: firstLanded ? kept : "" };
     case "needs-wallet":
       return { kind: "failed", what: t("thank.connect"), kept: t("common.error.nothingSent") };
+    case "dropped":
+      return { kind: "failed", what: t("common.send.dropped"), kept: firstLanded ? t("thank.firstStepOnly") : "", code: "DROPPED" };
+    case "unknown":
+      return { kind: "failed", what: t("common.send.unknown"), kept: "", code: "UNKNOWN" };
+    case "wrong-network":
+      return { kind: "failed", what: t("common.error.wrongNetwork", { network: config.chain.name }), kept: "" };
     default:
       return { kind: "failed", what: t("thank.reverted"), kept, code: "message" in result ? result.message : result.reason };
   }
@@ -88,6 +94,8 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
   const chainId = opened.head.chainId;
   const read = useHand(core, hand.handId, chainId);
   const now = useNow(chainId);
+  const status = useChainStatus(chainId);
+  const offline = status.offline || status.stale;
   const view = read.data?.view;
   const state = read.data?.state;
   const decimals = useDecimals(view?.token);
@@ -98,7 +106,11 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
   const [ticked, setTicked] = useState<boolean[]>(() => checked.dropped.map(() => false));
   const [anyway, setAnyway] = useState(false);
   const [atomic, setAtomic] = useState<boolean | undefined>(undefined);
+  /** The wallet's answer was lost: the thanks is being looked for by the nonce and the Hand's `Thanked`. */
+  const [unknown, setUnknown] = useState(false);
   const busy = useRef(false);
+  const probe = useMemo(() => thankedProbe(core, hand.handId), [core, hand.handId]);
+  const keep = useCallback((intent: Intent) => keepIntent(checked.record, intent), [checked.record]);
 
   const calls = useMemo<Call[]>(() => {
     const thank = thankCall(core, hand.handId, signedShakes, signedGive);
@@ -162,8 +174,15 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
   const settle = useCallback(
     async (result: SendResult) => {
       if (!result.ok) {
+        // The screen was left: the thanks may still land, and the intent stays for the next visit.
+        if (result.reason === "stopped" && result.intent) return;
         setOutcome(failureOf(result, calls.length));
-        if (result.sent.length === 0 || result.reason !== "reverted") await keepIntent(checked.record, undefined).catch(() => undefined);
+        await keepIntent(checked.record, undefined).catch(() => undefined);
+        return;
+      }
+      if (result.step < result.of - 1) {
+        // Only the setup step landed (resumed after a reload): the thanks itself was not sent.
+        await keepIntent(checked.record, undefined).catch(() => undefined);
         return;
       }
       const logs = handLogsOf(result.receipt.logs, core, hand.handId);
@@ -184,7 +203,10 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
     const intent = checked.record.thank;
     if (!intent || busy.current) return;
     busy.current = true;
-    void send.resume(intent).then(settle);
+    void send.resume(intent, { probe, onIntent: keep }).then(async (result) => {
+      await settle(result);
+      busy.current = false;
+    });
     // Once, when the screen opens: the stored intent is the one this check found.
   }, []);
 
@@ -212,10 +234,17 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
     if (busy.current || !ready) return;
     busy.current = true;
     setOutcome(undefined);
-    const result = await send.send(calls, {
-      onIntent: (intent) => keepIntent(checked.record, intent),
+    let result = await send.send(calls, {
+      onIntent: keep,
       between: () => recheck(clientOf(chainId), checked),
+      steps: setup ? [{ action: "setup" }, { action: "thank", probe }] : [{ action: "thank", probe }],
     });
+    if (!result.ok && result.reason === "unknown") {
+      // Never "nothing was sent" and never a second thanks: look for this one first.
+      setUnknown(true);
+      result = await send.resume(result.intent, { probe, onIntent: keep });
+      setUnknown(false);
+    }
     await settle(result);
     busy.current = false;
   };
@@ -357,7 +386,12 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
               {t("thank.step", { step: send.state.step + 1, of: send.state.of })} · {t(send.state.step === 0 ? "thank.step.setup" : "thank.step.thanks")}
             </p>
           ) : null}
-          <TxRail reached={send.state.reached ?? "sent"} local={!config.chain.hasL1} />
+          <TxRail reached={send.state.reached ?? "sent"} local={!config.chain.hasL1} offline={offline && send.state.phase === "watching"} />
+          {unknown ? (
+            <p className="ah-note m-0" role="status" data-testid={TID.thank.unknown}>
+              {t("common.send.unknown")}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

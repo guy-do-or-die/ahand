@@ -146,8 +146,11 @@ test("a pasted address shows what waits for it, read only, with the sentence for
 
   await expect(row(page, token)).toHaveAttribute("data-amount", onChain.toString());
   await expect(row(page, token)).toContainText("$");
-  // Nobody connected: the Deliver the page talks about is on the row and can be pressed, the line
-  // beside it says what pressing asks for, and the same call stands ready for a terminal.
+  // Nobody connected (F11): the page speaks of "this address"; the Deliver the page talks about is on
+  // the row and can be pressed (the merge keeps the build's visitor Deliver over the fix round's
+  // drawn-but-off control), the line beside it says what pressing asks for, and the same call
+  // stands ready for a terminal.
+  await expect(page.locator("h1")).toHaveText("Money waiting for an address.");
   await expect(row(page, token).getByTestId("waiting-deliver")).toBeEnabled();
   await expect(row(page, token)).toContainText("You'll be asked to Connect a wallet first");
   await expect(row(page, token).getByTestId("kit-without-us")).toBeVisible();
@@ -161,7 +164,7 @@ test("a pasted address shows what waits for it, read only, with the sentence for
   await expect(row(page, token).getByTestId("waiting-deliver")).toBeFocused();
   expect(await pending(chain, stand.core, token, payee)).toBe(onChain);
   // The money-is-safe sentence and a link that opens this page for the payee.
-  await expect(page.getByTestId("waiting-safe")).toContainText("Your money is safe where it is.");
+  await expect(page.getByTestId("waiting-safe")).toContainText("This money is safe where it is.");
   const friend = await page.getByTestId("waiting-friend-link").getAttribute("data-value");
   expect(friend).toBe(`${new URL(page.url()).origin}/waiting?for=${payee}`);
 

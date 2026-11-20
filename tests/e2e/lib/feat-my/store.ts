@@ -45,3 +45,44 @@ export async function devicePut(page: Page, writes: { store: DeviceStore; value:
     db.close();
   }, writes);
 }
+
+/** Every record of one store, read through the browser's own IndexedDB API (never creates the database). */
+export async function deviceAll<T = Record<string, unknown>>(page: Page, store: DeviceStore): Promise<T[]> {
+  return page.evaluate(async (name) => {
+    const db = await new Promise<IDBDatabase | undefined>((resolve, reject) => {
+      const request = indexedDB.open("ahand");
+      request.onupgradeneeded = () => request.transaction?.abort();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => (request.error?.name === "AbortError" ? resolve(undefined) : reject(request.error));
+    });
+    if (!db || !db.objectStoreNames.contains(name)) return [];
+    const rows = await new Promise<unknown[]>((resolve, reject) => {
+      const request = db.transaction(name, "readonly").objectStore(name).getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return rows;
+  }, store) as Promise<T[]>;
+}
+
+/** Deletes one record of one store by its key. */
+export async function deviceDelete(page: Page, store: DeviceStore, key: string): Promise<void> {
+  await page.evaluate(
+    async ([name, id]) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("ahand");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(name, "readwrite");
+        tx.objectStore(name).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    },
+    [store, key] as const,
+  );
+}

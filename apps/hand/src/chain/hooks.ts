@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { serializeTransaction, type Address, type Hex, type PublicClient } from "viem";
 
 import { config as app } from "../config";
-import { clientsOf } from "./clients";
+import { clientsOf, watchClientOf } from "./clients";
 import { standingOf, type Reached } from "./finality";
 import { simulateAll } from "./simulate";
 import { BlockWatcher, latestTip, type ChainStatus, type Tip } from "./watcher";
@@ -19,11 +19,15 @@ export const CLIENTS: Record<number, PublicClient> = clientsOf([app.chain]);
 
 const watchers = new Map<number, BlockWatcher>();
 
-/** The block watcher of a chain (the build's own by default). */
+/**
+ * The block watcher of a chain (the build's own by default). It reads through its own client
+ * with a short timeout and one retry (clients.ts WATCH_TIMING), so "can't reach the network"
+ * shows within seconds rather than after viem's 40.
+ */
 export function watcherOf(chainId: number = app.chain.id): BlockWatcher {
   let watcher = watchers.get(chainId);
   if (!watcher) {
-    const client = clientOf(chainId);
+    const client = chainId === app.chain.id ? watchClientOf(app.chain) : clientOf(chainId);
     const blockTimeMs = chainId === app.chain.id ? app.chain.blockTimeMs : 2000;
     watcher = new BlockWatcher(latestTip(client), { intervalMs: blockTimeMs });
     watchers.set(chainId, watcher);

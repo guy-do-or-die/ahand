@@ -1,4 +1,4 @@
-import { faceOf, passesLeft, readDescriptionOf, type Hand, type OpenedAddress } from "@ahand/sdk";
+import { faceOf, messageIdOf, passesLeft, readDescriptionOf, type Hand, type OpenedAddress } from "@ahand/sdk";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isAddressEqual, type Address } from "viem";
 
@@ -12,10 +12,10 @@ import { TID } from "../../testids";
 import { ChainRail, CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Mark, QuietButton, SwipeButton, day, shortAddress, useLens, type DealDescription, type RailHand } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
 import { Closed } from "./Closed";
-import { arrivalOf, failureOf, holderStatements, routeHands, type Failure, type Held } from "./held";
+import { arrivalOf, canRetry, failureOf, holderStatements, proofPathOf, routeHands, type Failure, type Held } from "./held";
 import { SendBack } from "./SendBack";
 import { Unreachable } from "./Unreachable";
-import { LINK_OPTIONS, cardDescription, getHand, peekHeld, pollNow, useDecimals, useOpening, useReread } from "./useHeld";
+import { LINK_OPTIONS, cardDescription, getHand, peekHeld, pollNow, useDecimals, useGiveCheck, useOpening, useReread, type GiveCheck } from "./useHeld";
 
 /**
  * The Hand view (UX-SPEC §8.1–8.3): the screen most people will ever see. It serves every
@@ -33,6 +33,9 @@ import { LINK_OPTIONS, cardDescription, getHand, peekHeld, pollNow, useDecimals,
  * A network that can't be reached is never a verdict: the link stays in this tab, the screen
  * says so and reads again on its own (Unreachable.tsx). At phone width the two actions of an
  * open Hand stand in a bar at the bottom of the screen, within thumb reach (UX-SPEC §14).
+ * While the network can't be reached, or no new block has come for a while, the card claims
+ * nothing either: it says which block it was read at, and passing and helping wait (FINDINGS E-5).
+ * Every Hand leads to its own proof (UX-SPEC §8.2, §10.1; FINDINGS E-6).
  */
 export default function HandViewScreen({ params }: ScreenProps) {
   const place = usePlace();
@@ -82,12 +85,29 @@ function Checking() {
   );
 }
 
-/** A link or an address that does not open: the plain reason, and nothing opened behind it. */
-function Refused({ failure }: { failure: Failure }) {
+/** The label over an error: the app's own words in the reader's language, Core's names as written. */
+function codeText(failure: Failure): string {
+  return failure.label ? t(failure.label.id, failure.label.values) : failure.code;
+}
+
+/**
+ * A link or an address that does not open: the plain reason, and nothing opened behind it. When
+ * trying again could change the answer (the network's failures), "Try again" opens it once more;
+ * the link is still in this tab's memory (FINDINGS F2). The error's own class name is lens-only.
+ */
+function Refused({ failure, onRetry }: { failure: Failure; onRetry?: () => void }) {
+  const lens = useLens();
+  const again = onRetry !== undefined && canRetry(failure);
   return (
-    <div className="mx-auto flex w-full max-w-[620px] flex-col gap-5" data-testid={TID.hand.error} data-value={failure.id}>
+    <div className="mx-auto flex w-full max-w-[620px] flex-col gap-5" data-testid={TID.hand.error} data-value={failure.id} data-code={failure.code}>
       <h1 className="sr-only">{t("hand.title")}</h1>
-      <ErrorBand what={t(failure.id)} code={failure.code} />
+      <ErrorBand what={t(failure.id)} code={codeText(failure)} />
+      {lens && failure.detail ? <p className="ah-meta ah-meta--exact m-0">{failure.detail}</p> : null}
+      {again ? (
+        <SwipeButton gesture="raise" still data-testid={TID.hand.retry} onClick={onRetry} className="w-full">
+          {t("hand.retry")}
+        </SwipeButton>
+      ) : null}
       <QuietButton onClick={() => navigate("/")} className="self-start">
         {t("hand.toStart")}
       </QuietButton>
@@ -100,7 +120,7 @@ function LinkView({ held }: { held: Held }) {
   const [again, reread] = useReread();
   if (!opening || opening.status === "checking") return <Checking />;
   if (opening.status === "unreachable") return <Unreachable retry={opening.retry} held />;
-  if (opening.status === "failed") return <Refused failure={opening.failure} />;
+  if (opening.status === "failed") return <Refused failure={opening.failure} onRetry={opening.retry} />;
   const { opened } = opening;
   return <HandBody key={again} core={opened.head.core} hand={opened.hand} opened={opened} description={cardDescription(opened)} onRetry={reread} />;
 }
@@ -126,16 +146,16 @@ function PublicView({ chainId, core, handId, path, search }: { chainId: number; 
     busy.current = true;
     (async (): Promise<Faced> => {
       const named = core ?? config.cores.canonical ?? undefined;
-      if (!named) return { status: "failed", failure: { id: "link.no-canonical", code: "NO MAIN CONTRACT" } };
+      if (!named) return { status: "failed", failure: { id: "link.no-canonical", code: "NO MAIN CONTRACT", label: { id: "hand.code.noCanonical" } } };
       if (!/(^\?|&)d=/.test(search)) return { status: "ok", hand: await getHand({ chainId, core: named, handId }), description: { status: "none" } };
       const { hand, face } = await faceOf(`${window.location.origin}${path}${search}`, (seen) => getHand(seen), LINK_OPTIONS);
-      if (!hand) return { status: "failed", failure: { id: "link.malformed", code: "LINK · MALFORMED" } };
+      if (!hand) return { status: "failed", failure: { id: "link.malformed", code: "LINK · MALFORMED", label: { id: "hand.code.link.malformed" } } };
       const read = face ? readDescriptionOf(hand, face) : undefined;
       const description: DealDescription = dealDescriptionOf(read);
       return { status: "ok", hand, description };
     })()
       .catch((error: unknown): Faced => {
-        const failure = failureOf(error);
+        const failure = failureOf(error, { held: false });
         return failure.network ? { status: "unreachable" } : { status: "failed", failure };
       })
       .then((value) => {
@@ -151,7 +171,7 @@ function PublicView({ chainId, core, handId, path, search }: { chainId: number; 
   const value = faced?.key === key ? faced.value : { status: "checking" as const };
   if (value.status === "checking") return <Checking />;
   if (value.status === "unreachable") return <Unreachable retry={retry} held={false} />;
-  if (value.status === "failed") return <Refused failure={value.failure} />;
+  if (value.status === "failed") return <Refused failure={value.failure} onRetry={retry} />;
   return <HandBody key={again} core={core ?? config.cores.canonical!} hand={value.hand} description={value.description} onRetry={reread} />;
 }
 
@@ -170,12 +190,13 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
   const wallet = useWallet();
   const decimals = useDecimals(read.data?.view.token);
   const left = useMemo(() => (opened ? passesLeft(opened.hand, opened.signedShakes) : undefined), [opened]);
+  const giveCheck = useGiveCheck(core, opened?.head.kind === "give" ? opened : undefined);
 
   if (!read.data || decimals === undefined) {
     // The link opened and the Hand's own read did not come: the network's failure keeps the link
-    // and is tried again; anything else is said as it is.
-    const failure = read.error && !read.data ? failureOf(read.error) : undefined;
-    if (failure && !failure.network) return <Refused failure={failure} />;
+    // and is tried again; anything else is said as it is, with "Try again" when that could help.
+    const failure = read.error && !read.data ? failureOf(read.error, { held: opened !== undefined }) : undefined;
+    if (failure && !failure.network) return <Refused failure={failure} onRetry={onRetry} />;
     if (failure || (!read.data && chain.offline)) return <Unreachable retry={onRetry} auto={pollNow} held={opened !== undefined} />;
     return <Checking />;
   }
@@ -190,6 +211,12 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
   const claimBps = live ? opened!.end.claimBps : undefined;
   const block = now ? { number: now.number, timestamp: now.timestamp } : undefined;
   const closed = state === "thanked" || state === "refunded";
+  // The network can't be seen: no "open" or "time's up" from an old block (FINDINGS E-5). A closed
+  // Hand stays closed whatever happens next, so its state is still said.
+  const cut = chain.offline || chain.stale;
+  const shown = cut && !closed ? undefined : state;
+  const readAt = read.atBlock ?? chain.tip?.number;
+  const proof = proofPathOf(opened?.head.chainId ?? config.chain.id, core, view.handId, config.cores.canonical);
   const actions = state === "open" && live;
   // At phone width the two actions stand in a bar at the bottom of the screen. An on-screen
   // keyboard would cover the bar or push it over the field being typed in, so while one is open
@@ -197,10 +224,10 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
   const bar = actions && narrow && !typing;
 
   const card = (
-    <div data-testid={TID.hand.dealCard} data-state={state ?? "unknown"} data-description={description.status} data-reward={view.reward.toString()}>
+    <div data-testid={TID.hand.dealCard} data-state={shown ?? "unknown"} data-offline={cut} data-description={description.status} data-reward={view.reward.toString()}>
       <DealCard
         heading="h1"
-        state={state === "open" || state === "expired" || closed ? state : undefined}
+        state={shown === "open" || shown === "expired" || closed ? shown : undefined}
         description={description}
         reward={view.reward}
         decimals={decimals}
@@ -209,28 +236,34 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
         {...(claimBps !== undefined ? { claimBps } : {})}
         raiser={view.raiser}
         handId={view.handId}
+        offlineSaid={cut && !closed}
         {...(block ? { block } : {})}
       />
     </div>
   );
 
+  // On a phone the column of actions comes right after the card, before the route and the
+  // evidence, so "Pass it on" and "I can help" are not pushed below the first screen (FINDINGS
+  // H-4); from md up it is the sticky right column beside both.
   const body = (
-    <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_380px] md:items-start md:gap-10">
-      <div className="flex min-w-0 flex-col gap-6">
-        {description.status === "lost" ? <div data-testid={TID.hand.lost}>{card}</div> : card}
-        {opened ? <Route opened={opened} reward={view.reward} decimals={decimals} you={live && !closed} next={live && state === "open" && (left ?? 0) > 0} /> : null}
-        {opened ? <Evidence opened={opened} left={left ?? 0} lens={lens} /> : null}
-      </div>
+    <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_380px] md:grid-rows-[auto_1fr] md:items-start md:gap-x-10 md:gap-y-6">
+      <div className="flex min-w-0 flex-col gap-6 md:col-start-1 md:row-start-1">{description.status === "lost" ? <div data-testid={TID.hand.lost}>{card}</div> : card}</div>
 
-      <aside className="flex min-w-0 flex-col gap-5 md:sticky md:top-6">
-        {actions ? <Actions left={left ?? 0} until={until} funded={funded} inBar={bar} /> : null}
+      <aside className="flex min-w-0 flex-col gap-5 md:sticky md:top-6 md:col-start-2 md:row-span-2 md:row-start-1">
+        {cut && !closed ? (
+          <p className="ah-alert m-0" role="status" data-testid={TID.hand.offline} data-value={readAt?.toString() ?? ""}>
+            {t("hand.offline", { n: readAt?.toString() ?? "?" })}
+          </p>
+        ) : null}
+        {actions ? <Actions left={left ?? 0} until={until} funded={funded} inBar={bar} off={cut} /> : null}
         {state === "open" && !opened ? (
           <p className="ah-note m-0" data-testid={TID.hand.noLink}>
             {t("hand.noLink")}
           </p>
         ) : null}
+        {!opened && !closed ? <ProofLink to={proof} /> : null}
         {kind === "addressed" && state === "open" ? <p className="ah-note m-0">{t("hand.addressed")}</p> : null}
-        {kind === "give" && !closed ? <GiveArrived raiser={isRaiser} /> : null}
+        {kind === "give" && !closed ? <GiveArrived raiser={isRaiser} check={giveCheck} /> : null}
         {state === "expired" ? <SendBack core={core} handId={view.handId} funded={funded} /> : null}
         {closed ? <Closed core={core} handId={view.handId} raiser={view.raiser} closedAt={view.closedAt} state={state} decimals={decimals} /> : null}
         {opened ? (
@@ -239,12 +272,19 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
           </p>
         ) : null}
       </aside>
+
+      {opened ? (
+        <div className="flex min-w-0 flex-col gap-6 md:col-start-1 md:row-start-2">
+          <Route opened={opened} reward={view.reward} decimals={decimals} you={live && !closed} next={live && state === "open" && (left ?? 0) > 0} closed={closed} />
+          <Evidence opened={opened} left={left ?? 0} lens={lens} proof={proof} check={state === "open"} />
+        </div>
+      ) : null}
     </div>
   );
   return (
     <>
       {body}
-      {bar ? <ActionBar left={left ?? 0} /> : null}
+      {bar ? <ActionBar left={left ?? 0} off={cut} /> : null}
     </>
   );
 }
@@ -306,7 +346,7 @@ function useTyping(): boolean {
  * While the bar stands, the page keeps its height free when it scrolls something into view, so
  * a focused control is never left under it (UX-SPEC §13: the focus ring is never covered).
  */
-function ActionBar({ left }: { left: number }) {
+function ActionBar({ left, off }: { left: number; off: boolean }) {
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const root = document.documentElement;
@@ -323,10 +363,10 @@ function ActionBar({ left }: { left: number }) {
       data-testid={TID.hand.actionBar}
     >
       <div className="grid grid-cols-2 gap-2">
-        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0} onClick={() => navigate("/pass")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
+        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0 || off} onClick={() => navigate("/pass")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
           {t("common.word.passOn")}
         </SwipeButton>
-        <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} onClick={() => navigate("/give")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
+        <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} disabled={off} onClick={() => navigate("/give")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
           {t("common.word.canHelp")}
         </SwipeButton>
       </div>
@@ -334,15 +374,31 @@ function ActionBar({ left }: { left: number }) {
   );
 }
 
+/** "See the proof →": the Hand's passport (UX-SPEC §10.1). */
+function ProofLink({ to }: { to: string }) {
+  return (
+    <a href={to} className="ah-label inline-flex min-h-[44px] items-center self-start font-bold" data-testid={TID.hand.proofLink}>
+      {t("hand.proofLink")}
+    </a>
+  );
+}
+
 /**
  * Pass it on, and I can help, with the honest line under the help button. With `inBar` the two
- * buttons stand in the bottom bar instead (ActionBar), and only the lines stay here.
+ * buttons stand in the bottom bar instead (ActionBar), and only the lines stay here. `off` while
+ * the network can't be seen: both wait until it can (FINDINGS E-5).
  */
-function Actions({ left, until, funded, inBar }: { left: number; until: string; funded: boolean; inBar: boolean }) {
+function Actions({ left, until, funded, inBar, off }: { left: number; until: string; funded: boolean; inBar: boolean; off: boolean }) {
+  // Fetch the two screens these buttons open while the network is still here, so a press just
+  // as it drops draws /give's or /pass's own offline band, not a screen that never loaded (U-1).
+  useEffect(() => {
+    void import("../give/index.tsx").catch(() => undefined);
+    void import("../pass/index.tsx").catch(() => undefined);
+  }, []);
   return (
-    <div className={inBar ? "flex flex-col gap-4" : "flex flex-col gap-4 pt-6"}>
+    <div className={inBar ? "flex flex-col gap-4" : "flex flex-col gap-4 md:pt-6"}>
       {inBar ? null : (
-        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0} onClick={() => navigate("/pass")} className="w-full">
+        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0 || off} onClick={() => navigate("/pass")} className="w-full">
           {t("common.word.passOn")}
         </SwipeButton>
       )}
@@ -357,7 +413,7 @@ function Actions({ left, until, funded, inBar }: { left: number; until: string; 
       ) : null}
       {inBar ? null : (
         <div className="pt-8">
-          <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} onClick={() => navigate("/give")} className="w-full">
+          <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} disabled={off} onClick={() => navigate("/give")} className="w-full">
             {t("common.word.canHelp")}
           </SwipeButton>
         </div>
@@ -369,8 +425,12 @@ function Actions({ left, until, funded, inBar }: { left: number; until: string; 
   );
 }
 
-/** The route as people, with "{n} hands so far." The rail gets the signed route for wave 5's flip. */
-function Route({ opened, reward, decimals, you, next }: { opened: OpenedAddress; reward: bigint; decimals: number; you: boolean; next: boolean }) {
+/**
+ * The route as people, with who is on it so far ("So far: the asker and 2 more."), said only while
+ * the Hand is not closed: a closed Hand's receipt names its people (FINDINGS F8). The rail gets
+ * the signed route for the flip; a pass at the asker's own address carries the "asker" flag.
+ */
+function Route({ opened, reward, decimals, you, next, closed }: { opened: OpenedAddress; reward: bigint; decimals: number; you: boolean; next: boolean; closed: boolean }) {
   const hands: RailHand[] = routeHands(opened);
   return (
     <div className="flex flex-col gap-2" data-testid={TID.hand.rail} data-value={hands.length}>
@@ -389,9 +449,11 @@ function Route({ opened, reward, decimals, you, next }: { opened: OpenedAddress;
         next={next}
         caption={false}
       />
-      <p className="ah-label m-0" data-testid={TID.hand.handsSoFar} data-value={hands.length}>
-        {t("hand.handsSoFar", { n: hands.length })}
-      </p>
+      {closed ? null : (
+        <p className="ah-label m-0" data-testid={TID.hand.handsSoFar} data-value={hands.length}>
+          {t("hand.soFar", { n: hands.length - 1 })}
+        </p>
+      )}
     </div>
   );
 }
@@ -399,9 +461,11 @@ function Route({ opened, reward, decimals, you, next }: { opened: OpenedAddress;
 /**
  * The evidence under the card, one tap away (the lens opens it): what the link proved here, the
  * description's hash against Core's, how far the route can still go, and holders' own lists,
- * which are never the asker's words and stand only here (D-36).
+ * which are never the asker's words and stand only here (D-36). It ends with the way to the
+ * Hand's passport and, on an open Hand, to /check for the whole link: /check reads the link from
+ * this tab's memory, so nothing of it enters the address (FINDINGS E-6).
  */
-function Evidence({ opened, left, lens }: { opened: OpenedAddress; left: number; lens: boolean }) {
+function Evidence({ opened, left, lens, proof, check }: { opened: OpenedAddress; left: number; lens: boolean; proof: string; check: boolean }) {
   const extra = holderStatements(opened);
   const rows: ReactNode[] = [
     t("hand.lens.link", { kind: opened.head.kind, shakes: opened.signedShakes.length, shape: opened.seen.shape }),
@@ -428,19 +492,39 @@ function Evidence({ opened, left, lens }: { opened: OpenedAddress; left: number;
           ))}
         </div>
       ) : null}
+      <span className="flex flex-col pt-2">
+        <ProofLink to={proof} />
+        {check ? (
+          <a href="/check" className="ah-label inline-flex min-h-[44px] items-center self-start font-bold" data-testid={TID.hand.checkLink}>
+            {t("hand.checkLink")}
+          </a>
+        ) : null}
+      </span>
     </Disclose>
   );
 }
 
 /**
  * A give link opened here (UX-SPEC §8.2): a holder passes it back the way it came; the asker
- * goes on to thank. The address copied is the one this tab holds, from memory.
+ * goes on to thank. The address copied is the one this tab holds, from memory. Core's own
+ * `checkGive` is asked first, as the helper's flip asks it: when Core refuses the answer, the
+ * front says Core's sentence instead, with nothing to copy and nothing to open (FINDINGS H-5).
  */
-function GiveArrived({ raiser }: { raiser: boolean }) {
+function GiveArrived({ raiser, check }: { raiser: boolean; check: GiveCheck }) {
   const address = addressOf();
+  if (check.status === "refused") {
+    return (
+      <div className="flex flex-col gap-4 pt-6" data-testid={TID.hand.giveLink} data-value={raiser ? "raiser" : "holder"} data-check="refused">
+        <div data-testid={TID.hand.giveRefused} data-value={check.refusal.name}>
+          <ErrorBand what={t(messageIdOf(check.refusal))} code={`CORE · ${check.refusal.name}`} />
+        </div>
+        {raiser ? null : <ConnectButton />}
+      </div>
+    );
+  }
   if (raiser) {
     return (
-      <div className="flex flex-col gap-4 pt-6" data-testid={TID.hand.giveLink} data-value="raiser">
+      <div className="flex flex-col gap-4 pt-6" data-testid={TID.hand.giveLink} data-value="raiser" data-check={check.status}>
         <p className="m-0 text-[length:var(--fs-card-title)] font-extrabold leading-tight tracking-[-0.02em]">{t("hand.give.raiser")}</p>
         <SwipeButton gesture="bow" variant="amber" data-testid={TID.hand.toThank} onClick={() => navigate("/thank")} className="w-full">
           {t("hand.give.toThank")}
@@ -449,19 +533,12 @@ function GiveArrived({ raiser }: { raiser: boolean }) {
     );
   }
   return (
-    <div className="flex flex-col gap-4" data-testid={TID.hand.giveLink} data-value="holder">
+    <div className="flex flex-col gap-4" data-testid={TID.hand.giveLink} data-value="holder" data-check={check.status}>
       <p className="m-0 text-[length:var(--fs-card-title)] font-extrabold leading-tight tracking-[-0.02em]">{t("hand.give.holder")}</p>
       {address ? (
-        <>
-          <div data-testid={TID.hand.copy}>
-            <CopyRow value={address} />
-          </div>
-          {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
-            <QuietButton data-testid={TID.hand.share} onClick={() => void navigator.share({ text: address }).catch(() => undefined)} className="self-start">
-              {t("common.word.share")}
-            </QuietButton>
-          ) : null}
-        </>
+        <div data-testid={TID.hand.copy}>
+          <CopyRow value={address} />
+        </div>
       ) : null}
       <p className="ah-label m-0">{t("hand.give.mine")}</p>
       <ConnectButton />

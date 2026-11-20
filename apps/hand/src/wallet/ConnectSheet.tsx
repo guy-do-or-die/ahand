@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 
+import { config as app } from "../config";
+import { t } from "../i18n";
 import { TID } from "../testids";
 import { ErrorBand, Identity, QuietButton, Sheet } from "../ui";
 import { clsx } from "../lib/clsx";
@@ -81,7 +83,7 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
   const options = useWalletOptions();
   const wallet = useWallet();
   const [busy, setBusy] = useState<WalletOption | undefined>();
-  const [problem, setProblem] = useState<"refused" | "failed" | undefined>();
+  const [problem, setProblem] = useState<"refused" | "failed" | "unknown-network" | undefined>();
   const found = options.filter((o) => o.kind === "found");
   const dev = options.filter((o) => o.kind === "dev");
 
@@ -137,7 +139,7 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
             {words.waiting(busy.kind === "dev" ? (busy.devWho === "not-set-up" ? words.dev.unset : words.dev.account(busy.devWho as number)) : busy.name)}
           </p>
         ) : null}
-        {problem ? <ErrorBand what={problem === "refused" ? words.refused : words.failed} /> : null}
+        {problem ? <ErrorBand what={problem === "refused" ? words.refused : problem === "unknown-network" ? t("common.error.unknownNetwork", { network: app.chain.name }) : words.failed} /> : null}
         {wallet.status === "connected" && wallet.address ? (
           <p className="ah-label m-0 flex flex-wrap items-baseline gap-2">
             {words.connected}: <Identity address={wallet.address} />

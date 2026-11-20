@@ -23,7 +23,8 @@ export interface MoneyInputProps {
 
 /**
  * An amount of dollars. It accepts a point or a comma, reads exactly what was typed (nothing
- * is rounded), and takes zero as a valid amount: Core takes a reward of zero.
+ * is rounded), and takes zero as a valid amount: Core takes a reward of zero. A comma before
+ * exactly three digits ("1,000") is asked about, never read as a decimal comma.
  */
 export function MoneyInput({ label, decimals, initial, max, onReading, hint, disabled }: MoneyInputProps) {
   const words = useWords();
@@ -33,7 +34,11 @@ export function MoneyInput({ label, decimals, initial, max, onReading, hint, dis
   const [text, setText] = useState(initial === undefined ? "" : unitsText(initial, decimals));
   const reading = readMoney(text, decimals, max);
   const problem =
-    reading.status === "invalid" ? words.money.invalid(decimals) : reading.status === "too-much" && max !== undefined ? words.money.tooMuch(money(max, decimals, lang)) : undefined;
+    reading.status === "invalid"
+      ? reading.hint === "thousands" && reading.plain !== undefined
+        ? words.money.thousands(reading.plain)
+        : words.money.invalid(decimals)
+      : reading.status === "too-much" && max !== undefined ? words.money.tooMuch(money(max, decimals, lang)) : undefined;
 
   return (
     <div className="ah-field">

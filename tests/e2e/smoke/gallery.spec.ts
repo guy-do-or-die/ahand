@@ -136,12 +136,17 @@ test("the Deal card shows each state in words, and a hand with no reward never s
 
   await open(page, "?lang=ru");
   const bareRu = panel(page, "light").locator('[data-case="no-reward"] .ah-deal');
-  await expect(bareRu).toContainText("Без награды: только спасибо · открыта до 20 дек");
+  // F16: the hand is open, not the reward.
+  await expect(bareRu).toContainText("Без награды: только спасибо · рука открыта до 20 дек");
   await expect(bareRu).toContainText("бесплатно; доли здесь нет");
   await expect(bareRu).toContainText("рука закроется");
   await expect(bareRu).not.toContainText("$0");
   const openRu = panel(page, "light").locator('[data-case="open"] .ah-deal');
   await expect(openRu).toContainText("минимум $28");
+  await expect(openRu).toContainText("Награда $40 · рука открыта до 20 дек");
+  // F4: a condition, not a promise of thanks.
+  await expect(openRu).toContainText("Если поможешь и тебя поблагодарят");
+  await expect(openRu).not.toContainText("Поможешь, и тебя поблагодарят");
   await expect(openRu.locator(".ah-deal__intro")).toHaveText("Кто-то поднял руку:");
   await expect(openRu.locator(".ah-deal__title")).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
   await expect(openRu).not.toContainText("Кто-то ищет");
@@ -193,7 +198,8 @@ test("a figure opens to its source, and the lens opens them all", async ({ page 
   await expect(card).toContainText("hands(12).reward = 40000000");
   await expect(card.locator(".ah-mark--chain")).toBeVisible();
   await card.getByRole("button", { name: "at least $28" }).click();
-  await expect(card).toContainText("40 × 7000 / 10 000 = 28");
+  // M-1: Core rounds each pass's share down, so the helper's least is the ceiling.
+  await expect(card).toContainText("⌈40 × 7000 / 10 000⌉ = 28");
 
   await open(page, "?lens=on");
   const lensed = panel(page, "dark").locator('[data-case="open"] .ah-deal');
@@ -262,7 +268,8 @@ test("a date on the Deal card opens to the second Core keeps, in the reader's zo
 test("Cyrillic headlines are drawn in Onest, Latin ones in Schibsted Grotesk", async ({ page }) => {
   await open(page, "?lang=ru");
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
-  const title = '[data-panel="light"] [data-case="open"] .ah-deal__title';
+  // The asker's words stand isolated in a <bdi> inside the title (H-2); its text is the bdi's own.
+  const title = '[data-panel="light"] [data-case="open"] .ah-deal__title bdi';
   await expect(page.locator(title)).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
   const russian = await fontsDrawn(page, title);
   expect(russian.some((family) => /Onest/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
@@ -447,3 +454,97 @@ for (const query of ["", "?lang=ru", "?lens=on"]) {
     expect(inSheet.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").map((violation) => violation.id)).toEqual([]);
   });
 }
+
+test("the asker's words are labelled unchecked, and an amount in them that is not the reward is said", async ({ page }) => {
+  await open(page);
+  for (const theme of THEMES) {
+    const card = panel(page, theme).locator('[data-case="amount-flag"] .ah-deal');
+    await expect(card.getByTestId("kit-deal-words-label")).toHaveText("In the asker's words — not checked");
+    const flag = card.getByTestId("kit-deal-amount-flag");
+    await expect(flag).toHaveText("The words mention $5,000 and $4,500. The reward on chain is $1.");
+    await expect(flag).toHaveAttribute("data-value", "5000 4500");
+    // The figures Core backs still stand in their own place, after the words and the flag.
+    await expect(card.locator(".ah-deal__money")).toContainText("$1 reward");
+    // The open case's words mention no amount: no flag, but the label.
+    const plain = panel(page, theme).locator('[data-case="open"] .ah-deal');
+    await expect(plain.getByTestId("kit-deal-words-label")).toBeVisible();
+    await expect(plain.getByTestId("kit-deal-amount-flag")).toHaveCount(0);
+    await expect(plain.getByTestId("kit-deal-hidden-chars")).toHaveCount(0);
+    // No words, no label.
+    await expect(panel(page, theme).locator('[data-case="lost"] [data-testid="kit-deal-words-label"]')).toHaveCount(0);
+  }
+  await open(page, "?lang=ru");
+  const ru = panel(page, "light").locator('[data-case="amount-flag"] .ah-deal');
+  await expect(ru.getByTestId("kit-deal-words-label")).toHaveText("Словами автора — не проверено");
+  await expect(ru.getByTestId("kit-deal-amount-flag")).toHaveText("В тексте написано $5\u00a0000 и $4\u00a0500. Награда в контракте — $1.");
+});
+
+test("direction controls and invisible characters are drawn as tokens, isolated, and look-alikes are marked", async ({ page }) => {
+  await open(page);
+  const card = panel(page, "light").locator('[data-case="hostile-words"] .ah-deal');
+  const title = card.locator(".ah-deal__title");
+  // The bytes as they are, in order: the override is a token, so "0005$" is not drawn as "$5000".
+  await expect(title).toHaveText("Reward ⟨RLO⟩0005$⟨PDF⟩, I thank every answer");
+  await expect(title.locator("bdi")).toHaveAttribute("dir", "auto");
+  await expect(title.locator(".ah-hidden").first()).toHaveAttribute("data-char", "U+202E");
+  // No direction control is left in the drawn text.
+  const drawn = await card.locator(".ah-asker").evaluate((node) => node.textContent ?? "");
+  expect(drawn).not.toMatch(/[\u202A-\u202E\u2066-\u2069\u200B-\u200D\u2060\uFEFF\u2028\u2029]/);
+  const content = card.locator(".ah-deal__content");
+  await expect(content.locator(".ah-hidden")).toHaveText(["⟨ZWSP⟩", "⟨LS⟩", "⟨WJ⟩", "⟨ZWJ⟩"]);
+  await expect(content.locator('.ah-odd[data-why="mixed-script"]')).toHaveText(["Тhis", "hаnd", "аHаnd"]);
+  await expect(content.locator('.ah-odd[data-why="compat"]')).toHaveText(["＄５０００", "＄𝟱𝟶𝟶𝟶"]);
+  const hidden = card.getByTestId("kit-deal-hidden-chars");
+  await expect(hidden).toHaveAttribute("data-value", "direction invisible mixed-script compat");
+  await expect(hidden).toContainText("Each is marked where it stands.");
+  await expect(card.getByTestId("kit-deal-amount-flag")).toHaveAttribute("data-value", "5 5000");
+});
+
+test("long words are clamped behind Read all, so the reward and the rows stay near the top", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  const card = panel(page, "light").locator('[data-case="long-words"] .ah-deal');
+  await card.scrollIntoViewIfNeeded();
+  const more = card.getByTestId("kit-deal-read-all");
+  await expect(more).toHaveText("Read all");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  const top = (await card.boundingBox())!.y;
+  const money = (await card.locator(".ah-deal__money").boundingBox())!;
+  const asked = (await card.locator(".ah-deal__foot").last().boundingBox())!;
+  // The whole card, words clamped, is shorter than a phone's screen.
+  expect(asked.y + asked.height - top).toBeLessThan(844);
+  expect(money.y - top).toBeLessThan(560);
+  await more.click();
+  await expect(more).toHaveText("Show less");
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  expect((await card.locator(".ah-deal__money").boundingBox())!.y - top).toBeGreaterThan(900);
+  // A short card has nothing to read further.
+  await expect(panel(page, "light").locator('[data-case="open"] [data-testid="kit-deal-read-all"]')).toHaveCount(0);
+});
+
+test("a link's copy row: a full-width Copy link first, the link itself under it", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page);
+  for (const theme of THEMES) {
+    const link = panel(page, theme).locator('[data-case="copy-link"]');
+    const copy = link.getByTestId("kit-copy-button");
+    await expect(copy).toHaveText("Copy link");
+    const field = link.locator(".ah-linkrow__value");
+    const [button, row] = [(await copy.boundingBox())!, (await link.locator(".ah-linkrow").boundingBox())!];
+    expect(button.height).toBeGreaterThanOrEqual(48);
+    expect(Math.abs(button.width - row.width)).toBeLessThan(2);
+    expect(button.y).toBeLessThan(row.y);
+    await copy.click();
+    await expect(copy).toHaveText("Copied");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe((await field.textContent())!.trim());
+    // Share stands only where the browser has a share sheet.
+    const canShare = await page.evaluate(() => typeof navigator.share === "function");
+    await expect(link.getByTestId("kit-share-button")).toHaveCount(canShare ? 1 : 0);
+    // A value that is not a link keeps the row that copies itself.
+    const text = panel(page, theme).locator('[data-case="copy-text"]');
+    await expect(text.getByTestId("kit-copy-button")).toContainText("Copy");
+    await expect(text.getByTestId("kit-copy-button")).not.toContainText("Copy link");
+  }
+  await open(page, "?lang=ru");
+  await expect(panel(page, "light").locator('[data-case="copy-link"]').getByTestId("kit-copy-button")).toHaveText("Скопировать ссылку");
+});

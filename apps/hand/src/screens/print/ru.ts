@@ -35,6 +35,12 @@ const ru: Record<keyof typeof en, string> = {
   "print.receipt.scan": "Отсканируй, чтобы проверить всё заново.",
   "print.receipt.verify": "Проверить без всякого сайта, из копии кода:",
   "print.receipt.unknown": "Эта рука в сети, которую этот сайт не читает. Ничего не открыто.",
+  "print.header": "Квитанция · рука №{id}",
+  "print.closed.thanked": "Спасибо сказано {date}, блок {block}",
+  "print.closed.refunded": "Награда вернулась автору {date}, блок {block}",
+  "print.asker": "Автор: {who}",
+  "print.receipt.mark": "aHand · сеть {chain}",
+  "print.question.none": "Вопрос есть только в самой ссылке руки. Чтобы он попал на квитанцию, сначала открой эту ссылку здесь, в этой же вкладке.",
 };
 
 export default ru;

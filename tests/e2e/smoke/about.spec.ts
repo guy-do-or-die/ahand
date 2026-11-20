@@ -1,7 +1,10 @@
 /**
  * The three pages that say what aHand is and is not (PLAN wave 5, about-pages): the landing and
- * its "Open a link" box against real seeded Hands on a real local chain, "What it can't promise"
- * and "About these defaults" in both languages, and axe on all three.
+ * its "Got a link? Paste it" row against real seeded Hands on a real local chain, "What it can't
+ * promise" and "About these defaults" in both languages, and axe on all three. The early review's
+ * fixes are held here too: the gestures come before the paste row and each card front takes its
+ * own height (F17), only an entry's first sentence is bold on /limits (F13), /without-us reads
+ * whole (F9), and /core and /defaults write Russian numbers and units (F10, F16).
  *
  *   STAND_SLOT=6 bunx playwright test tests/e2e/smoke/about.spec.ts
  */
@@ -68,7 +71,7 @@ test("the landing says what this is, turns each gesture over to Core's own call,
   await expect(page.getByTestId("landing-hero")).toHaveText(/Подними руку\.\s*Дальше — твои люди\./);
 });
 
-test("a seeded address pasted into “Open a link” opens the Hand view with its title; the link never enters the address bar", async ({ page }) => {
+test("a seeded address pasted into “Got a link? Paste it” opens the Hand view with its title; the link never enters the address bar", async ({ page }) => {
   const unlisted = fixture("unlisted");
   await page.goto("/");
   await paste(page, `  ${unlisted.address}\n`);
@@ -178,3 +181,52 @@ for (const path of ["/", "/limits", "/defaults"]) {
     });
   }
 }
+
+test("the landing shows the three gestures before the paste row, each card as tall as its own front, «твои люди» on one line (F17)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const gestures = page.getByTestId("landing-gesture");
+  const input = page.getByTestId("landing-open-input");
+  const first = (await gestures.first().boundingBox())!;
+  expect((await input.boundingBox())!.y).toBeGreaterThan(((await gestures.last().boundingBox())!).y);
+  await expect(page.getByText("Got a link? Paste it")).toBeVisible();
+  // The raise card's front is one short sentence: it is shorter than its back, which turns in on a press.
+  const front = first.height;
+  await gestures.first().getByRole("button").first().click();
+  await expect(gestures.first()).toHaveAttribute("data-open", "true");
+  await page.waitForTimeout(500);
+  expect(front).toBeLessThan(((await gestures.first().boundingBox())!).height);
+  await toRussian(page);
+  expect(await page.locator(".lp-mark").evaluate((node) => node.getClientRects().length)).toBe(1);
+  await expect(page.getByText("Есть ссылка? Вставь её")).toBeVisible();
+});
+
+test("/limits sets only each entry's first sentence in bold (F13)", async ({ page }) => {
+  await page.goto("/limits");
+  const first = page.getByTestId("limits-entry").first();
+  await expect(first.locator("strong")).toHaveText("Thanking is voluntary.");
+  await toRussian(page);
+  await expect(first.locator("strong")).toHaveText("Благодарить — по желанию.");
+  await expect(first).toContainText("так и не сказать спасибо до конца срока");
+  await expect(page.locator("h1")).toHaveText("Чего aHand не обещает.");
+});
+
+test("/without-us's refund line reads whole in both languages (F9)", async ({ page }) => {
+  await page.goto("/without-us");
+  await expect(page.locator("[data-screen]")).toContainText("Send it back. Anyone may, from the second the hand's end date passes.");
+  await toRussian(page);
+  await expect(page.locator("[data-screen]")).toContainText("Вернуть. Может кто угодно, начиная с секунды, когда наступил срок руки.");
+  await expect(page.locator("[data-screen]")).not.toContainText("наступил expiry");
+});
+
+test("/core and /defaults write Russian numbers and units on the Russian page (F10)", async ({ page }) => {
+  await page.goto("/core");
+  await expect(page.getByTestId("core-cap")).toHaveAttribute("data-value", String(180 * 86_400), { timeout: 15_000 });
+  await toRussian(page);
+  await expect(page.locator("[data-screen]")).toContainText(/Его код на месте: [\d\u00a0 ]+ байт(а)?\./);
+  await expect(page.getByTestId("core-cap")).toContainText("15\u00a0552\u00a0000 с = 180 дн.");
+  await expect(page.locator("[data-screen]")).toContainText("фабрика развёртывания (CREATE2) по фиксированному адресу");
+  await page.goto("/defaults");
+  await toRussian(page);
+  await expect(page.locator('[data-testid="defaults-row"][data-key="d26b"]')).toContainText("expiry = время блока + 30 дн.");
+});

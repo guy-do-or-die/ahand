@@ -27,7 +27,7 @@ import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 import { account, pickDevAccount } from "../lib/accounts";
-import { devicePut, handKey } from "../lib/feat-my/store";
+import { deviceAll, deviceDelete, devicePut, handKey } from "../lib/feat-my/store";
 import { readStand, runProgram, seed, standSlot } from "../lib/stand";
 
 test.describe.configure({ mode: "serial" });
@@ -345,6 +345,47 @@ test("with no relay in reach the screen says it can't check, not that there are 
   await expect(section).toHaveAttribute("data-state", "unreachable");
   await expect(section).toContainText("No relay can be reached right now, so answers can't be checked.");
   await expect(section).not.toContainText("Nothing has arrived yet.");
+});
+
+test("one Give is one inbox record under its giveHash: sent twice through the relay, heard again after a reload, its first-seen time stays; a thank kept as an intent shows as on its way", async ({ page }) => {
+  // FINDINGS E-3, E-4, R-5.
+  const give = craft<{ ok: boolean; address: string; giveHash: string }>("give", liveAddress, "--giver", "5");
+  expect(give.ok).toBe(true);
+  const words = "The library on the corner: quiet until noon.";
+  for (let i = 0; i < 2; i++) expect(craft<{ ok: boolean }>("deliver-send", give.address, "--text", words).ok).toBe(true);
+
+  await openMine(page, mine);
+  await page.goto(`/my/${mine.chainId}/${mine.handId}`);
+  await pickDevAccount(page, 1);
+  await unlock(page);
+  const card = page.locator(`[data-testid="my-answer"][data-value="${give.giveHash}"]`);
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(card).toHaveCount(1);
+  type Row = { id: string; hand: string; giveLink: string; firstSeen: number; words?: string };
+  const ofThisGive = async () => (await deviceAll<Row>(page, "inbox")).filter((row) => row.giveLink === give.address);
+  await expect.poll(async () => (await ofThisGive()).map((row) => row.id)).toEqual([give.giveHash]);
+  const first = (await ofThisGive())[0]!;
+  expect(first.words).toBe(words);
+
+  // A reload is a new session: the relay sends both wraps again; nothing writes over the first time.
+  await page.reload();
+  await pickDevAccount(page, 1);
+  await unlock(page);
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(2_000);
+  expect((await ofThisGive()).map((row) => [row.id, row.firstSeen])).toEqual([[give.giveHash, first.firstSeen]]);
+
+  // A thank this device sent and has not seen through: /my says it is on its way.
+  const hash = `0x${"ab".repeat(32)}`;
+  await devicePut(page, [
+    { store: "inbox", value: { id: `on-way-${mine.handId}`, hand: keyOf(mine), giveLink: give.address, firstSeen: first.firstSeen, thank: { kind: "tx", chainId: mine.chainId, hash, step: 0, of: 1 } } },
+  ]);
+  await page.goto("/my");
+  const onWay = page.locator(`[data-testid="my-thank-on-way"][data-value="on-way-${mine.handId}"]`);
+  await expect(onWay).toBeVisible({ timeout: 20_000 });
+  await expect(onWay).toHaveAttribute("data-state", "on-way");
+  await expect(onWay).toContainText(`hand ${mine.handId}`);
+  await deviceDelete(page, "inbox", `on-way-${mine.handId}`);
 });
 
 test("the seed's test book rebuilds a seeded hand's link on this device; it opens, its words not arrived", async ({ page }) => {

@@ -5,7 +5,7 @@ const ru: Record<keyof typeof en, string> = {
   "hand.title": "Рука.",
   "hand.helpNote": "Благодарить или нет — решает автор. Не поблагодарит до {date} — награда вернётся ему.",
   "hand.helpNote.noReward": "Благодарить или нет — решает автор. Не поблагодарит до {date} — рука закроется.",
-  "hand.handsSoFar": "{n, plural, one {Уже # рука.} few {Уже # руки.} many {Уже # рук.} other {Уже # руки.}}",
+  "hand.soFar": "{n, plural, =0 {Пока в цепочке только автор.} other {Пока в цепочке: автор и ещё #.}}",
   "hand.passesLeft": "{n, plural, one {Можно передать ещё # раз} few {Можно передать ещё # раза} many {Можно передать ещё # раз} other {Можно передать ещё # раза}}.",
   "hand.passesNone": "Дальше этот путь не пойдёт. Помочь всё ещё можно.",
   "hand.noLink": "Чтобы передать дальше или помочь, открой ссылку, которую тебе прислали.",
@@ -14,15 +14,13 @@ const ru: Record<keyof typeof en, string> = {
   "hand.toStart": "На главную",
   "hand.addressed": "Эта ссылка показывает путь, который кончается адресом. Передать её дальше или ответить отсюда нельзя.",
 
-  "hand.offline.kept": "Твоя ссылка на месте.",
-  "hand.offline.retry": "Попробовать ещё раз",
   "hand.offline.auto": "Пробуем снова сами, раз в несколько секунд.",
 
   "hand.closed": "Эта рука закрыта.",
   "hand.receipt.reading": "Читаем, чем всё кончилось, из записей самой сети…",
   "hand.receipt.failed": "Сейчас не прочитать, чем всё кончилось. Рука всё равно закрыта.",
   "hand.newer.look": "Поискать новую руку этого автора",
-  "hand.newer.meta": "Прочитаем {span} сети после того, как рука закрылась: {n, plural, one {# запрос} few {# запроса} many {# запросов} other {# запроса}}.",
+  "hand.newer.meta": "Проверим записи сети за {span} после закрытия руки ({n, plural, one {# запрос} few {# запроса} many {# запросов} other {# запроса}}).",
   "hand.newer.minutes": "{n, plural, one {# минуту} few {# минуты} many {# минут} other {# минуты}}",
   "hand.newer.hours": "{n, plural, one {# час} few {# часа} many {# часов} other {# часа}}",
   "hand.newer.reading": "Читаем… {done} из {n}",
@@ -36,13 +34,15 @@ const ru: Record<keyof typeof en, string> = {
   "hand.newer.none": "За это время новой нет.",
   "hand.askSender": "Спроси у того, кто прислал ссылку, нет ли новой.",
 
-  "hand.give.holder": "На эту руку ответили. Передай это тому, кто прислал тебе ссылку.",
+  "hand.give.holder": "На эту руку ответили. Перешли эту ссылку тому, кто прислал тебе руку.",
   "hand.give.raiser": "Это ответ на твою руку.",
   "hand.give.toThank": "Открыть ответ",
   "hand.give.mine": "Это твоя рука? Подключи аккаунт, с которого она поднята, чтобы прочитать ответ.",
 
   "hand.timesUp": "Срок вышел. Теперь кто угодно может вернуть награду автору.",
   "hand.timesUp.noReward": "Срок вышел. Теперь кто угодно может закрыть эту руку.",
+  "hand.sendBack.title": "Вернуть награду автору",
+  "hand.sendBack.title.noReward": "Закрыть руку",
   "hand.sendBack.noReward": "Закрыть руку",
   "hand.sendBack.needs": "Это может сделать любой подключённый аккаунт. Награда вернётся автору, кто бы ни нажал.",
   "hand.sendBack.cannot": "Этот аккаунт пока ничего не может отправить. Подключи другой.",
@@ -59,6 +59,27 @@ const ru: Record<keyof typeof en, string> = {
   "hand.lens.statements": "Добавлено держателем, а не автором",
   "hand.lens.statementAt": "Передача {n}",
   "hand.lens.statementGive": "Ответ",
+
+  "hand.offline": "Сеть сейчас недоступна. Это прочитано в блоке {n} — с тех пор могло измениться.",
+  "hand.offline.opening": "Сеть сейчас недоступна. Ссылка всё ещё открыта в этой вкладке, ничего не отправлено.",
+  "hand.retry": "Попробовать снова",
+
+  "hand.proofLink": "Посмотреть доказательство →",
+  "hand.checkLink": "Разобрать ссылку подробно →",
+
+  "hand.code.network": "СЕТЬ",
+  "hand.code.error": "ОШИБКА",
+  "hand.code.untrusted": "НЕ ДОВЕРЕНО · СЕТЬ {chain} · CORE {core}",
+  "hand.code.noCanonical": "НЕТ ГЛАВНОГО КОНТРАКТА",
+  "hand.code.belowMinClaim": "ССЫЛКА · НЕ СХОДИТСЯ · BelowMinClaim",
+  "hand.code.link.malformed": "ССЫЛКА · ПОВРЕЖДЕНА",
+  "hand.code.link.unsupported": "ССЫЛКА · НЕ ПОДДЕРЖИВАЕТСЯ",
+  "hand.code.link.non-canonical": "ССЫЛКА · ЗАПИСАНА НЕ ПО ФОРМАТУ",
+  "hand.code.link.too-long": "ССЫЛКА · СЛИШКОМ ДЛИННАЯ",
+  "hand.code.link.another-hand": "ССЫЛКА · ОТ ДРУГОЙ РУКИ",
+  "hand.code.link.not-this-hand": "ССЫЛКА · НЕ ОТ ЭТОЙ РУКИ",
+  "hand.code.link.invalid": "ССЫЛКА · НЕ СХОДИТСЯ",
+  "hand.code.link.unmatched-data": "ССЫЛКА · ДАННЫЕ НЕ СХОДЯТСЯ",
 };
 
 export default ru;

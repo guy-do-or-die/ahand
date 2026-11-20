@@ -29,7 +29,7 @@ export interface Unlocked {
 }
 
 export type KeysTyped = ReturnType<typeof keysTypedData>;
-export type UnlockOutcome = { ok: true; unlocked: Unlocked } | { ok: false; reason: "rejected" | "no-wallet" | "failed"; message?: string };
+export type UnlockOutcome = { ok: true; unlocked: Unlocked } | { ok: false; reason: "rejected" | "no-wallet" | "wrong-network" | "failed"; message?: string };
 
 const unlocked = new Map<string, Unlocked>();
 const listeners = new Set<() => void>();

@@ -37,6 +37,7 @@ const SENTENCE = {
   giverSig: "The helper's confirmation doesn't check out.",
   resigned: "This answer came by a shorter route than one you already saw.",
   timesUp: "Time's up. Anyone can send the reward back to the asker now.",
+  sendBack: "Send the reward back",
   payeeCore: "That is the contract's own address.",
 };
 
@@ -160,7 +161,9 @@ test("9. a hand past its end: Time's up; passing and helping are off, on the Han
   expect(expired.state).toBe("expired");
   await visit(page, expired.address);
   await expect(page.getByTestId("hand-deal-card")).toHaveAttribute("data-state", "expired");
-  await expect(page.getByTestId("hand-times-up")).toContainText(SENTENCE.timesUp);
+  await expect(page.getByTestId("hand-deal-card")).toContainText("Time's up.");
+  await expect(page.getByTestId("hand-deal-card")).toContainText(SENTENCE.timesUp.replace("Time's up. ", ""));
+  await expect(page.getByTestId("hand-times-up")).toContainText(SENTENCE.sendBack);
   await expect(page.getByTestId("hand-pass")).toHaveCount(0);
   await expect(page.getByTestId("hand-help")).toHaveCount(0);
   await pickDevAccount(page, 3);

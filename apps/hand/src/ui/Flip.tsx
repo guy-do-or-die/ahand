@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 
 import enCommon from "../i18n/common/en";
 import ruCommon from "../i18n/common/ru";
@@ -262,6 +262,8 @@ const EN = {
   thanksRead: (block: string) => `thanks(id) · eth_call · block ${block}`,
   callLine: (fn: string, block: string, answer: string) => `${fn} · eth_call · block ${block} · ${answer}`,
   ok: "ok",
+  wouldRevert: "would revert:",
+  refusedAs: "refused:",
   offline: enCommon["common.time.offline"],
   terms: "Every step of the route seals these terms",
   termsMatch: "Terms match Core",
@@ -326,7 +328,9 @@ const RU: typeof EN = {
   differ: "giveHash не совпадает с Core",
   thanksRead: (block: string) => `thanks(id) · eth_call · блок ${block}`,
   callLine: (fn: string, block: string, answer: string) => `${fn} · eth_call · блок ${block} · ${answer}`,
-  ok: "ok",
+  ok: "без отказа",
+  wouldRevert: "иначе отказ:",
+  refusedAs: "отказ:",
   offline: ruCommon["common.time.offline"],
   terms: "Каждый шаг пути скрепляет эти условия",
   termsMatch: "Условия совпадают с Core",
@@ -359,7 +363,7 @@ const RU: typeof EN = {
     logged: "как записал Core",
     nothing: "Без награды: ничего не двигалось",
     eventLine: (name: string, block: string, log: number) => `${name} · блок ${block} · лог ${log}`,
-    tx: "tx",
+    tx: "транзакция",
   },
   sweep: { done: "каждая строка найдена в сети" },
 };
@@ -370,6 +374,31 @@ export const TWIST_WORDS: Record<Lang, TwistWords> = { en: EN, ru: RU };
 
 export function useTwistWords(): TwistWords {
   return TWIST_WORDS[useLang()];
+}
+
+/**
+ * Core's own names inside a mono line: camelCase fields and functions (payoutGasK, minClaimBps,
+ * checkRoute), hands(id), eth_call, and error names (InvalidClaim). The kit's mono voice sets
+ * lines in capitals; these keep Core's spelling (F15).
+ */
+const CORE_NAME = /(\b[a-z]+\(id\)|\beth_call\b|\b[a-z]+(?:[A-Z][a-z0-9]*)+\b|\b[A-Z][a-z]+(?:[A-Z][a-z0-9]*)+\b)/g;
+
+/** A mono line whose Core names keep their own letters; the rest follows the line's style. */
+export function CoreText({ text }: { text: string }) {
+  const parts = text.split(CORE_NAME);
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <span key={index} className="ah-exact">
+            {part}
+          </span>
+        ) : (
+          <Fragment key={index}>{part}</Fragment>
+        ),
+      )}
+    </>
+  );
 }
 
 /** Core's refusal sentence for an error name, from i18n/common, in the reader's language. */

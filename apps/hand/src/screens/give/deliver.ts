@@ -25,10 +25,14 @@ const entries = new Map<string, OutboxEntry>();
 const listeners = new Set<() => void>();
 let version = 0;
 
-function changed(entry: OutboxEntry): void {
-  entries.set(entry.key, entry);
+function notify(): void {
   version++;
   for (const listener of [...listeners]) listener();
+}
+
+function changed(entry: OutboxEntry): void {
+  entries.set(entry.key, entry);
+  notify();
 }
 
 function memoryStore(): OutboxStore {
@@ -57,7 +61,7 @@ export function giverOutbox(): Promise<Outbox> {
     }
     const opened = openOutbox(transportOf(), store, { everyMs: RETRY_MS, onChange: changed });
     for (const entry of await opened.list()) entries.set(entry.key, entry);
-    version++;
+    notify(); // a screen that read the entries before they were loaded draws them now
     return opened;
   })();
   return outbox;
@@ -72,6 +76,28 @@ function subscribe(listener: () => void): () => void {
 export function useEntry(key: string | undefined): OutboxEntry | undefined {
   useSyncExternalStore(subscribe, () => version);
   return key ? entries.get(key) : undefined;
+}
+
+/**
+ * This device's own answers (R-4): every "give" envelope the outbox wrote down, newest first,
+ * with its chat key, so its thread can be read again after a reload or in a new tab
+ * (ARCHITECTURE §8). Opening the outbox also starts its retries while the page is open.
+ */
+export function useMyAnswers(): { loaded: boolean; entries: OutboxEntry[] } {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let live = true;
+    giverOutbox().then(
+      () => live && setLoaded(true),
+      () => live && setLoaded(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  useSyncExternalStore(subscribe, () => version);
+  const gives = [...entries.values()].filter((entry) => entry.envelope.kind === "give" && entry.envelope.giveLink);
+  return { loaded, entries: gives.sort((a, b) => b.at - a.at || a.key.localeCompare(b.key)) };
 }
 
 /** Every entry written with this chat key: the giver's own side of the thread, in order. */

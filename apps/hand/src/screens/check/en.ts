@@ -8,6 +8,7 @@ const en = {
   "check.run": "Check",
   "check.another": "Check another",
   "check.cleared": "Read and cleared from the box.",
+  "check.fromMemory": "This is the link open in this tab. Nothing was pasted, and it stays in this tab only.",
 
   "check.ruler.title": "1 · Measured here, with no network",
   "check.ruler.total": "{n, plural, one {# byte} other {# bytes}} in the link",
@@ -20,6 +21,7 @@ const en = {
   "check.ruler.pin": "Pin",
   "check.ruler.give": "Answer",
   "check.ruler.attachments": "Words",
+  "check.ruler.span": "{from}–{to} · {n} B",
   "check.ruler.none": "These bytes don't follow the link's layout, so they can't be measured.",
   "check.kind.live": "A live link: it can be passed on.",
   "check.kind.addressed": "A link that ends at an address: it can be answered, not passed on.",
@@ -51,23 +53,27 @@ const en = {
   "check.core.asking": "Asking the contract…",
   "check.core.accepted.route": "The contract accepts this route.",
   "check.core.accepted.give": "The contract accepts this answer.",
+  "check.core.accepted.route.ended": "The contract accepts this route. Its check doesn't look at the end date or at whether the hand is closed.",
+  "check.core.accepted.give.ended": "The contract accepts this answer. Its check doesn't look at the end date or at whether the hand is closed.",
   "check.core.scope": "That is about the route and its confirmations only: this check of the contract does not look at whether the hand is still open.",
   "check.core.notAsked": "Not asked: the contract can't be reached with no network.",
   "check.core.skipped": "Not asked: this link did not open here, so there is nothing to put to the contract.",
   "check.core.refused": "The contract refuses it.",
 
-  // The hand itself at the block the contract answered at: hands(id) and thanks(id).
+  // The hand itself at the block the contract answered at: hands(id) and thanks(id), said first.
   "check.now.title": "The hand itself, at the same block",
   "check.now.open.route": "The hand is open until {date}. If the asker thanks whoever answers this route, they get {share} of the reward.",
   "check.now.open.give": "The hand is open until {date}. The asker can thank this answer.",
   "check.now.open.refused": "The hand is open until {date}, but as it is this can't be thanked.",
-  "check.now.expired": "Time's up for this hand: it ended on {date} by the network's clock. Nobody can be thanked now; the reward can only go back to the asker.",
-  "check.now.thanked-this": "This is the answer that was thanked, on {date}. The hand is closed.",
-  "check.now.thanked-other": "This hand is closed: the asker thanked another answer on {date}. This one can no longer be thanked.",
-  "check.now.thanked": "This hand is closed: it was thanked on {date}. Nobody else can be thanked on it.",
-  "check.now.refunded": "This hand is closed: the reward went back to the asker on {date}. Nobody can be thanked on it.",
+  "check.now.thanked-this": "This is the answer that was thanked.",
+  "check.now.thanked-other": "The asker thanked another answer; this one can no longer be thanked.",
   "check.now.passport": "See its passport",
   "check.lens.now": "hands(id) · thanks(id) · block {block} · network time {time}",
+  // A closed or ended hand's state, at the latest block's time.
+  "check.state.thanked": "This hand is closed: thanked on {date}.",
+  "check.state.refunded": "This hand is closed: the reward went back to the asker on {date}.",
+  "check.state.closed.valid": "The route is valid, but nobody can be paid through it any more.",
+  "check.state.expired": "Time's up on {date}; only sending the reward back is possible now.",
 
   // With no network: what the bytes alone say.
   "check.offline.title": "2 · Read here, from the bytes alone",

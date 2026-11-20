@@ -1,4 +1,4 @@
-import type { StepResult } from "@ahand/sdk";
+import type { HandState, HandView, StepResult } from "@ahand/sdk";
 
 /**
  * /check's comparison of its two columns (UX-SPEC §10.2): the steps run here and Core's own
@@ -35,6 +35,48 @@ export function agree(here: HereAnswer, core: CoreAnswer): boolean {
 export function answerName(answer: CoreAnswer, accepted: string): string {
   if (answer.kind === "accepted") return accepted;
   return answer.position === undefined ? answer.name : `${answer.name}(${answer.position})`;
+}
+
+/** Where the Hand stands at the latest block, as column 3 says it before Core's sentence. */
+export type Standing = "open" | "thanked" | "refunded" | "expired";
+
+/**
+ * The Hand's standing, said before Core's answer: Core's `checkRoute` and `checkGive` look at
+ * neither the expiry nor `closedAt` (AHandCore.sol, NatSpec of `checkGive`), so an accepted route
+ * on a closed Hand pays nobody. `state` is the SDK's `stateAt` at the latest block's timestamp
+ * (thanked when `thanks(id)` keeps a Give, as the Hand view tells them apart), never the device's
+ * clock. `at` is the second the sentence names: `closedAt` for a closed Hand, the expiry for one
+ * whose time is up. A Hand that is not raised has no standing: Core's own refusal says it.
+ */
+export function standingOf(state: HandState | undefined, view: Pick<HandView, "expiry" | "closedAt">): { state: Standing; at?: number } | undefined {
+  switch (state) {
+    case "thanked":
+    case "refunded":
+      return { state, at: view.closedAt };
+    case "expired":
+      return { state, at: view.expiry };
+    case "open":
+      return { state };
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The catalogue keys of column 3's sentences for a standing and Core's answer: the Hand's state
+ * first (none while it is open), then Core's own. On a Hand that is no longer open, an accepted
+ * route is "valid" and nothing more: no share and no "the asker can thank it" is promised.
+ */
+export function coreSentences(standing: Standing | undefined, answer: CoreAnswer, give: boolean): { state?: string; valid?: string; core: string } {
+  const ended = standing !== undefined && standing !== "open";
+  const state = ended ? `check.state.${standing}` : undefined;
+  if (answer.kind === "refused") return { ...(state ? { state } : {}), core: "check.core.refused" };
+  if (!ended) return { core: give ? "check.core.accepted.give" : "check.core.accepted.route" };
+  return {
+    ...(state ? { state } : {}),
+    ...(standing === "expired" ? {} : { valid: "check.state.closed.valid" }),
+    core: give ? "check.core.accepted.give.ended" : "check.core.accepted.route.ended",
+  };
 }
 
 /** The catalogue key of a step's sentence. */

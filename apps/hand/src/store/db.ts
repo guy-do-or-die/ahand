@@ -1,4 +1,6 @@
-import { bytesToHex, hexToBytes, isHex, type Hex } from "viem";
+import { bytesToHex, hexToBytes, isHex, type Address, type Hex } from "viem";
+
+import type { Intent } from "../wallet/send";
 
 /**
  * What this device keeps (ARCHITECTURE §11), in one IndexedDB database. Nothing stored here can
@@ -17,13 +19,14 @@ import { bytesToHex, hexToBytes, isHex, type Hex } from "viem";
  * | prefs   | language, lens, theme                                                  | name           |
  * | vault   | one AES-GCM key per device, made non-extractable                      | "device"       |
  * | escrow  | the locked copy of a new Hand's seed (signers that do not repeat)      | intent         |
+ * | sends   | a money action on its way from this device (care, /waiting, send-back) | action + place |
  *
  * Only this module touches `indexedDB`; the secrets guard checks that.
  */
 
 export const DB_NAME = "ahand";
-export const DB_VERSION = 1;
-export const STORES = ["books", "hands", "inbox", "outbox", "passed", "prefs", "vault", "escrow"] as const;
+export const DB_VERSION = 2;
+export const STORES = ["books", "hands", "inbox", "outbox", "passed", "prefs", "vault", "escrow", "sends"] as const;
 export type StoreName = (typeof STORES)[number];
 
 export type Mode = "public" | "unlisted" | "dark";
@@ -65,8 +68,33 @@ export interface HandRecord {
   batchId?: string;
   /** For a signer that does not repeat only: the Hand's inbox secret, a chat key (§11). */
   inboxSecret?: Hex;
-  /** "sent" while the raise waits for its receipt; "up" once it is in a block; "reverted". */
-  status?: "intent" | "sent" | "up" | "reverted";
+  /**
+   * "asked" once the wallet is asked for the raise (its nonce kept, no hash yet); "sent" while the
+   * raise waits for its receipt; "up" once it is in a block; "reverted"; "dropped" when nothing
+   * from it left the account (its nonce went to another transaction, or stayed free for good, and
+   * no `Raised` of it is on the chain).
+   */
+  status?: "intent" | "asked" | "sent" | "up" | "reverted" | "dropped";
+  /** The account asked to send the raise, its `pending` nonce then, and the latest block then. */
+  from?: Address;
+  nonce?: number;
+  fromBlock?: number;
+  /** The raise's root key and description hash: public, kept to find its `Raised` if its hash never lands. */
+  rootKey?: Address;
+  dataHash?: Hex;
+  /** A dropped raise /raise has told about, and the raiser has raised again since. */
+  droppedSeen?: boolean;
+}
+
+/**
+ * A money action on its way from this device, kept before the wallet is asked and until it
+ * lands, reverts or is dropped, so a reload follows it instead of offering it again (FINDINGS
+ * W-6). `id` is the action and its place: `fund:<handKey>`, `extend:<handKey>`,
+ * `refund:<handKey>`, `withdraw:<chainId>:<payee>:<token>`.
+ */
+export interface SendRecord {
+  id: string;
+  intent: Intent;
 }
 
 export interface InboxRecord {
@@ -165,6 +193,7 @@ function upgrade(db: IDBDatabase): void {
   if (!has("prefs")) db.createObjectStore("prefs");
   if (!has("vault")) db.createObjectStore("vault");
   if (!has("escrow")) db.createObjectStore("escrow", { keyPath: "intent" });
+  if (!has("sends")) db.createObjectStore("sends", { keyPath: "id" });
 }
 
 /** The open database. Rejects where storage is refused (some private windows): callers carry on without it. */
@@ -226,12 +255,38 @@ interface Records {
   hands: HandRecord;
   inbox: InboxRecord;
   passed: PassedRecord;
+  sends: SendRecord;
 }
 type Keyed = keyof Records;
 
-/** Writes one record of a keyed store (books, hands, inbox, passed). */
+/** Writes one record of a keyed store (books, hands, inbox, passed, sends). */
 export function put<S extends Keyed>(store: S, value: Records[S]): Promise<void> {
   return single(store, "readwrite", (s) => s.put(value)).then(() => undefined);
+}
+
+/**
+ * Writes one record only if none has its key yet (IndexedDB `add`): true when written, false when
+ * a record was already there, which is left as it was. One transaction, so two tabs cannot both
+ * write first.
+ */
+export async function putIfAbsent<S extends Keyed>(store: S, value: Records[S]): Promise<boolean> {
+  const db = await openDb();
+  const tx = db.transaction(store, "readwrite");
+  const request = tx.objectStore(store).add(value);
+  const written = new Promise<boolean>((resolve, reject) => {
+    request.onsuccess = () => resolve(true);
+    request.onerror = (event) => {
+      if (request.error?.name === "ConstraintError") {
+        // The record that is there stays; the transaction ends quietly instead of aborting.
+        event.preventDefault();
+        event.stopPropagation();
+        resolve(false);
+      } else reject(request.error);
+    };
+  });
+  written.catch(() => undefined);
+  await settled(tx);
+  return written;
 }
 
 /** Reads one record of a keyed store by its key. */

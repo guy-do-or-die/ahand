@@ -58,6 +58,19 @@ const ru: Record<keyof typeof en, string> = {
 
   "defaults.d66.title": "Рука может быть без награды.",
   "defaults.d66.body": "Только спасибо. Деньги не двигаются, и карточка так и говорит.",
+
+  // The setting itself, in mono, as this build has it: Core's own names stay as written.
+  "defaults.value.d21": "ОТВЕТ · ОДНОРАЗОВЫЙ КЛЮЧ ИЛИ НОВЫЙ АДРЕС · КЛЮЧИ НЕ ХРАНЯТСЯ",
+  "defaults.value.d26b": "expiry = время блока + {days} дн.",
+  "defaults.value.d31": "ДЕЛИТЬСЯ · КАК ТОЛЬКО ПОПАЛА В БЛОК",
+  "defaults.value.d32": "РЕЖИМ = ПО ССЫЛКЕ",
+  "defaults.value.d37": "АВТОР = «КТО-ТО»",
+  "defaults.value.d39": "ФРАГМЕНТ · ЧИТАЕТСЯ ОДИН РАЗ · REPLACESTATE",
+  "defaults.value.d40none": "NIP-17 · РЕЛЕ НЕ НАСТРОЕНО",
+  "defaults.value.d61": "СЕЙЧАС = ПОСЛЕДНИЙ БЛОК · EXPIRY_MARGIN = 10 МИН",
+  "defaults.value.d62none": "forwarder = НЕТ",
+  "defaults.value.d63": "AES-GCM · НЕИЗВЛЕКАЕМЫЙ КЛЮЧ УСТРОЙСТВА · ДО «ССЫЛКА СОХРАНЕНА»",
+  "defaults.value.d66": "reward = 0 ДОПУСКАЕТСЯ",
 };
 
 export default ru;

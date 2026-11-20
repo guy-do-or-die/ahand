@@ -38,6 +38,7 @@ const en = {
   "common.crash.title": "This screen stopped.",
   "common.crash.body": "Something broke while drawing it. Nothing was sent.",
   "common.crash.retry": "Try again",
+  "common.offline.kept": "This screen didn't load. Everything open in this tab is still here; nothing was sent.",
   "common.tabOnly": "This link lives in this tab only. Reloading forgets it — keep the message it came in.",
   "common.gallery": "Opening the component gallery…",
 
@@ -112,6 +113,16 @@ const en = {
   "common.error.nothingSent": "Nothing was sent.",
   "common.error.nothingLeft": "Nothing left your account.",
   "common.error.unknown": "Something went wrong. Nothing was sent.",
+  "common.error.wrongNetwork": "Your account is on another network. Switch it to {network} and try again. Nothing was sent.",
+  "common.error.unknownNetwork": "The app you chose doesn't know the network {network}. Add the network in it, then connect again. Nothing was connected.",
+
+  // ── A send whose fate is not known yet (wallet/send.ts: "unknown", "dropped") ──
+  "common.send.unknown": "It isn't known yet whether this went out. Don't press again: this screen is checking and will say when it knows.",
+  "common.send.dropped": "It didn't go through: nothing left your account. You can try again.",
+  "common.send.inFlight": "Already sent from this device and on its way. Nothing is sent a second time.",
+  "common.send.landed": "It went through after all.",
+  "common.send.stopWaiting": "Stop waiting",
+  "common.send.stopWaitingNote": "This only stops the screen from waiting. It sends nothing and cancels nothing: it may still go through, and the next visit checks again.",
 
   // ── A link that cannot be opened (LinkError codes and the two site-side ids) ──
   "link.malformed": "This link is damaged. Ask for it again.",

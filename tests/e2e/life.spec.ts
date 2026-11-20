@@ -446,7 +446,11 @@ test("the whole life: raise, pass at 0% and 10%, help, reply, thank, waiting mon
     expect(jumped.after.timestamp).toBeGreaterThan(row.expiry);
     // No reload: the view follows the chain's next block.
     await expect(card).toHaveAttribute("data-state", "expired", { timeout: 20_000 });
-    await expect(page.getByTestId("hand-times-up")).toContainText("Time's up. Anyone can send the reward back to the asker now.");
+    // The sentence stands once, in the card; the column under it is headed by what it does (F7).
+    await expect(card).toContainText("Time's up.");
+    await expect(card).toContainText("Anyone can send the reward back to the asker now.");
+    await expect(page.getByTestId("hand-times-up")).toContainText("Send the reward back");
+    await expect(page.getByTestId("hand-times-up")).not.toContainText("Time's up.");
     await expect(page.getByTestId("hand-pass")).toHaveCount(0);
     expect(craft<Opened>("open", third.address).state).toBe("expired");
 

@@ -54,7 +54,6 @@ const ru: Record<keyof typeof en, string> = {
   "thank.predicted.note": "Посчитано здесь — по пути и по награде, которая сейчас лежит в контракте.",
   "thank.predicted.passed": "Передали дальше",
   "thank.predicted.helper": "Помогли",
-  "thank.predicted.keptNothing": "не оставили себе ничего",
   "thank.predicted.formula": "как считается",
   "thank.predicted.total": "Вся награда",
   "thank.predicted.waitsIfBlocked":
@@ -107,6 +106,9 @@ const ru: Record<keyof typeof en, string> = {
   "thank.reverted.kept": "Награда осталась в контракте; потрачена только стоимость попытки.",
   "thank.firstStepOnly": "Аккаунт помощника настроен; спасибо не прошло. Потрачена только стоимость первого шага.",
   "thank.resumed": "С этого устройства уже отправлено спасибо за этот ответ. Следим за ним…",
+  "thank.onWay": "С этого устройства уже отправлено спасибо, оно в пути: рука {id}. Второй раз ничего не отправится.",
+  "thank.onWay.done": "Это спасибо прошло: рука {id}.",
+  "thank.onWay.open": "Посмотреть, кому сколько отправлено",
 };
 
 export default ru;

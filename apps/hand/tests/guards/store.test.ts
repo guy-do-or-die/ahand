@@ -4,8 +4,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { bytesToHex, hexToBytes, type Hex } from "viem";
 
 import {
+  all,
   bookOf,
   closeDb,
+  DB_NAME,
+  DB_VERSION,
   configureDb,
   dropSeed,
   forHand,
@@ -83,7 +86,7 @@ function holdsSeed(value: unknown, seed: Hex, seen = new Set<unknown>()): boolea
 }
 
 describe("store: the stores of ARCHITECTURE §11", () => {
-  test("the database has exactly the eight stores", async () => {
+  test("the database has exactly the nine stores", async () => {
     const name = fresh();
     await loadPrefs();
     const db: IDBDatabase = await new Promise((resolve) => {
@@ -92,6 +95,29 @@ describe("store: the stores of ARCHITECTURE §11", () => {
     });
     expect([...db.objectStoreNames].sort()).toEqual([...STORES].sort());
     db.close();
+  });
+
+  test("a database made by the first version gains the sends store when it opens", async () => {
+    const name = fresh();
+    closeDb();
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(name, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        const keyPaths: Record<string, string | undefined> = { books: "raiser", hands: "intent", inbox: "id", outbox: undefined, passed: "id", prefs: undefined, vault: undefined, escrow: "intent" };
+        for (const store of STORES.filter((s) => s !== "sends")) db.createObjectStore(store, keyPaths[store] ? { keyPath: keyPaths[store] } : undefined);
+      };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+    configureDb({ name });
+    expect(DB_VERSION).toBeGreaterThan(1);
+    await put("sends", { id: "refund:31337:0xcore:1", intent: { kind: "tx", chainId: 31337, step: 0, of: 1 } });
+    expect(await all("sends")).toHaveLength(1);
+    expect(DB_NAME).toBe("ahand");
   });
 
   test("prefs keep language, lens and theme", async () => {

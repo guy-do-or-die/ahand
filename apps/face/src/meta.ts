@@ -1,3 +1,4 @@
+import { isolate } from "./bidi.ts";
 import { termsOf, type Preview } from "./preview.ts";
 import { WORDS, termsLine, type Lang } from "./words.ts";
 
@@ -45,23 +46,25 @@ export function cardOf(preview: Preview, site: string, lang: Lang, dark: boolean
       title: w.genericTitle,
       description: w.genericLine,
       image: `${site}/og/generic.png${imageQuery(undefined, dark, lang)}`,
-      imageAlt: w.imageAlt(w.genericTitle),
+      imageAlt: w.genericAlt,
       url: `${site}${pathname}`,
       lang,
     };
   }
-  const title = preview.title ?? w.genericTitle;
+  // The chain's terms come first and stand alone; the asker's words follow, quoted, labelled and
+  // isolated, so nothing they say runs into the terms or turns them around (early review E-8, H-2).
+  const asked = preview.title === undefined ? undefined : isolate(oneLine(preview.title, 160));
   const line = termsLine(termsOf(preview, lang), lang);
-  const description = preview.content ? `${line}. ${oneLine(preview.content, 200)}` : `${line}.`;
+  const description = preview.content ? `${line}. ${w.quoted(isolate(oneLine(preview.content, 200)))}` : `${line}.`;
   const query = imageQuery(preview.d, dark, lang);
   return {
-    title: oneLine(title, 160),
+    title: asked ?? w.genericTitle,
     description,
     image: `${site}/og${preview.path}.png${query}`,
-    imageAlt: w.imageAlt(oneLine(title, 160)),
+    imageAlt: w.imageAlt(asked, line),
     url: `${site}${preview.path}${preview.d ? `?d=${preview.d}` : ""}`,
     lang,
-    ...(preview.title ? { pageTitle: `${oneLine(preview.title, 160)} · aHand` } : {}),
+    ...(asked ? { pageTitle: `${asked} · aHand` } : {}),
   };
 }
 

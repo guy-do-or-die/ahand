@@ -169,7 +169,7 @@
   overflow-wrap: anywhere;
 }
 
-/* What the Hand itself is, beside Core's answer: closed or out of time is said in a 2px frame. */
+/* What the Hand itself is, said before Core's answer: closed or out of time is said in a 2px frame. */
 .check-now {
   display: flex;
   flex-direction: column;
@@ -182,6 +182,14 @@
 }
 .check-now--over {
   border: var(--bw-focus) solid var(--ink);
+}
+/* The Hand's state, said first in column 3, at the latest block's time. */
+.check-said__state {
+  border-left: var(--bw-focus) solid var(--ink);
+  padding-left: 12px;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-heavy);
+  line-height: 1.35;
 }
 
 /* With no network: nothing is ticked, every mark is a dashed question. */

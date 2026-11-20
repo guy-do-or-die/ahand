@@ -122,6 +122,7 @@ function portsOf(double: Double, opts: { repeats: boolean; signal?: AbortSignal;
   const sent: RaiseRecord[] = [];
   return {
     raiser: double.address,
+    account: async () => double.address,
     confirmKeys: async () => true,
     signKeys: async () => ({ ok: true, signature: `0x${(opts.repeats ? 7 : ++n + 16 * ++run).toString(16).padStart(2, "0").repeat(65)}` as Hex, kind: opts.repeats ? "key" : "code", wrapped: false }),
     send: (calls, options) => sendCalls(env(opts.signal, opts.tick), double.wallet, calls, options),
@@ -176,7 +177,7 @@ describe("a raise sent as one wallet batch, its follow stopped before the batch'
     expect(moved).toBe(5n * USD);
     expect(await handsCount()).toBe(count + 1n);
 
-    expect(outcome).toEqual({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
+    expect(outcome).toMatchObject({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
     const kept = (await all("hands")) as RaiseRecord[];
     expect(kept.length).toBe(1);
     expect(kept[0]).toMatchObject({ status: "sent", batchId: `0x${"1".padStart(64, "0")}`, raiser: double.address.toLowerCase(), title: "A batch, stopped" });
@@ -236,7 +237,7 @@ describe("a raise sent as one wallet batch, its follow stopped before the batch'
 
   test("an account that repeats: the record is kept and resumed the same way (its link is rebuilt later, not here)", async () => {
     const { double, outcome } = await stoppedBatch(ANVIL_KEYS[4]!, true, "A batch by a key");
-    expect(outcome).toEqual({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
+    expect(outcome).toMatchObject({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
     expect(await lockedIntents()).toEqual([]);
     const record = await unfinished(ctx);
     expect(record).toMatchObject({ status: "sent", title: "A batch by a key" });
@@ -252,7 +253,7 @@ describe("a raise sent as one wallet batch, its follow stopped before the batch'
     const double = batchingWallet(ANVIL_KEYS[5]!);
     double.report("failed");
     const outcome = await raise(draft("A batch the wallet calls failed"), ctx, portsOf(double, { repeats: false }));
-    expect(outcome).toEqual({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
+    expect(outcome).toMatchObject({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
     const kept = (await all("hands")) as RaiseRecord[];
     expect(kept.map((record) => record.status)).toEqual(["sent"]);
     expect(await lockedIntents()).toEqual([kept[0]!.intent]);

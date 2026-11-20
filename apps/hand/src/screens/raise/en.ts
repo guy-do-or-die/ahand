@@ -63,7 +63,6 @@ const en = {
 
   // 6. Preview
   "raise.preview.label": "How it will look to whoever gets the link",
-  "raise.preview.raiser": "Asked by: your address, once connected",
 
   // 7. The swipe and its steps
   "raise.swipe": "Raise your hand",
@@ -129,6 +128,24 @@ const en = {
   "raise.error.copyLost": "This device can no longer open its locked copy of the link. After the hand's end, the reward can still be sent back to you.",
   "raise.error.otherTerms": "The contract recorded other terms than this screen sent. Don't share this hand; after its end, it can be sent back to you.",
   "raise.error.facts": "Can't read the contract's limits or the token right now. Nothing was sent.",
+
+  // A raise whose fate is not known yet, or that never went (FINDINGS E-1, E-2, W-3, W-5, E-7)
+  "raise.error.unknown": "It isn't known yet whether your raise went out. Don't raise it again: this screen is checking and will show your hand once it finds it.",
+  "raise.error.dropped": "Your last raise didn't go through: nothing left your account, and the reward is still yours. You can raise it again.",
+  "raise.error.allowSent": "The permission step went out and its cost was paid, but the raise itself did not: no reward moved. The next try skips the permission step.",
+  "raise.error.allowUnknown": "It isn't known whether the permission step went out. The raise itself was not sent and no reward moved. The next try checks the permission first.",
+  "raise.error.allowDropped": "The permission step didn't go through and the raise was not sent: nothing left your account.",
+  "raise.error.accountChanged": "The account changed from {was} to {now} in the middle of the raise, so it stopped. Nothing was sent.",
+  "raise.error.accountChangedAllow": "The account changed from {was} to {now} after the permission step, so the raise stopped. The permission step went out from {was} and its cost was paid; no reward moved.",
+  "raise.error.tooLarge": "A public hand's words must fit in {max} characters of its address; these take {bytes}. Shorten them, or choose Unlisted or Dark, where the details travel inside the link. Nothing was sent.",
+  "raise.size": "In the address before #: {bytes} of at most {max} characters.",
+  "raise.size.over": "Too long for a public hand: an address this long stops opening. Choose Unlisted or Dark, or shorten the words.",
+  "raise.swipe.amount": "Raise your hand · {amount}",
+  "raise.steps.allowAmount": "1 of 2: allow {amount}",
+  "raise.pending.unknown": "Is your raise on its way?",
+  "raise.pending.offline": "The screen keeps checking once the network answers.",
+  "raise.my.checking": "Checking whether this raise went out…",
+  "raise.my.dropped": "This raise didn't go through: nothing left your account.",
 };
 
 export default en;

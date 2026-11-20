@@ -33,6 +33,28 @@ export function money(amount: bigint, decimals: number, lang: Lang, opts: { cent
   return `$${wholeText}${point}${String(cents).padStart(2, "0")}`;
 }
 
+/**
+ * Every digit, in the human layer's form: "$0.165", "$0.000033", "$1,000.000001" ("$0,165" in
+ * Russian). At least two digits after the point, so it sits beside `money(…, { cents: true })`.
+ * For amounts that cutting to cents would misstate: rows that must add up to their total.
+ */
+export function moneyExact(amount: bigint, decimals: number, lang: Lang): string {
+  const [whole = "0", fraction = ""] = unitsText(amount, decimals).split(".");
+  const wholeText = new Intl.NumberFormat(LOCALE[lang], { maximumFractionDigits: 0 }).format(BigInt(whole));
+  const digits = fraction.padEnd(Math.min(2, decimals), "0");
+  return digits ? `$${wholeText}${lang === "ru" ? "," : "."}${digits}` : `$${wholeText}`;
+}
+
+/**
+ * The least a helper is paid at a place on the route where `claimBps` is left. Core pays each
+ * pass `Math.mulDiv(reward, claimBps − nextClaimBps, 10 000)`, rounded down, and the helper gets
+ * the rest (AHandCore.sol `_payShakers`), so the helper's share is never below
+ * ⌈reward × claimBps / 10 000⌉. Rounding down here promised one unit less than Core pays (M-1).
+ */
+export function atLeast(reward: bigint, claimBps: number): bigint {
+  return (reward * BigInt(claimBps) + 9_999n) / 10_000n;
+}
+
 /** Basis points as a percentage: 7000 is "70%", 250 is "2.5%". */
 export function percent(bps: number, lang: Lang): string {
   return `${new Intl.NumberFormat(LOCALE[lang], { maximumFractionDigits: 2 }).format(bps / 100)}%`;

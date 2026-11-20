@@ -7,6 +7,7 @@ import { config as app } from "../config";
 import { chainOf } from "../chain/clients";
 import { walletConfig } from "./config";
 import type { DevRole, DevWho } from "./dev";
+import { unknownNetwork } from "./errors";
 import { safeIcon } from "./icons";
 import type { SignedInWallet } from "./send";
 
@@ -15,6 +16,8 @@ import type { SignedInWallet } from "./send";
  * and the choices "Connect a wallet" offers. Built on wagmi's actions and one external store, so
  * no provider has to wrap the app and screens never touch wagmi.
  */
+
+export { unknownNetwork } from "./errors";
 
 export interface WalletState {
   /** False until the wallet configuration is made (one tick after first use). */
@@ -115,7 +118,7 @@ export function useWalletOptions(): WalletOption[] {
   return useSyncExternalStore(subscribe, () => snapshot.options);
 }
 
-export type ConnectOutcome = { ok: true; address: Address } | { ok: false; reason: "refused" | "failed" };
+export type ConnectOutcome = { ok: true; address: Address } | { ok: false; reason: "refused" | "failed" | "unknown-network" };
 
 function said(error: unknown, code: number): boolean {
   let node: unknown = error;
@@ -139,6 +142,7 @@ export async function connectWallet(id: string): Promise<ConnectOutcome> {
     const result = await connect(config, { connector, chainId: app.chain.id });
     return { ok: true, address: result.accounts[0]! };
   } catch (error) {
+    if (unknownNetwork(error)) return { ok: false, reason: "unknown-network" };
     return { ok: false, reason: said(error, 4001) ? "refused" : "failed" };
   }
 }

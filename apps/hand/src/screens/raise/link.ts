@@ -1,5 +1,6 @@
 import {
   CORE_ABI,
+  DescriptionTooLarge,
   carryFor,
   domain,
   describeHand,
@@ -83,10 +84,17 @@ export function weigh(draft: { title: string; content: string; mode: "public" | 
   let beforeHash = where.site.length + 1;
   if (draft.mode !== "dark" && title > 0) {
     const content = draft.content.trim();
-    const described = describeHand({ mode: draft.mode, title: draft.title, ...(content ? { content } : {}), inbox: pad("0x01", { size: 32 }) });
     const canonical = where.options.canonicalCore !== undefined && isAddressEqual(where.options.canonicalCore, where.core);
     const path = canonical ? `${where.chainId}/` : `${where.chainId}/${where.core}/`;
-    const shown = described.outside ? toText(packAttachments(described.outside)).length : 0;
+    let shown: number;
+    try {
+      const described = describeHand({ mode: draft.mode, title: draft.title, ...(content ? { content } : {}), inbox: pad("0x01", { size: 32 }) });
+      shown = described.outside ? toText(packAttachments(described.outside)).length : 0;
+    } catch (error) {
+      // The SDK itself refuses a public description past its limit of `d` (E-7): it is counted at what it would take.
+      if (!(error instanceof DescriptionTooLarge)) throw error;
+      shown = error.bytes;
+    }
     beforeHash += path.length + HAND_DIGITS + (shown > 0 ? "?d=".length + shown : 0);
   }
   const over = title > MAX_TITLE ? "title" : details > MAX_DETAILS ? "details" : beforeHash > MAX_BEFORE_HASH ? "address" : undefined;

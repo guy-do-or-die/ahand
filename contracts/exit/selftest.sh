@@ -4,6 +4,9 @@
 #
 #   bash contracts/exit/selftest.sh
 #
+# 0. uint256  with a stand-in cast and no chain: a pending 10e18 is withdrawn, an unlimited
+#             allowance (2^256-1) sends no approve, and 10e18 with allowance 0 approves first: amounts
+#             past bash's signed 64 bits are compared as uint256 (early review C-4).
 # 1. refund   a Hand is extended, funded, refused a refund while it runs, then refunded by a
 #             stranger after a time jump; the raiser gets the whole reward back.
 # 2. pending  a refund to a blocked payee (BlacklistToken, D-14) waits in Core; a withdraw to the
@@ -45,6 +48,38 @@ step() { echo; echo "== $*"; }
 pass() { echo "PASS $*"; }
 fail() { echo "FAIL $*" >&2; exit 1; }
 expect_eq() { [[ $1 == "$2" ]] || fail "$3: expected $2, got $1"; pass "$3"; }
+
+# ---- 0. uint256 amounts, with a stand-in cast (no chain) ----
+standin=$(mktemp -d)
+trap 'rm -rf "$standin"' EXIT
+cp "$contracts/exit/selftest-cast.sh" "$standin/cast"
+chmod +x "$standin/cast"
+T=0x3333333333333333333333333333333333333333 P=0x5555555555555555555555555555555555555555
+standin_kit() { # standin_kit <log> <env...> -- <ahand.sh args...>: ahand.sh against the stand-in cast
+  local log=$1; shift
+  local -a envs=()
+  while [[ $1 != -- ]]; do envs+=("$1"); shift; done
+  shift
+  : >"$log"
+  env FOUNDRY_BIN="$standin" RPC=http://127.0.0.1:1 CORE=0x65ac707E2AE7392583de5d6192C619F1D8862309 CAST_LOG="$log" "${envs[@]}" \
+    bash "$kit" "$@" -- --private-key 0xdead >/dev/null 2>&1
+}
+sends() { grep '^cast send' "$1" | awk '{print $6}' | paste -sd' ' -; }
+step "0. uint256 amounts past 64 bits, with a stand-in cast"
+standin_kit "$standin/1.log" PENDING=10000000000000000000 -- withdraw $T $P || fail "withdraw of a pending 10e18 failed"
+expect_eq "$(sends "$standin/1.log")" "withdraw(address,address,address)" "a pending 10e18 (past 2^63) is seen and withdrawn"
+standin_kit "$standin/2.log" ALLOWANCE=115792089237316195423570985008687907853269984665640564039457584007913129639935 -- fund 7 1 ||
+  fail "fund with an unlimited allowance failed"
+expect_eq "$(sends "$standin/2.log")" "fund(uint256,uint256)" "an unlimited allowance (2^256-1) sends no approve"
+standin_kit "$standin/3.log" ALLOWANCE=0 -- fund 7 10 || fail "fund of 10e18 with allowance 0 failed"
+expect_eq "$(sends "$standin/3.log")" "approve(address,uint256) fund(uint256,uint256)" "10e18 with allowance 0 approves first, then funds"
+standin_kit "$standin/4.log" ALLOWANCE=10000000000000000000 -- fund 7 10 || fail "fund with an equal allowance failed"
+expect_eq "$(sends "$standin/4.log")" "fund(uint256,uint256)" "an allowance equal to 10e18 sends no approve"
+standin_kit "$standin/5.log" ALLOWANCE=9999999999999999999 -- fund 7 10 || fail "fund with an allowance one unit short failed"
+expect_eq "$(sends "$standin/5.log")" "approve(address,uint256) fund(uint256,uint256)" "an allowance one unit short of 10e18 approves first"
+if standin_kit "$standin/6.log" PENDING=0 -- withdraw $T $P; then fail "a pending 0 was withdrawn"; fi
+expect_eq "$(sends "$standin/6.log")" "" "a pending 0 sends nothing"
+rm -rf "$standin"
 
 # ---- a fresh chain ----
 busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }

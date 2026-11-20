@@ -238,8 +238,9 @@ test("the compose state: one level-one heading bound to its field, the asker in 
   // No account yet: the preview names no address, least of all the zero one.
   await page.getByTestId("raise-what").fill("A quiet room in Tbilisi for a week");
   const preview = page.getByTestId("raise-preview");
-  await expect(page.getByTestId("raise-preview-raiser")).toHaveText("Asked by: your address, once connected");
-  await expect(preview.locator(".ah-deal__foot")).toBeHidden();
+  // The card's own "Asked by" row says the address comes once an account is connected (the fix round's F5).
+  await expect(preview.locator('.ah-deal__foot[data-raiser="later"]')).toHaveText(/Asked by\s*your address, once you connect/);
+  await expect(preview).toHaveAttribute("data-raiser", "none");
   expect(await preview.innerText()).not.toMatch(/0x[0-9a-fA-F]/);
   await shot(page, "smoke-compose-no-account");
 

@@ -35,7 +35,10 @@ line, and names the way out: the payee sends it to another address of theirs (`w
 <to> -- <the payee's signer>`). `ahand.sh` needs only bash and cast.
 
 The thank calldata comes from `bun tools/ahand.ts thank-calldata <give-link>` or from `exit.html`.
-`bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain (it needs jq too).
+`bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain (it needs jq too). Before
+that, with a stand-in `cast` (`selftest-cast.sh`) and no chain, it checks that amounts past 64 bits
+are compared as uint256: a pending 10 tokens of 18 decimals is withdrawn, an unlimited allowance
+sends no approve, and 10 tokens with no allowance approve first.
 
 ## 2. On a block explorer
 

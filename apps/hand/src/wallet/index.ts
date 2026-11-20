@@ -4,7 +4,23 @@
 export { ConnectButton, ConnectSheet, CONNECT_TID, devAccountTid, type ConnectSheetProps } from "./ConnectSheet";
 export { LOCAL, walletConfig, walletConfigOf } from "./config";
 export { safeIcon } from "./icons";
-export { canBatch, pause, resume, sendCalls, type Intent, type SendEnv, type SendOptions, type SendProgress, type SendResult, type SignedInWallet } from "./send";
+export {
+  canBatch,
+  pause,
+  resume,
+  sendCalls,
+  type Intent,
+  type Probe,
+  type SendAction,
+  type SendEnv,
+  type SendOptions,
+  type SendProgress,
+  type SendResult,
+  type SignedInWallet,
+  type StepInfo,
+} from "./send";
+export { approvalProbe, extendedProbe, fundedProbe, raisedProbe, refundedProbe, thankedProbe, withdrawnProbe } from "./effects";
+export { useKeptSend, type KeptSend } from "./useKeptSend";
 export {
   connectedWallet,
   connectWallet,
@@ -13,6 +29,7 @@ export {
   switchToAppChain,
   useWallet,
   useWalletOptions,
+  unknownNetwork,
   type ConnectOutcome,
   type WalletOption,
   type WalletState,

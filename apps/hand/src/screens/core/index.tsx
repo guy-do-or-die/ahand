@@ -114,14 +114,14 @@ export default function CoreScreen() {
         </code>
         <Row name={t("core.chain")}>
           <span className="ah-meta ah-meta--exact">
-            {chainName(config.chain)} · CHAIN ID {config.chain.id}
+            {chainName(config.chain)} · {t("core.chainId", { id: config.chain.id })}
           </span>
         </Row>
         {chain.state === "reading" ? <p className="ah-meta m-0">{t("core.reading")}</p> : null}
         {chain.state === "failed" ? <ErrorBand what={t("core.offline")} kept={t("core.offline.kept")} /> : null}
         {onChain ? (
           <div className="core-claim">
-            <p className="m-0">{onChain.codeBytes > 0 ? t("core.code", { bytes: count(onChain.codeBytes) }) : t("core.code.none")}</p>
+            <p className="m-0">{onChain.codeBytes > 0 ? t("core.code", { bytes: onChain.codeBytes }) : t("core.code.none")}</p>
             <Mark kind="chain" source={`eth_getCode · ${blockSource}`} />
           </div>
         ) : null}
@@ -144,7 +144,7 @@ export default function CoreScreen() {
             <p className="m-0">{t("core.cap.body", { days: capDays(onChain.cap) })}</p>
             <div className="core-box">
               <Row name="MAX_EXPIRY_PERIOD">
-                {count(onChain.cap)} s = {capDays(onChain.cap)} d
+                {t("core.cap.row", { seconds: count(onChain.cap), days: capDays(onChain.cap) })}
               </Row>
             </div>
             <Mark kind="chain" source={`${t("core.lens.cap")} · ${blockSource}`} />

@@ -1,16 +1,17 @@
-import { getHandFor, handLogsAt, receiptOf, type OpenedAddress, type ReceiptRow } from "@ahand/sdk";
+import { getHandFor, handLogsAt, readDescription, receiptOf, type OpenedAddress, type ReceiptRow } from "@ahand/sdk";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { erc20Abi, isAddressEqual, type Address } from "viem";
 
 import { CLIENTS, clientOf, useHand, useNow } from "../../chain";
 import { config } from "../../config";
-import { t } from "../../i18n";
+import { t, useLang } from "../../i18n";
 import { usePlace } from "../../router";
 import { rememberText, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Qr, QuietButton, ReceiptTable, SwipeButton, qrOf, type QrCode } from "../../ui";
+import { CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Qr, QuietButton, ReceiptTable, SwipeButton, day, qrOf, type QrCode } from "../../ui";
 import { CODE_MM, DPI_FOR_THREE_DOTS, MIN_MODULE_MM, moduleMm, offered, type Format } from "./fit";
-import { NotPrintable, openHeldLink, passportAddress, printableOf, receiptOfSearch, type Printable } from "./link";
+import { closingOf, namesHand, paperDate } from "./head";
+import { NotPrintable, openHeldLink, passportAddress, peekHeld, printableOf, receiptOfSearch, type Printable } from "./link";
 
 /**
  * /print (UX-SPEC §11, §3 item 3; D-44). The link this tab holds is re-encoded bare, with
@@ -18,8 +19,10 @@ import { NotPrintable, openHeldLink, passportAddress, printableOf, receiptOfSear
  * 85 × 55 mm tag and the A6 card each only when their code keeps a module of at least 0.40 mm
  * (fit.ts). Otherwise: "Too dense to print small. Show it on a screen."
  *
- * `/print?receipt=<chain>/<hand>` prints a closed Hand's receipt instead: the table from Core's
- * events, a code leading to the passport, and the command that checks it from a clone.
+ * `/print?receipt=<chain>/<hand>` prints a closed Hand's receipt instead: a head (the Hand's
+ * number, the question when this tab holds the Hand's own link, how and when it closed, in which
+ * block, and who asked), the table from Core's events, a code leading to the passport, and the
+ * command that checks it from a clone.
  *
  * The page prints through design/print.css: only the chosen sheet, in ink on white, on a page of
  * its own size. Nothing here stores, logs or sends the link.
@@ -245,8 +248,36 @@ function Sheet({ format, testId, version, children }: { format: Format | "receip
 
 /* ──────────────────────────────────────────────────── the receipt */
 
+/**
+ * The question, from the link this tab holds when it names this very Hand and its words arrived
+ * whole and match the dataHash Core keeps. The receipt's address carries no words of its own.
+ */
+function useQuestion(chainId: number, handId: bigint): string | undefined {
+  const held = useOpened();
+  const named = held ? namesHand(peekHeld(held.fragment, LINK_OPTIONS), chainId, CORE, handId) : false;
+  const key = held && named ? `${held.before}#${held.fragment}` : undefined;
+  const [read, setRead] = useState<{ key?: string; title?: string }>({});
+  useEffect(() => {
+    if (!held || !key) return;
+    let live = true;
+    openHeldLink(held, getHand, LINK_OPTIONS).then(
+      (opened) => {
+        const description = readDescription(opened);
+        if (live) setRead({ key, ...(description.status === "attached" && description.title ? { title: description.title } : {}) });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [key]); // `key` carries the held link
+  return key && read.key === key ? read.title : undefined;
+}
+
 function ReceiptPrint({ chainId, handId }: { chainId: number; handId: bigint }) {
+  const lang = useLang();
   const known = chainId === config.chain.id;
+  const question = useQuestion(chainId, handId);
   const read = useHand(known ? CORE : undefined, known ? handId : undefined);
   const view = read.data?.view;
   const state = read.data?.state;
@@ -269,6 +300,7 @@ function ReceiptPrint({ chainId, handId }: { chainId: number; handId: bigint }) 
   const passport = passportAddress(config.site, chainId, CORE, handId, config.cores.canonical ?? undefined);
   const code = useMemo(() => qrOf(passport, 40), [passport]);
   const verify = `bun tools/ahand.ts verify --rpc ${RPC} --core ${CORE} ${handId}`;
+  const closing = rows ? closingOf(rows) : undefined;
 
   return (
     <Frame>
@@ -283,9 +315,19 @@ function ReceiptPrint({ chainId, handId }: { chainId: number; handId: bigint }) 
         <>
           <Sheet format="receipt" testId={TID.print.receipt}>
             <div className="ah-print-receipt">
-              <p className="ah-print-receipt__head">
-                aHand · HAND {handId.toString()} · CHAIN {chainId}
-              </p>
+              <header className="ah-print-receipt__header" data-testid={TID.print.header} data-closing={closing?.how ?? ""}>
+                <h2 className="ah-print-receipt__title">{t("print.header", { id: handId.toString() })}</h2>
+                {question ? <p className="ah-print-receipt__question">{question}</p> : null}
+                {closing ? (
+                  <p className="ah-print-receipt__when">
+                    {t(`print.closed.${closing.how}`, { date: paperDate(closedAt, (at) => day(at, lang)), block: closing.block.toString() })}
+                  </p>
+                ) : null}
+                <p className="ah-print-receipt__asker">{t("print.asker", { who: view.raiser })}</p>
+                <p className="ah-print-receipt__head">
+                  {t("print.receipt.mark", { chain: chainId })} · CORE <span className="normal-case">{CORE}</span>
+                </p>
+              </header>
               {rows ? <ReceiptTable rows={rows} decimals={decimals} /> : <p className="ah-label m-0">{t("print.checking")}</p>}
               <div className="ah-print-receipt__foot">
                 <Code code={code} format="receipt" label={passport} />
@@ -300,6 +342,7 @@ function ReceiptPrint({ chainId, handId }: { chainId: number; handId: bigint }) 
               </div>
             </div>
           </Sheet>
+          {question ? null : <p className="ah-label ah-label--dim m-0">{t("print.question.none")}</p>}
           <CopyRow value={verify} />
           <SwipeButton gesture="raise" data-testid={TID.print.go} onClick={() => window.print()}>
             {t("print.go")}

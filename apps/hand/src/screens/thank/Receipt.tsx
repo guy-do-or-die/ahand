@@ -4,7 +4,7 @@ import type { Hex, TransactionReceipt } from "viem";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, Mark, ReceiptTable, count, money, shortAddress } from "../../ui";
+import { CopyRow, Disclose, Mark, ReceiptTable, count, money, receiptAmounts, shortAddress } from "../../ui";
 import { ThankSpent } from "./Spent";
 
 /**
@@ -42,6 +42,14 @@ export function ThankReceipt({
   const lang = useLang();
   const payouts = receipt.rows.map((row, index) => ({ row, index })).filter(({ row }) => row.eventName === "Paid" || row.eventName === "Pending");
   const block = receipt.rows[0]?.log.blockNumber;
+  // Each payout as the receipt writes it: in cents, or every digit where cents would hide some (M-4).
+  const amounts = payouts.map(({ row }) => row.amount ?? 0n);
+  const written = receiptAmounts(
+    amounts,
+    amounts.reduce((sum, amount) => sum + amount, 0n),
+    decimals,
+    lang,
+  );
 
   return (
     <section className="flex flex-col gap-4" data-testid={TID.thank.done} data-hash={hash}>
@@ -62,9 +70,9 @@ export function ThankReceipt({
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {payouts.map(({ row, index }) => {
+          {payouts.map(({ row, index }, at) => {
             const waiting = row.eventName === "Pending";
-            const amount = money(row.amount ?? 0n, decimals, lang, { cents: true });
+            const amount = written.rows[at]!;
             return (
               <li
                 key={index}

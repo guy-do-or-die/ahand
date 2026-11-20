@@ -2,7 +2,7 @@
 // Keys with a `lens` segment are the specialist layer, where Core's own names may stand.
 const en = {
   "my.title": "Hands raised on this device.",
-  "my.empty": "No hands on this device yet.",
+  "my.empty": "No hands raised from this device yet.",
   "my.raise": "Raise a hand",
   "my.deviceOnly": "This list lives on this device only. Your own link still opens your hand.",
   "my.answers.count": "{n, plural, =0 {No answers yet} one {# answer} other {# answers}}",
@@ -17,6 +17,20 @@ const en = {
   "my.noReward": "No reward: a thank-you only",
   "my.open": "Open",
   "my.otherAccount": "Raised by another account on this device.",
+
+  "my.openHand": "Open the hand",
+
+  "my.onWay.title": "Thanks on their way",
+  "my.onWay.item": "Your thanks on hand {id} left this device and is still on its way: the network hasn't confirmed it yet.",
+  "my.onWay.thanked": "Hand {id} is closed: the thanks went through.",
+
+  "my.mine.title": "Your answers",
+  "my.mine.why": "Answers sent from this device. While this page is open, the asker's messages arrive here.",
+  "my.mine.hand": "Hand {id}",
+  "my.mine.noWords": "Sent without words.",
+  "my.mine.sent": "Sent from this device {time}",
+  "my.mine.delivered": "Delivered to {acks} of {of, plural, one {# relay} other {# relays}}.",
+  "my.mine.waiting": "Not delivered yet. While any page of this site is open, this device tries again.",
 
   "my.unlock": "Unlock links and replies",
   "my.unlock.why": "One confirmation for this visit. It rebuilds your links and opens the answers sent to you. It can't move any money.",
@@ -119,6 +133,7 @@ const en = {
   "my.lens.inbox": "inbox.n1 {key}",
   "my.lens.split": "margin = ⌊reward × (claimBps − nextClaimBps) / 10 000⌋; the helper gets the rest",
   "my.lens.firstSeen": "First seen on this device {time}",
+  "my.lens.onWay": "thank intent · {kind} · chain {chain} · {hash}",
 };
 
 export default en;
