@@ -107,7 +107,7 @@ export function Unfurl({ mode, host, title, content, money }: { mode: Mode; host
         </span>
         <div className="ah-ogcard">
           <span className="ah-meta">{host}</span>
-          <div className="ah-ogcard__title" style={{ color: !dark && !title ? "var(--ink-a45)" : undefined }}>
+          <div className="ah-ogcard__title" style={{ color: !dark && !title ? "var(--ink-a70)" : undefined }}>
             {dark ? t("raise.who.generic") : shown}
           </div>
           {mode === "public" && content ? <div className="ah-ogcard__desc">{content}</div> : null}

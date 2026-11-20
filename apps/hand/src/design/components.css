@@ -708,6 +708,7 @@
   border-top: var(--bw-hair) solid var(--ink-a08);
 }
 .ah-ogcard__title {
+  color: var(--ink);
   font-size: var(--fs-card-title-sm);
   font-weight: var(--fw-heavy);
   letter-spacing: -0.015em;

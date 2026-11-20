@@ -122,6 +122,8 @@ export const TID = {
     reminder: "care-reminder",
     error: "care-error",
     txRail: "care-tx-rail",
+    fundDone: "care-tx-rail-fund-done",
+    extendDone: "care-tx-rail-extend-done",
   },
 
   /** Thank `/thank` (§7.5). */
@@ -264,6 +266,9 @@ export const TID = {
     withoutSite: "proof-without-site",
     print: "proof-print",
     longRead: "proof-long-read",
+    tally: "proof-tally",
+    givehashMatches: "proof-givehash-matches",
+    verifyLine: "proof-verify-line",
   },
 
   /** Check any link `/check` (§10.2). */
@@ -274,6 +279,7 @@ export const TID = {
     step: "check-step", // data-index: Core's order
     coreAnswer: "check-core-answer",
     finding: "check-finding",
+    agree: "check-agree",
   },
 
   /** This contract `/core` (§10.3). */
@@ -287,6 +293,9 @@ export const TID = {
     command: "core-command",
     copyCommand: "core-copy-command",
     limits: "core-limits",
+    buildLabel: "core-build-label",
+    buildValue: "core-build-value",
+    unaudited: "core-unaudited",
   },
 
   /** `/limits`, `/defaults`, `/without-us` (§11). */
@@ -306,6 +315,31 @@ export const TID = {
     tag: "print-tag",
     tooDense: "print-too-dense",
     go: "print-go",
+    paste: "print-paste",
+    open: "print-open",
+    receipt: "print-receipt",
+    verify: "print-verify",
+  },
+
+  /** The twist: every hand and receipt row turns over to its proof (UX-SPEC §3). */
+  twist: {
+    flip: "twist-flip",
+    front: "twist-flip-front",
+    back: "twist-back",
+    step: "twist-step",
+    core: "twist-core",
+    share: "twist-share",
+    payee: "twist-payee",
+    key: "twist-key",
+    signer: "twist-signer",
+    givehash: "twist-givehash",
+    match: "twist-match",
+    hand: "twist-hand",
+    formula: "twist-formula",
+    event: "twist-event",
+    sweep: "twist-sweep",
+    bow: "twist-bow",
+    replay: "twist-replay",
   },
 
   /** The local dev wallet `/dev/wallet` (ARCHITECTURE §7, Wallets). */

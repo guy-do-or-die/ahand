@@ -4,7 +4,9 @@ import type { Address, Hex } from "viem";
 
 import { useHand, useNow } from "../../chain";
 import { t } from "../../i18n";
+import { navigate } from "../../router";
 import { handKey, type HandRecord } from "../../store/db";
+import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
 import { CopyRow, DealCard, Mark, QuietButton, shortAddress, useLens, type DealDescription } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
@@ -35,6 +37,8 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
   const secrets = useSecrets(record, account);
   const answers = useAnswers(record ? key : undefined, core ? { chainId, core, handId } : undefined, read.data?.state);
   const lens = useLens();
+  // The link rebuilt on this page, if any: /print takes it from tab memory, as from /raise.
+  const [rebuilt, setRebuilt] = useState<string>();
   useInboxVersion();
 
   const view = read.data?.view;
@@ -101,7 +105,7 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
         </div>
       ) : null}
 
-      {record && view ? <ShowLink record={record} secrets={secrets} rootKey={view.rootKey} chainId={chainId} core={core!} handId={handId} /> : null}
+      {record && view ? <ShowLink record={record} secrets={secrets} rootKey={view.rootKey} chainId={chainId} core={core!} handId={handId} onShown={setRebuilt} /> : null}
 
       <div className="flex flex-wrap gap-3">
         <a href="/thank" className="ah-quiet ah-quiet--compact" data-testid={TID.my.pasteAnswer}>
@@ -113,7 +117,17 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
         <a href={`/care/${chainId}/${handId}`} className="ah-quiet ah-quiet--compact" data-testid={TID.my.keepOpen}>
           {t("my.keepOpen")}
         </a>
-        <a href="/print" className="ah-quiet ah-quiet--compact" data-testid={TID.my.print}>
+        <a
+          href="/print"
+          className="ah-quiet ah-quiet--compact"
+          data-testid={TID.my.print}
+          onClick={(event) => {
+            if (!rebuilt) return;
+            event.preventDefault();
+            rememberText(rebuilt, "handover");
+            navigate("/print");
+          }}
+        >
           {t("my.print")}
         </a>
       </div>
@@ -170,7 +184,23 @@ function useCheckedWords(record: HandRecord | undefined, secrets: HandSecrets | 
  * key must be the root key Core keeps; if it is not, the screen says so plainly and shows nothing.
  * The link stays in this tab's memory (React state); it is never stored or logged.
  */
-function ShowLink({ record, secrets, rootKey, chainId, core, handId }: { record: HandRecord; secrets: HandSecrets | undefined; rootKey: Address; chainId: number; core: Address; handId: bigint }) {
+function ShowLink({
+  record,
+  secrets,
+  rootKey,
+  chainId,
+  core,
+  handId,
+  onShown,
+}: {
+  record: HandRecord;
+  secrets: HandSecrets | undefined;
+  rootKey: Address;
+  chainId: number;
+  core: Address;
+  handId: bigint;
+  onShown: (address: string) => void;
+}) {
   const [shown, setShown] = useState<Shown>({ status: "idle" });
   const show = async () => {
     if (!secrets) return;
@@ -195,6 +225,7 @@ function ShowLink({ record, secrets, rootKey, chainId, core, handId }: { record:
       const opened = await openAddress(rebuilt.address, GET_HAND, OPTIONS);
       if (opened.hand.handId !== handId) throw new Error("the rebuilt link names another hand");
       const status = readDescription(opened).status;
+      onShown(rebuilt.address);
       setShown({ status: "ok", address: rebuilt.address, words: status === "attached" ? "attached" : rebuilt.words === "attached" ? "mismatch" : rebuilt.words });
     } catch {
       setShown({ status: "no", id: "common.time.offline" });

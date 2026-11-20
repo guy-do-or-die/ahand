@@ -44,12 +44,12 @@ function LangSwitch() {
           <button
             type="button"
             lang={code}
-            aria-label={t(`common.language.${code}`)}
+            aria-label={`${code.toUpperCase()} — ${t(`common.language.${code}`)}`}
             aria-pressed={lang === code}
             data-testid={code === "en" ? TID.shell.langEn : TID.shell.langRu}
             onClick={() => setLang(code)}
             className={`min-h-11 min-w-11 cursor-pointer border-0 bg-transparent p-0 font-[inherit] uppercase tracking-[inherit] ${
-              lang === code ? "font-medium text-ink underline decoration-[1.5px] underline-offset-[5px]" : "text-ink/55"
+              lang === code ? "font-medium text-ink underline decoration-[1.5px] underline-offset-[5px]" : "text-ink/70"
             }`}
           >
             {code}
@@ -85,8 +85,13 @@ function LensToggle() {
 export function Header() {
   return (
     <header data-testid={TID.shell.header} className="flex items-center justify-between gap-3 px-4 py-2 sm:px-6 md:px-10">
-      <a href="/" aria-label={t("common.home")} data-testid={TID.shell.logo} className="inline-flex min-h-11 items-center text-ink no-underline">
-        <Logo size={22} />
+      {/* Named by its text, not by aria-label: the lockup's letters sit in separate boxes around the
+          hands, so the drawn word is hidden from assistive technology and the name is given whole. */}
+      <a href="/" data-testid={TID.shell.logo} className="inline-flex min-h-11 items-center text-ink no-underline">
+        <span aria-hidden="true" className="inline-flex">
+          <Logo size={22} />
+        </span>
+        <span className="sr-only">{t("common.home")}</span>
       </a>
       <div className="flex items-center gap-1">
         <LangSwitch />
