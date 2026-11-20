@@ -59,6 +59,14 @@ test("amounts in the words are found, folded for detection only", () => {
   ]);
   expect(amountsIn("$5k for this; USD 12.50 for that", 6).map((found) => found.amount)).toEqual([5_000_000_000n, 12_500_000n]);
   expect(amountsIn("награда 1,5 бакса", 6).map((found) => found.amount)).toEqual([1_500_000n]);
+  // Thousands written the Russian way: \b knows only ASCII letters, so the group must end on its own.
+  expect(amountsIn("НАГРАДА 5 тыс. долларов, или 4 тыс долларов, или 3 тысячи долларов", 6).map((found) => found.amount)).toEqual([
+    5_000_000_000n,
+    4_000_000_000n,
+    3_000_000_000n,
+  ]);
+  expect(amountsIn("$2 тыс. сразу", 6).map((found) => found.amount)).toEqual([2_000_000_000n]);
+  expect(amountsIn("5 тысячелетий, 7 kg", 6)).toEqual([]);
   // Hidden characters do not hide an amount from the check: logically this is "0005$".
   expect(amountsIn(RLO_TITLE, 6).map((found) => found.amount)).toEqual([5_000_000n]);
   expect(amountsIn("Three metres, for Saturday. Room 101.", 6)).toEqual([]);

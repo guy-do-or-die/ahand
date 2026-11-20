@@ -254,7 +254,9 @@ export interface MentionedAmount {
 }
 
 const SIGN = String.raw`(?:\$|usdc?\b|us\s?dollars?\b|dollars?\b|bucks?\b|долл\p{L}*|бакс\p{L}*)`;
-const FIGURE = String.raw`(\d{1,3}(?:[,  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(\s?(?:k|тыс\.?|thousand)\b)?`;
+// The thousands word ends where no letter or digit follows: \b, even with the u flag, knows only
+// ASCII word characters, so it never ends after "тыс" and "5 тыс. долларов" went unflagged.
+const FIGURE = String.raw`(\d{1,3}(?:[,  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(\s?(?:k|thousand|тыс(?:яч[аиу]?|\.)?)(?![\p{L}\p{N}]))?`;
 const BEFORE = new RegExp(String.raw`(?:\$|\busdc?\b)\s?${FIGURE}`, "giu");
 const AFTER = new RegExp(String.raw`${FIGURE}\s?${SIGN}`, "giu");
 
