@@ -3,7 +3,7 @@ import type en from "./en";
 // The my screen's words in Russian: the same keys as en.ts, checked by the type. Russian speaks as «ты».
 const ru: Record<keyof typeof en, string> = {
   "my.title": "Руки, поднятые на этом устройстве.",
-  "my.empty": "На этом устройстве пока нет рук.",
+  "my.empty": "С этого устройства ещё не поднято ни одной руки.",
   "my.raise": "Поднять руку",
   "my.deviceOnly": "Этот список хранится только на этом устройстве. Твоя ссылка всё равно открывает твою руку.",
   "my.answers.count": "{n, plural, =0 {Ответов пока нет} one {# ответ} few {# ответа} many {# ответов} other {# ответа}}",
@@ -18,6 +18,20 @@ const ru: Record<keyof typeof en, string> = {
   "my.noReward": "Без награды: только спасибо",
   "my.open": "Открыть",
   "my.otherAccount": "Поднята другим аккаунтом на этом устройстве.",
+
+  "my.openHand": "Открыть руку",
+
+  "my.onWay.title": "Спасибо в пути",
+  "my.onWay.item": "Спасибо по руке {id} ушло с этого устройства и ещё в пути: сеть его пока не подтвердила.",
+  "my.onWay.thanked": "Рука {id} закрыта: спасибо дошло.",
+
+  "my.mine.title": "Твои ответы",
+  "my.mine.why": "Ответы, отправленные с этого устройства. Пока страница открыта, сюда приходят сообщения автора.",
+  "my.mine.hand": "Рука {id}",
+  "my.mine.noWords": "Отправлено без слов.",
+  "my.mine.sent": "Отправлено с этого устройства {time}",
+  "my.mine.delivered": "Доставлено на {acks} из {of} реле.",
+  "my.mine.waiting": "Ещё не доставлено. Пока открыта любая страница этого сайта, устройство пробует снова.",
 
   "my.unlock": "Открыть ссылки и ответы",
   "my.unlock.why": "Одно подтверждение на этот визит. Оно восстанавливает твои ссылки и открывает присланные тебе ответы. Деньги им не сдвинуть.",
@@ -111,6 +125,7 @@ const ru: Record<keyof typeof en, string> = {
   "my.lens.inbox": "inbox.n1 {key}",
   "my.lens.split": "margin = ⌊reward × (claimBps − nextClaimBps) / 10 000⌋; помощнику — остаток",
   "my.lens.firstSeen": "Впервые на этом устройстве {time}",
+  "my.lens.onWay": "намерение спасибо · {kind} · сеть {chain} · {hash}",
 };
 
 export default ru;

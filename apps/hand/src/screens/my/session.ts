@@ -54,7 +54,7 @@ export function useSessionVersion(): number {
   );
 }
 
-export type UnlockOutcome = { ok: true; unlocked: Unlocked } | { ok: false; reason: "rejected" | "no-wallet" | "failed"; message?: string };
+export type UnlockOutcome = { ok: true; unlocked: Unlocked } | { ok: false; reason: "rejected" | "no-wallet" | "wrong-network" | "failed"; message?: string };
 
 /**
  * Asks the connected account for the keys confirmation. If this device has not yet learned

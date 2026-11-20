@@ -32,8 +32,9 @@ import { encodeFunctionData, type Address, type PublicClient } from "viem";
 
 import { config } from "../../config";
 import { CLIENTS } from "../../chain";
-import { deviceClock, forHand, handKey, put, type InboxRecord } from "../../store/db";
+import { deviceClock, forHand, get, handKey, put, type InboxRecord } from "../../store/db";
 import type { Intent } from "../../wallet";
+import { keepCopy } from "../my/inbox";
 import { droppedShares, type DroppedShare } from "./model";
 
 /**
@@ -177,14 +178,32 @@ async function giverCodeGasOf(client: PublicClient, core: Address, handId: bigin
   }
 }
 
-/** The earlier Gives this device holds for the Hand, opened again from their give links. */
-async function earlierGives(records: ThankRecord[], except: string, getHand: (head: LinkHead) => Promise<Hand>) {
+/** Opens a kept give link: a whole address, or the bare link text a relay or a paste left. */
+function openKept(giveLink: string, getHand: (head: LinkHead) => Promise<Hand>): Promise<OpenedAddress> {
+  return openAddress(addressOfText(giveLink, config.site), getHand, LINK_OPTIONS);
+}
+
+/**
+ * The other Gives this device holds for the Hand, opened again from their give links. Every
+ * record of the incoming Give itself is left out, whatever id it was kept under (its giveHash, or
+ * a message id on a device that kept relay copies so, FINDINGS E-3): it is the same Give, not an
+ * earlier one. Their first-seen times are returned in `self`, so the earliest one stands.
+ */
+async function earlierGives(records: ThankRecord[], incoming: `0x${string}`, getHand: (head: LinkHead) => Promise<Hand>) {
   const out: { seen: SeenGive; keys: Address[]; signedShakes: SignedShake[]; firstSeen: number }[] = [];
+  const self: number[] = [];
   for (const record of records) {
-    if (record.id === except) continue;
+    if (record.id === incoming) {
+      self.push(record.firstSeen);
+      continue;
+    }
     try {
-      const opened = await openAddress(record.giveLink, getHand, LINK_OPTIONS);
+      const opened = await openKept(record.giveLink, getHand);
       if (!opened.signedGive) continue;
+      if (giveHash(opened.hand, opened.signedGive.give) === incoming) {
+        self.push(record.firstSeen);
+        continue;
+      }
       out.push({
         seen: seenGiveOf(opened.hand, opened.signedShakes, opened.signedGive),
         keys: routeKeys(opened.hand, opened.signedShakes),
@@ -195,13 +214,15 @@ async function earlierGives(records: ThankRecord[], except: string, getHand: (he
       // A kept link that no longer opens (the build's Core changed) says nothing about this Give.
     }
   }
-  return out;
+  return { earlier: out, self };
 }
 
-/** Steps 1, 2, 3 and 5. `client` is the build chain's public client. */
-export async function checkThank(text: string, origin: string, client: PublicClient): Promise<CheckResult> {
+/**
+ * Steps 1, 2, 3 and 5. `client` is the build chain's public client; `getHand` reads a Hand's
+ * terms (the build's trusted Cores by default; tests pass their own).
+ */
+export async function checkThank(text: string, origin: string, client: PublicClient, getHand: (head: LinkHead) => Promise<Hand> = cachedGetHand()): Promise<CheckResult> {
   const address = addressOfText(text, origin);
-  const getHand = cachedGetHand();
 
   // 1. Open.
   let opened: OpenedAddress;
@@ -248,16 +269,16 @@ export async function checkThank(text: string, origin: string, client: PublicCli
   } catch {
     records = []; // storage closed (a private window): every Gives is judged as the first one
   }
-  let record = records.find((r) => r.id === id);
-  if (!record) {
-    record = { id, hand: key, giveLink: address, firstSeen: deviceClock(), routeKeys: routeKeys(hand, signedShakes) };
-    try {
-      await put("inbox", record);
-    } catch {
-      // the list lives on this device only; without storage the thank still works
-    }
+  // Written once: a record already kept for this copy (from the relay, or an earlier paste) keeps
+  // its time. A copy of the same Give with other signatures, kept first, never stands in its place.
+  const fresh = { hand: key, giveLink: address, firstSeen: deviceClock(), routeKeys: routeKeys(hand, signedShakes) };
+  let record: ThankRecord = { id, ...fresh };
+  try {
+    record = (await keepCopy(fresh, opened, getHand)) as ThankRecord;
+  } catch {
+    // the list lives on this device only; without storage the thank still works
   }
-  const earlier = await earlierGives(records, id, getHand);
+  const { earlier, self } = await earlierGives(records, id, getHand);
   const incoming = seenGiveOf(hand, signedShakes, signedGive);
   const judged = judgeGive(
     earlier.map((e) => e.seen),
@@ -265,6 +286,8 @@ export async function checkThank(text: string, origin: string, client: PublicCli
   );
   const dropped = droppedShares(judged.dropped, earlier);
   const earlierSeen = earlier.length ? Math.min(...earlier.map((e) => e.firstSeen)) : undefined;
+  // The Give's own first sight on this device: the earliest of its copies (E-4).
+  const firstSeen = Math.min(record.firstSeen, ...self);
 
   // 5. The worst gas must fit one transaction.
   const deployedCode = wrapped?.deployed ?? (await hasCode(client, signedGive.give.signer).catch(() => false));
@@ -286,7 +309,7 @@ export async function checkThank(text: string, origin: string, client: PublicCli
       checkedAt,
       verdict: judged.verdict,
       dropped,
-      firstSeen: record.firstSeen,
+      firstSeen,
       ...(earlierSeen !== undefined ? { earlierSeen } : {}),
       gas,
       record,
@@ -294,9 +317,13 @@ export async function checkThank(text: string, origin: string, client: PublicCli
   };
 }
 
-/** Keeps the thank's intent beside the Give before anything is waited for (and clears it). */
+/**
+ * Keeps the thank's intent beside the Give before anything is waited for (and clears it). The
+ * record is read again first, so its first-seen time and anything the relay filled in since stay.
+ */
 export async function keepIntent(record: ThankRecord, intent: Intent | undefined): Promise<void> {
-  const next: ThankRecord = { ...record };
+  const stored = (await get("inbox", record.id).catch(() => undefined)) as ThankRecord | undefined;
+  const next: ThankRecord = { ...record, ...stored };
   if (intent) next.thank = intent;
   else delete next.thank;
   await put("inbox", next);

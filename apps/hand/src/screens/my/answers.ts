@@ -17,6 +17,8 @@ import {
 } from "@ahand/sdk";
 import { isAddressEqual, type Address, type Hex, type PublicClient } from "viem";
 
+import type { InboxRecord } from "../../store/db";
+
 /**
  * Whether a give link that reached this device is an answer to this Hand (UX-SPEC §7.3, §7.5):
  * opened against the Hand's terms, then put to Core's own `checkGive` by `eth_call`. Nothing is
@@ -106,4 +108,38 @@ export async function judgeGive(args: {
   } catch (error) {
     return refusedBy(error);
   }
+}
+
+/**
+ * One card per Give (FINDINGS E-3, E-4). Records that Core accepted as the same Give (one
+ * giveHash) are one answer, kept in the order this device first saw it: the earliest first-seen
+ * time of its copies stands, and the helper's words and chat key come from whichever copy carried
+ * them (a pasted copy has neither). Answers come first, in that order; then whatever is still being
+ * checked; then what was refused.
+ */
+export function onePerGive<T extends { record: InboxRecord; judged?: Judged }>(reads: T[]): T[] {
+  const answers = new Map<string, T>();
+  const rest: T[] = [];
+  for (const read of reads) {
+    if (read.judged?.verdict !== "answer") {
+      rest.push(read);
+      continue;
+    }
+    const hash = read.judged.giveHash.toLowerCase();
+    const before = answers.get(hash);
+    if (!before) {
+      answers.set(hash, read);
+      continue;
+    }
+    const [first, other] = read.record.firstSeen < before.record.firstSeen ? [read, before] : [before, read];
+    const record: InboxRecord = { ...first.record };
+    if (!record.words && other.record.words) record.words = other.record.words;
+    if (!record.replyTo && other.record.replyTo) record.replyTo = other.record.replyTo;
+    answers.set(hash, { ...first, record });
+  }
+  const rank = (read: T) => (read.judged ? 2 : 1);
+  return [
+    ...[...answers.values()].sort((a, b) => a.record.firstSeen - b.record.firstSeen),
+    ...rest.sort((a, b) => rank(a) - rank(b) || a.record.firstSeen - b.record.firstSeen),
+  ];
 }

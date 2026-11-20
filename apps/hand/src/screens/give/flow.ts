@@ -15,14 +15,43 @@ export function wordsOf(input: string): string {
   return Array.from(normalizeText(input).trim()).slice(0, MAX_WORDS).join("");
 }
 
-/** The claim in money: what Core would pay at this place on the route, rounded down as Core does. */
+/**
+ * The claim in money: the least Core pays the giver at this place on the route, ⌈reward ×
+ * claimBps / 10 000⌉. Core rounds each passer's margin down (`Math.mulDiv`, AHandCore
+ * `_payShakers`) and pays the giver what is left, so the margins' dust goes to the giver: with one
+ * pass the giver gets exactly this, with more never less (FINDINGS M-1).
+ */
 export function claimAmount(reward: bigint, claimBps: number): bigint {
-  return (reward * BigInt(claimBps)) / BigInt(BPS);
+  return (reward * BigInt(claimBps) + BigInt(BPS) - 1n) / BigInt(BPS);
+}
+
+/**
+ * The claim as the screen writes it: "$28" or "$0.80" when it is whole cents (the kit's `money`),
+ * else every digit, "$0.000001", so a claim below a cent never reads "$0" or "under $0.01" next to
+ * "at least" (FINDINGS M-1). `money` is the kit's formatter, passed in to keep this file pure.
+ */
+export function claimText(amount: bigint, decimals: number, lang: "en" | "ru", money: (amount: bigint, decimals: number, lang: "en" | "ru") => string): string {
+  const centUnit = decimals >= 2 ? 10n ** BigInt(decimals - 2) : 1n;
+  if (amount % centUnit === 0n) return money(amount, decimals, lang);
+  const unit = 10n ** BigInt(decimals);
+  const whole = new Intl.NumberFormat(lang === "ru" ? "ru-RU" : "en-GB", { maximumFractionDigits: 0 }).format(amount / unit);
+  const fraction = (amount % unit).toString().padStart(decimals, "0").replace(/0+$/, "").padEnd(2, "0");
+  return `$${whole}${lang === "ru" ? "," : "."}${fraction}`;
 }
 
 /** What "Share" sends: the words, then the address alone on its own line, so no full stop can join it. */
 export function shareText(words: string, address: string): string {
   return words ? `${words}\n\n${address}\n` : `${address}\n`;
+}
+
+/**
+ * Whether the wallet is on the app's network before the giver is asked to confirm (FINDINGS W-4):
+ * true at once when it is, else the switch's own answer. A wallet that will not switch stops the
+ * answer before anything is asked or sent.
+ */
+export async function onAppChain(current: number | undefined, wanted: number, switchTo: () => Promise<boolean>): Promise<boolean> {
+  if (current === wanted) return true;
+  return switchTo();
 }
 
 export type DeliveryState = "sending" | "delivered" | "fallback";

@@ -16,7 +16,7 @@ import { getAddress, serializeErc6492Signature, zeroAddress, zeroHash, type Addr
 import { english, generateMnemonic, mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
 
 import { answerLink, confirmWithAccount, confirmWithKey, isNetworkError, type AnswerStep } from "./answer";
-import { claimAmount, deliveryState, fromInbox, keyFileOf, MAX_WORDS, shareText, signatureKind, wordsOf } from "./flow";
+import { claimAmount, claimText, deliveryState, onAppChain, fromInbox, keyFileOf, MAX_WORDS, shareText, signatureKind, wordsOf } from "./flow";
 
 const SITE = "https://ahand.test";
 const CORE = getAddress("0x65ac707e2ae7392583de5d6192c619f1d8862309");
@@ -57,11 +57,76 @@ describe("the words", () => {
   });
 });
 
+/**
+ * What Core pays the giver (AHandCore `_payShakers`, then `_payGiver`): each Shake keeps
+ * ⌊reward × (claimBps − nextClaimBps) / 10 000⌋ (`Math.mulDiv` rounds down), and the giver gets
+ * what is left. `claims` is the route's claimBps from the root's 10 000 down to the Give's.
+ */
+function corePaysGiver(reward: bigint, claims: number[]): bigint {
+  let rest = reward;
+  for (let i = 0; i + 1 < claims.length; i++) rest -= (reward * BigInt(claims[i]! - claims[i + 1]!)) / 10_000n;
+  return rest;
+}
+
 describe("money and claim", () => {
-  test("the claim in money is reward × claimBps / 10 000, rounded down", () => {
+  test("the claim in money is the least Core pays: reward × claimBps / 10 000, rounded up", () => {
     expect(claimAmount(40_000_000n, 7000)).toBe(28_000_000n);
-    expect(claimAmount(1n, 7000)).toBe(0n);
+    expect(claimAmount(1n, 1)).toBe(1n); // FINDINGS M-1: "at least $0" on a funded Hand, while Core paid 1
+    expect(claimAmount(1n, 9999)).toBe(1n);
+    expect(claimAmount(1n, 7000)).toBe(1n);
     expect(claimAmount(0n, 10_000)).toBe(0n);
+    expect(claimAmount(0n, 1)).toBe(0n);
+    expect(claimAmount(3n, 3333)).toBe(1n);
+    expect(claimAmount(2_000_003n, 7000)).toBe(1_400_003n);
+  });
+
+  test("a claim below a cent is written with every digit, never as $0", () => {
+    const money = (amount: bigint, decimals: number, lang: "en" | "ru") => `money(${amount},${decimals},${lang})`;
+    expect(claimText(28_000_000n, 6, "en", money)).toBe("money(28000000,6,en)");
+    expect(claimText(800_000n, 6, "en", money)).toBe("money(800000,6,en)");
+    expect(claimText(1n, 6, "en", money)).toBe("$0.000001");
+    expect(claimText(1_400_003n, 6, "ru", money)).toBe("$1,400003");
+    expect(claimText(1_000_000_000_001n, 6, "en", money)).toBe("$1,000,000.000001");
+    expect(claimText(0n, 6, "en", money)).toBe("money(0,6,en)");
+  });
+
+  test("checked against Core's arithmetic: exact with one pass, never more than Core pays with more", () => {
+    const table: [bigint, number[]][] = [
+      [1n, [10_000, 1]],
+      [1n, [10_000, 9999]],
+      [1n, [10_000, 7000]],
+      [7n, [10_000, 3333]],
+      [999_999n, [10_000, 7001]],
+      [2_000_003n, [10_000, 7000]],
+      [10n ** 18n + 7n, [10_000, 1234]],
+      [40_000_000n, [10_000]], // no pass: the giver answers the root link and gets it all
+      [1n, [10_000, 9999, 9998, 1]],
+      [101n, [10_000, 9000, 8000, 7000]],
+      [2_000_003n, [10_000, 9500, 9000, 8500, 7000]],
+      [12_345n, [10_000, 9999, 5000, 4999, 1]],
+    ];
+    for (const [reward, claims] of table) {
+      const paid = corePaysGiver(reward, claims);
+      const shown = claimAmount(reward, claims[claims.length - 1]!);
+      expect({ reward, claims, below: shown <= paid }).toEqual({ reward, claims, below: true });
+      if (claims.length <= 2) expect({ reward, claims, shown }).toEqual({ reward, claims, shown: paid });
+    }
+  });
+});
+
+describe("the wallet's network", () => {
+  test("on the app's network nothing is switched; elsewhere the switch's answer decides, and a refusal stops", async () => {
+    let asked = 0;
+    const switchTo = (answer: boolean) => async () => {
+      asked++;
+      return answer;
+    };
+    expect(await onAppChain(31337, 31337, switchTo(false))).toBe(true);
+    expect(asked).toBe(0);
+    expect(await onAppChain(1, 31337, switchTo(true))).toBe(true);
+    expect(await onAppChain(1, 31337, switchTo(false))).toBe(false);
+    expect(await onAppChain(undefined, 31337, switchTo(false))).toBe(false);
+    expect(asked).toBe(3);
   });
 });
 

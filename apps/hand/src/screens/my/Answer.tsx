@@ -2,15 +2,18 @@ import type { HandRef } from "@ahand/deliver";
 import { useState } from "react";
 import { zeroAddress, type Hex } from "viem";
 
+import { useHand } from "../../chain";
 import { navigate } from "../../router";
+import type { InboxRecord } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
 import { t } from "../../i18n";
 import { ChainRail, Mark, QuietButton, SwipeButton, count, minute, money, percent, shortAddress, useLang, useLens, type RailHand } from "../../ui";
-import type { AnswerRead } from "./hooks";
+import { handPath } from "../give/Mine";
+import { useThanksOnWay, type AnswerRead, type ThankOnWay } from "./hooks";
 import { reply, threadOf, useInboxVersion } from "./inbox";
 import { predictSplit } from "./logic";
-import { Line } from "./parts";
+import { Line, Section } from "./parts";
 
 /**
  * One message that reached this Hand's inbox (UX-SPEC §7.3). An answer only after Core's
@@ -175,5 +178,45 @@ function Thread({ handKey, ref_, secret, peer }: { handKey: string; ref_: HandRe
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * Thanks on their way (FINDINGS R-5): every inbox record that keeps a thank's intent, so a thank
+ * sent from this device is not forgotten after a reload. Each one reads its Hand: once the Hand is
+ * thanked, it says so. Sending, and following the thank to its end, is /thank's.
+ */
+export function ThanksOnWay() {
+  const records = useThanksOnWay();
+  if (records.status !== "ok" || records.value.length === 0) return null;
+  return (
+    <Section title={t("my.onWay.title")}>
+      <ul className="m-0 flex list-none flex-col gap-3 p-0">
+        {records.value.map((record) => (
+          <OnWay key={record.id} record={record} />
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function OnWay({ record }: { record: InboxRecord & { thank: ThankOnWay } }) {
+  const lens = useLens();
+  const [chain, core, id] = record.hand.split(":");
+  const chainId = Number(chain);
+  const handId = id && /^[0-9]+$/.test(id) ? BigInt(id) : undefined;
+  const read = useHand(core as Hex | undefined, handId, chainId);
+  const thanked = read.data?.state === "thanked";
+  const { kind, hash, chainId: on } = record.thank;
+  return (
+    <li className="flex flex-col gap-2 border-b border-[var(--ink-a10)] pb-3" data-testid={TID.my.thankOnWay} data-value={record.id} data-state={thanked ? "thanked" : "on-way"}>
+      <p className="m-0 font-semibold">{thanked ? t("my.onWay.thanked", { id: id ?? "" }) : t("my.onWay.item", { id: id ?? "" })}</p>
+      {lens ? <span className="ah-meta ah-meta--exact break-all normal-case">{t("my.lens.onWay", { kind: kind ?? "?", chain: String(on ?? chainId), hash: hash ?? "—" })}</span> : null}
+      {core && id ? (
+        <a href={handPath(chainId, core, id)} className="ah-quiet ah-quiet--compact self-start">
+          {t("my.openHand")}
+        </a>
+      ) : null}
+    </li>
   );
 }

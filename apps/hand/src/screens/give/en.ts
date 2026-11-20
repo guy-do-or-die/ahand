@@ -6,6 +6,10 @@ const en = {
   "give.opening": "Checking the link…",
   "give.noLink": "There is no link open in this tab. Open the one you were sent.",
   "give.notLive": "Only the link you were sent can be answered: this one is someone's answer or a route already ended.",
+  "give.offline.kept": "Your link is still open in this tab; nothing was sent.",
+  "give.offline.retry": "Try again",
+  "give.again": "You already answered this hand from this device. Your answer and the asker's messages are in “My hands”. A new answer here would be a second one.",
+  "give.again.go": "See my answer",
   "give.closed": "This hand can't be answered any more.",
 
   "give.step.words": "1 · What you can do",
@@ -36,7 +40,7 @@ const en = {
   "give.agree.flagged.token": "This is the token's own address. Money sent there is usually lost.",
   "give.agree.pick": "Choose where the money lands first.",
 
-  "give.swipe": "Send my help",
+  "give.swipe": "Send my answer",
   "give.swipe.busy": "Checking…",
 
   "give.check.confirm": "Confirming your answer",

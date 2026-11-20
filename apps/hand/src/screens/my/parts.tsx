@@ -61,7 +61,14 @@ export function UnlockBar({ account }: { account: Address | undefined }) {
   const press = async () => {
     setProblem(undefined);
     const outcome = await unlock(place.chainId, place.core, account, sign);
-    if (!outcome.ok) setProblem(outcome.reason === "rejected" ? t("my.unlock.refused") : t("my.unlock.failed", { reason: outcome.message ?? outcome.reason }));
+    if (!outcome.ok)
+      setProblem(
+        outcome.reason === "rejected"
+          ? t("my.unlock.refused")
+          : outcome.reason === "wrong-network"
+            ? t("common.error.wrongNetwork", { network: config.chain.name })
+            : t("my.unlock.failed", { reason: outcome.message ?? outcome.reason }),
+      );
   };
   return (
     <div className="ah-panel flex flex-col gap-3">

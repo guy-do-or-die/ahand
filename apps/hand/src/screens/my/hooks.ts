@@ -4,8 +4,8 @@ import type { Address } from "viem";
 import { clientOf } from "../../chain";
 import { config } from "../../config";
 import { all, forHand, type HandRecord, type InboxRecord, type PassedRecord } from "../../store/db";
-import { judgeGive, type HandPlace, type Judged } from "./answers";
-import { listenOn, useInboxVersion } from "./inbox";
+import { judgeGive, onePerGive, type HandPlace, type Judged } from "./answers";
+import { isProvisional, listenOn, rekey, useInboxVersion } from "./inbox";
 import { GET_HAND, OPTIONS } from "./place";
 import { secretsOf, unlockedFor, useSessionVersion, type HandSecrets } from "./session";
 
@@ -67,6 +67,25 @@ export function useMyHand(key: string): Loaded<HandRecord | undefined> {
 
 export function usePassed(): Loaded<PassedRecord[]> {
   return useStore(() => all("passed"), []);
+}
+
+/** What /my reads of a thank's intent (A's `Intent`): only its kind, hash and chain. */
+export interface ThankOnWay {
+  kind?: string;
+  hash?: string;
+  chainId?: number;
+}
+
+/**
+ * Every inbox record that keeps a thank's intent (FINDINGS R-5): a thank this device sent and
+ * has not seen through. Read again when an answer arrives.
+ */
+export function useThanksOnWay(): Loaded<(InboxRecord & { thank: ThankOnWay })[]> {
+  const inbox = useInboxVersion();
+  return useStore(async () => {
+    const records = (await all("inbox")) as (InboxRecord & { thank?: ThankOnWay })[];
+    return records.filter((record): record is InboxRecord & { thank: ThankOnWay } => Boolean(record.thank && typeof record.thank === "object"));
+  }, [inbox]);
 }
 
 /**
@@ -135,23 +154,17 @@ export function useAnswers(key: string | undefined, place: HandPlace | undefined
         ),
       );
       if (live) setReads(records.map((record, index) => ({ record, judged: judged[index] })));
+      // A record kept under a message id (the link did not open when it came, or an older build
+      // kept it so) moves to its giveHash now that it opens, with its first-seen time (E-3).
+      for (const [index, record] of records.entries()) {
+        const read = judged[index];
+        if (read?.verdict === "answer" && isProvisional(record)) void rekey(record, read.opened).catch(() => undefined);
+      }
     })();
     return () => {
       live = false;
     };
   }, [key, place?.chainId, place?.core, place?.handId, state, inbox]); // eslint-disable-line react-hooks/exhaustive-deps
-  return dedupe(reads);
-}
-
-/** One card per Give: the same answer delivered twice, or also pasted, is shown once. */
-function dedupe(reads: AnswerRead[]): AnswerRead[] {
-  const seen = new Set<string>();
-  // Answers first (in the order they arrived), then whatever is still being checked or was refused.
-  const rank = (read: AnswerRead) => (read.judged?.verdict === "answer" ? 0 : read.judged ? 2 : 1);
-  return [...reads].sort((a, b) => rank(a) - rank(b)).filter((read) => {
-    if (read.judged?.verdict !== "answer") return true;
-    if (seen.has(read.judged.giveHash)) return false;
-    seen.add(read.judged.giveHash);
-    return true;
-  });
+  // One card per Give: the same answer delivered twice, or also pasted, is shown once, at its earliest time.
+  return onePerGive(reads);
 }

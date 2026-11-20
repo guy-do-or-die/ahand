@@ -1,5 +1,5 @@
 import { CoreRefused, getHandFor, LinkError, messageIdOf, openAddress, UntrustedCore, type LinkOptions, type OpenedAddress } from "@ahand/sdk";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CLIENTS } from "../../chain";
 import { config } from "../../config";
@@ -16,6 +16,11 @@ export const LINK_OPTIONS: LinkOptions = config.cores.canonical ? { canonicalCor
 
 export type Opening = { status: "none" } | { status: "opening" } | { status: "open"; opened: OpenedAddress } | { status: "error"; messageId: string };
 
+/** Whether an opening failed only because the network did not answer: worth trying again. */
+export function isOffline(opening: Opening): boolean {
+  return opening.status === "error" && opening.messageId === "common.time.offline";
+}
+
 function whole(link: OpenedLink): string {
   return `${link.before || `${config.site}/`}#${link.fragment}`;
 }
@@ -26,8 +31,14 @@ function messageOf(error: unknown): string {
   return "link.malformed";
 }
 
-export function useOpening(link: OpenedLink | undefined): Opening {
+/**
+ * Opens the tab's link. When the network did not answer, `retry` opens it again, and so does the
+ * browser coming back online (FINDINGS U-1): the link stays in this tab meanwhile.
+ */
+export function useOpening(link: OpenedLink | undefined): Opening & { retry: () => void } {
   const [state, setState] = useState<{ link?: OpenedLink; opening: Opening }>({ opening: { status: "none" } });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
   useEffect(() => {
     if (!link) return;
     let live = true;
@@ -39,7 +50,13 @@ export function useOpening(link: OpenedLink | undefined): Opening {
     return () => {
       live = false;
     };
-  }, [link]);
-  if (!link) return { status: "none" };
-  return state.link === link ? state.opening : { status: "opening" };
+  }, [link, attempt]);
+  const opening: Opening = !link ? { status: "none" } : state.link === link ? state.opening : { status: "opening" };
+  const offline = isOffline(opening);
+  useEffect(() => {
+    if (!offline || typeof window === "undefined") return;
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [offline, retry]);
+  return { ...opening, retry };
 }
