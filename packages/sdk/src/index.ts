@@ -32,3 +32,14 @@ export {
 } from "./link.js";
 export * from "./address.js";
 export * from "./gas.js";
+export * from "./chain.js";
+export * from "./tx.js";
+export * from "./errors.js";
+export * from "./describe.js";
+export * from "./keys.js";
+export * from "./wallet.js";
+export * from "./payee.js";
+export * from "./resign.js";
+export * from "./money.js";
+export * from "./proof.js";
+export * from "./steps.js";

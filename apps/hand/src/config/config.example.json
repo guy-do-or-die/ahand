@@ -1,0 +1,38 @@
+{
+  "chain": {
+    "id": 31337,
+    "name": "Local test network",
+    "rpcUrls": ["http://127.0.0.1:18545"],
+    "blockTimeMs": 1000,
+    "local": true,
+    "hasL1": false
+  },
+  "cores": {
+    "trusted": [{ "chainId": 31337, "core": "0x5137D66BDD57872362b1ed470817B54c2324CbB0" }],
+    "canonical": "0x5137D66BDD57872362b1ed470817B54c2324CbB0"
+  },
+  "deployment": {
+    "factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "salt": "0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d",
+    "initcodeHash": "0xebbc87bb28d2678fe9d3747d50e5dc1b645ee39fab96e5c1223b47a0514a1f77",
+    "deployBlock": 1,
+    "commit": "",
+    "dirty": false
+  },
+  "tokens": [
+    { "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512", "symbol": "mUSD", "decimals": 6, "kind": "usd", "label": "Test dollars" },
+    { "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0", "symbol": "mUSD", "decimals": 6, "kind": "blacklist", "label": "Test dollars that can block" }
+  ],
+  "forwarder": null,
+  "accountFactory": null,
+  "relays": [],
+  "site": "http://127.0.0.1:18300",
+  "prices": {
+    "date": "2026-11-10",
+    "ethUsd": 2400,
+    "base": { "gwei": 0.006 },
+    "ethereum": { "gwei": 0.3 },
+    "source": "aHand fee study of 2026-11-10"
+  },
+  "defaults": { "minClaimBps": 7000, "payoutGasK": 250, "expiryDays": 30 }
+}

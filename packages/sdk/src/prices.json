@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-10",
+  "ethUsd": 2400,
+  "base": { "gwei": 0.006 },
+  "ethereum": { "gwei": 0.3 },
+  "source": "aHand fee study of 2026-11-10 (knowledge/plan/research/2026-11-10-fees): Base base fee 0.005 gwei plus tip, live on 2026-11-09 23:52 UTC; Ethereum at the 2026 average of 0.3 gwei; ETH at $2,400 (Fortune, 2026-11-05: $2,417)"
+}

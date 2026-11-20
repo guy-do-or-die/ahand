@@ -32,3 +32,9 @@ output/
 outputs/
 local/
 .vercel
+
+# aHand end-to-end build (ARCHITECTURE §14)
+contracts/deployments/31337*.json
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+!.github/

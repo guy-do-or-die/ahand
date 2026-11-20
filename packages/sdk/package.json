@@ -7,8 +7,15 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./tests/helpers/index.ts",
+      "bun": "./tests/helpers/index.ts",
+      "source": "./tests/helpers/index.ts"
     }
   },
   "scripts": {
@@ -17,10 +24,10 @@
   },
   "dependencies": {
     "viem": "2.52.0",
-    "zod": "^3.23.8"
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "vitest": "^1.6.0"
+    "typescript": "5.9.3",
+    "vitest": "1.6.1"
   }
 }

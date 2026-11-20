@@ -1,0 +1,17 @@
+{
+  "name": "@ahand/relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun relay.ts",
+    "test": "bun test --pass-with-no-tests"
+  },
+  "dependencies": {
+    "nostr-tools": "2.26.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "5.9.3"
+  }
+}

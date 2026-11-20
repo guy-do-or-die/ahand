@@ -1,0 +1,46 @@
+{
+  "name": "@ahand/hand",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build --config vite.exit.config.ts",
+    "build:exit": "vite build --config vite.exit.config.ts",
+    "preview": "vite preview",
+    "test": "bun test --pass-with-no-tests",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@ahand/abi": "workspace:*",
+    "@ahand/deliver": "workspace:*",
+    "@ahand/sdk": "workspace:*",
+    "@fontsource-variable/onest": "5.3.1",
+    "@fontsource-variable/schibsted-grotesk": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@lingui/core": "6.12.0",
+    "@lingui/message-utils": "6.12.0",
+    "@tanstack/react-query": "5.108.1",
+    "qrcode": "1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "viem": "2.52.0",
+    "wagmi": "3.7.11"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "21.0.4",
+    "@tailwindcss/vite": "4.3.5",
+    "@types/bun": "1.4.4",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "fake-indexeddb": "6.2.8",
+    "happy-dom": "21.0.4",
+    "rollup": "4.68.7",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "vite": "8.3.8",
+    "vite-plugin-singlefile": "2.3.4"
+  }
+}
