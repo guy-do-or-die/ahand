@@ -66,6 +66,11 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      # contracts/out is git-ignored: the ABI check and the SDK's tests read Core's artifacts from it.
+      - name: Build contracts
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
       - name: Check
         run: bun run check
 
