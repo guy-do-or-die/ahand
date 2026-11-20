@@ -1,0 +1,588 @@
+/*
+ * exit.html's look: the app's tokens (imported before this file), its two voices and its shapes,
+ * written as plain CSS so the page needs no framework. The fonts are the latin and cyrillic
+ * subsets only, inlined by the single-file build: the page makes no request for them.
+ */
+@font-face {
+  font-family: "Schibsted Grotesk Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 900;
+  src: url("../node_modules/@fontsource-variable/schibsted-grotesk/files/schibsted-grotesk-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Onest Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../node_modules/@fontsource-variable/onest/files/onest-cyrillic-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-cyrillic-400-normal.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-cyrillic-500-normal.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-body-md);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+
+.x-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px var(--pad-screen) 64px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+}
+@media (min-width: 768px) {
+  .x-page {
+    padding: 28px var(--pad-screen-desktop) 80px;
+  }
+}
+
+/* ── Machine truth: mono, uppercase, quiet ink ─────────────────────── */
+.x-mono {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.x-exact {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-lg);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────── */
+.x-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.x-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: var(--fw-heavy);
+  font-size: var(--fs-card-title);
+  letter-spacing: var(--track-display);
+}
+.x-brand svg {
+  width: 34px;
+  height: 34px;
+  display: block;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────── */
+.x-hero h1 {
+  margin: 6px 0 10px;
+  font-size: var(--fs-title-m);
+  font-weight: var(--fw-heavy);
+  line-height: var(--lh-headline);
+  letter-spacing: var(--track-display-tight);
+}
+.x-hero h1 .x-swipe {
+  background: linear-gradient(transparent 58%, var(--amber) 58%, var(--amber) 92%, transparent 92%);
+  padding: 0 2px;
+}
+@media (min-width: 768px) {
+  .x-hero h1 {
+    font-size: var(--fs-title-lg);
+  }
+}
+.x-hero p {
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  max-width: 62ch;
+}
+.x-ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.x-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-lg);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+}
+.x-chip--fill {
+  background: var(--ink);
+  color: var(--paper);
+}
+.x-chip--dashed {
+  border-style: dashed;
+  border-color: var(--ink-a30);
+}
+.x-chip--amber {
+  background: var(--amber);
+  color: var(--on-amber);
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────── */
+.x-card {
+  background: var(--card);
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  .x-card {
+    padding: 22px 24px;
+  }
+}
+.x-card--note {
+  border-style: dashed;
+  border-color: var(--ink-a30);
+  background: transparent;
+}
+.x-card h2 {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--fs-card-title-lg);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-display);
+  line-height: 1.1;
+}
+.x-card h2 .x-num {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-md);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--track-mono);
+  color: var(--ink-quiet);
+}
+.x-card h2 .x-gesture {
+  font-family: var(--emoji);
+  font-size: 30px;
+  line-height: 1;
+  margin-left: auto;
+}
+.x-card h3 {
+  margin: 4px 0 0;
+  font-size: var(--fs-card-title-sm);
+  font-weight: var(--fw-heavy);
+}
+.x-card p {
+  margin: 0;
+}
+
+/* ── Fields ────────────────────────────────────────────────────────── */
+.x-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.x-field > span {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.x-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: var(--bw-emph) solid var(--ink-a25);
+  border-radius: var(--r-btn);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-meta);
+  font-size: var(--fs-body-sm);
+}
+.x-input:focus {
+  border-color: var(--ink);
+  outline: none;
+}
+textarea.x-input {
+  min-height: 96px;
+  resize: vertical;
+  word-break: break-all;
+}
+.x-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.x-row > .x-field {
+  flex: 1 1 200px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
+.x-btn {
+  position: relative;
+  min-height: 48px;
+  padding: 10px 20px;
+  border-radius: var(--r-btn);
+  border: var(--bw-emph) solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: var(--fs-btn);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  transition: background var(--dur-hover);
+}
+.x-btn--amber {
+  background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 70%, color-mix(in srgb, var(--amber) 60%, transparent) 100%);
+  color: var(--on-amber);
+}
+.x-btn--quiet {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink-a25);
+}
+.x-btn:disabled {
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--ink-quiet);
+  border-color: var(--ink-a25);
+  border-style: dashed;
+}
+.x-btn .x-gesture {
+  font-family: var(--emoji);
+  font-size: 22px;
+  margin-right: 8px;
+  vertical-align: -3px;
+}
+
+/* ── Facts, tables ─────────────────────────────────────────────────── */
+.x-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.x-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.x-line::before {
+  content: "";
+  flex: 0 0 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-a40);
+  transform: translateY(-1px);
+}
+.x-line--ok::before {
+  background: var(--ink);
+}
+.x-line--warn::before {
+  background: var(--amber);
+}
+.x-line--bad::before {
+  background: transparent;
+  border: 1.5px solid var(--ink);
+}
+.x-say {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+}
+.x-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: var(--bw-emph) solid var(--ink);
+  table-layout: fixed;
+}
+.x-table th,
+.x-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 0;
+  border-bottom: var(--bw-hair) solid var(--ink-a12);
+}
+.x-table th {
+  width: 34%;
+  padding-right: 10px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-md);
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+}
+.x-table td .x-mean {
+  display: block;
+  font-size: var(--fs-body-xs);
+  color: var(--ink-quiet);
+}
+.x-table td.x-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.x-table tr.x-you td,
+.x-table tr.x-you th {
+  background: var(--amber-a30);
+}
+@media (min-width: 768px) {
+  .x-table th {
+    width: 26%;
+  }
+}
+
+.x-state {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: var(--r-chip-lg);
+  border: var(--bw-emph) solid var(--ink);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-lg);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+}
+.x-state--open {
+  background: var(--amber);
+  color: var(--on-amber);
+}
+.x-state--expired {
+  border-style: dashed;
+}
+.x-state--thanked,
+.x-state--refunded {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ── The three ways ────────────────────────────────────────────────── */
+.x-action {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: var(--bw-emph) solid var(--ink);
+  padding-top: 14px;
+}
+.x-way {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.x-way > .x-mono:first-child {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.x-code {
+  position: relative;
+  margin: 0;
+  padding: 10px 76px 10px 12px;
+  border: var(--bw-hair) solid var(--ink-a20);
+  border-radius: var(--r-control-lg);
+  background: var(--ink-a035);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  max-height: 168px;
+  overflow: auto;
+}
+.x-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: var(--bw-hair) solid var(--ink-a30);
+  border-radius: var(--r-control-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-xs);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.x-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.x-fields > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.x-fields dt {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-quiet);
+}
+.x-fields dd {
+  margin: 0;
+}
+.x-tx {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.x-err {
+  padding: 10px 12px;
+  border: var(--bw-emph) solid var(--ink);
+  border-left-width: 6px;
+  border-radius: var(--r-control-lg);
+  font-weight: var(--fw-semibold);
+}
+.x-done {
+  padding: 10px 12px;
+  border-radius: var(--r-control-lg);
+  background: var(--amber);
+  color: var(--on-amber);
+  font-weight: var(--fw-bold);
+}
+.x-wallets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.x-wallets img {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  vertical-align: -4px;
+}
+.x-lang {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 12px;
+  border: var(--bw-emph) solid var(--ink-a25);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.x-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: var(--bw-emph) solid var(--ink);
+  padding-top: 14px;
+}
+[hidden] {
+  display: none !important;
+}
+
+/* ── One tap away: the explorer's form and the calldata ────────────── */
+.x-card {
+  overflow-wrap: anywhere;
+}
+.x-more {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.x-more > summary {
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  text-decoration: underline dashed;
+  text-underline-offset: 4px;
+}
+.x-more > summary::-webkit-details-marker {
+  display: none;
+}
+.x-more > summary::after {
+  content: " ▾";
+}
+.x-more[open] > summary::after {
+  content: " ▴";
+}
+.x-more[open] > .x-way + .x-way {
+  margin-top: 12px;
+}
+
+/* The number never breaks; the copy button sits above the text, whatever its language's width. */
+.x-card h2 .x-num {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.x-code {
+  padding: 42px 12px 10px;
+}
