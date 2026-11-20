@@ -17,7 +17,12 @@
  *  5. anvil's test accounts 1 to 5 get 1 000 test USDC each (anvil_setStorageAt on Circle's
  *     balance slot, read back with balanceOf);
  *  6. the browser life runs (FORK_PHASE=life), then the SDK's own loop (infra/stand/loop.ts --only usd);
- *  7. everything is stopped and the fork's deployment file is moved out of contracts/deployments.
+ *  7. link previews: face's Vercel Function is built as `bun apps/hand/vercel.ts build` builds it,
+ *     but reading the fork; its files are gathered as Vercel gathers them (@vercel/nft and
+ *     includeFiles), copied out alone, and run by Node (FORK_NODE, Node 24 as on Vercel) with a
+ *     Request for each shape of a Hand's address raised here through the SDK (unlisted with d,
+ *     numbered, public, dark, unknown, a d changed, another chain) and for their cards;
+ *  8. everything is stopped and the fork's deployment file is moved out of contracts/deployments.
  *
  * It never sends anything to the forked network itself: every transaction goes to the local anvil.
  * Results: tests/e2e/test-results/fork/ (summary.json, logs, the fork's deployment JSON).
@@ -28,9 +33,14 @@ import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { encodeAbiParameters, keccak256, numberToHex, pad, type Address, type Hex } from "viem";
+import { createPublicClient, encodeAbiParameters, http, keccak256, numberToHex, pad, type Address, type Hex, type PublicClient } from "viem";
 
-import { buildApp, PUBLIC_CONFIG } from "../../../apps/hand/vercel.ts";
+import { fromBase64Url, toText } from "@ahand/sdk";
+import { ANVIL_KEYS, type ChainToken } from "@ahand/sdk/testing";
+
+import { isolate } from "../../../apps/face/src/bidi.ts";
+import { metaOf, raiseHand, unescape, USD, type RaiseChain } from "../../../apps/face/tests/hands.ts";
+import { buildApp, copyFunction, FUNCTION_ENTRY, functionFileList, PUBLIC_CONFIG, stageFunction } from "../../../apps/hand/vercel.ts";
 import { buildRecord } from "../../../tools/manifest.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
@@ -41,6 +51,8 @@ const SITE_PORT = Number(process.env.FORK_SITE_PORT ?? 32202);
 const HOST = "127.0.0.1";
 const RPC = `http://${HOST}:${FORK_PORT}`;
 const SITE = `http://${HOST}:${SITE_PORT}`;
+/** The Node that runs the function (Vercel runs it on Node.js 24, apps/web/api/package.json). */
+const NODE = process.env.FORK_NODE ?? "node";
 const WORK = join(REPO, "tests/e2e/test-results/fork");
 const CHAIN_ID = 84532;
 const DEPLOYER: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; // anvil's public test account 0
@@ -225,6 +237,88 @@ async function main(): Promise<void> {
   const loop = run("sdk-loop", process.execPath, ["infra/stand/loop.ts", "--stand", standFile, "--only", "usd"]);
   summary.sdkLoop = loop.trim().split("\n").filter((l) => l.trim()).slice(-3);
   say(`SDK loop: ${loop.trim().split("\n").pop()}`);
+
+  // 7. Link previews through face's Vercel Function, under Node, reading the fork.
+  await previews(configFile, dist);
+}
+
+/** One expectation of the function's answers; a failure names the path and what was seen. */
+function expectThat(ok: boolean, what: string, seen: unknown): void {
+  if (!ok) throw new Error(`function: ${what}; saw ${JSON.stringify(seen).slice(0, 400)}`);
+}
+
+async function previews(configFile: string, dist: string): Promise<void> {
+  const repo = join(WORK, "function");
+  const web = join(repo, "apps/web");
+  await stageFunction(configFile, dist, web);
+  const { traced, files } = await functionFileList(repo, web);
+  const lambda = copyFunction(repo, files, join(WORK, "lambda"));
+  const binary = files.find((file) => file.endsWith(".node")) ?? "none";
+  say(`function: ${files.length} files (${traced.length} traced), resvg ${binary.split("/").pop()}`);
+
+  // Hands raised here through the SDK from anvil's account 5 (1 000 test USDC), as the app raises them.
+  const ORIGIN = "https://exp-e2e.ahand.in";
+  const usd: ChainToken = { address: USDC, symbol: "USDC", decimals: 6, kind: "usd" } as ChainToken;
+  const chain: RaiseChain = { rpc: RPC, client: createPublicClient({ transport: http(RPC) }) as PublicClient, core: CORE, chainId: CHAIN_ID, tokens: [usd] };
+  const key = ANVIL_KEYS[5]!;
+  const title = "Fork check: a sublet in Yerevan for June";
+  const unlisted = await raiseHand(chain, ORIGIN, key, { mode: "unlisted", title, content: "Two rooms. Hidden from robots.", reward: 5n * USD });
+  const open = await raiseHand(chain, ORIGIN, key, { mode: "public", title: "Fork check: who can fix a 1978 Vespa?", content: "It stalls at idle.", reward: 0n });
+  const dark = await raiseHand(chain, ORIGIN, key, { mode: "dark", title: "Fork check: dark words", reward: USD });
+  const [path, d] = unlisted.before.split("?d=") as [string, string];
+  const changed = fromBase64Url(d);
+  changed[changed.length - 1] ^= 0x01;
+  const card = `/og${unlisted.before.replace("?", ".png?")}`;
+  const shapes = {
+    faced: unlisted.before,
+    numbered: path,
+    public: open.before,
+    dark: `/${CHAIN_ID}/${dark.handId}`,
+    unknown: `/${CHAIN_ID}/999999999`,
+    changed: `${path}?d=${toText(changed)}`,
+    otherChain: `/8453/${unlisted.handId}`,
+    huge: `${path}?d=${"A".repeat(16_000)}`,
+    card,
+    cardDark: `${card}&th=d`,
+    generic: "/og/generic.png",
+  };
+  const out = run("function-node", NODE, [join(REPO, "tests/e2e/fork/call-function.mjs"), join(lambda, "apps/web", FUNCTION_ENTRY), ORIGIN, ...Object.values(shapes)]);
+  const { node, answers } = JSON.parse(out.trim().split("\n").pop()!) as { node: string; answers: { path: string; status: number; headers: Record<string, string>; text?: string; png?: { signature: string; width: number; height: number; bytes: number }; ms: number }[] };
+  const by = Object.fromEntries(Object.keys(shapes).map((name, i) => [name, answers[i]!]));
+  const index = readFileSync(join(dist, "index.html"), "utf8");
+  const titleOf = (name: string) => unescape(metaOf(by[name]!.text ?? "", "og:title"));
+  const descriptionOf = (name: string) => unescape(metaOf(by[name]!.text ?? "", "og:description")) ?? "";
+
+  for (const [name, answer] of Object.entries(by)) expectThat(answer.status === 200, `${name} answers 200`, answer.status);
+  expectThat(titleOf("faced") === isolate(title), "the faced address shows the title", titleOf("faced"));
+  expectThat(descriptionOf("faced").startsWith("$5 reward on chain · open until "), "the faced address shows the terms", descriptionOf("faced"));
+  expectThat(!by.faced!.text!.includes("Hidden from robots"), "an unlisted Hand's details stay hidden", "");
+  expectThat(unescape(metaOf(by.faced!.text!, "og:image")) === `${ORIGIN}${card}`, "og:image names the card", metaOf(by.faced!.text!, "og:image"));
+  expectThat(by.faced!.headers["cache-control"] === "no-cache" && by.faced!.headers["content-type"] === "text/html; charset=utf-8", "a page is no-cache HTML", by.faced!.headers);
+  expectThat(titleOf("numbered") === "Someone raised a hand." && descriptionOf("numbered").startsWith("$5 reward on chain"), "a numbered address shows the terms only", [titleOf("numbered"), descriptionOf("numbered")]);
+  expectThat(titleOf("public") === isolate("Fork check: who can fix a 1978 Vespa?") && descriptionOf("public").includes(isolate("It stalls at idle.")), "a public Hand shows its details", descriptionOf("public"));
+  expectThat(descriptionOf("dark").startsWith("$1 reward on chain") && !by.dark!.text!.includes("dark words"), "a dark Hand's number shows terms, never words", descriptionOf("dark"));
+  for (const name of ["unknown", "changed", "otherChain", "huge"]) {
+    expectThat(titleOf(name) === "Someone raised a hand." && descriptionOf(name) === "Open to see.", `${name} gives the generic card`, [titleOf(name), descriptionOf(name)]);
+  }
+  for (const name of ["faced", "numbered", "public", "dark", "unknown", "changed"]) {
+    const untagged = by[name]!.text!.replace(/ {4}<meta (?:property|name)="[^"]*" content="[^"]*" \/>(?:\n {4}<meta (?:property|name)="[^"]*" content="[^"]*" \/>)*\n {2}(?=<\/head>)/, "").replace(/<title>[\s\S]*?<\/title>/, "<title>aHand</title>");
+    expectThat(untagged === index, `${name} is index.html as built apart from the tags`, untagged.slice(0, 200));
+  }
+  for (const name of ["card", "cardDark", "generic"]) {
+    const png = by[name]!.png;
+    expectThat(png?.signature === "89504e470d0a1a0a" && png.width === 1200 && png.height === 630 && png.bytes > 10_000, `${name} is a 1200×630 PNG`, png);
+    expectThat(by[name]!.headers["cache-control"] === "public, max-age=300", `${name} is kept five minutes`, by[name]!.headers);
+  }
+  summary.previews = {
+    node,
+    files: files.length,
+    traced: traced.length,
+    resvg: binary,
+    hands: { unlisted: Number(unlisted.handId), public: Number(open.handId), dark: Number(dark.handId) },
+    answers: answers.map((answer) => ({ path: answer.path.slice(0, 90), status: answer.status, ms: answer.ms, ...(answer.png ? { png: answer.png } : { title: unescape(metaOf(answer.text ?? "", "og:title")) }) })),
+  };
+  say(`function under Node ${node}: ${answers.length} answers as expected (pages with tags, 1200×630 cards)`);
 }
 
 async function stop(): Promise<void> {
