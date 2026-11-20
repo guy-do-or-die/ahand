@@ -260,7 +260,8 @@ before=$(balance "$USD" "$G")
 kit thank "$work/thank.hex" -- --private-key $KEY1
 expect_eq "$(balance "$USD" "$G")" $((before + 2000000)) "the giver was paid the whole reward"
 expect_eq "$(q "$CORE" "thanksCount()(uint256)")" 1 "thanksCount is 1"
-[[ ! $(q "$CORE" "thanks(uint256)(bytes32,bytes32)" "$h" | head -1) =~ ^0x0+$ ]] || fail "thanks(id) keeps no Give"
+kept=$(q "$CORE" "thanks(uint256)(bytes32,bytes32)" "$h")
+[[ ! ${kept%%$'\n'*} =~ ^0x0+$ ]] || fail "thanks(id) keeps no Give"
 pass "thanks() keeps the Give's hash"
 [[ $(kit status "$h") == *"thanked"* ]] || fail "status of a thanked Hand"
 pass "status says CLOSED, thanked"

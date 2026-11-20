@@ -200,7 +200,9 @@ read_hand() {
   if ((H_OPENED == 0)); then
     STATE="not-raised"
   elif ((H_CLOSED != 0)); then
-    H_GIVEHASH=$(call "thanks(uint256)(bytes32,bytes32)" "$id" | head -1)
+    # Read the whole answer first: a pipe into head that closes early makes cast fail on SIGPIPE under pipefail.
+    H_GIVEHASH=$(call "thanks(uint256)(bytes32,bytes32)" "$id")
+    H_GIVEHASH=${H_GIVEHASH%%$'\n'*}
     if [[ $H_GIVEHASH =~ ^0x0+$ ]]; then STATE="refunded"; else STATE="thanked"; fi
   elif ((NOW >= H_EXPIRY)); then
     STATE="times-up"
@@ -337,7 +339,9 @@ cmd_thank() {
   [[ $data =~ ^0x([0-9a-f]{2})+$ ]] || die "the thank is hex calldata (0x...) or a file holding it"
   selector=$("$CAST" sig "$THANK_SIG")
   [[ ${data:0:10} == "$selector" ]] || die "this calldata is not a call of Core's thank (selector ${data:0:10}, expected $selector)"
-  id=$("$CAST" decode-calldata "$THANK_SIG" "$data" | head -1 | first)
+  # The decoded call runs to many lines: read it whole, then take the first word, so cast never writes into a closed pipe.
+  decoded=$("$CAST" decode-calldata "$THANK_SIG" "$data")
+  id=$(first <<<"${decoded%%$'\n'*}")
   core_check
   read_hand "$id"
   [[ $STATE == open ]] || die "Hand $id cannot be thanked: $STATE"
