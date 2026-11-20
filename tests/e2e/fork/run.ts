@@ -4,8 +4,9 @@
  *   bun tests/e2e/fork/run.ts            # FORK_URL, FORK_PORT, FORK_SITE_PORT to move it;
  *                                        # FORK_KEEP=1 keeps the fork and the site up afterwards
  *
- *  1. anvil forks Base Sepolia at a block near its head, as chain 84532, on 127.0.0.1:FORK_PORT
- *     (default 32200), a block a second;
+ *  1. anvil forks Base Sepolia at a block near its head (once Core is on Base Sepolia, the last block
+ *     before it; FORK_BLOCK pins one), as chain 84532, on 127.0.0.1:FORK_PORT (default 32200), a
+ *     block a second;
  *  2. the app is built with apps/hand/src/config/base-sepolia.json whose RPC is the fork and whose
  *     site is 127.0.0.1:FORK_SITE_PORT (default 32202), chain.local false as on Vercel; build.json
  *     is written beside it as the Vercel build writes it; infra/stand/static.ts serves it;
@@ -127,14 +128,36 @@ async function balanceOf(holder: Address): Promise<bigint> {
   return BigInt(await call<Hex>("eth_call", [{ to: USDC, data }, "latest"]));
 }
 
+/**
+ * The last block at or before `upTo` where Core has no code on the forked network: `upTo` itself
+ * while Core is not there, else found by bisection over at most `back` blocks (eth_getCode reads
+ * only; the public RPC keeps that much state).
+ */
+async function lastBlockWithoutCore(upTo: bigint, back = 200_000n): Promise<bigint> {
+  const empty = async (block: bigint) => (await call<Hex>("eth_getCode", [CORE, numberToHex(block)], FORK_URL)) === "0x";
+  if (await empty(upTo)) return upTo;
+  let lo = upTo - back;
+  let hi = upTo;
+  if (!(await empty(lo))) throw new Error(`Core has code on ${FORK_URL} already at block ${lo}; set FORK_BLOCK to a block before it came`);
+  while (hi - lo > 1n) {
+    const mid = (lo + hi) / 2n;
+    if (await empty(mid)) lo = mid;
+    else hi = mid;
+  }
+  summary.coreOnForkedNetwork = { firstBlockWithCode: Number(hi) };
+  say(`Core is on ${FORK_URL} since block ${hi}; the fork starts at block ${lo}, before it`);
+  return lo;
+}
+
 async function main(): Promise<void> {
   rmSync(WORK, { recursive: true, force: true });
   mkdirSync(WORK, { recursive: true });
   for (const port of [FORK_PORT, SITE_PORT]) if (await portBusy(port)) throw new Error(`port ${port} is taken`);
 
-  // 1. The fork, pinned a few blocks behind the head the public RPC reports now.
+  // 1. The fork, pinned a few blocks behind the head the public RPC reports now, or, once Core is
+  //    on Base Sepolia itself, at the last block before it came (FORK_BLOCK pins one by hand).
   const head = BigInt(await call<Hex>("eth_blockNumber", [], FORK_URL));
-  const forkBlock = head - 5n;
+  const forkBlock = process.env.FORK_BLOCK ? BigInt(process.env.FORK_BLOCK) : await lastBlockWithoutCore(head - 5n);
   summary.fork = { ...(summary.fork as object), block: Number(forkBlock) };
   say(`anvil forks ${FORK_URL} at block ${forkBlock} as chain ${CHAIN_ID} on ${RPC}`);
   start("anvil", join(FOUNDRY, "anvil"), [

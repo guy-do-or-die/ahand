@@ -78,8 +78,15 @@ test.describe("before Core is on the fork", () => {
       await expect(page.locator("main")).not.toContainText("Can't reach the network");
     }
 
+    // The header says these are test dollars on a test network (it said nothing off a local stand).
+    await expect(page.getByTestId("shell-ribbon")).toHaveText("Base Sepolia (test network) · Test dollars");
+
     await page.goto("/core");
     await expect(page.getByTestId("core-absent")).toContainText("This contract is not on Base Sepolia (test network) yet.", { timeout: 20_000 });
+    // A static site adds nothing to its pages; the contract opens on the chain's explorer.
+    await expect(page.locator("main")).toContainText("This site adds nothing to its pages: every page address serves /index.html as built.");
+    await expect(page.locator("main")).not.toContainText("preview tags this server adds");
+    await expect(page.getByTestId("shell-explorer").first()).toHaveAttribute("href", `https://sepolia.basescan.org/address/${CORE}`);
     await expect(page.getByTestId("core-absent")).toContainText("No code was found at this address on this network just now.");
     await expect(page.getByTestId("core-derivation")).toHaveAttribute("data-match", "true");
     await expect(page.locator("main")).toContainText("Base Sepolia (test network) · Chain ID 84532");
@@ -89,6 +96,7 @@ test.describe("before Core is on the fork", () => {
     await page.getByTestId("shell-lang-ru").click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ru");
     await expect(page.getByTestId("core-absent")).toContainText("Этого контракта ещё нет в сети Base Sepolia (тестовая сеть).");
+    await expect(page.getByTestId("shell-ribbon")).toHaveText("Base Sepolia (тестовая сеть) · Тестовые доллары");
     await page.goto("/raise");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Этого контракта ещё нет в сети Base Sepolia (тестовая сеть).", { timeout: 20_000 });
     await expect(page.locator("main")).not.toContainText("Сеть сейчас недоступна");
@@ -153,7 +161,17 @@ test.describe("the life on the fork", () => {
       const { page } = raiser;
       await page.goto("/raise");
       await expect(page.getByTestId("raise-what")).toBeVisible({ timeout: 30_000 });
+      // Test money: where it comes from, what it is worth, and the smallest reward first.
+      await expect(page.getByTestId("shell-faucets")).toContainText("Test money is free on Base Sepolia (test network):");
+      await expect(page.getByTestId("shell-faucets").getByRole("link", { name: "faucet.circle.com" })).toHaveAttribute("href", "https://faucet.circle.com");
+      await expect(page.getByTestId("raise-issuer-line")).toContainText("Held in test USDC on Base Sepolia (test network): it is worth nothing.");
       await compose(page, { title, reward: "5", days: 7, mode: "unlisted" });
+      // The preview of a link names this chain and, with no server writing previews, only the site's name.
+      const unfurl = page.getByTestId("raise-unfurl");
+      await expect(unfurl).toHaveAttribute("data-previews", "false");
+      await expect(unfurl).toContainText(`/${CHAIN}/…?d=…#E…`);
+      await expect(unfurl).not.toContainText("/31337/");
+      await expect(unfurl).toContainText("On this test site a chat's link preview shows only the site's name.");
       await swipeWith(page, FORK_WALLET_NAME);
       const up = page.getByTestId("raise-up");
       await expect(up).toBeVisible({ timeout: 90_000 });
@@ -226,6 +244,7 @@ test.describe("the life on the fork", () => {
       const hash = (await done.getAttribute("data-hash")) as Hex;
       const receipt = await rpc(RPC).client.getTransactionReceipt({ hash });
       expect(receipt.status).toBe("success");
+      await expect(done.getByTestId("shell-explorer")).toHaveAttribute("href", `https://sepolia.basescan.org/tx/${hash}`);
       expect(await balanceOf(helperPayee)).toBe(5n * USD);
       expect((await hands(rpc(RPC), CORE, handId)).closedAt).toBeGreaterThan(0);
     });
@@ -252,5 +271,32 @@ test.describe("the life on the fork", () => {
     });
 
     for (const one of people) onlyRelaysOffHost(one);
+  });
+
+  test("a phone app's browser that only sets window.ethereum is offered, and connects", async ({ browser }) => {
+    const phone = await person(browser, "phone", stand);
+    people.push(phone);
+    const address = account(2).address;
+    // No EIP-6963 announcement: only window.ethereum, as many phone wallets' built-in browsers do.
+    await phone.context.addInitScript(([who, chainHex]: [string, string]) => {
+      (window as unknown as { ethereum: unknown }).ethereum = {
+        async request({ method }: { method: string }) {
+          if (method === "eth_requestAccounts" || method === "eth_accounts") return [who];
+          if (method === "eth_chainId") return chainHex;
+          if (method === "wallet_switchEthereumChain") return null;
+          throw Object.assign(new Error(`not here: ${method}`), { code: 4200 });
+        },
+        on() {},
+        removeListener() {},
+      };
+    }, [address, `0x${CHAIN.toString(16)}`] as [string, string]);
+    const { page } = phone;
+    await page.goto("/my");
+    await page.getByTestId("connect-wallet").first().click();
+    const option = page.getByTestId("kit-connect-option");
+    await expect(option).toHaveCount(1);
+    await expect(option).toContainText("The crypto app in this browser");
+    await option.click();
+    await expect(page.getByTestId("wallet-connected").first()).toHaveAttribute("data-value", address, { timeout: 20_000 });
   });
 });

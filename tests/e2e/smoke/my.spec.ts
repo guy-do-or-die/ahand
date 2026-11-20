@@ -431,6 +431,9 @@ test("Add a hand by its number refuses another account's hand and keeps one of i
   ]);
   await page.reload();
   await pickDevAccount(page, 1);
+  // The connect sheet is a modal <dialog>: until the account is connected and it closes, the page
+  // behind it is inert and a fill there types into nothing (the field read empty: "my.add.bad").
+  await expect(page.getByTestId("wallet-connected").first()).toHaveAttribute("data-value", account(1).address);
 
   await page.getByTestId("my-add-by-number-input").fill(theirs.handId);
   await page.getByTestId("my-add-by-number-submit").click();
