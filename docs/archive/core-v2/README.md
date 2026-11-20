@@ -1,3 +1,6 @@
+> **These pages describe an earlier Core. They are kept for history.**
+> The current documentation starts at [`../../../README.md`](../../../README.md) and [`docs/how-it-works.md`](../../how-it-works.md).
+
 # Documentation index
 
 This directory documents the aHand protocol and the reference implementation in this
