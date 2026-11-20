@@ -30,6 +30,7 @@ import { foundry } from "viem/chains";
 import { AHandCoreAbi, ForwarderAbi, KeyAccountFactoryAbi } from "../../abi/src/index.ts";
 import {
   CORE_ABI,
+  CURVE_ORDER,
   CoreRefused,
   FORWARDER_ABI,
   Refusal,
@@ -42,10 +43,12 @@ import {
   expiryAfter,
   extendCall,
   findBlockAt,
+  forCore,
   fundCall,
   domain,
   handLogs,
   keyOfSeed,
+  keySigForCore,
   newSeed,
   raiseCall,
   readHand,
@@ -303,6 +306,109 @@ describe("a giver whose account is not deployed yet (ERC-6492)", () => {
     expect(rows.map((row) => row.eventName)).toEqual(["Thanked", "Shaken", "Paid", "Given", "Paid"]);
     expect(await balanceOf(usd, account)).toBe(18n * USD);
     expect(await balanceOf(usd, shaker)).toBe(2n * USD);
+  });
+});
+
+describe("a wrapper whose \"factory\" is the token (duty 17, D-62)", () => {
+  it("moves nothing of the sender's through the forwarder, though the same call in the sender's own name would", async () => {
+    const forwarder = chain.forwarder!;
+    const thief = fresh();
+    // The raiser holds tokens and, as after an approve for a raise, leaves an allowance to Core.
+    await send(raiserKey, approveCall(usd, chain.core, 50n * USD));
+    const before = await balanceOf(usd, raiser);
+    expect(before).toBeGreaterThan(5n * USD);
+    const hostile = [
+      encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [thief, 5n * USD] }),
+      encodeFunctionData({ abi: erc20Abi, functionName: "transferFrom", args: [raiser, thief, 5n * USD] }),
+    ];
+
+    // The threat is real: in the raiser's own name the first call would pay the thief.
+    await expect(client.call({ account: raiser, to: usd, data: hostile[0]! })).resolves.toBeDefined();
+
+    for (const factoryData of hostile) {
+      const call = setupCall({ forwarder, factory: usd, factoryData });
+      expect(call.to).toBe(forwarder);
+      // Asked first, the chain refuses it: the forwarder holds nothing and has no allowance.
+      await expect(client.call({ account: raiser, to: call.to, data: call.data })).rejects.toThrow();
+      // Sent anyway, with a gas limit so nothing simulates it away: mined, reverted, nothing moved.
+      const hash = await walletOf(raiserKey).sendTransaction({ to: call.to, data: call.data, gas: 300_000n });
+      const receipt = await client.waitForTransactionReceipt({ hash, pollingInterval: 50 });
+      expect(receipt.status).toBe("reverted");
+      expect(await balanceOf(usd, raiser)).toBe(before);
+      expect(await balanceOf(usd, thief)).toBe(0n);
+      expect(await balanceOf(usd, forwarder)).toBe(0n);
+    }
+
+    // Through checkGiveOnChain the same setup is only an eth_call: it changes nothing either.
+    const { handId, hand, rootKey } = await raise(raiserKey, { reward: 3n * USD });
+    const path = await route(hand, rootKey, [{ payee: fresh(), keep: 1_000 }]);
+    const account = fresh();
+    const plain = await giveOf(hand, path, account, generatePrivateKey(), account);
+    const wrapped: SignedGive = { ...plain, giverSig: serializeErc6492Signature({ address: usd, data: hostile[1]!, signature: plain.giverSig }) };
+    const refused = await checkGiveOnChain(client, chain.core, handId, path.signedShakes, wrapped, { forwarder, factory: usd, factoryData: hostile[1]! }).catch((e) => e);
+    expect(refused).toMatchObject({ name: "InvalidGiverSig" });
+    expect(await balanceOf(usd, thief)).toBe(0n);
+  });
+});
+
+/** The same key's signature written as ERC-2098's 64 bytes. */
+function compactOf(signature: Hex): Hex {
+  const r = signature.slice(2, 66);
+  const s = BigInt(`0x${signature.slice(66, 130)}`);
+  const v = Number.parseInt(signature.slice(130, 132), 16);
+  const vs = s | (BigInt(v - 27) << 255n);
+  return `0x${r}${vs.toString(16).padStart(64, "0")}`;
+}
+
+/** The same key's signature with the higher s (and the other v). */
+function highSOf(signature: Hex): Hex {
+  const r = signature.slice(2, 66);
+  const s = BigInt(`0x${signature.slice(66, 130)}`);
+  const v = Number.parseInt(signature.slice(130, 132), 16);
+  return `0x${r}${(CURVE_ORDER - s).toString(16).padStart(64, "0")}${(v === 27 ? 28 : 27).toString(16)}`;
+}
+
+describe("link keys' signatures in another form (duty 3)", () => {
+  it("are brought to Core's 65-byte form before thankCall writes them, and Core then takes the thank", async () => {
+    const { handId, hand, rootKey } = await raise(raiserKey, { reward: 10n * USD });
+    const path = await route(hand, rootKey, [
+      { payee: fresh(), keep: 1_000 },
+      { payee: fresh(), keep: 1_000 },
+    ]);
+    const good = await giveOf(hand, path, fresh());
+    const vZeroOne = (signature: Hex): Hex => `${signature.slice(0, 130)}${signature.endsWith("1b") ? "00" : "01"}` as Hex;
+    const shakes: SignedShake[] = [
+      { ...path.signedShakes[0]!, keySig: compactOf(path.signedShakes[0]!.keySig) },
+      { ...path.signedShakes[1]!, keySig: vZeroOne(path.signedShakes[1]!.keySig) },
+    ];
+    const signedGive: SignedGive = { ...good, keySig: highSOf(good.keySig) };
+    expect(shakes[0]!.keySig).toHaveLength(2 + 128);
+
+    // Written as they came, Core refuses the first of them.
+    const raw: Call = { to: chain.core, data: thankCalldata(handId, shakes, signedGive) };
+    expect(await simulate(client, raw, raiser)).toMatchObject({ ok: false, refusal: { name: "InvalidKeySig", position: 0 } });
+
+    // forCore gives each in the one form, and thankCall writes exactly what the good route writes.
+    const written = forCore(shakes, signedGive);
+    expect(written.signedShakes.map((s) => s.keySig)).toEqual(path.signedShakes.map((s) => s.keySig));
+    expect(written.signedGive.keySig).toBe(good.keySig);
+    for (const sig of [...written.signedShakes.map((s) => s.keySig), written.signedGive.keySig]) {
+      expect(sig).toHaveLength(2 + 130);
+      expect(["1b", "1c"]).toContain(sig.slice(-2));
+    }
+    const call = thankCall(chain.core, handId, shakes, signedGive);
+    expect(call.data).toBe(thankCall(chain.core, handId, path.signedShakes, good).data);
+    await checkGiveOnChain(client, chain.core, handId, shakes, signedGive);
+    expect((await simulate(client, call, raiser)).ok).toBe(true);
+    await send(raiserKey, call);
+    expect((await readHand(client, chain.core, handId)).stateAt((await chainNow(client)).timestamp)).toBe("thanked");
+  });
+
+  it("leaves bytes that are no key's signature as they came, for Core to refuse with its own error", () => {
+    const junk = `0x${"ab".repeat(65)}` as Hex; // v = 0xab
+    expect(keySigForCore(junk)).toBe(junk);
+    const short = `0x${"01".repeat(30)}` as Hex;
+    expect(keySigForCore(short)).toBe(short);
   });
 });
 

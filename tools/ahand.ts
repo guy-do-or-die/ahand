@@ -704,7 +704,7 @@ async function coreCheck(args: Args): Promise<void> {
   } catch (error) {
     return failWith((error as Error).message);
   }
-  if (!build.sourceMatches) failWith("contracts/out was not built from contracts/src/AHandCore.sol as it is now: rebuild it (cd contracts && forge build)");
+  if (!build.sourceMatches) failWith("contracts/out was not built from contracts/src/AHandCore.sol as it is now: rebuild it (cd contracts && \"${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge\" build)");
   ok(`initcode hash ${build.initcodeHash} (${build.initcodeBytes} bytes, built from AHandCore.sol sha256 ${build.sourceSha256})`);
   const derived = coreAddressOf(build.initcodeHash);
   ok(`create2(${CREATE2_FACTORY}, keccak256("aHand.core/1") = ${CORE_SALT}, initcode) = ${derived}`);

@@ -188,9 +188,10 @@ describe("static server: rule and headers", () => {
   });
 
   test("live on a test port: headers on every answer, HEAD, methods", async () => {
-    const server = startStatic({ dir: root, port: 16001, connect: ["http://127.0.0.1:18635"], log: () => {} });
+    const port = Number(process.env.STAND_STATIC_TEST_PORT ?? 16001);
+    const server = startStatic({ dir: root, port, connect: ["http://127.0.0.1:18635"], log: () => {} });
     try {
-      const base = "http://127.0.0.1:16001";
+      const base = `http://127.0.0.1:${port}`;
       const deep = await fetch(`${base}/31337/1?d=abc`);
       expect(deep.status).toBe(200);
       expect(await deep.text()).toContain("<title>index</title>");
@@ -210,6 +211,9 @@ describe("static server: rule and headers", () => {
       const exitCsp = exit.headers.get("content-security-policy")!;
       expect(exitCsp).toContain(`script-src 'self' 'sha256-${hash}';`);
       expect(exitCsp).toContain("connect-src 'self' http://127.0.0.1:18635 https: http://127.0.0.1:* http://localhost:*;");
+      // Its fonts are inlined in the single file, so only exit.html may load data: fonts.
+      expect(exitCsp).toContain("font-src 'self' data:;");
+      expect(deep.headers.get("content-security-policy")).toContain("font-src 'self';");
       const build = await fetch(`${base}/build.json`);
       expect(build.status).toBe(200);
       expect(await build.json()).toEqual({ hash: "x" });

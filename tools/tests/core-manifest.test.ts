@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { deploymentOf } from "@ahand/sdk/testing";
 
 import { hashDir, hashDirCommand } from "../manifest.ts";
-import { REPO, chainOn, cli, sh, type Chain } from "./fixtures.ts";
+import { REPO, chainOn, cli, sh, type Chain, testPort } from "./fixtures.ts";
 
 let chain: Chain;
 const scratch = mkdtempSync(join(tmpdir(), "ahand-tools-core-"));
 
 beforeAll(async () => {
-  chain = await chainOn(18352);
+  chain = await chainOn(testPort(2));
 }, 60_000);
 
 afterAll(async () => {

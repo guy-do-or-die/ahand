@@ -14,7 +14,7 @@ committed.
 | `initcodeHash` | `keccak256` of AHandCore's creation code; rebuild it from `commit` with the settings below |
 | `runtimeHash` | `keccak256` of the code at `core`: information only (EIP-712 immutables make it differ per chain and address) |
 | `deployBlock` | a block at or before the deployment: the next block when the run deployed Core; when Core was already there, the value an earlier run wrote to the same file, else `0` |
-| `tokens` | on 31337: `[{address, symbol, decimals, kind}]`, kind `mock` (MockUSD) or `blacklist` (BlacklistToken); empty elsewhere |
+| `tokens` | on 31337: `[{address, symbol, decimals, kind}]`, kind `usd` (MockUSD) or `blacklist` (BlacklistToken); empty elsewhere |
 | `forwarder` | on 31337: the test stand-in for Multicall3's `aggregate3` (D-62); `null` elsewhere |
 | `accountFactory` | on 31337: `KeyAccountFactory`, accounts not deployed yet; `null` elsewhere |
 | `commit`, `dirty` | from `DEPLOY_COMMIT` and `DEPLOY_DIRTY` (`script/deploy.sh` sets both from git); `null` when not given |

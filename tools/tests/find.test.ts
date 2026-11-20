@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { privateKeyToAddress } from "viem/accounts";
 
-import { ANVIL_KEYS, REPO, advance, chainOn, cli, raise, type Chain } from "./fixtures.ts";
+import { ANVIL_KEYS, REPO, advance, chainOn, cli, raise, type Chain, testPort } from "./fixtures.ts";
 
 /**
  * `find` through a recording proxy in front of the helper chain: the proxy counts each
@@ -10,7 +10,7 @@ import { ANVIL_KEYS, REPO, advance, chainOn, cli, raise, type Chain } from "./fi
  * CLI had written to stderr by then. The CLI is blocked on that very request, so what it wrote
  * before is exactly what it printed before its first log request.
  */
-const PROXY_PORT = 18355;
+const PROXY_PORT = testPort(5);
 
 let chain: Chain;
 let older: bigint;
@@ -81,7 +81,7 @@ async function run(args: string[], onStderr?: (text: string, child: ReturnType<t
 const raiser = privateKeyToAddress(ANVIL_KEYS[1]!);
 
 beforeAll(async () => {
-  chain = await chainOn(18354);
+  chain = await chainOn(testPort(4));
   older = (await raise(chain, { raiser: 1 })).hand.handId;
   await advance(chain, 2 * 86_400);
   later = [(await raise(chain, { raiser: 1, reward: 5_000_000n })).hand.handId];

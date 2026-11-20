@@ -54,7 +54,7 @@ export function contentSecurityPolicy(connect: readonly string[], page: PageSour
     ["script-src 'self'", ...(page.inline ?? [])].join(" "),
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
-    "font-src 'self'",
+    page.anyRpc ? "font-src 'self' data:" : "font-src 'self'",
     ["connect-src 'self'", ...new Set(connectSources)].join(" "),
     "worker-src 'none'",
     "object-src 'none'",

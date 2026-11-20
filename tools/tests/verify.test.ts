@@ -9,7 +9,7 @@ import { seenIn } from "../../packages/sdk/src/address.ts";
 import { fromText } from "../../packages/sdk/src/link.ts";
 import { collect, passportOf, type Check } from "../../packages/sdk/src/proof.ts";
 import { SENTENCES } from "../lib/passport.ts";
-import { ANVIL_KEYS, advance, chainOn, cli, giveAddress, keyGiver, liveAddress, raise, thank, type Chain, type Raised } from "./fixtures.ts";
+import { ANVIL_KEYS, advance, chainOn, cli, giveAddress, keyGiver, liveAddress, raise, thank, type Chain, type Raised, testPort } from "./fixtures.ts";
 
 let chain: Chain;
 let thanked: Raised;
@@ -29,7 +29,7 @@ function linesOf(stdout: string): { id: string; verdict: string }[] {
 const verdict = (check: Check) => (check.ok === true ? "ok" : check.ok === false ? "FAIL" : "not checkable");
 
 beforeAll(async () => {
-  chain = await chainOn(18353);
+  chain = await chainOn(testPort(3));
   // A Hand passed once with a 10% share to account 3, answered by account 2, thanked by account 1.
   thanked = await raise(chain, { raiser: 1, content: "Two lessons a week." });
   const live = await liveAddress(chain, thanked, "faced");

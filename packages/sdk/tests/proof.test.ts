@@ -412,6 +412,18 @@ describe("a refunded Hand", () => {
     expect(checks.every((check) => check.ok === true)).toBe(true);
     expect(byId(checks, "payout.raiser").actual).toBe(`Paid · 700000 · ${raised.hand.raiser}`);
   });
+
+  it("with a reward of zero: no payout event is expected, none is there, and every check is ok", async () => {
+    const raised = await raise({ reward: 0n, seconds: 60 });
+    await later(120);
+    await send(giverKey, refundCall(chain.core, raised.hand.handId));
+    const record = await collect(client, chain.core, raised.hand.handId, { build: build() });
+    const refundedAt = record.logs.find((log) => log.eventName === "Refunded")!;
+    expect(record.logs.filter((log) => log.transactionHash === refundedAt.transactionHash).map((log) => log.eventName)).toEqual(["Refunded"]);
+    const checks = await passportOf(record);
+    expect(ids(checks)).toEqual(["core", "raised", "reward-time", "description", "refunded", `now.${raised.hand.raiser}`]);
+    expect(failed(checks)).toEqual([]);
+  });
 });
 
 describe("a funded and extended Hand in a second token, its giver's payout left pending", () => {

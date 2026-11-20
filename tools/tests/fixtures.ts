@@ -34,6 +34,12 @@ export const SITE = "http://127.0.0.1:15299";
 export const FOUNDRY_BIN = process.env.FOUNDRY_BIN || join(process.env.HOME ?? "", ".foundry/bin");
 
 /** Each test file takes its own port of 18352 to 18358 (wave 5's range is 18350-18399, but stand slots 5 to 9 serve on 183N0 and 183N1). */
+/**
+ * The CLI tests' ports: 18350 + offset by default (offsets 2 to 8, one per test file);
+ * TOOLS_TEST_PORT_BASE moves the whole block, for agents that share one machine.
+ */
+export const testPort = (offset: number): number => Number(process.env.TOOLS_TEST_PORT_BASE ?? 18350) + offset;
+
 export function chainOn(port: number): Promise<Chain> {
   return startChain({ port });
 }

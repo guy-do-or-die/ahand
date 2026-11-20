@@ -17,6 +17,7 @@ import {
   liveAddress,
   raise,
   sh,
+  testPort,
   undeployedGiver,
   type Chain,
 } from "./fixtures.ts";
@@ -25,7 +26,7 @@ let chain: Chain;
 const scratch = mkdtempSync(join(tmpdir(), "ahand-tools-thank-"));
 
 beforeAll(async () => {
-  chain = await chainOn(18358);
+  chain = await chainOn(testPort(8));
 }, 60_000);
 
 afterAll(async () => {

@@ -10,6 +10,7 @@ import {
 
 import { decodeCoreError, type CoreRefusal } from "./errors.js";
 import { thankCalldata } from "./gas.js";
+import { toCoreSignature } from "./sign.js";
 import type { SignedGive, SignedShake } from "./types.js";
 
 /**
@@ -122,7 +123,41 @@ export function innerGiverSig(giverSig: Hex): Hex {
   return isErc6492Signature(giverSig) ? parseErc6492Signature(giverSig).signature : giverSig;
 }
 
-/** Thanks a Give. Always writes the inner signature of a 6492-wrapped Give (viem's parser). */
+/**
+ * A link key's signature in the one form Core takes (65 bytes, v 27 or 28, low s), when it is a
+ * key's signature written another way (ERC-2098's 64 bytes, v 0 or 1, the higher s): the signer
+ * stays the same. Bytes that are no key's signature in any form are returned as they came, so
+ * that Core refuses them with its own error and position instead of the SDK guessing.
+ */
+export function keySigForCore(keySig: Hex): Hex {
+  try {
+    return toCoreSignature(keySig);
+  } catch {
+    return keySig;
+  }
+}
+
+/**
+ * The route and the Give exactly as Core must receive them: every link key's signature (each
+ * Shake's and the Give's) in Core's 65-byte form, and the giver's signature unwrapped from
+ * ERC-6492. The giver's own signature is otherwise left as it is: it may be a contract's, whose
+ * bytes only its code may judge. What `thankCall` writes and what `checkGiveOnChain` asks are the
+ * same bytes.
+ */
+export function forCore(
+  signedShakes: readonly SignedShake[],
+  signedGive: SignedGive,
+): { signedShakes: SignedShake[]; signedGive: SignedGive } {
+  return {
+    signedShakes: signedShakes.map(({ shake, keySig }) => ({ shake, keySig: keySigForCore(keySig) })),
+    signedGive: { ...signedGive, keySig: keySigForCore(signedGive.keySig), giverSig: innerGiverSig(signedGive.giverSig) },
+  };
+}
+
+/**
+ * Thanks a Give. Always writes the inner signature of a 6492-wrapped Give (viem's parser) and
+ * every link key's signature in Core's 65-byte form (`forCore`).
+ */
 export function thankCall(
   core: Address,
   handId: bigint,
@@ -130,8 +165,8 @@ export function thankCall(
   signedGive: SignedGive,
   dataHash?: Hex,
 ): Call {
-  const give: SignedGive = { ...signedGive, giverSig: innerGiverSig(signedGive.giverSig) };
-  return { to: core, data: thankCalldata(handId, signedShakes, give, dataHash) };
+  const written = forCore(signedShakes, signedGive);
+  return { to: core, data: thankCalldata(handId, written.signedShakes, written.signedGive, dataHash) };
 }
 
 /** Returns an expired Hand's whole reward to its raiser. Anyone may send it. */

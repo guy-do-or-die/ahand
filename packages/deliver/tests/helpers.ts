@@ -4,9 +4,12 @@ import type { Subprocess } from "bun";
 const RELAY = `${import.meta.dir}/../../../infra/relay/relay.ts`;
 const handedOut = new Set<number>();
 
-/** A port nobody listens on, from 15120–15149 (the relay package's tests use 15100–15119). */
+/** This package's range, 15120–15149 (the relay package's tests use 15100–15119); DELIVER_TEST_PORTS="from-to" picks another. */
+const [PORTS_FROM, PORTS_TO] = (process.env.DELIVER_TEST_PORTS ?? "15120-15149").split("-").map(Number) as [number, number];
+
+/** A port nobody listens on, from this package's range. */
 export function freePort(): number {
-  for (let port = 15120; port <= 15149; port++) {
+  for (let port = PORTS_FROM; port <= PORTS_TO; port++) {
     if (handedOut.has(port)) continue;
     try {
       const probe = Bun.listen({ hostname: "127.0.0.1", port, socket: { data() {} } });
@@ -17,7 +20,7 @@ export function freePort(): number {
       // taken
     }
   }
-  throw new Error("no free port in 15120–15149");
+  throw new Error(`no free port in ${PORTS_FROM}–${PORTS_TO}`);
 }
 
 export interface RelayProcess {

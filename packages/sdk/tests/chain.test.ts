@@ -512,9 +512,21 @@ describe("where a Hand's events sit", () => {
     expect(progress).toEqual(Array.from({ length: look.requests }, (_, i) => i + 1));
 
     // Bounded: one window does not reach the later Hand, and stopping early keeps what was found.
-    const short = findLaterHands(client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest, maxWindows: 1 });
+    const capped = recording();
+    const short = findLaterHands(capped.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest, maxWindows: 1 });
     expect(short.requests).toBe(1);
     expect(await short.run()).toEqual([]);
+    expect(capped.requests).toHaveLength(1);
+    // A window asked larger than 2 000 blocks is cut to 2 000, and the count announced follows it.
+    const wide = recording();
+    const big = findLaterHands(wide.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest, chunk: 1_000_000, maxWindows: 2 });
+    expect(big.requests).toBe(Math.min(2, Math.ceil(span / 2_000)));
+    await big.run();
+    expect(wide.requests).toHaveLength(big.requests);
+    for (const request of wide.requests) {
+      const [{ fromBlock, toBlock }] = request.params as [{ fromBlock: Hex; toBlock: Hex }];
+      expect(BigInt(toBlock) - BigInt(fromBlock) + 1n).toBeLessThanOrEqual(2_000n);
+    }
     const stopped = recording();
     const stoppable = findLaterHands(stopped.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest });
     await stoppable.run(() => false);

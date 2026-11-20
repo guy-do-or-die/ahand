@@ -3,14 +3,14 @@ import { hexToBigInt, hexToBytes } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
 import { toText } from "../../packages/sdk/src/link.ts";
-import { ANVIL_KEYS, chainOn, cli, liveAddress, openWith, raise, type Chain, type Raised } from "./fixtures.ts";
+import { ANVIL_KEYS, chainOn, cli, liveAddress, openWith, raise, type Chain, type Raised, testPort } from "./fixtures.ts";
 
 let chain: Chain;
 let raised: Raised;
 let faced: string;
 
 beforeAll(async () => {
-  chain = await chainOn(18357);
+  chain = await chainOn(testPort(7));
   raised = await raise(chain, { content: "Twice a week, evenings.\nBeginner, adult." });
   faced = await liveAddress(chain, raised, "faced");
 }, 60_000);

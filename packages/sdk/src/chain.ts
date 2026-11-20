@@ -13,7 +13,7 @@ import {
 } from "viem";
 
 import { CoreRefused, decodeCoreError, refusalOfData } from "./errors.js";
-import { CORE_ABI, FORWARDER_ABI, innerGiverSig, type AccountSetup } from "./tx.js";
+import { CORE_ABI, FORWARDER_ABI, forCore, keySigForCore, type AccountSetup } from "./tx.js";
 import type { Hand, SignedGive, SignedShake } from "./types.js";
 import type { RouteEnd } from "./verify.js";
 
@@ -246,7 +246,7 @@ export async function checkRouteOnChain(
       address: core,
       abi: CORE_ABI,
       functionName: "checkRoute",
-      args: [handId, signedShakes],
+      args: [handId, signedShakes.map(({ shake, keySig }) => ({ shake, keySig: keySigForCore(keySig) }))],
     });
     return { lastKey, claimBps, routeHash };
   } catch (error) {
@@ -255,10 +255,11 @@ export async function checkRouteOnChain(
 }
 
 /**
- * Core's own `checkGive` by `eth_call`. Throws `CoreRefused`. With `setup`, one `eth_call` to the
- * forwarder runs the account's setup call, then Core's `checkGive` with the inner signature.
- * Without it the signature goes to Core as it is: a 6492 wrapper is then refused, because Core
- * has no ERC-6492 (R-28).
+ * Core's own `checkGive` by `eth_call`, asked with the bytes `thankCall` would write (`forCore`:
+ * link keys' signatures in Core's 65-byte form, the giver's unwrapped from ERC-6492). Throws
+ * `CoreRefused`. With `setup`, one `eth_call` to the forwarder runs the account's setup call, then
+ * Core's `checkGive`. Without it an account that is not deployed yet has no code, so Core refuses
+ * its signature: it has no ERC-6492 (R-28).
  */
 export async function checkGiveOnChain(
   client: PublicClient,
@@ -268,13 +269,14 @@ export async function checkGiveOnChain(
   signedGive: SignedGive,
   setup?: AccountSetup,
 ): Promise<void> {
+  const written = forCore(signedShakes, signedGive);
   if (!setup) {
     try {
       await client.readContract({
         address: core,
         abi: CORE_ABI,
         functionName: "checkGive",
-        args: [handId, signedShakes, signedGive],
+        args: [handId, written.signedShakes, written.signedGive],
       });
       return;
     } catch (error) {
@@ -282,8 +284,11 @@ export async function checkGiveOnChain(
     }
   }
 
-  const inner: SignedGive = { ...signedGive, giverSig: innerGiverSig(signedGive.giverSig) };
-  const check = encodeFunctionData({ abi: CORE_ABI, functionName: "checkGive", args: [handId, signedShakes, inner] });
+  const check = encodeFunctionData({
+    abi: CORE_ABI,
+    functionName: "checkGive",
+    args: [handId, written.signedShakes, written.signedGive],
+  });
   // Both calls may fail without failing the batch, so Core's own answer comes back in the result
   // instead of the forwarder's "call failed". A failed setup leaves no code: Core then refuses.
   const data = encodeFunctionData({

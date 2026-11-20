@@ -5,7 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 import { keysTypedData, masterOf, newBook, rootSeed } from "../../packages/sdk/src/keys.ts";
 import { fromText, openLink } from "../../packages/sdk/src/link.ts";
-import { ANVIL_KEYS, chainOn, cli, cliWithInput, leaks, raise, type Chain, type Raised } from "./fixtures.ts";
+import { ANVIL_KEYS, chainOn, cli, cliWithInput, leaks, raise, type Chain, type Raised, testPort } from "./fixtures.ts";
 
 let chain: Chain;
 let raised: Raised;
@@ -15,7 +15,7 @@ let book: Hex;
 const N = 7;
 
 beforeAll(async () => {
-  chain = await chainOn(18356);
+  chain = await chainOn(testPort(6));
   // The raiser signs the keys message as the app asks for it; the root key is that of Hand number 7 in a fresh book.
   const account = privateKeyToAccount(ANVIL_KEYS[1]!);
   signature = await account.signTypedData(keysTypedData(chain.chainId, chain.core, account.address));

@@ -31,3 +31,27 @@ export function payeeProblem(
 export function payeeRefused(problem: PayeeProblem): boolean {
   return problem === "zero" || problem === "core";
 }
+
+/** A Shake on the route that names the raiser's own address (R-18: Core allows it; the app flags it). */
+export interface RaiserHop {
+  /** The Shake's position on the route. */
+  position: number;
+  /** Whether the Shake pays the raiser, hands the link to a key at the raiser's address, or both. */
+  as: "payee" | "key" | "payee and key";
+}
+
+/**
+ * The Shakes whose payee or next key is the raiser's address (brief 02 duty 11). Core takes both;
+ * a share paid back to the asker, or a link handed to the asker's own address, is rarely what the
+ * holders meant, so the screen shows each one. A payee counts only where the Shake kept a share.
+ */
+export function raiserHops(raiser: Address, signedShakes: readonly { shake: { nextKey: Address; payee: Address; claimBps: number; nextClaimBps: number } }[]): RaiserHop[] {
+  const at = raiser.toLowerCase();
+  const hops: RaiserHop[] = [];
+  signedShakes.forEach(({ shake }, position) => {
+    const pays = shake.nextClaimBps < shake.claimBps && shake.payee.toLowerCase() === at;
+    const holds = shake.nextKey.toLowerCase() === at;
+    if (pays || holds) hops.push({ position, as: pays && holds ? "payee and key" : pays ? "payee" : "key" });
+  });
+  return hops;
+}

@@ -1,0 +1,71 @@
+# NOTE: this workflow has never run. It was written on 2026-11-20 during the overnight experiment on a machine without GitHub Actions; the same steps were run there by hand (bun run check).
+#
+# What it does: the root package's "check" script, which is the gate of the build: Core's hash
+# before and after, the ABI check, every typecheck, forge test, the SDK's vectors rewritten and
+# compared with git, the exit kit's self-test, the SDK's vitest, bun test in every package, and
+# the app's build. It needs no secret, contacts no public network but the package registries and
+# GitHub, and deploys nothing: every chain it uses is an anvil it starts itself.
+#
+# Assumptions not checked by running here: that the tags v1.16.2 (forge-std) and v5.6.1
+# (OpenZeppelin) exist upstream, as package.json in the local copies says; that foundry-toolchain
+# installs v1.8.6; that the runner's Chromium is not needed (no end-to-end test runs here).
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      # Every script calls Foundry by path (bare `forge` may be another program).
+      FOUNDRY_BIN: /home/runner/.foundry/bin
+      # The exit kit's self-test starts its own anvil on this port.
+      SELFTEST_PORT: "19210"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # contracts/lib is not in the repository (in the worktree it is a local symlink). The two
+      # libraries Core and its tests build against, at the versions the local copies carry.
+      - name: Contract libraries
+        run: |
+          mkdir -p contracts/lib
+          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+
+      - name: Foundry where the scripts look for it
+        run: |
+          mkdir -p "$FOUNDRY_BIN"
+          for tool in forge cast anvil chisel; do ln -sf "$(command -v $tool)" "$FOUNDRY_BIN/$tool"; done
+          "$FOUNDRY_BIN/forge" --version
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        run: bun run check
+
+      - name: Core is unchanged
+        run: |
+          echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol contracts/test/fixtures

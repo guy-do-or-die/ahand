@@ -171,7 +171,7 @@ export function trustedCore(args: Args, chainId: number): TrustedCore {
   }
   const file = deploymentPath(chainId);
   if (existsSync(file)) return { core: getAddress(readDeployment(file).core), source: `contracts/deployments/${chainId}.json` };
-  throw new Fail("no Core to trust: give --core 0x..., build the contracts (cd contracts && forge build), or add a deployment file");
+  throw new Fail("no Core to trust: give --core 0x..., build the contracts (cd contracts && \"${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge\" build), or add a deployment file");
 }
 
 const ERC20 = parseAbi(["function symbol() view returns (string)", "function decimals() view returns (uint8)"]);

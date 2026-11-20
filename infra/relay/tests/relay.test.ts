@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { startRelay, type RunningRelay } from "../relay.ts";
 
-// This package's tests use ports 15100–15119; the delivery package's use 15120–15149.
-async function freePort(from = 15100, to = 15119): Promise<number> {
+// This package's tests use ports 15100–15119 (the delivery package's use 15120–15149);
+// RELAY_TEST_PORTS="from-to" picks another range, for agents that share one machine.
+const [PORTS_FROM, PORTS_TO] = (process.env.RELAY_TEST_PORTS ?? "15100-15119").split("-").map(Number) as [number, number];
+async function freePort(from = PORTS_FROM, to = PORTS_TO): Promise<number> {
   for (let port = from; port <= to; port++) {
     try {
       const probe = Bun.listen({ hostname: "127.0.0.1", port, socket: { data() {} } });
