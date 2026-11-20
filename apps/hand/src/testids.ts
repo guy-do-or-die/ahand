@@ -301,6 +301,20 @@ export const TID = {
     approve: "dev-wallet-approve",
     networkTime: "dev-wallet-network-time",
     deviceTime: "dev-wallet-device-time",
+    signature: "dev-wallet-signature", // data-index: 1 | 2, data-value: the signature
+    verdict: "dev-wallet-verdict", // data-value: same | different
+    wrapped: "dev-wallet-wrapped", // data-value: true | false
+    ahead: "dev-wallet-ahead", // data-value: seconds the network is ahead
+    hash: "dev-wallet-hash",
+    sample: "dev-wallet-sample",
+    sayNo: "dev-wallet-say-no",
+  },
+
+  /** The wallet layer (wallet/ConnectSheet.tsx), wherever a screen mounts it. */
+  wallet: {
+    connect: "connect-wallet",
+    connected: "wallet-connected", // data-value: the connected address
+    devAccount: "dev-account", // + "-<n>" | "-not-set-up" (tests/e2e/lib/accounts.ts)
   },
 
   /** The shared kit (ui/), wherever a screen mounts it. */
