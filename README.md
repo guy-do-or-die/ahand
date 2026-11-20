@@ -74,6 +74,10 @@ The browser suites run against a stand that is up, always from the root with `ST
 
 What ran, with counts and times, is in [`docs/evidence.md`](docs/evidence.md).
 
+## Public test deployment on Base Sepolia
+
+A push of this branch builds `apps/hand` on Vercel against Base Sepolia (`apps/hand/src/config/base-sepolia.json`, settings in `apps/web/vercel.json`, written by `bun apps/hand/vercel.ts write`) and serves it at `https://exp-e2e.ahand.in`. Until Core is deployed there the site says "This contract is not on Base Sepolia (test network) yet." How to deploy Core, record `contracts/deployments/84532.json` and push, and how `bun tests/e2e/fork/run.ts` proves the whole life on a local fork first: [docs/public-test-deployment.md](docs/public-test-deployment.md).
+
 ## Code from the earlier Core
 
 Four folders were built for the earlier Core and still speak of charity, reclaim and `policyAdmin`: `apps/web`, `packages/subgraph`, `infra/anvil` and `infra/seed`. They are kept on disk on purpose (D-2: the new app is `apps/hand`, not `apps/web` migrated; D-6: the root `workspaces` list leaves them out), so they are not installed, not built, not tested and not maintained on this branch; several import names the SDK no longer has. Read them as history, like [`docs/archive/core-v2/`](docs/archive/core-v2/README.md).
