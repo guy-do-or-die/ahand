@@ -158,10 +158,22 @@ export const NETWORK = "NETWORK";
 /** The LinkError codes the SDK has; each one has its label in hand/en.ts and ru.ts. */
 export const LINK_CODES = ["malformed", "unsupported", "non-canonical", "too-long", "another-hand", "not-this-hand", "invalid", "unmatched-data"] as const;
 
-/** Whether a reverted call is somewhere in the error's chain: that is an answer, not the network. */
+/**
+ * Whether a reverted call is somewhere in the error's chain: that is an answer, not the network.
+ * viem also files a node's own JSON-RPC -32603 under a revert when the answer carries a message
+ * (`getContractError`); with no revert data and no "revert" in that message it is the node failing,
+ * not the contract answering, and it is the network's (the offline band and its retry, HV-1).
+ */
 function reverted(error: BaseError): boolean {
-  return error.walk((cause) => cause instanceof ContractFunctionRevertedError) !== null;
+  const revert = error.walk((cause) => cause instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | null;
+  if (!revert) return false;
+  if (revert.raw !== undefined && revert.raw !== "0x") return true;
+  const internal = error.walk((cause) => (cause as { code?: unknown }).code === INTERNAL_RPC_CODE) !== null;
+  return !internal || /revert/i.test(revert.reason ?? "");
 }
+
+/** JSON-RPC's "internal error", which viem's getContractError reads as a revert when it has a message. */
+const INTERNAL_RPC_CODE = -32603;
 
 /**
  * The sentence for anything that stopped a link from opening or a call from going through.

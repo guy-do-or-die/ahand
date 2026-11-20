@@ -69,7 +69,6 @@ const en = {
   "common.word.myHands": "My hands",
   "common.word.copy": "Copy",
   "common.word.copied": "Copied",
-  "common.word.share": "Share",
   "common.word.showQr": "Show QR",
   "common.word.print": "Print",
   "common.word.close": "Close",

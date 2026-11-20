@@ -14,7 +14,6 @@ import {
   droppedSeen,
   lastDropped,
   problemOfWeight,
-  publicSize,
   raise,
   rebuild,
   resumeRaise,
@@ -28,7 +27,7 @@ import {
   type Step,
   type Up,
 } from "./flow";
-import { expiryFor, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
+import { expiryFor, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
 import { Chips, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
 
@@ -378,9 +377,9 @@ export default function RaiseScreen() {
 
   const working = phase.kind === "working";
   const noTitle = title === "";
-  const size = mode === "public" ? publicSize(title, content || undefined) : undefined;
-  const tooLarge = size?.tooLarge === true;
-  const canSwipe = phase.kind === "compose" && !noTitle && !tooLong && reward !== undefined && expiry !== undefined && !failed && !tooLarge;
+  // One meter for one limit: a public Hand's address before `#`, as weigh() counts it against MAX_BEFORE_HASH.
+  const addressOver = weighed.over === "address";
+  const canSwipe = phase.kind === "compose" && !noTitle && !tooLong && reward !== undefined && expiry !== undefined && !failed;
   const titleOver = weighed.over === "title";
   const detailsOver = weighed.over === "details";
   const untilDate = expiry !== undefined ? day(expiry, lang) : undefined;
@@ -526,17 +525,12 @@ export default function RaiseScreen() {
             <span className="ah-label">{t("raise.who.halvesBody")}</span>
           </Disclose>
           <Unfurl mode={mode} host={config.site.replace(/^https?:\/\//, "")} title={title} content={content} money={moneyLine} />
-          {size && title ? (
-            <p className={tooLarge ? "ah-alert m-0" : "ah-label m-0"} data-testid={TID.raise.size} data-value={size.bytes} data-over={tooLarge ? "true" : "false"}>
-              {t("raise.size", { bytes: count(size.bytes), max: count(size.max) })}
+          {mode === "public" && title ? (
+            <p className={addressOver ? "ah-alert m-0" : "ah-label m-0"} data-testid={TID.raise.size} data-value={weighed.beforeHash} data-over={addressOver ? "true" : "false"}>
+              {t("raise.size", { bytes: count(weighed.beforeHash), max: count(MAX_BEFORE_HASH) })}
             </p>
           ) : null}
-          {tooLarge ? (
-            <div data-testid={TID.raise.sizeRefused}>
-              <ErrorBand what={t("raise.size.over")} code="DescriptionTooLarge" />
-            </div>
-          ) : null}
-          {weighed.over === "address" && tooLong ? <TooLong sentence={sentence(tooLong)} what="address" /> : null}
+          {addressOver && tooLong ? <TooLong sentence={sentence(tooLong)} what="address" /> : null}
         </Part>
 
         {/* 5. Fine-tune */}

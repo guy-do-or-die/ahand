@@ -139,7 +139,6 @@ const en = {
   "raise.error.accountChangedAllow": "The account changed from {was} to {now} after the permission step, so the raise stopped. The permission step went out from {was} and its cost was paid; no reward moved.",
   "raise.error.tooLarge": "A public hand's words must fit in {max} characters of its address; these take {bytes}. Shorten them, or choose Unlisted or Dark, where the details travel inside the link. Nothing was sent.",
   "raise.size": "In the address before #: {bytes} of at most {max} characters.",
-  "raise.size.over": "Too long for a public hand: an address this long stops opening. Choose Unlisted or Dark, or shorten the words.",
   "raise.swipe.amount": "Raise your hand · {amount}",
   "raise.steps.allowAmount": "1 of 2: allow {amount}",
   "raise.pending.unknown": "Is your raise on its way?",

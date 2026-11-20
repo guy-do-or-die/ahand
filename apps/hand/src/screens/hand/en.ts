@@ -39,8 +39,6 @@ const en = {
   "hand.give.toThank": "Open the answer",
   "hand.give.mine": "Did you raise this hand? Connect the account that raised it to read the answer.",
 
-  "hand.timesUp": "Time's up. Anyone can send the reward back to the asker now.",
-  "hand.timesUp.noReward": "Time's up. Anyone can close this hand now.",
   "hand.sendBack.title": "Send the reward back",
   "hand.sendBack.title.noReward": "Close this hand",
   "hand.sendBack.noReward": "Close this hand",

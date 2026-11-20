@@ -1,4 +1,4 @@
-import type { HandState, HandView, StepResult } from "@ahand/sdk";
+import type { HandView, StepResult } from "@ahand/sdk";
 
 /**
  * /check's comparison of its two columns (UX-SPEC §10.2): the steps run here and Core's own
@@ -43,22 +43,22 @@ export type Standing = "open" | "thanked" | "refunded" | "expired";
 /**
  * The Hand's standing, said before Core's answer: Core's `checkRoute` and `checkGive` look at
  * neither the expiry nor `closedAt` (AHandCore.sol, NatSpec of `checkGive`), so an accepted route
- * on a closed Hand pays nobody. `state` is the SDK's `stateAt` at the latest block's timestamp
- * (thanked when `thanks(id)` keeps a Give, as the Hand view tells them apart), never the device's
- * clock. `at` is the second the sentence names: `closedAt` for a closed Hand, the expiry for one
- * whose time is up. A Hand that is not raised has no standing: Core's own refusal says it.
+ * on a closed Hand pays nobody. It is `handNow` at the latest block, told more coarsely (one fact,
+ * one derivation): every thanked state is "thanked". `at` is the second the sentence names:
+ * `closedAt` for a closed Hand, the expiry for one whose time is up. A Hand that is not raised
+ * (`openedAt` 0) has no standing: Core's own refusal says it.
  */
-export function standingOf(state: HandState | undefined, view: Pick<HandView, "expiry" | "closedAt">): { state: Standing; at?: number } | undefined {
-  switch (state) {
-    case "thanked":
-    case "refunded":
-      return { state, at: view.closedAt };
-    case "expired":
-      return { state, at: view.expiry };
+export function standingOf(now: HandNow, view: Pick<HandView, "openedAt">): { state: Standing; at?: number } | undefined {
+  if (view.openedAt === 0) return undefined;
+  switch (now.state) {
     case "open":
-      return { state };
+      return { state: "open" };
+    case "expired":
+      return { state: "expired", at: now.expiry };
+    case "refunded":
+      return { state: "refunded", at: now.closedAt };
     default:
-      return undefined;
+      return { state: "thanked", at: now.closedAt };
   }
 }
 

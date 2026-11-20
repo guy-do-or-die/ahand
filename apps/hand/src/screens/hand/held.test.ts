@@ -18,7 +18,7 @@ import {
   type AddressShape,
   type Hand,
 } from "@ahand/sdk";
-import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequestError, TimeoutError, zeroAddress, type Address } from "viem";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequestError, TimeoutError, createPublicClient, custom, parseAbi, zeroAddress, type Address } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
 import en from "./en";
@@ -156,6 +156,28 @@ describe("openHeld and failureOf: every way a link fails has its own sentence", 
     expect(failureOf(revert).code).not.toBe(NETWORK);
     expect(canRetry(failureOf(new LinkError("malformed", "cut short")))).toBe(false);
     expect(canRetry(failureOf(new CoreRefused({ name: "NotRaised" })))).toBe(false);
+  });
+
+  test("a node's own JSON-RPC -32603 is the network's, though viem files it under a revert; a revert the node reports under -32603 stays an answer (HV-1)", async () => {
+    const read = async (error: { code: number; message: string; data?: string }) => {
+      const client = createPublicClient({
+        transport: custom({ request: async ({ method }) => (method === "eth_chainId" ? "0x7a69" : Promise.reject(Object.assign(new Error(error.message), error))) }, { retryCount: 0 }),
+      });
+      try {
+        await client.readContract({ address: OTHER, abi: parseAbi(["function handsCount() view returns (uint256)", "error NotRaised()"]), functionName: "handsCount" });
+      } catch (thrown) {
+        return failureOf(thrown);
+      }
+      throw new Error("the read did not fail");
+    };
+    const internal = await read({ code: -32603, message: "internal error" });
+    expect(internal.code).toBe(NETWORK);
+    expect(internal.id).toBe("hand.offline.opening");
+    expect(canRetry(internal)).toBe(true);
+    // Reverts: with revert data under -32603 or code 3, or said as "execution reverted" under -32603.
+    expect((await read({ code: -32603, message: "execution reverted", data: "0x7b4ec5b1" })).code).not.toBe(NETWORK);
+    expect((await read({ code: 3, message: "execution reverted", data: "0x7b4ec5b1" })).code).not.toBe(NETWORK);
+    expect((await read({ code: -32603, message: "VM Exception while processing transaction: reverted" })).code).not.toBe(NETWORK);
   });
 
   test("the app's own labels are in the reader's language; Core's names stay as written (FINDINGS F10)", () => {

@@ -5,7 +5,7 @@ import type { Address, Hex } from "viem";
 
 import { all, configureDb, lockedIntents } from "../../store/db";
 import type { Intent, SendResult } from "../../wallet";
-import { publicSize, raise, unfinished, type Draft, type Ports, type RaiseContext } from "./flow";
+import { raise, unfinished, type Draft, type Ports, type RaiseContext } from "./flow";
 
 /**
  * The raise flow's answers when the send does not simply land (FINDINGS E-1, W-3, W-5, E-7), with
@@ -128,9 +128,8 @@ describe("E-7: a public Hand whose address would be too long", () => {
     });
     const out = await raise(draft({ mode: "public", content: "x".repeat(12_000) }), ctx, p);
     // Merged with the build's caps (link.ts weigh): the details' own cap refuses it first, before the
-    // SDK's limit of d is reached, and says nothing was sent; the size line still counts past 8192.
+    // SDK's limit of d is reached, and says nothing was sent.
     expect(out).toMatchObject({ ok: false, problem: { id: "raise.details.tooLong", nothingSent: true } });
-    expect(publicSize(draft().title, "x".repeat(12_000))).toMatchObject({ tooLarge: true, max: 8192 });
     expect(sends).toBe(0);
     expect(await all("hands")).toEqual([]);
   });

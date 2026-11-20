@@ -86,8 +86,7 @@ export const TID = {
     unknown: "raise-unknown",
     dropped: "raise-dropped",
     offline: "raise-offline",
-    size: "raise-size", // data-value: bytes of the public address's `d`; data-over: true | false
-    sizeRefused: "raise-size-refused",
+    size: "raise-size", // data-value: characters before `#` in the public address (weigh); data-over: true | false
     accountChanged: "raise-account-changed",
     allowSent: "raise-allow-sent",
   },

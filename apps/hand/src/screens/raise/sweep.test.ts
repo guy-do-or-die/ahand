@@ -43,15 +43,17 @@ describe("the sweep of locked copies", () => {
     expect(await openSeed("shown")).toBeUndefined();
   });
 
-  test("deletes when the Hand is closed or past its end, and when nothing names the copy", async () => {
+  test("deletes when the Hand is closed or past its end, when its raise reverted or was dropped, and when nothing names the copy", async () => {
     await locked("closed");
     await locked("expired", { handId: "8" });
     await locked("reverted", { status: "reverted" });
+    await locked("dropped", { status: "dropped", handId: undefined });
     await locked("orphan", null);
     const times = async (r: HandRecord): Promise<HandTimes> => (r.handId === "8" ? { expiry: NOW, closedAt: 0 } : { expiry: NOW + 10, closedAt: NOW - 5 });
     const swept = await sweepLockedCopies(NOW, times);
     expect(swept.sort((a, b) => a.intent.localeCompare(b.intent))).toEqual([
       { intent: "closed", reason: "closed" },
+      { intent: "dropped", reason: "dropped" },
       { intent: "expired", reason: "expired" },
       { intent: "orphan", reason: "orphan" },
       { intent: "reverted", reason: "reverted" },

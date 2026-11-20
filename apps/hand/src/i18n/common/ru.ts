@@ -59,7 +59,6 @@ const ru: Record<keyof typeof en, string> = {
   "common.word.myHands": "Мои руки",
   "common.word.copy": "Копировать",
   "common.word.copied": "Скопировано",
-  "common.word.share": "Поделиться",
   "common.word.showQr": "Показать QR",
   "common.word.print": "Напечатать",
   "common.word.close": "Закрыть",

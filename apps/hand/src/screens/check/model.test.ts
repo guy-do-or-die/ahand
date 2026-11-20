@@ -107,8 +107,8 @@ function chainWith(closedAt: number, giveHash: Hex): PublicClient {
 
 /** What column 3 says at the latest block's time `now`, read as the screen reads it. */
 async function standingAt(closedAt: number, giveHash: Hex, now: number) {
-  const { view, stateAt } = await readHand(chainWith(closedAt, giveHash), CORE, 3n);
-  return standingOf(stateAt(now), view);
+  const { view } = await readHand(chainWith(closedAt, giveHash), CORE, 3n);
+  return standingOf(handNow({ closedAt: view.closedAt, expiry: view.expiry, thankedGiveHash: giveHash, now }), view);
 }
 
 describe("check: the hand's state comes before Core's sentence (F1)", () => {
@@ -145,7 +145,17 @@ describe("check: the hand's state comes before Core's sentence (F1)", () => {
   });
 
   test("a hand that is not raised has no standing", () => {
-    expect(standingOf("missing", { expiry: 0, closedAt: 0 })).toBeUndefined();
+    expect(standingOf(handNow({ closedAt: 0, expiry: 0, thankedGiveHash: zeroHash, now: 5 }), { openedAt: 0 })).toBeUndefined();
+  });
+
+  test("the standing is handNow told coarsely: one derivation of the Hand's state at a block (M-4)", () => {
+    const raised = { openedAt: 1 };
+    expect(standingOf({ state: "thanked-this", closedAt: 7 }, raised)).toEqual({ state: "thanked", at: 7 });
+    expect(standingOf({ state: "thanked-other", closedAt: 7 }, raised)).toEqual({ state: "thanked", at: 7 });
+    expect(standingOf({ state: "thanked", closedAt: 7 }, raised)).toEqual({ state: "thanked", at: 7 });
+    expect(standingOf({ state: "refunded", closedAt: 7 }, raised)).toEqual({ state: "refunded", at: 7 });
+    expect(standingOf({ state: "expired", expiry: 9 }, raised)).toEqual({ state: "expired", at: 9 });
+    expect(standingOf({ state: "open", expiry: 9 }, raised)).toEqual({ state: "open" });
   });
 
   test("every sentence exists in both languages and names its date", () => {

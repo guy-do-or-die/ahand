@@ -20,7 +20,7 @@ import { expect, test, type Page, type Request } from "@playwright/test";
 import { getAddress, type Address, type Hex } from "viem";
 
 import { account, pickDevAccount } from "../lib/accounts";
-import { balanceOf, pending, rpc, type Rpc } from "../lib/rpc";
+import { balanceOf, pauseBlocks, pending, resumeBlocks, rpc, type Rpc } from "../lib/rpc";
 import { readStand, runProgram, seed, standSlot, type StandInfo } from "../lib/stand";
 
 test.describe.configure({ mode: "serial" });
@@ -208,7 +208,7 @@ test("another account may Deliver but not take it out; while the payee is blocke
   expect(await pending(chain, stand.core, token, payee)).toBe(before);
 });
 
-test("after the unblock command, account 5 presses Deliver and the money lands at the payee", async ({ page }) => {
+test("after the unblock command, account 5 presses Deliver, the reloaded tab holds the visitor's Deliver while the send is on its way, and the money lands at the payee", async ({ page }) => {
   watchLogs(page);
   const { token, payee } = blocked.pending;
   runCast(blocked.unblock.cast);
@@ -225,7 +225,26 @@ test("after the unblock command, account 5 presses Deliver and the money lands a
   expect(await pending(chain, stand.core, token, payee)).toBe(amount);
   const deliver = page.getByTestId("waiting-deliver");
   await expect(deliver).toBeEnabled();
-  await deliver.click();
+  // The send leaves with blocks paused, then the tab reloads: no wallet now, so a visitor again. The
+  // row says the send is on its way and holds Deliver until it lands (W-6), and nothing is sent twice.
+  let sends = 0;
+  page.on("request", (request) => {
+    if (request.method() !== "POST" || !request.url().startsWith(stand.rpc)) return;
+    const body = (() => { try { return request.postDataJSON() as unknown; } catch { return undefined; } })();
+    for (const call of Array.isArray(body) ? body : [body]) if ((call as { method?: string } | undefined)?.method === "eth_sendRawTransaction") sends++;
+  });
+  await pauseBlocks(chain);
+  try {
+    await deliver.click();
+    await expect(row(page, token).getByTestId("waiting-tx-rail")).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId("wallet-connected")).toHaveCount(0);
+    await expect(row(page, token).getByTestId("waiting-in-flight")).toContainText("Nothing is sent a second time.");
+    await expect(row(page, token).getByTestId("waiting-deliver")).toHaveAttribute("data-held", "true");
+    await expect(row(page, token).getByTestId("waiting-deliver")).toBeDisabled();
+  } finally {
+    await resumeBlocks(chain);
+  }
 
   const withdrawn = page.getByTestId("waiting-withdrawn");
   await expect(withdrawn).toHaveAttribute("data-amount", amount.toString(), { timeout: 20_000 });
@@ -234,6 +253,7 @@ test("after the unblock command, account 5 presses Deliver and the money lands a
   await expect(page.getByTestId("waiting-nothing")).toBeVisible();
   expect(await pending(chain, stand.core, token, payee)).toBe(0n);
   expect(await balanceOf(chain, token, payee)).toBe(balance + amount);
+  expect(sends).toBe(1);
 });
 
 test("a visitor who turns out to be the payee is offered Take it out after connecting", async ({ page }) => {

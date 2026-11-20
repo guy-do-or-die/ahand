@@ -32,7 +32,7 @@ import { t } from "../../i18n";
 import { TID } from "../../testids";
 import { ccipReadIsHere } from "../../chain/ccip";
 import { addressOf, openedLink } from "../../store/memory";
-import { ErrorBand, Mark, QuietButton, count, day, minute, percent, shortAddress, useLang, type Lang } from "../../ui";
+import { AskerText, ErrorBand, Mark, QuietButton, count, day, minute, percent, shortAddress, useLang, type Lang } from "../../ui";
 import { agree, answerName, canStillThank, coreSentences, handNow, hereAnswer, standingOf, stepKey, type CoreAnswer, type HandNow, type HereAnswer, type Standing } from "./model";
 import { readOffline, type OfflineReading, type OfflineWords } from "./offline";
 import { outsideLength, rulerOf, splitPasted, type Ruler } from "./ruler";
@@ -206,13 +206,14 @@ function StepsView({ here, shown }: { here: Extract<Here, { state: "done" }>; sh
 
 /* ───────────────────────────────────────────────── with no network ── */
 
+/** The asker's words read from a pasted link: isolated, with hidden and direction characters drawn as tokens, as the Deal card draws them. */
 function WordsView({ label, words }: { label: string; words: OfflineWords }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="ah-label ah-label--dim normal-case">{label}</span>
       {words.texts.map((text, index) => (
         <p key={index} className="check-words m-0">
-          {text}
+          <AskerText text={text} block />
         </p>
       ))}
       {words.names.length > 0 ? <span className="ah-meta ah-meta--exact break-all">{words.names.join(" · ")}</span> : null}
@@ -469,7 +470,7 @@ export default function CheckScreen() {
         now: tip.timestamp,
         ...(opened.signedGive ? { pastedGiveHash: giveHash(opened.hand, opened.signedGive.give) } : {}),
       });
-      const standing = standingOf(read.stateAt(tip.timestamp), view);
+      const standing = standingOf(now, view);
       const canonical = CANONICAL !== undefined && isAddressEqual(CANONICAL, address);
       const proofPath = canonical ? `/${chainId}/${handId}/proof` : `/${chainId}/${address.toLowerCase()}/${handId}/proof`;
       setCore({ state: "done", answer, block: tip.number, time: tip.timestamp, ...(share === undefined ? {} : { share }), now, ...(standing ? { standing } : {}), proofPath });

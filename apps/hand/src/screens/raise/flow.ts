@@ -12,8 +12,6 @@ import {
   readHand,
   rootKeyOf,
   rootSeed,
-  packAttachments,
-  PUBLIC_DATA_MAX_BYTES,
   type Call,
   type CoreRefusal,
   type Described,
@@ -136,9 +134,6 @@ export interface Up {
 /** A failure may hand back the record still on its way, for the screen to settle (`resumeRaise`). */
 export type Outcome = { ok: true; up: Up } | { ok: false; problem: Problem; record?: HandRecord };
 
-/** The most characters of `d` before `#` a public Hand may take (the SDK's limit, E-7). */
-const PUBLIC_MAX = PUBLIC_DATA_MAX_BYTES;
-
 /* ───────────────────────────────────────── the keys, in memory only ── */
 
 type KeysVerdict = { ok: true; master?: Hex } | { ok: false; problem: Problem };
@@ -237,20 +232,6 @@ export function intentOf(record: HandRecord): Intent | undefined {
 /** A short form of an account for a sentence. */
 function short(address: Address): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
-/** Characters a public description takes in the address's `d`; above `max`, `tooLarge` is set. */
-export function publicSize(title: string, content: string | undefined): { bytes: number; max: number; tooLarge: boolean } {
-  const max = PUBLIC_MAX;
-  if (!title.trim()) return { bytes: 0, max, tooLarge: false };
-  try {
-    const described = describeHand({ mode: "public", title, ...(content ? { content } : {}), inbox: `0x${"00".repeat(32)}` });
-    const bytes = described.outside ? Math.ceil((packAttachments(described.outside).length * 4) / 3) : 0;
-    return { bytes, max, tooLarge: bytes > max };
-  } catch (error) {
-    if (error instanceof DescriptionTooLarge) return { bytes: error.bytes, max: error.max, tooLarge: true };
-    throw error;
-  }
 }
 
 function problemOfRefusal(refusal: CoreRefusal | undefined): Problem {

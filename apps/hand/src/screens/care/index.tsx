@@ -8,7 +8,7 @@ import { t, useLang } from "../../i18n";
 import type { ScreenProps } from "../../routes";
 import { handKey } from "../../store/db";
 import { TID } from "../../testids";
-import { CopyRow, CostLine, DealCard, dealDescriptionOf, Disclose, ErrorBand, MoneyInput, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
+import { AskerText, CopyRow, CostLine, DealCard, dealDescriptionOf, Disclose, ErrorBand, MoneyInput, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
 import { approvalProbe, ConnectButton, extendedProbe, fundedProbe, useKeptSend, useWallet, type KeptSend, type SendResult } from "../../wallet";
 import { exactMoney } from "../raise/exact";
 import { UnlockBar } from "../my/parts";
@@ -184,8 +184,15 @@ function Kept({ words, connected }: { words: Extract<CareWords, { from: "device"
   const canUnlock = words.check === "unknown" && (!connected || isAddressEqual(connected, words.raiser));
   return (
     <div className="flex flex-col gap-2" data-testid={TID.care.words} data-value={words.check}>
-      <p className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{words.title}</p>
-      {words.content ? <p className="m-0 text-[length:var(--fs-body-lg)]">{words.content}</p> : null}
+      {/* Not yet (or not) Core's words: drawn as the Deal card draws an asker's, isolated and with hidden characters as tokens. */}
+      <p className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">
+        <AskerText text={words.title} />
+      </p>
+      {words.content ? (
+        <p className="m-0 text-[length:var(--fs-body-lg)]">
+          <AskerText text={words.content} />
+        </p>
+      ) : null}
       <p className="ah-label ah-label--dim m-0">{t(words.check === "mismatch" ? "care.words.deviceMismatch" : "care.words.deviceUnchecked")}</p>
       {canUnlock ? <UnlockBar account={connected} /> : null}
     </div>

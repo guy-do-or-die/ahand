@@ -153,7 +153,7 @@ One deliberate difference: §8.6 names the first choice "My wallet". The kit say
 | §7.2 | 1 of 2: allow | screens/raise/en.ts raise.steps.allow | (no RU in spec) |
 | §7.2 | 2 of 2: raise | screens/raise/en.ts raise.steps.raise2 | (no RU in spec) |
 | §7.2 | Your hand is up. | screens/raise/en.ts raise.up | screens/raise/ru.ts raise.up |
-| §7.2 | Share | i18n/common/en.ts common.word.share | (no RU in spec) |
+| §7.2 | Share | ui/words.ts copy.share | (no RU in spec) |
 | §7.2 | Show QR | i18n/common/en.ts common.word.showQr; screens/raise/en.ts raise.share.qr | (no RU in spec) |
 | §7.2 | Print a card | screens/raise/en.ts raise.share.print | (no RU in spec) |
 | §7.2 | Add a reminder | screens/raise/en.ts raise.share.reminder | (no RU in spec) |
@@ -222,7 +222,7 @@ One deliberate difference: §8.6 names the first choice "My wallet". The kit say
 | §8.2 | Ask whoever sent you the link whether there is a newer one. | screens/hand/en.ts hand.askSender | screens/hand/ru.ts hand.askSender |
 | §8.2 | Someone answered this hand. Pass it back to whoever sent you the link. | screens/hand/en.ts hand.give.holder | screens/hand/ru.ts hand.give.holder |
 | §8.2 | This is an answer to your hand. | screens/hand/en.ts hand.give.raiser | (no RU in spec) |
-| §8.3 | Time's up. Anyone can send the reward back to the asker now. | screens/hand/en.ts hand.timesUp | screens/hand/ru.ts hand.timesUp |
+| §8.3 | Time's up. Anyone can send the reward back to the asker now. | ui/words.ts deal.timeUp + deal.sendBack | ui/words.ts deal.timeUp + deal.sendBack |
 | §8.3 | Send it back | i18n/common/en.ts common.word.sendBack | i18n/common/ru.ts common.word.sendBack |
 | §8.4 | Keep a little for yourself, or pass it all on. | screens/pass/en.ts pass.lead | screens/pass/ru.ts pass.lead |
 | §8.4 | {pct} — about {amount} if this route is thanked | screens/pass/en.ts pass.share | (no RU in spec) |

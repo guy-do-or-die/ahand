@@ -272,7 +272,8 @@ function Actions({ token, payee, offer, from, kept, onDone }: { token: TokenConf
         variant={takeOut ? "amber" : "ink"}
         data-testid={takeOut ? TID.waiting.takeOut : TID.waiting.deliver}
         data-token={token.address}
-        disabled={!visitor && (!call || busy || cost.status !== "ok")}
+        // A send kept from before a reload holds the button for a visitor too, until it lands or is dropped (W-6).
+        disabled={busy || (!visitor && (!call || cost.status !== "ok"))}
         data-held={busy ? "true" : "false"}
         onClick={(event) => {
           if (!visitor) return void go();

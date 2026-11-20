@@ -9,7 +9,8 @@ import { dropSeed, escrowStamps, get, type HandRecord } from "../../store/db";
  *
  * A copy is deleted when:
  *   - no raise on this device names it any more (its record was forgotten or never written);
- *   - its raise was found reverted;
+ *   - its raise was found reverted, or dropped (nothing from it left the account: a tab that
+ *     closed between writing that and deleting the copy leaves it for this sweep);
  *   - its Hand is closed (`closedAt` set) or past its end by the chain's clock: the link can no
  *     longer be passed, helped or thanked;
  *   - its link was first shown on the "up" screen `SHOWN_BOUND` seconds ago or more.
@@ -26,7 +27,7 @@ export interface HandTimes {
   closedAt: number;
 }
 
-export type SweepReason = "orphan" | "reverted" | "closed" | "expired" | "shown";
+export type SweepReason = "orphan" | "reverted" | "dropped" | "closed" | "expired" | "shown";
 
 export interface Swept {
   intent: string;
@@ -45,6 +46,7 @@ export async function sweepLockedCopies(now: number, readHand: (record: HandReco
     let reason: SweepReason | undefined;
     if (!record) reason = "orphan";
     else if (record.status === "reverted") reason = "reverted";
+    else if (record.status === "dropped") reason = "dropped";
     else if (record.handId === undefined) reason = undefined; // the raise is still on its way
     else if (stamp.shownAt !== undefined && now - stamp.shownAt >= SHOWN_BOUND) reason = "shown";
     else {
