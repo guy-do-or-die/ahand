@@ -1,0 +1,18 @@
+{
+  "chainId": 84532,
+  "core": "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+  "factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+  "salt": "0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d",
+  "initcodeHash": "0x9f4031e9df87b432822254b2e546d1fc8b88a6bb8798522e7b47d1ab5a08de65",
+  "runtimeHash": "0x43ae0189a4a322a03ce092d94780bb5a38d27abe41651eb294223c9e9b95357d",
+  "deployBlock": 61391126,
+  "tokens": [],
+  "forwarder": null,
+  "accountFactory": null,
+  "commit": "be485ca61f73c06354b518fd412fbde53a73ade6",
+  "dirty": false,
+  "solc": "0.8.35",
+  "optimizerRuns": 200,
+  "evmVersion": "prague",
+  "oz": "5.6.1"
+}
