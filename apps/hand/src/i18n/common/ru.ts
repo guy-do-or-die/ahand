@@ -67,6 +67,8 @@ const ru: Record<keyof typeof en, string> = {
   "common.mark.checked": "Проверено здесь",
   "common.mark.onChain": "В сети",
   "common.mark.waiting": "Ждёт",
+  "common.token.usd": "Тестовые доллары",
+  "common.token.blacklist": "Тестовые доллары, которые могут заблокировать",
 
   // ── Четыре состояния отправки ─────────────────────────────────────────
   "common.tx.sent": "Отправлено",

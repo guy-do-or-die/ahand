@@ -75,6 +75,8 @@ const en = {
   "common.mark.checked": "Checked here",
   "common.mark.onChain": "On chain",
   "common.mark.waiting": "Waiting",
+  "common.token.usd": "Test dollars",
+  "common.token.blacklist": "Test dollars that can block",
 
   // ── The four states of a send (TxRail, ARCHITECTURE §7) ────────────────
   "common.tx.sent": "Sent",
