@@ -5,6 +5,7 @@ import { isAddressEqual, type Address, type Hex } from "viem";
 import { clientOf, useHand, useNow, watcherOf } from "../../chain";
 import { config } from "../../config";
 import { t } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import { navigate } from "../../router";
 import { bookOf, forHand, handKey, put, type HandRecord, type PassedRecord } from "../../store/db";
 import { TID } from "../../testids";
@@ -342,7 +343,7 @@ function RebuildFromCode({ account }: { account: Address | undefined }) {
     if (!session) {
       const outcome = await unlock(place.chainId, core, account, sign);
       if (!outcome.ok) {
-        if (outcome.reason === "wrong-network") return setState({ status: "error", id: "common.error.wrongNetwork", values: { network: config.chain.name } });
+        if (outcome.reason === "wrong-network") return setState({ status: "error", id: "common.error.wrongNetwork", values: { network: chainName(config.chain) } });
         return setState({ status: "error", id: outcome.reason === "rejected" ? "my.unlock.refused" : "my.add.offline" });
       }
       session = outcome.unlocked;

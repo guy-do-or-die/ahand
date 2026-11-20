@@ -17,6 +17,7 @@ const en = {
   // ── The shell (UX-SPEC §6) ────────────────────────────────────────────
   "common.notBuilt": "Not built yet",
   "common.ribbon": "Local test network · Test dollars",
+  "common.ribbon.testnet": "{network} · Test dollars",
   "common.chain.31337": "Local test network",
   "common.chain.84532": "Base Sepolia (test network)",
   "common.chain.8453": "Base",
@@ -82,6 +83,9 @@ const en = {
   "common.mark.waiting": "Waiting",
   "common.token.usd": "Test dollars",
   "common.token.blacklist": "Test dollars that can block",
+  "common.token.usdc.test": "Test USDC",
+  "common.faucets": "Test money is free on {network}:",
+  "common.explorer": "Open on {host}",
 
   // ── The four states of a send (TxRail, ARCHITECTURE §7) ────────────────
   "common.tx.sent": "Sent",

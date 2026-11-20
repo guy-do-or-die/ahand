@@ -17,7 +17,8 @@ export function chainOf(chain: ChainConfig): Chain {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: chain.rpcUrls } },
     blockTime: chain.blockTimeMs,
-    testnet: chain.local,
+    testnet: chain.testnet ?? chain.local,
+    ...(chain.explorer ? { blockExplorers: { default: { name: new URL(chain.explorer).host, url: chain.explorer } } } : {}),
   });
 }
 

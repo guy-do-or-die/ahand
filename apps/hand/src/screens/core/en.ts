@@ -34,6 +34,7 @@ const en = {
   "core.buildTitle": "This site's own files",
   "core.build.served": "Served by this site",
   "core.build.body": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare. Pages opened by address carry preview tags this server adds; /index.html is the file as built.",
+  "core.build.body.static": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare. This site adds nothing to its pages: every page address serves /index.html as built.",
   "core.build.none": "There is no build to hash: this server makes its pages as they are asked for (a development server), so it serves no /build.json.",
   "core.build.reading": "Reading /build.json…",
   "core.build.files": "{n, plural, one {# file} other {# files}}",

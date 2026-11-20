@@ -81,6 +81,8 @@ export function parseConfig(input: unknown): AppConfig {
       blockTimeMs: integer(chain.blockTimeMs, "chain.blockTimeMs", 1),
       local: boolean(chain.local, "chain.local"),
       hasL1: boolean(chain.hasL1, "chain.hasL1"),
+      ...(chain.testnet === undefined ? {} : { testnet: boolean(chain.testnet, "chain.testnet") }),
+      ...(chain.explorer === undefined || chain.explorer === null ? {} : { explorer: url(chain.explorer, "chain.explorer", ["https:"]).replace(/\/+$/, "") }),
     },
     cores: {
       trusted: list(cores.trusted, "cores.trusted", (v, at) => {
@@ -129,10 +131,20 @@ export function parseConfig(input: unknown): AppConfig {
       payoutGasK: integer(defaults.payoutGasK, "defaults.payoutGasK", 0, 65_535),
       expiryDays: integer(defaults.expiryDays, "defaults.expiryDays", 1, 180),
     },
+    ...(root.faucets === undefined || root.faucets === null
+      ? {}
+      : {
+          faucets: list(root.faucets, "faucets", (v, at) => {
+            const f = object(v, at);
+            return { asset: string(f.asset, `${at}.asset`), url: url(f.url, `${at}.url`, ["https:"]) };
+          }),
+        }),
+    ...(root.previews === undefined ? {} : { previews: boolean(root.previews, "previews") }),
   };
 
   const localProblem = localChainProblem(config.chain);
   if (localProblem) throw new ConfigError(localProblem);
+  if (config.faucets?.length && !(config.chain.testnet ?? config.chain.local)) throw new ConfigError("faucets belong to a test network: set chain.testnet");
   if (config.chain.rpcUrls.length === 0) throw new ConfigError("chain.rpcUrls must name at least one RPC");
   if (!config.cores.trusted.some((t) => t.chainId === chainId)) throw new ConfigError("cores.trusted must name a Core on chain.id");
   if (config.cores.canonical && !config.cores.trusted.some((t) => t.core.toLowerCase() === config.cores.canonical!.toLowerCase())) {

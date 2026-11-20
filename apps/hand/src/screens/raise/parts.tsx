@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 
+import { config, PREVIEWS } from "../../config";
 import { clsx } from "../../lib/clsx";
 import type { Mode } from "../../store/db";
 import { t } from "../../i18n";
@@ -93,30 +94,42 @@ export function Visibility({ mode, onMode }: { mode: Mode; onMode: (mode: Mode) 
 /**
  * What a messenger's link preview would show for this mode: the title (and, public, the details)
  * with the money line for numbered addresses, the generic card for a dark one. The address line is
- * the shape the real one takes, cut short.
+ * the shape the real one takes, cut short, on this build's chain. Where no server writes previews
+ * (`PREVIEWS` false: a static test site) every link's preview is the site's own name, and the
+ * card says so instead of promising a title it will not show.
  */
 export function Unfurl({ mode, host, title, content, money }: { mode: Mode; host: string; title: string; content: string; money: string }) {
   const dark = mode === "dark";
   const shown = title || t("raise.who.untitled");
   return (
-    <div className="flex flex-col gap-2" data-testid={TID.raise.unfurl} data-mode={mode}>
+    <div className="flex flex-col gap-2" data-testid={TID.raise.unfurl} data-mode={mode} data-previews={PREVIEWS ? "true" : "false"}>
       <span className="ah-meta">{t("raise.who.unfurl")}</span>
       <div className="flex flex-col gap-2 self-stretch rounded-[18px] rounded-bl-[6px] border-[length:var(--bw-hair)] border-[var(--ink-a15)] bg-[var(--ink-a035)] p-3 sm:max-w-[420px]">
         <span className="ah-meta ah-meta--exact break-all normal-case">
-          {dark ? `${host}/#E…` : `${host}/31337/…?d=…#E…`}
+          {dark ? `${host}/#E…` : `${host}/${config.chain.id}/…?d=…#E…`}
         </span>
         <div className="ah-ogcard">
           <span className="ah-meta">{host}</span>
-          <div className="ah-ogcard__title" style={{ color: !dark && !title ? "var(--ink-a70)" : undefined }}>
-            {dark ? t("raise.who.generic") : shown}
-          </div>
-          {mode === "public" && content ? <div className="ah-ogcard__desc">{content}</div> : null}
-          {!dark ? <div className="ah-ogcard__foot ah-meta">{money}</div> : null}
+          {PREVIEWS ? (
+            <>
+              <div className="ah-ogcard__title" style={{ color: !dark && !title ? "var(--ink-a70)" : undefined }}>
+                {dark ? t("raise.who.generic") : shown}
+              </div>
+              {mode === "public" && content ? <div className="ah-ogcard__desc">{content}</div> : null}
+              {!dark ? <div className="ah-ogcard__foot ah-meta">{money}</div> : null}
+            </>
+          ) : (
+            <div className="ah-ogcard__title">{SITE_NAME}</div>
+          )}
         </div>
       </div>
+      {PREVIEWS ? null : <p className="ah-label m-0">{t("raise.who.noPreviews")}</p>}
     </div>
   );
 }
+
+/** The site's own name: the title of index.html, all a preview shows where no server writes one. */
+const SITE_NAME = "aHand";
 
 /** A disclosure for controls: the kit's dashed mono toggle, its content in the page's own voice. */
 export function Opens({ label, summary, children, testId }: { label: string; summary?: string; children: ReactNode; testId?: string }) {

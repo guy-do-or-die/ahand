@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
 
 import { clientOf, useBlockRead, useChainStatus, useCost } from "../../chain";
-import { config, type TokenConfig } from "../../config";
+import { config, TESTNET, type TokenConfig } from "../../config";
 import { t } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import { navigate, usePlace } from "../../router";
 import { all } from "../../store/db";
 import { TID } from "../../testids";
@@ -44,6 +45,7 @@ import {
   type Offer,
   type WithdrawnEvent,
 } from "./logic";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * /waiting (UX-SPEC §9): what waits in Core for one address, per token (`pending(token, payee)`),
@@ -146,7 +148,7 @@ function FailureBand({ failure, said }: { failure: Failure; said?: string }) {
     what = t("common.send.dropped");
     kept = t("waiting.kept");
   } else if (failure.kind === "wrong-network") {
-    what = t("common.error.wrongNetwork", { network: config.chain.name });
+    what = t("common.error.wrongNetwork", { network: chainName(config.chain) });
   } else if (failure.kind === "unknown") {
     what = t("common.send.unknown");
     kept = "";
@@ -293,7 +295,9 @@ function Actions({ token, payee, offer, from, kept, onDone }: { token: TokenConf
 
 /** A test token's name in the reader's language (the configuration's label is one language only). */
 function tokenName(token: TokenConfig): string {
-  return token.kind === "usd" || token.kind === "blacklist" ? t(`common.token.${token.kind}`) : token.label;
+  if (token.kind === "usd" || token.kind === "blacklist") return t(`common.token.${token.kind}`);
+  if (token.kind === "usdc" && TESTNET) return t("common.token.usdc.test");
+  return token.label;
 }
 
 function Row({ token, amount, payee, atBlock, children }: { token: TokenConfig; amount: bigint; payee: Address; atBlock?: bigint; children?: ReactNode }) {
@@ -447,7 +451,10 @@ function Known({ payee, done }: { payee: Address; done: Done[] }) {
                     <span className="ah-meta">{t("waiting.events.hand", { hand: hand.toString() })}</span>
                     <span className="ah-label m-0">{t("waiting.events.waited", { amount: token ? amountOf(token, amount, lang) : amount.toString() })}</span>
                   </span>
-                  <Mark kind="waiting" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.pending", { block: count(log.blockNumber), index: log.logIndex, tx: log.transactionHash })}</span>} />
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Mark kind="waiting" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.pending", { block: count(log.blockNumber), index: log.logIndex, tx: log.transactionHash })}</span>} />
+                    <OnExplorer tx={log.transactionHash} />
+                  </span>
                 </li>
               );
             })
@@ -457,7 +464,10 @@ function Known({ payee, done }: { payee: Address; done: Done[] }) {
           return (
             <li key={`${event.transactionHash}:${event.logIndex}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--ink-a15)] py-2" data-event="Withdrawn" data-amount={event.amount.toString()}>
               <span className="ah-label m-0">{t("waiting.events.took", { amount: token ? amountOf(token, event.amount, lang) : event.amount.toString() })}</span>
-              <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.withdrawn", { block: count(event.blockNumber), index: event.logIndex, tx: event.transactionHash })}</span>} />
+              <span className="flex flex-wrap items-center gap-2">
+                <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.withdrawn", { block: count(event.blockNumber), index: event.logIndex, tx: event.transactionHash })}</span>} />
+                <OnExplorer tx={event.transactionHash} />
+              </span>
             </li>
           );
         })}
@@ -578,6 +588,7 @@ export default function WaitingScreen() {
                     <span className="ah-meta">{t("waiting.done.to")}</span>
                     <Identity address={event.to} full />
                     <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.withdrawn", { block: count(event.blockNumber), index: event.logIndex, tx: event.transactionHash })}</span>} />
+                    <OnExplorer tx={event.transactionHash} />
                   </div>
                 );
               })}

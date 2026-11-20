@@ -1,7 +1,8 @@
 import { Fragment, Suspense, useEffect, useRef, type ReactNode } from "react";
 
-import { config } from "../config";
+import { config, TESTNET } from "../config";
 import { LANGS, setLang, t, useLang, type Lang } from "../i18n";
+import { chainName } from "../i18n/common/chain";
 import { shortAddress } from "../ui/format";
 import { TID } from "../testids";
 import { Logo } from "../ui/Logo";
@@ -16,8 +17,9 @@ import { toggleLens, useLens } from "./lens";
 
 const MONO = "font-[family-name:var(--font-meta)] uppercase tracking-[var(--track-mono-sm)]";
 
+/** The test-money ribbon: on a local stand, and on a public test network (Base Sepolia) named by its network. */
 export function Ribbon() {
-  if (!config.chain.local) return null;
+  if (!TESTNET) return null;
   return (
     <div
       role="note"
@@ -25,7 +27,7 @@ export function Ribbon() {
       className={`${MONO} bg-amber px-4 py-[5px] text-center text-[length:var(--fs-mono-sm)] font-medium`}
       style={{ color: "var(--on-amber)" }}
     >
-      {t("common.ribbon")}
+      {config.chain.local ? t("common.ribbon") : t("common.ribbon.testnet", { network: chainName(config.chain) })}
     </div>
   );
 }
@@ -83,7 +85,7 @@ function LensToggle() {
 }
 
 /**
- * The banner landmark: the local ribbon (local builds only) above the row of lockup, EN · RU and
+ * The banner landmark: the test-money ribbon (test networks only) above the row of lockup, EN · RU and
  * the lens. The ribbon stands inside the banner so that no content sits outside a landmark.
  */
 export function Header() {

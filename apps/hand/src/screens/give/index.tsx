@@ -411,7 +411,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
         {phase.kind === "failed" ? <Failure outcome={phase.outcome} /> : null}
         {phase.kind === "wrong-network" ? (
           <div data-testid={TID.give.wrongNetwork} data-value={String(config.chain.id)}>
-            <ErrorBand what={t("common.error.wrongNetwork", { network: config.chain.name })} kept={t("give.error.kept")} />
+            <ErrorBand what={t("common.error.wrongNetwork", { network: chainName(config.chain) })} kept={t("give.error.kept")} />
           </div>
         ) : null}
         {offline ? <p className="ah-label m-0">{t("common.time.offline")}</p> : null}

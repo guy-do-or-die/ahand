@@ -2,6 +2,7 @@ import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
 import { chainName } from "../../i18n/common/chain";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * "Do it without us" (UX-SPEC §11): the three exits for thank, send back and take out, said before
@@ -86,6 +87,7 @@ export default function WithoutUsScreen() {
       <article className="ah-card flex flex-col gap-4 p-5" data-testid={TID.about.explorer}>
         <h2 className={H2}>{t("without-us.explorer.title")}</h2>
         <p className="m-0">{t("without-us.explorer.body")}</p>
+        {core ? <OnExplorer address={core} /> : null}
         <Form fn="refund" say={t("without-us.explorer.refund")} fields={[["handId (uint256)", t("without-us.explorer.handId")]]} />
         <Form
           fn="withdraw"
@@ -111,6 +113,7 @@ export default function WithoutUsScreen() {
       <footer className="flex flex-col gap-1 border-t-[1.5px] border-[color:var(--ink)] pt-3" data-testid={TID.about.core}>
         <p className="ah-label m-0">{t("without-us.core")}</p>
         <p className="ah-meta ah-meta--ink ah-meta--exact m-0 text-[length:var(--fs-mono-lg)]">{core}</p>
+        {core ? <OnExplorer address={core} /> : null}
         <p className="ah-meta m-0">{t("without-us.chain", { chain: config.chain.id, name: chainName(config.chain) })}</p>
       </footer>
     </section>

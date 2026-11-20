@@ -16,6 +16,20 @@ export interface ChainConfig {
   local: boolean;
   /** An OP Stack chain with Ethereum behind it (L1 fee, "Recorded on Ethereum"). */
   hasL1: boolean;
+  /**
+   * A public test network (Base Sepolia): its money is worth nothing, and the header says so.
+   * Absent means `local` (a local chain is a test network too). See `isTestnet`.
+   */
+  testnet?: boolean;
+  /** The chain's block explorer, e.g. "https://sepolia.basescan.org": transactions and addresses link there. */
+  explorer?: string;
+}
+
+/** Where test money comes from on a test network: one faucet per asset ("USDC", "ETH"). */
+export interface FaucetConfig {
+  /** The asset's symbol, as people read it: "USDC", "ETH". */
+  asset: string;
+  url: string;
 }
 
 export interface TrustedCoreConfig {
@@ -75,4 +89,17 @@ export interface AppConfig {
   site: string;
   prices: PriceSnapshot;
   defaults: Defaults;
+  /** Faucets for this test network's money; none on a real network (and absent means none). */
+  faucets?: FaucetConfig[];
+  /**
+   * Whether a server in front of the site (face) writes each page address's link-preview tags.
+   * False for a static host (the public test deployment on Vercel): every address is /index.html
+   * as built, and a chat's preview shows only the site's name. Absent means true.
+   */
+  previews?: boolean;
+}
+
+/** A test network: local, or marked `testnet` (its money is test money). */
+export function isTestnet(chain: Pick<ChainConfig, "local" | "testnet">): boolean {
+  return chain.testnet ?? chain.local;
 }

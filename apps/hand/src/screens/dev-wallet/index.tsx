@@ -5,6 +5,7 @@ import type { Hex, TypedDataDefinition } from "viem";
 import { config } from "../../config";
 import { useChainStatus, useNow } from "../../chain";
 import { intlLocale, t, useLang } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import { deviceClock } from "../../store/db";
 import { TID } from "../../testids";
 import { ErrorBand, Identity, QuietButton, TxRail, type TxReached } from "../../ui";
@@ -128,7 +129,7 @@ function Sign() {
             asked.reason === "rejected"
               ? t("dev-wallet.sign.refused")
               : asked.reason === "wrong-network"
-                ? t("common.error.wrongNetwork", { network: config.chain.name })
+                ? t("common.error.wrongNetwork", { network: chainName(config.chain) })
                 : t("dev-wallet.sign.failed", { message: asked.message ?? asked.reason })
           }
         />

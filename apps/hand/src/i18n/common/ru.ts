@@ -7,6 +7,7 @@ const ru: Record<keyof typeof en, string> = {
   // ── Оболочка (UX-SPEC §6) ─────────────────────────────────────────────
   "common.notBuilt": "Ещё не собрано",
   "common.ribbon": "Локальная тестовая сеть · Тестовые доллары",
+  "common.ribbon.testnet": "{network} · Тестовые доллары",
   "common.chain.31337": "Локальная тестовая сеть",
   "common.chain.84532": "Base Sepolia (тестовая сеть)",
   "common.chain.8453": "Base",
@@ -72,6 +73,9 @@ const ru: Record<keyof typeof en, string> = {
   "common.mark.waiting": "Ждёт",
   "common.token.usd": "Тестовые доллары",
   "common.token.blacklist": "Тестовые доллары, которые могут заблокировать",
+  "common.token.usdc.test": "Тестовые USDC",
+  "common.faucets": "В сети {network} тестовые деньги бесплатные:",
+  "common.explorer": "Открыть на {host}",
 
   // ── Четыре состояния отправки ─────────────────────────────────────────
   "common.tx.sent": "Отправлено",

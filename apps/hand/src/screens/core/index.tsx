@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { size, type Address } from "viem";
 
 import { clientOf } from "../../chain";
-import { config } from "../../config";
+import { config, PREVIEWS } from "../../config";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
 import { CopyRow, ErrorBand, Mark, count, useLang } from "../../ui";
@@ -11,6 +11,7 @@ import { capDays, derive, paidPassesAtWorst, readServedBuild, reproduceLine, typ
 import { LIMIT_NUMBERS } from "./limits";
 import "./core.css";
 import { chainName } from "../../i18n/common/chain";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * /core, "This contract" (UX-SPEC §10.3; ARCHITECTURE §3 trust anchor; D-10). What is read from
@@ -119,6 +120,7 @@ export default function CoreScreen() {
         <code className="core-address" data-testid={TID.core.address}>
           {CORE ?? "—"}
         </code>
+        {CORE ? <OnExplorer address={CORE} /> : null}
         <Row name={t("core.chain")}>
           <span className="ah-meta ah-meta--exact">
             {chainName(config.chain)} · {t("core.chainId", { id: config.chain.id })}
@@ -220,7 +222,7 @@ export default function CoreScreen() {
         {build.state === "done" && build.value.kind === "none" ? <p className="m-0">{t("core.build.none")}</p> : null}
         {build.state === "done" && build.value.kind === "served" ? (
           <>
-            <p className="m-0">{t("core.build.body")}</p>
+            <p className="m-0">{t(PREVIEWS ? "core.build.body" : "core.build.body.static")}</p>
             <span className="ah-tag ah-tag--outline self-start" data-testid={TID.core.buildLabel}>
               {t("core.build.served")}
             </span>

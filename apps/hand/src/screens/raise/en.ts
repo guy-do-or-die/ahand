@@ -22,6 +22,7 @@ const en = {
   "raise.reward.none": "No reward: a thank-you only.",
   "raise.reward.locked": "Locked until you thank someone — or all of it back to you after {date}.",
   "raise.reward.issuer": "Held in USDC. Its issuer can freeze addresses; then that money waits.",
+  "raise.reward.issuerTest": "Held in test USDC on {network}: it is worth nothing. Its issuer can freeze addresses; then that money waits.",
   "raise.reward.issuerStand": "Held in test dollars, standing in for USDC. USDC's issuer can freeze addresses; then that money waits.",
   "raise.reward.lens.token": "Token {address} · {decimals} decimals, read from the token",
 
@@ -46,6 +47,7 @@ const en = {
   "raise.who.halves": "How a link reads",
   "raise.who.halvesBody": "The site never receives what stands after # in the address. The code this site serves reads it in your browser, because that is how a link opens.",
   "raise.who.unfurl": "In a chat it looks like this",
+  "raise.who.noPreviews": "On this test site a chat's link preview shows only the site's name.",
   "raise.who.generic": "Someone raised a hand. Open to see.",
   "raise.who.untitled": "Your title goes here",
   "raise.who.money": "{reward} reward · open until {date}",

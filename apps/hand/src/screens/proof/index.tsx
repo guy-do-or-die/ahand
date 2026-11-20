@@ -29,6 +29,7 @@ import {
 } from "./model";
 import { bundleExtra, ethShort, feeOf, moveFor, readPageFacts, sentLines, timeChecks, withPageChecks, type PageFacts, type Sent } from "./sent";
 import "./proof.css";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * The passport `/<chain>/<hand>/proof` (UX-SPEC §10.1): the SDK's `collect` reads the Hand once,
@@ -209,6 +210,7 @@ function SentLine({ sent, record, refunded, shown, lang }: { sent: Sent | undefi
       <div className="proof-line__marks">
         <Mark kind="chain" source={`eth_getTransactionReceipt · ${t("proof.lens.block", { block: count(sent.blockNumber) })}`} />
         <span className="ah-tag">{t("proof.sent.info")}</span>
+        <OnExplorer tx={sent.hash} />
       </div>
       <Disclose label={t("proof.lens.evidence")} summary="tx">
         <span className="proof-evidence">

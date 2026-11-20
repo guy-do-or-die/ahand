@@ -1,11 +1,13 @@
 {
   "chain": {
     "id": 84532,
-    "name": "Base Sepolia (test network)",
+    "name": "Base Sepolia",
     "rpcUrls": ["https://sepolia.base.org"],
     "blockTimeMs": 2000,
     "local": false,
-    "hasL1": true
+    "hasL1": true,
+    "testnet": true,
+    "explorer": "https://sepolia.basescan.org"
   },
   "cores": {
     "trusted": [{ "chainId": 84532, "core": "0x65ac707E2AE7392583de5d6192C619F1D8862309" }],
@@ -20,12 +22,17 @@
     "dirty": false
   },
   "tokens": [
-    { "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", "symbol": "USDC", "decimals": 6, "kind": "usdc", "label": "Test USDC (Circle faucet)" }
+    { "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", "symbol": "USDC", "decimals": 6, "kind": "usdc", "label": "Test USDC" }
   ],
   "forwarder": "0xcA11bde05977b3631167028862bE2a173976CA11",
   "accountFactory": null,
   "relays": ["wss://relay.damus.io", "wss://nos.lol"],
   "site": "https://exp-e2e.ahand.in",
+  "previews": false,
+  "faucets": [
+    { "asset": "USDC", "url": "https://faucet.circle.com" },
+    { "asset": "ETH", "url": "https://docs.base.org/base-chain/tools/network-faucets" }
+  ],
   "prices": {
     "date": "2026-11-10",
     "ethUsd": 2400,

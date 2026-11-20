@@ -5,6 +5,7 @@ import { isAddressEqual, parseAbi, type Address, type Hex, type TransactionRecei
 import { config } from "../../config";
 import { clientOf, useChainStatus, useCost, useHand, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import { TID } from "../../testids";
 import { ChainRail, CostLine, DealCard, dealDescriptionOf, ErrorBand, Mark, QuietButton, SwipeButton, TxRail, minute, percent, railHandsOf, shortAddress, type RailHand } from "../../ui";
 import { canBatch, ConnectButton, connectedWallet, thankedProbe, useSend, useWallet, type Intent, type SendResult } from "../../wallet";
@@ -81,7 +82,7 @@ function failureOf(result: Exclude<SendResult, { ok: true }>, of: number): Outco
     case "unknown":
       return { kind: "failed", what: t("common.send.unknown"), kept: "", code: "UNKNOWN" };
     case "wrong-network":
-      return { kind: "failed", what: t("common.error.wrongNetwork", { network: config.chain.name }), kept: "" };
+      return { kind: "failed", what: t("common.error.wrongNetwork", { network: chainName(config.chain) }), kept: "" };
     default:
       return { kind: "failed", what: t("thank.reverted"), kept, code: "message" in result ? result.message : result.reason };
   }

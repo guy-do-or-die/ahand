@@ -8,6 +8,7 @@ import { t } from "../../i18n";
 import { TID } from "../../testids";
 import { CopyRow, Disclose, ErrorBand, Mark, Qr, QuietButton, shortAddress, TxRail, type TxReached } from "../../ui";
 import { saved, type Up } from "./flow";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * After the raise (UX-SPEC §7.2 items 8–9): "Your hand is up.", the TxRail going on to Final, the
@@ -154,6 +155,7 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
         <span className="ah-meta ah-meta--exact">
           {t("raise.share.lens.raised", { id: handId, block: blockNumber !== undefined ? blockNumber.toString() : "—", tx: txHash ? shortAddress(txHash) : "—" })}
         </span>
+        {txHash ? <OnExplorer tx={txHash} /> : null}
         <span className="ah-meta ah-meta--exact break-all">raiser {raised.hand.raiser}</span>
         <span className="ah-meta ah-meta--exact break-all">token {raised.hand.token} · reward {raised.reward.toString()}</span>
         <span className="ah-meta ah-meta--exact">expiry {raised.expiry} · payoutGasK {raised.hand.payoutGasK} · minClaimBps {raised.hand.minClaimBps}</span>

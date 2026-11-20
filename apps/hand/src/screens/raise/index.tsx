@@ -2,9 +2,10 @@ import { approveCall, KEYS_PURPOSE, raiseCall, readLimits, type Call } from "@ah
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { erc20Abi, keccak256, stringToBytes, type Address } from "viem";
 
-import { config } from "../../config";
+import { config, TESTNET } from "../../config";
 import { clientOf, useChainStatus, useCost, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import type { Mode } from "../../store/db";
 import { TID } from "../../testids";
 import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, Sheet, SwipeButton, TxRail, count, day, money, percent, type MoneyReading, type TxReached } from "../../ui";
@@ -30,6 +31,7 @@ import {
 import { expiryFor, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
 import { Chips, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
+import { Faucets, OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * /raise (UX-SPEC §7.2): one screen from a thought to a link. The compose surface, then the swipe,
@@ -105,7 +107,8 @@ export default function RaiseScreen() {
   const [poster, setPoster] = useState("");
   const [details, setDetails] = useState("");
   const [showDetails, setShowDetails] = useState(false);
-  const [rewardKey, setRewardKey] = useState<string>("20");
+  // On a public test network the faucets hand out a few dollars at a time: the smallest chip first.
+  const [rewardKey, setRewardKey] = useState<string>(TESTNET && !config.chain.local ? "5" : "20");
   const [custom, setCustom] = useState<MoneyReading>({ status: "empty" });
   const [days, setDays] = useState<number>(config.defaults.expiryDays || 30);
   const [mode, setMode] = useState<Mode>("unlisted");
@@ -282,7 +285,7 @@ export default function RaiseScreen() {
 
   const reached: TxReached = (tx.state.reached ?? "sent") as TxReached;
   const sentence = (p: Problem) =>
-    t(p.id, { network: config.chain.name, ...(p.values ?? {}), ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
+    t(p.id, { network: chainName(config.chain), ...(p.values ?? {}), ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
 
   /* ── the share step ── */
   if (phase.kind === "up") {
@@ -339,7 +342,10 @@ export default function RaiseScreen() {
           ) : null}
           <p className="ah-label m-0">{t("raise.pending.note")}</p>
           {record.txHash ? (
-            <span className="ah-meta ah-meta--exact break-all">tx {record.txHash}</span>
+            <>
+              <span className="ah-meta ah-meta--exact break-all">tx {record.txHash}</span>
+              <OnExplorer tx={record.txHash} />
+            </>
           ) : record.batchId ? (
             <>
               <p className="ah-label m-0">{t("raise.pending.batch")}</p>
@@ -477,11 +483,12 @@ export default function RaiseScreen() {
             </p>
           ) : null}
           <p className="ah-label m-0" data-testid={TID.raise.issuerLine}>
-            {t(TOKEN.kind === "usdc" ? "raise.reward.issuer" : "raise.reward.issuerStand")}{" "}
+            {TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.issuerTest", { network: chainName(config.chain) }) : t("raise.reward.issuer")) : t("raise.reward.issuerStand")}{" "}
             <a href="/limits" className="underline">
               {t("common.footer.limits")}
             </a>
           </p>
+          <Faucets />
           <Disclose label={TOKEN.symbol}>
             <span className="ah-meta ah-meta--exact break-all">{t("raise.reward.lens.token", { address: TOKEN.address, decimals: String(decimals) })}</span>
           </Disclose>
@@ -596,6 +603,7 @@ export default function RaiseScreen() {
             </p>
           ) : null}
           {problem ? <Band problem={problem} sentence={sentence(problem)} /> : null}
+          {problem?.id === "raise.error.short" ? <Faucets /> : null}
           {failed ? <ErrorBand what={t("raise.error.facts")} /> : null}
           {priced.status === "refused" && !working ? <ErrorBand what={t(`core.${priced.refusal.name}`)} code={priced.refusal.name} /> : null}
           <SwipeButton gesture="raise" variant="amber" data-testid={TID.raise.swipe} disabled={!canSwipe} aria-describedby="raise-swipe-note" onClick={() => void swipe()}>

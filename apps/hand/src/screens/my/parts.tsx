@@ -3,6 +3,7 @@ import type { Address } from "viem";
 
 import { config } from "../../config";
 import { t } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import { TID } from "../../testids";
 import { QuietButton } from "../../ui";
 import { useTypedSigner } from "../../wallet";
@@ -66,7 +67,7 @@ export function UnlockBar({ account }: { account: Address | undefined }) {
         outcome.reason === "rejected"
           ? t("my.unlock.refused")
           : outcome.reason === "wrong-network"
-            ? t("common.error.wrongNetwork", { network: config.chain.name })
+            ? t("common.error.wrongNetwork", { network: chainName(config.chain) })
             : t("my.unlock.failed", { reason: outcome.message ?? outcome.reason }),
       );
   };

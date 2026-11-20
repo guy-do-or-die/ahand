@@ -28,6 +28,8 @@ export const TID = {
     crashRetry: "shell-crash-retry",
     offline: "shell-offline", // a screen whose code could not load; data-value: common.time.offline
     offlineRetry: "shell-offline-retry",
+    explorer: "shell-explorer", // a link to the chain's explorer; data-value: the tx hash or address it opens
+    faucets: "shell-faucets", // where this test network's money comes from
     noCore: "shell-no-core", // the build's Core has no code on its chain; data-value: the Core's address
     noCoreRetry: "shell-no-core-retry",
   },

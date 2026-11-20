@@ -12,7 +12,7 @@ const en = {
   "without-us.command.body": "From a copy of the code, with Foundry's cast. Everything after -- tells cast which key confirms.",
   "without-us.command.thank": "The thank's calldata comes from the answer the helper sent:",
   "without-us.explorer.title": "3 · A block explorer, field by field",
-  "without-us.explorer.body": "Open the contract on the network's block explorer, tab Contract → Write Contract, press “Connect a wallet”, and fill one form. Read hands(handId) first: compare expiry with the latest block's time, not your clock.",
+  "without-us.explorer.body": "Open the contract on the network's block explorer, tab Contract → Write Contract (the explorer shows it once the contract's source is verified there), press “Connect a wallet”, and fill one form. Read hands(handId) first: compare expiry with the latest block's time, not your clock.",
   "without-us.explorer.refund": "Send it back. Anyone may, from the second the hand's end date passes.",
   "without-us.explorer.withdraw": "Waiting money. Anyone may deliver it to the payee; only the payee may send it elsewhere.",
   "without-us.explorer.thank": "Thank. Only the asker, only before the hand's end date. The values come from exit.html or the command above.",

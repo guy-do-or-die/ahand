@@ -5,6 +5,7 @@ import { erc20Abi, isAddressEqual, parseEventLogs, type Address, type Transactio
 import { CLIENTS, clientOf, useBlockRead, useChainStatus, useCost, useHand, useNow, type CostRead, type Now } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import type { ScreenProps } from "../../routes";
 import { handKey } from "../../store/db";
 import { TID } from "../../testids";
@@ -74,7 +75,7 @@ function sentenceOf(result: SendResult): { what: string; code?: string } | undef
     case "unknown":
       return { what: t("common.send.unknown"), code: "UNKNOWN" };
     case "wrong-network":
-      return { what: t("common.error.wrongNetwork", { network: config.chain.name }) };
+      return { what: t("common.error.wrongNetwork", { network: chainName(config.chain) }) };
     case "refused":
       return { what: t(`core.${result.refusal.name}`), code: result.refusal.name };
     case "reverted":

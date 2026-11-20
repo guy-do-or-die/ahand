@@ -37,3 +37,32 @@ describe("chain.local belongs to chain 31337 only", () => {
     expect(() => parseConfig(on(8453, true))).toThrow(/chain.local is true, but chain.id is 8453/);
   });
 });
+
+describe("the public test network's fields", () => {
+  const sepolia = JSON.parse(readFileSync(new URL("./base-sepolia.json", import.meta.url), "utf8"));
+
+  test("base-sepolia.json is a test network with an explorer, faucets and no link previews", () => {
+    const config = parseConfig(sepolia);
+    expect(config.chain.local).toBe(false);
+    expect(config.chain.testnet).toBe(true);
+    expect(config.chain.explorer).toBe("https://sepolia.basescan.org");
+    expect(config.faucets?.map((f) => f.asset)).toEqual(["USDC", "ETH"]);
+    expect(config.faucets?.[0]?.url).toBe("https://faucet.circle.com");
+    expect(config.previews).toBe(false);
+  });
+
+  test("the fields are optional, and a configuration without them reads as before", () => {
+    const config = parseConfig(example);
+    expect(config.chain.testnet).toBeUndefined();
+    expect(config.chain.explorer).toBeUndefined();
+    expect(config.faucets).toBeUndefined();
+    expect(config.previews).toBeUndefined();
+  });
+
+  test("an explorer is an https URL without a trailing slash; faucets belong to a test network", () => {
+    expect(parseConfig({ ...sepolia, chain: { ...sepolia.chain, explorer: "https://x.example/" } }).chain.explorer).toBe("https://x.example");
+    expect(() => parseConfig({ ...sepolia, chain: { ...sepolia.chain, explorer: "javascript:alert(1)" } })).toThrow(/chain.explorer/);
+    expect(() => parseConfig({ ...sepolia, faucets: [{ asset: "ETH", url: "http://x.example" }] })).toThrow(/faucets\[0\].url/);
+    expect(() => parseConfig({ ...sepolia, chain: { ...sepolia.chain, testnet: false } })).toThrow(/faucets belong to a test network/);
+  });
+});

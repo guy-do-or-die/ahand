@@ -6,6 +6,7 @@ import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
 import { CopyRow, Disclose, Mark, ReceiptTable, count, money, receiptAmounts, shortAddress } from "../../ui";
 import { ThankSpent } from "./Spent";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * After the thank: who got what, from this transaction's own logs (`receiptOf`). The table gets
@@ -94,6 +95,8 @@ export function ThankReceipt({
           })}
         </ul>
       )}
+
+      {hash ? <OnExplorer tx={hash} /> : null}
 
       <ThankSpent sent={sent} {...(inHand ? { inHand } : {})} chainId={chainId} />
 

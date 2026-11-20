@@ -5,10 +5,12 @@ import type { Address } from "viem";
 import { useChainStatus, useCost } from "../../chain";
 import { config } from "../../config";
 import { t } from "../../i18n";
+import { chainName } from "../../i18n/common/chain";
 import { handKey } from "../../store/db";
 import { TID } from "../../testids";
 import { CostLine, Disclose, ErrorBand, Mark, SwipeButton, TxRail } from "../../ui";
 import { ConnectButton, refundedProbe, useKeptSend, useWallet, type SendResult } from "../../wallet";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * After the end, still open (UX-SPEC §8.3): "Time's up. Anyone can send the reward back to the
@@ -49,6 +51,7 @@ export function SendBack({ core, handId, funded }: { core: Address; handId: bigi
         <p className="m-0 flex flex-wrap items-center gap-2 font-bold" data-testid={TID.hand.wentBack}>
           {t(funded ? "hand.sendBack.done" : "hand.sendBack.doneNoReward")}
           <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{`block ${result.receipt.blockNumber} · tx ${result.receipt.transactionHash}`}</span>} />
+          <OnExplorer tx={result.receipt.transactionHash} />
         </p>
       ) : (
         <>
@@ -107,7 +110,7 @@ function failureSentence(result: Exclude<SendResult, { ok: true }>): string {
     case "unknown":
       return t("common.send.unknown");
     case "wrong-network":
-      return t("common.error.wrongNetwork", { network: config.chain.name });
+      return t("common.error.wrongNetwork", { network: chainName(config.chain) });
     default:
       return t("common.error.unknown");
   }

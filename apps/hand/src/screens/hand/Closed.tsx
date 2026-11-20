@@ -9,6 +9,7 @@ import { navigate } from "../../router";
 import { TID } from "../../testids";
 import { Mark, QuietButton, ReceiptTable } from "../../ui";
 import { laterPlan, proofPathOf } from "./held";
+import { OnExplorer } from "../../shell/OnExplorer";
 
 /**
  * A closed Hand (UX-SPEC §8.2 "Closed"): how it ended, read from Core's own events in the block
@@ -64,6 +65,7 @@ export function Closed({ core, handId, raiser, closedAt, state, decimals }: Clos
             <ReceiptTable rows={receipt.rows} decimals={decimals} />
             <span className="flex flex-wrap items-center gap-2">
               <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{`block ${receipt.endedBlock} · tx ${receipt.rows[0]!.log.transactionHash}`}</span>} />
+              <OnExplorer tx={receipt.rows[0]!.log.transactionHash} />
             </span>
           </>
         ) : null}
