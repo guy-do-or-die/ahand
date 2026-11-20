@@ -90,6 +90,8 @@ export default function RaiseScreen() {
   const [keysAsk, setKeysAsk] = useState<{ twice: boolean; answer: (yes: boolean) => void } | undefined>();
   const [connectAsk, setConnectAsk] = useState<{ answer: (address: Address | undefined) => void } | undefined>();
   const [showing, setShowing] = useState(false);
+  /** The raise itself has left (its hash is on the device): the TxRail shows from "Sent" on. */
+  const [raiseSent, setRaiseSent] = useState(false);
   const busy = useRef(false);
 
   const ctx = useMemo<RaiseContext>(
@@ -152,6 +154,7 @@ export default function RaiseScreen() {
     if (busy.current || reward === undefined || !facts || !title) return;
     busy.current = true;
     setProblem(undefined);
+    setRaiseSent(false);
     try {
       const raiser = await ensureWallet();
       if (!raiser) {
@@ -166,7 +169,7 @@ export default function RaiseScreen() {
         signKeys: (typed) => signer.sign(typed),
         send: (calls, options) => tx.send(calls, options),
         onStep: (step, of) => setPhase({ kind: "working", step, of }),
-        onSent: () => undefined,
+        onSent: () => setRaiseSent(true),
       });
       finish(outcome);
     } finally {
@@ -423,6 +426,11 @@ export default function RaiseScreen() {
         {/* 7. The swipe */}
         <section className="flex flex-col gap-4 pt-6">
           {working ? <Steps phase={phase} needsConnect={wallet.status !== "connected"} /> : null}
+          {working && raiseSent ? (
+            <div data-testid={TID.raise.txRail} data-value={reached}>
+              <TxRail reached={reached} local={!config.chain.hasL1} />
+            </div>
+          ) : null}
           {problem ? <Band problem={problem} sentence={sentence(problem)} /> : null}
           {failed ? <ErrorBand what={t("raise.error.facts")} /> : null}
           {priced.status === "refused" && !working ? <ErrorBand what={t(`core.${priced.refusal.name}`)} code={priced.refusal.name} /> : null}
