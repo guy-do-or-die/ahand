@@ -1,6 +1,52 @@
 // The care screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 const en = {
   "care.title": "Care for this hand.",
+  "care.kicker": "Hand {id}",
+  "care.words": "The words of a hand travel with its link. This page reads only what the network keeps.",
+  "care.back": "Back to this hand",
+  "care.who": "Only the account that raised this hand can add to it or keep it open. Anyone can make a reminder.",
+  "care.untrusted": "This page names a network this site doesn't read. Nothing was opened.",
+  "care.loading": "Reading the hand from the network…",
+
+  "care.fund.title": "Add to the reward",
+  "care.fund.stays": "Every link already out there stays good.",
+  "care.fund.amount": "How much more?",
+  "care.fund.balance": "You have {amount}.",
+  "care.fund.twoSteps": "Two steps: first let the contract take {amount}, then add it.",
+  "care.fund.oneStep": "One step: the contract may already take this much.",
+  "care.fund.swipe": "Add {amount}",
+  "care.fund.swipeEmpty": "Add to the reward",
+  "care.fund.done": "Added. The reward is now {amount}.",
+
+  "care.extend.title": "Keep it open longer",
+  "care.extend.chips": "How much longer",
+  "care.extend.plus": "+{n} days",
+  "care.extend.max": "up to {n} days from today",
+  "care.extend.until": "Open until {date}.",
+  "care.extend.capped": "Cut to the longest the contract allows.",
+  "care.extend.off": "This one wouldn't move the end later.",
+  "care.extend.later": "It can be moved later only, and only while it is open.",
+  "care.extend.lastMinutes": "This may not make it in time. At the last second neither more time nor thanks can pass.",
+  "care.extend.lastMinutesWhose": "This warning is the app's own, not a rule of the contract.",
+  "care.extend.swipe": "Keep it open until {date}",
+  "care.extend.swipeEmpty": "Keep it open longer",
+  "care.extend.done": "Done. Open until {date}.",
+  "care.extend.how": "How this date is worked out",
+  "care.extend.lens.now": "now = block {block} · {timestamp} · MAX_EXPIRY_PERIOD {cap} s",
+  "care.extend.lens.formula": "extend(handId, min({from} + {days} d, now + cap − 600)) = {target}",
+  "care.extend.lens.max": "extend(handId, now + cap − 600) = {target}",
+
+  "care.reminder.title": "Reminder",
+  "care.reminder.button": "Download a reminder",
+  "care.reminder.when": "{n, plural, one {Your calendar reminds you # day before it closes.} other {Your calendar reminds you # days before it closes.}}",
+  "care.reminder.local": "The file is made on this page. Nothing is sent anywhere.",
+  "care.reminder.summary": "Hand {id} closes",
+  "care.reminder.description": "Open until {date}. To keep it open longer or add to the reward: {url}",
+  "care.reminder.alarm": "Hand {id} closes in {n, plural, one {# day} other {# days}}.",
+
+  "care.steps.why": "Tried first: if the contract would refuse, you see why before anything is sent.",
+  "care.lens.calls": "Do it without us",
+  "care.lens.callsLead": "The same call from a terminal, with any key you choose:",
 };
 
 export default en;
