@@ -48,6 +48,13 @@ call() { c call "$CORE" "$@"; }
 first() { awk '{print $1; exit}'; }                     # "1000000 [1e6]" -> "1000000"
 is_address() { [[ $1 =~ ^0x[0-9a-fA-F]{40}$ ]]; }
 is_uint() { [[ $1 =~ ^[0-9]+$ ]]; }
+# uint_lt <a> <b>: a < b for whole numbers in decimal of any size. A uint256 does not fit bash's
+# signed 64-bit arithmetic (10e18 wraps, 2^256-1 reads as -1), so they are compared as text:
+# leading zeros dropped, the shorter is smaller, equal lengths compare digit by digit.
+uint_lt() {
+  local a=${1#"${1%%[!0]*}"} b=${2#"${2%%[!0]*}"}
+  if ((${#a} != ${#b})); then ((${#a} < ${#b})); else [[ $a < "$b" ]]; fi
+}
 lower() { tr '[:upper:]' '[:lower:]'; }
 
 when() { # unix seconds -> UTC date, GNU or BSD date
@@ -244,7 +251,8 @@ cmd_withdraw() {
   is_address "$token" && is_address "$payee" && is_address "$to" || die "token, payee and to are addresses"
   core_check
   raw=$(call "pending(address,address)(uint256)" "$token" "$payee" | first)
-  ((raw > 0)) || die "nothing is waiting for $payee in $token"
+  is_uint "$raw" || die "could not read what is waiting for $payee in $token"
+  [[ ! $raw =~ ^0+$ ]] || die "nothing is waiting for $payee in $token"
   [[ $(lower <<<"$to") == $(lower <<<"$payee") ]] || echo "note: sending elsewhere than the payee: only the payee's own account may do that"
   echo "withdrawing $(amount "$token" "$raw") for $payee to $to"
   send "$CORE" "withdraw(address,address,address)" "$token" "$payee" "$to"
@@ -286,7 +294,9 @@ cmd_fund() {
   else
     allowance=0
   fi
-  if ((allowance < raw)); then
+  is_uint "$raw" || die "could not read $human in units of $H_TOKEN"
+  is_uint "$allowance" || allowance=0
+  if uint_lt "$allowance" "$raw"; then
     echo "approving Core to take exactly $(amount "$H_TOKEN" "$raw")"
     send "$H_TOKEN" "approve(address,uint256)" "$CORE" "$raw"
   fi

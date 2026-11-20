@@ -2,7 +2,7 @@ import { bytesToHex, keccak256, size, stringToBytes, zeroHash, type Hex } from "
 
 import type { AddressShape, OpenedAddress } from "./address.js";
 import { dataHashOf, isDataOf, type Statement } from "./data.js";
-import type { Attachments, MatchedData, OpenedLink } from "./link.js";
+import { packAttachments, type Attachments, type MatchedData, type OpenedLink } from "./link.js";
 
 /**
  * A Hand's description as this build writes it: lists of statements (`data.ts`) whose names are
@@ -37,6 +37,36 @@ export const STATEMENT = {
   private: "private",
   inbox: "inbox.n1",
 } as const;
+
+/**
+ * The most characters the base64url `d` part of a public address may take: 8 KiB. Everything
+ * before `#` travels in the request line a browser or a preview robot sends, and face's server
+ * (Bun's default header limit, about 16 KiB) answers 431 to an address of about 16,000 characters
+ * before `#`; at about 11.5 to 12 kB of words a public Hand stopped opening at all (early review
+ * E-7). Half of that limit leaves room for the site, the path and whatever a messenger adds.
+ */
+export const PUBLIC_DATA_MAX_BYTES = 8192;
+
+/**
+ * A public description whose `d` would be longer than `PUBLIC_DATA_MAX_BYTES`. Nothing was raised:
+ * shorten the words, or describe the Hand unlisted or dark, where the details ride after `#`.
+ */
+export class DescriptionTooLarge extends Error {
+  override readonly name = "DescriptionTooLarge";
+  /** Characters the `d` part would take. */
+  readonly bytes: number;
+  /** The most it may take: `PUBLIC_DATA_MAX_BYTES`. */
+  readonly max: number;
+
+  constructor(bytes: number, max: number = PUBLIC_DATA_MAX_BYTES) {
+    super(`a public description takes ${bytes} characters of d before #, more than ${max}`);
+    this.bytes = bytes;
+    this.max = max;
+  }
+}
+
+/** The characters of base64url, unpadded, that `n` bytes take. */
+const base64UrlLength = (n: number) => Math.ceil((n * 4) / 3);
 
 /** How much of a description stands before `#`: all of it, the title, or nothing. */
 export type DescribeMode = "public" | "unlisted" | "dark";
@@ -89,7 +119,9 @@ function word32(value: Hex, what: string): Hex {
 
 /**
  * The statements, texts and dataHash of a new Hand's description, arranged for its mode. Texts
- * are normalised here; an empty details text counts as none.
+ * are normalised here; an empty details text counts as none. A public description whose `d` would
+ * pass `PUBLIC_DATA_MAX_BYTES` throws `DescriptionTooLarge`; unlisted and dark have no such limit
+ * here (an unlisted title is bounded only by what the address carries).
  */
 export function describeHand(d: Description): Described {
   const title = normalizeText(d.title);
@@ -107,7 +139,10 @@ export function describeHand(d: Description): Described {
     // Everything is public, so there is nothing for a salt to hide.
     if (d.salt !== undefined) throw new Error("a public Hand takes no salt");
     const list = [titled, ...detailed, ...inboxed];
-    return { dataHash: dataHashOf(list), shape: "faced", outside: { statements: [list], texts: texts(title, told) } };
+    const outside: Attachments = { statements: [list], texts: texts(title, told) };
+    const bytes = base64UrlLength(packAttachments(outside).length);
+    if (bytes > PUBLIC_DATA_MAX_BYTES) throw new DescriptionTooLarge(bytes);
+    return { dataHash: dataHashOf(list), shape: "faced", outside };
   }
 
   const salt = word32(d.salt ?? freshSalt(), "a salt");

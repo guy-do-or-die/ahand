@@ -32,7 +32,10 @@ Hand is in a state where the call can pass, judged by the latest block's time, n
 If Core still refuses, the script names Core's error in plain words.
 
 The thank calldata comes from `bun tools/ahand.ts thank-calldata <give-link>` or from `exit.html`.
-`bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain.
+`bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain. Before
+that, with a stand-in `cast` (`selftest-cast.sh`) and no chain, it checks that amounts past 64 bits
+are compared as uint256: a pending 10 tokens of 18 decimals is withdrawn, an unlimited allowance
+sends no approve, and 10 tokens with no allowance approve first.
 
 ## 2. On a block explorer
 

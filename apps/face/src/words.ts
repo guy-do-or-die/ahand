@@ -63,7 +63,17 @@ interface Words {
   cta: string;
   siteName: string;
   terms(t: Terms): { before: string; amount?: string; after: string };
-  imageAlt(title: string): string;
+  /** The small line over the title on the card: the title is the asker's, not face's. */
+  askersWords: string;
+  /** The asker's words in quotes, after a label; `words` is already one isolated line. */
+  quoted(words: string): string;
+  /** The image's alt: the asker's title quoted (when it matched), then the terms. */
+  imageAlt(title: string | undefined, terms: string): string;
+  /** The generic card's alt. */
+  genericAlt: string;
+  /** The title quoted on the card. */
+  openQuote: string;
+  closeQuote: string;
 }
 
 export const WORDS: Record<Lang, Words> = {
@@ -79,12 +89,12 @@ export const WORDS: Record<Lang, Words> = {
       switch (state) {
         case "open":
           return amount
-            ? { before: "", amount, after: ` reward · open until ${d}` }
-            : { before: `No reward: a thank-you only · open until ${d}`, after: "" };
+            ? { before: "", amount, after: ` reward on chain · open until ${d}` }
+            : { before: `No reward on chain: a thank-you only · open until ${d}`, after: "" };
         case "expired":
           return amount
-            ? { before: "", amount, after: ` reward · time's up on ${d}` }
-            : { before: `No reward: a thank-you only · time's up on ${d}`, after: "" };
+            ? { before: "", amount, after: ` reward on chain · time's up on ${d}` }
+            : { before: `No reward on chain: a thank-you only · time's up on ${d}`, after: "" };
         case "thanked":
           return amount
             ? { before: `Thanked on ${d} · `, amount, after: " reward" }
@@ -95,7 +105,12 @@ export const WORDS: Record<Lang, Words> = {
             : { before: `Closed on ${d} · nobody was thanked`, after: "" };
       }
     },
-    imageAlt: (title) => `${title} A hand raised on aHand.`,
+    askersWords: "in the asker's words",
+    quoted: (words) => `The asker wrote: “${words}”`,
+    imageAlt: (title, terms) => `${title === undefined ? "Someone raised a hand." : `The asker wrote: “${title}”.`} ${terms} · aHand`,
+    genericAlt: "Someone raised a hand on aHand.",
+    openQuote: "“",
+    closeQuote: "”",
   },
   ru: {
     genericTitle: "Кто-то поднял руку.",
@@ -109,12 +124,12 @@ export const WORDS: Record<Lang, Words> = {
       switch (state) {
         case "open":
           return amount
-            ? { before: "Награда ", amount, after: ` · открыта до ${d}` }
-            : { before: `Без награды: только спасибо · открыта до ${d}`, after: "" };
+            ? { before: "Награда ", amount, after: ` в сети · открыта до ${d}` }
+            : { before: `В сети нет награды: только спасибо · открыта до ${d}`, after: "" };
         case "expired":
           return amount
-            ? { before: "Награда ", amount, after: ` · срок вышел ${d}` }
-            : { before: `Без награды: только спасибо · срок вышел ${d}`, after: "" };
+            ? { before: "Награда ", amount, after: ` в сети · срок вышел ${d}` }
+            : { before: `В сети нет награды: только спасибо · срок вышел ${d}`, after: "" };
         case "thanked":
           return amount
             ? { before: `Поблагодарили ${d} · награда `, amount, after: "" }
@@ -125,7 +140,12 @@ export const WORDS: Record<Lang, Words> = {
             : { before: `Закрыта ${d} · никого не поблагодарили`, after: "" };
       }
     },
-    imageAlt: (title) => `${title} Рука, поднятая на aHand.`,
+    askersWords: "словами автора",
+    quoted: (words) => `Слова автора: «${words}»`,
+    imageAlt: (title, terms) => `${title === undefined ? "Кто-то поднял руку." : `Слова автора: «${title}».`} ${terms} · aHand`,
+    genericAlt: "Кто-то поднял руку на aHand.",
+    openQuote: "«",
+    closeQuote: "»",
   },
 };
 

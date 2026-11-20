@@ -96,9 +96,18 @@ export function handIdOf(text: string | undefined, usage: string): bigint {
   return BigInt(text);
 }
 
-/** Text that came from a link or a chain, made safe for a terminal: no control or direction characters. */
+/**
+ * Text that came from a link or a chain, made safe for a terminal: no control, direction or
+ * invisible characters. Each is written as its \uXXXX escape: C0 and C1 controls, every bidi
+ * control (LRM, RLM, ALM, LRE…RLO, LRI…PDI), the zero-width characters (U+200B…U+200D, U+2060…
+ * U+2064, U+FEFF) and the line and paragraph separators U+2028 and U+2029, which a terminal may
+ * draw as a line break (early review H-2).
+ */
 export function clean(text: string, max = 120): string {
-  const unsafe = new RegExp("[\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]", "g");
+  const unsafe = new RegExp(
+    "[\\u0000-\\u001f\\u007f-\\u009f\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\u2066-\\u2069\\ufeff]",
+    "g",
+  );
   const safe = text.replace(unsafe, (char) =>
     char === "\n" ? "\\n" : char === "\t" ? "\\t" : `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );

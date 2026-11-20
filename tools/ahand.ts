@@ -52,6 +52,9 @@ import {
 } from "../packages/sdk/src/link.ts";
 import { EIP712_DOMAIN_NAME, EIP712_DOMAIN_VERSION, type Hand, type SignedGive } from "../packages/sdk/src/types.ts";
 import { isKeySignature } from "../packages/sdk/src/verify.ts";
+import { checkGiveOnChain } from "../packages/sdk/src/chain.ts";
+import { CoreRefused } from "../packages/sdk/src/errors.ts";
+import type { AccountSetup } from "../packages/sdk/src/tx.ts";
 import { textValue } from "../packages/sdk/src/data.ts";
 import { Fail, addressFlag, amountOf, clean, connect, group, parseArgs, pct, span, trustedCore, utc, type Args, type Chain, type TrustedCore } from "./lib/cli.ts";
 import { findCommand } from "./lib/find.ts";
@@ -73,9 +76,10 @@ export { Fail };
 /** Every command with one example. `help` prints it; a test checks that each command is named. */
 export const USAGE = `aHand from a clone: bun tools/ahand.ts <command> ... (no site, no published package)
 
-  inspect <address-or-link> [--rpc URL] [--core 0x...]
+  inspect <address-or-link> [--rpc URL] [--core 0x...] [--forwarder 0x...]
       The link's head, each pass (payee, share, key), where it ends, its sizes, and with an RPC
-      the Hand's state by the latest block's time. Never prints the link's secret.
+      the Hand's state by the latest block's time; for a give link, the giver's signature's form,
+      who checks it, and Core's checkGive answer. Never prints the link's secret.
       e.g. bun tools/ahand.ts inspect 'https://site/31337/7#AQ...' --rpc http://127.0.0.1:8545
 
   thank-calldata <give-address> --rpc URL [--core 0x...] [--forwarder 0x...] [--out FILE]
@@ -415,6 +419,8 @@ async function inspect(args: Args): Promise<void> {
     row("ends with", `a Give by ${give.signer}${isAddressEqual(give.payee, give.signer) ? "" : `, paid to ${give.payee}`}`);
     row("giver gets", `${pct(give.claimBps)} of the reward`);
     row("signature", signatureKind(giverSig));
+    row("checked by", await checkerOf(chain, give.signer, giverSig));
+    row("core says", await giveVerdict(args, chain, opened));
     row("give data", give.dataHash === zeroHash ? `${give.dataHash} (none: the words travel by message)` : give.dataHash);
   } else if (opened.seed) {
     row("ends at", `${opened.end.lastKey}, the key of this link's secret: whoever holds the link signs for it`);
@@ -455,13 +461,59 @@ function describe(ofHand: MatchedData): string[] {
   return lines.length ? ["the Hand's words, each checked against its hash:", ...lines.map((line) => `  ${line}`)] : [];
 }
 
+/**
+ * The giver's signature by its bytes alone: its form, never whose it is. A contract wallet may sign
+ * in the same 65-byte form a key does, so who checks it is the signer's code (`checkerOf`), and
+ * whether it holds is Core's answer (`giveVerdict`), not this line (early review H-6).
+ */
 function signatureKind(signature: Hex): string {
-  if (isKeySignature(signature)) return "a key's (65 bytes)";
   if (isErc6492Signature(signature)) {
     const { address } = parseErc6492Signature(signature);
     return `wrapped for an account not deployed yet (ERC-6492, ${size(signature)} bytes, factory ${address})`;
   }
-  return `an account's own (ERC-1271, ${size(signature)} bytes)`;
+  const bytes = size(signature);
+  if (bytes === 65) {
+    return isKeySignature(signature)
+      ? "65-byte form (r, s, v)"
+      : "65 bytes, not a signature a key's recovery reads (v or s out of range): only the signer's own code can take it";
+  }
+  if (bytes === 64) return "64-byte compact form (EIP-2098)";
+  return `${bytes} bytes, a form only the signer's own code can read (ERC-1271)`;
+}
+
+/** Who judges the giver's signature, as Core decides it: by the code at the signer's address. */
+async function checkerOf(chain: Chain, signer: Address, signature: Hex): Promise<string> {
+  const code = (await chain.client.getCode({ address: signer })) ?? "0x";
+  if (code === "0x") {
+    return isErc6492Signature(signature)
+      ? "no code at the signer yet: Core hears the account only after its setup call"
+      : "no code at the signer: Core recovers the signing key and compares it with the signer";
+  }
+  if (code.toLowerCase().startsWith("0xef0100") && size(code) === 23) {
+    return `a key with an EIP-7702 delegation to 0x${code.slice(8)}: Core takes the key's own signature, else asks the delegate's code (ERC-1271)`;
+  }
+  return `a contract (${size(code)} bytes of code): Core asks its isValidSignature (ERC-1271); the signature's form does not decide`;
+}
+
+/** Core's own checkGive on this Give, as thank-calldata asks it: "Core accepts" or Core's refusal. */
+async function giveVerdict(args: Args, chain: Chain, opened: OpenedLink): Promise<string> {
+  const { give, keySig, giverSig } = opened.signedGive!;
+  const wrapped = unwrap6492(giverSig);
+  const inner: SignedGive = { give, keySig, giverSig: wrapped ? wrapped.signature : giverSig };
+  const deployed = ((await chain.client.getCode({ address: give.signer })) ?? "0x") !== "0x";
+  let setup: AccountSetup | undefined;
+  if (wrapped && !deployed) {
+    const forwarder = addressFlag(args, "--forwarder") ?? forwarderOf(chain.chainId);
+    if (!forwarder) return "not asked: the giver's account is not deployed yet and no forwarder is known (give --forwarder 0x...)";
+    setup = { forwarder, factory: wrapped.address, factoryData: wrapped.data };
+  }
+  try {
+    await checkGiveOnChain(chain.client, opened.head.core, opened.hand.handId, opened.signedShakes, inner, setup);
+    return setup ? "Core accepts, after the account's setup call (asked through the forwarder)" : "Core accepts";
+  } catch (error) {
+    if (error instanceof CoreRefused) return refusalSentence(error.name, error.args);
+    return `Core's checkGive did not answer: ${clean(error instanceof Error ? error.message.split("\n")[0]! : String(error))}`;
+  }
 }
 
 /* ----------------------------------------------------------- thank-calldata */
