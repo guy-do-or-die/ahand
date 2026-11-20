@@ -52,7 +52,11 @@ jobs:
       - name: Foundry where the scripts look for it
         run: |
           mkdir -p "$FOUNDRY_BIN"
-          for tool in forge cast anvil chisel; do ln -sf "$(command -v $tool)" "$FOUNDRY_BIN/$tool"; done
+          # foundry-toolchain may already install into $FOUNDRY_BIN: linking a tool onto itself would replace it with a loop.
+          for tool in forge cast anvil chisel; do
+            found=$(command -v $tool)
+            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+          done
           "$FOUNDRY_BIN/forge" --version
 
       - uses: oven-sh/setup-bun@v2
