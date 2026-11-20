@@ -136,6 +136,33 @@ export function writePublicConfig(dir: string, configFile = PUBLIC_CONFIG, deplo
   return file;
 }
 
+/**
+ * The oldest Bun that installs this repository as it is locked: bun.lock carries `configVersion`,
+ * which Bun 1.3.2 and later read as the isolated linker. An older Bun ignores it and installs
+ * hoisted; the build still passes, but exit.html's fonts no longer resolve and stay as relative
+ * node_modules URLs that 404 on the site. Vercel names only "Bun 1" for its build image.
+ */
+export const MIN_BUN = "1.3.2";
+
+/** Why this Bun cannot make the public build, or undefined when it can. */
+export function bunProblem(version: string = Bun.version): string | undefined {
+  if (Bun.semver.order(version, MIN_BUN) >= 0) return undefined;
+  return `Bun ${version} is older than ${MIN_BUN}: it installs bun.lock hoisted and exit.html loses its fonts. Set installCommand to "cd ../.. && npx -y bun@1.4.4 install --frozen-lockfile" and buildCommand to "cd ../.. && npx -y bun@1.4.4 apps/hand/vercel.ts build" in vercel.json (apps/hand/vercel.ts vercelJson)`;
+}
+
+/**
+ * What is wrong with a built exit.html, or undefined. It is one file that works saved to a disk:
+ * every font and image is inlined, so a URL that climbs out of the page (`url(../…)`) or names
+ * node_modules is a file the build did not resolve, and the saved page would draw without it.
+ */
+export function exitProblem(html: string): string | undefined {
+  const climbing = html.match(/url\(\s*['"]?\.\.\/[^)]*\)/);
+  if (climbing) return `exit.html refers to a file it does not carry: ${climbing[0].slice(0, 120)}`;
+  const at = html.indexOf("node_modules");
+  if (at >= 0) return `exit.html names node_modules: …${html.slice(Math.max(0, at - 60), at + 60)}…`;
+  return undefined;
+}
+
 /** Builds the app with `configFile` into `outDir` (index and exit; no gallery: a public build has none). */
 export function buildApp(configFile: string, outDir: string, cacheDir?: string): void {
   const run = spawnSync(process.execPath, ["run", "build"], {
@@ -148,6 +175,8 @@ export function buildApp(configFile: string, outDir: string, cacheDir?: string):
     if (!existsSync(join(outDir, page))) throw new Error(`the build made no ${page} in ${outDir}`);
   }
   if (existsSync(join(outDir, "gallery.html"))) throw new Error("a public build must not carry the gallery");
+  const exit = exitProblem(readFileSync(join(outDir, "exit.html"), "utf8"));
+  if (exit) throw new Error(exit);
 }
 
 /** What `vercel.json` should be for a fresh public build in `outDir`. */
@@ -163,6 +192,12 @@ export function formatJson(value: unknown): string {
 function main(argv: string[]): number {
   const [command] = argv;
   if (command === "build") {
+    console.log(`vercel: bun ${Bun.version}`);
+    const old = bunProblem();
+    if (old) {
+      console.error(`vercel: ${old}`);
+      return 1;
+    }
     const out = join(VERCEL_ROOT, VERCEL_OUT);
     rmSync(out, { recursive: true, force: true });
     const scratch = mkdtempSync(join(tmpdir(), "ahand-vercel-"));

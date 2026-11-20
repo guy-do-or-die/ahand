@@ -7,7 +7,7 @@ import { getTransformedRoutes } from "@vercel/routing-utils";
 
 import { connectSourcesOf, contentSecurityPolicy, inlineScriptHashes as staticHashes } from "../../../infra/stand/static.ts";
 import { appHeaders } from "../csp.ts";
-import { buildApp, expectedVercelJson, formatJson, PUBLIC_CONFIG, publicConfig, VERCEL_JSON, writePublicConfig } from "../vercel.ts";
+import { buildApp, bunProblem, exitProblem, expectedVercelJson, formatJson, MIN_BUN, PUBLIC_CONFIG, publicConfig, VERCEL_JSON, writePublicConfig } from "../vercel.ts";
 
 /**
  * apps/web/vercel.json, the public test deployment's settings (apps/hand/vercel.ts): Vercel reads
@@ -124,6 +124,20 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     writeFileSync(file, JSON.stringify({ ...deployment, core: "0x0000000000000000000000000000000000000001" }));
     expect(() => publicConfig(PUBLIC_CONFIG, file)).toThrow(/names Core/);
     expect(publicConfig(PUBLIC_CONFIG, join(scratch, "none.json"))).toEqual(base);
+  });
+
+  test("a Bun older than 1.3.2 stops the build, and so does an exit.html that names a file it does not carry", () => {
+    // Bun 1.2.x installs bun.lock hoisted: the build passes, but exit.html keeps url(../node_modules/@fontsource…).
+    expect(bunProblem("1.2.23")).toContain(`older than ${MIN_BUN}`);
+    expect(bunProblem("1.3.1")).toBeDefined();
+    expect(bunProblem("1.3.2")).toBeUndefined();
+    expect(bunProblem("1.4.4")).toBeUndefined();
+    expect(bunProblem()).toBeUndefined();
+    expect(exitProblem(readFileSync(join(dist, "exit.html"), "utf8"))).toBeUndefined();
+    expect(readFileSync(join(dist, "exit.html"), "utf8")).toContain("data:font/woff2");
+    expect(exitProblem("<style>@font-face{src:url(../node_modules/@fontsource/ibm-plex-mono/files/x.woff2)}</style>")).toMatch(/does not carry/);
+    expect(exitProblem("<style>@font-face{src:url('../fonts/x.woff2')}</style>")).toMatch(/does not carry/);
+    expect(exitProblem("<script>import('/node_modules/x.js')</script>")).toMatch(/node_modules/);
   });
 
   test("build.json is a file, never the index, and is asked for fresh", () => {
