@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # ADR-0006: Keep one global Up with contextual provenance
 
 Status: accepted

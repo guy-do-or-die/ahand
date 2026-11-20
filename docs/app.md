@@ -2,7 +2,7 @@
 
 ```
 /31337/14?d=AgFP…#<link>   →   the fragment is read once into memory, then removed from the address bar
-                               the Deal card: "Someone is looking for a sublet in Yerevan, June."
+                               the Deal card: "Someone raised a hand:" over the title "a sublet in Yerevan, June."
                                [🤝 Pass it on]   [🙌 I can help]
 ```
 
@@ -47,9 +47,9 @@ The link's 16-byte seed lives in the address its holder was sent and in the memo
 | `passed` | Hands passed from this device: chain, number, position, payee | no |
 | `prefs` | language, lens, theme | no |
 | `vault` | one AES-GCM key per device, created non-extractable | cannot be read out |
-| `escrow` | **the locked copy**: for an account whose signatures do not repeat, the new Hand's seed encrypted under the vault key, written before `raise` is sent, deleted when the asker ticks "I saved the link" or the raise is found reverted | yes, encrypted, minutes long |
+| `escrow` | **the locked copy**: for an account whose signatures do not repeat, the new Hand's seed encrypted under the vault key, written before `raise` is sent, deleted when the asker ticks "I saved the link" or the raise is found reverted, and by the sweep on every start (below) | yes, encrypted, at most one day after the link is shown |
 
-The locked copy (`lockSeed`, `openSeed`, `dropSeed`) binds the raise intent as AES-GCM associated data with a fresh IV. It protects against a storage dump and a crash, not against this site's own code. It is a recorded deviation (D-63). Tests: `apps/hand/tests/guards/store.test.ts` (no seed in any store in any form; the vault key not exportable). The theme toggle also writes one `localStorage` key, `ahand-theme`.
+The locked copy (`lockSeed`, `openSeed`, `dropSeed`) binds the raise intent as AES-GCM associated data with a fresh IV. It protects against a storage dump and a crash, not against this site's own code. It is a recorded deviation (D-63). Each copy carries two chain times (`stampSeed`): when the raise read the chain, and when the "up" screen first showed the link. On every start the app sweeps them (`apps/hand/src/screens/raise/sweep.ts`, by the chain's clock, never the device's): a copy is deleted once its Hand is closed or past its end, one day (`SHOWN_BOUND`, 24 h) after its link was first shown, when its raise reverted, or when no raise on the device names it; a copy whose raise is still on its way, or whose Hand cannot be read now, is kept. Until then `/my` says the link is kept locked on this device. Tests: `apps/hand/src/screens/raise/sweep.test.ts` and `apps/hand/tests/guards/store.test.ts` (no seed in any store in any form; the vault key not exportable). The theme toggle also writes one `localStorage` key, `ahand-theme`.
 
 Clearing the storage loses only "My hands on this device", answers seen and the outbox; every flow still works from a link.
 

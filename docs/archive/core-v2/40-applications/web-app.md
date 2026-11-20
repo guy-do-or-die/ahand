@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Web app
 
 The web app is the reference client for aHand: a TanStack Start (Vinxi) application deployed on Vercel at https://ahand.in. It reads chain state directly over RPC via viem (`getHand`, `handsCount`, Signals `balanceOf`, Witness `witnessedAt`) and does not query the [subgraph](../30-architecture/subgraph.md). Production targets Base Sepolia; local development runs against anvil (chain id 31337), selected via `VITE_CHAIN`. Styling is Tailwind v4; all copy goes through Lingui i18n with an English-only catalog.

@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Contract boundaries
 
 Four Solidity files in `contracts/src`: `AHandCore.sol`, `AHandSignals.sol`, `AHandWitness.sol`, and `AHandTypes.sol` (shared structs and the EIP-712 library).

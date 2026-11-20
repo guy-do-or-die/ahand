@@ -38,7 +38,7 @@ Package `feat-hand`: the Hand view, the pass, and sending a Hand back after its 
 5. **The QR carries a separate encoding.** It holds the same route and seed, with every attachment inside (`carryFor(written, "bare")`), written bare as digits, as ARCHITECTURE §9 asks. The copy row keeps the received shape, or bare if "show less" was ticked.
 6. **`failureOf`.**
    - `LinkError("invalid")` whose message says "less than the Hand's minimum" uses Core's `BelowMinClaim` sentence. UX-SPEC §12 gives it its own sentence, and the SDK has no separate code.
-   - A viem `BaseError` (transport or RPC) reads "Can't reach the network right now."
+   - A viem `BaseError` (transport or RPC) reads "Can't reach the network right now.", under the code `NETWORK`, and is marked `network`: the screens keep the link and try again (review round 1, below).
    - Anything else reads `common.error.unknown`, never a verdict on the link.
    - The three sentences UX-SPEC keeps apart (doesn't read / newer app / no main contract) come straight from `messageIdOf`.
 7. **No pass on a closed or past-end Hand, and none before the first block.** The pass screen says why. The Hand view shows its actions only when `stateAt` says `open`. Before the first block arrives, the card shows the dates and the kit's "Can't reach the network right now.", and offers no action.
@@ -103,7 +103,7 @@ What the smoke asserts, by running:
 
 ## Not verified
 
-- A built stand (face or `static.ts`). Every run was against Vite in `--dev` mode.
+- A built stand through face. (In review round 1 the smoke also ran against a build served by `static.ts`; see below.)
 - A real wallet extension. `navigator.share`: headless Chromium has none, so the Share button stays hidden there. A QR scanned by a camera: the QR is drawn (v13 for a 10% bare pass) but was not read back by a scanner.
 - Holders' own statement lists in the lens. No fixture carries a Shake with a `dataHash`, so that branch ran only in the offline unit test, which covers an empty list.
 - The "addressed" link kind on the Hand view: no fixture makes one.
@@ -116,3 +116,82 @@ What the smoke asserts, by running:
 
 - `TID.hand.wentBack` is now used only by the success line of "Send it back". The view moves to the closed state on the next block, so the closed view carries `TID.hand.closed` with `data-value`.
 - The kit's `LandSheet` puts no test ids on its own elements (`TID.land.*` are unused there). The smoke reaches them by role and label: "An address I have", "The address", "Use this address". Adding the ids inside the kit would make specs sturdier.
+
+## Review round 1 (2026-11-20, an AI agent of the overnight experiment; nothing committed)
+
+Four findings, all reproduced on the committed code first (each new smoke test was run against `git show HEAD:` copies of the four source files and failed there), then fixed. Pictures are in the vault, `plan/research/2026-11-20-experiment/shots/round-1/fix-feat-hand/` (`N-before-…` and `N-after-…` per finding).
+
+### 1. A network failure no longer loses an opened link
+
+- **Before.** With the RPC unreachable a dark link showed `ContractFunctionExecutionError / Can't reach the network right now. / To the start`; the fragment had already left the address bar, so the reload or the one button lost the link. A second case was found while fixing: when `hands(id)` answered and the latest block did not, the screen stayed on "Checking the link…" for ever.
+- **Now.**
+  - `failureOf` gives a transport or RPC failure the code `NETWORK` and marks it `network: true`. Nothing else is ever marked so.
+  - `useOpening` has a fourth status, `unreachable`, with `retry`. The held link is untouched in memory; a retry opens it again without asking for it. A try that is still running is not started twice, and while later tries run the status stays `unreachable`, so the screen does not flicker.
+  - `Unreachable.tsx`: the Deal card's outline, the band "Can't reach the network right now. Your link is still here." with the code `NETWORK` and "Try again", the line "Trying again on its own every few seconds.", and the tab-only line (the reason not to reload). No "To the start".
+  - `retryWhileVisible` (in `held.ts`, tested offline) calls the retry every 4 s while the tab is visible, stops while it is hidden, and tries at once when it is looked at again.
+  - The same view stands where the link opened and the Hand's own read failed, or no block has ever arrived while the watcher says offline. There, on its own, the screen only asks the watcher for the latest block (every new block re-reads `hands(id)` by itself); "Try again" also starts the read afresh, for a chain whose blocks have stopped.
+  - `/pass` and the public view (no link, so no "still here" sentence) do the same.
+- **Not changed.** A Hand that was already on screen when the network went away stays as it was read, with its last state and its actions; pressing "Pass it on" then meets the band on `/pass`. UX-SPEC §15 wants the state withdrawn when the network can't be reached; the watcher marks `offline` on a single failed poll, so doing that from the screen would make the actions blink on a weak connection. It belongs to the chain layer (`useNow` could withhold the time after a few failed polls).
+
+### 2. On a phone both actions are on the first screen
+
+- **Before.** At 390×844 the pass button began at y = 902–912 and "I can help" at 1006.
+- **Now.** Below 768 px an open Hand's two actions stand side by side in a bar pinned to the bottom of the screen (`ActionBar`, `position: sticky; bottom: 0`): both buttons at y 776–832 of 844, 175×56 px, in English and Russian, light and dark. The kit's densest pair variant (`ah-swipe--card`) is used, with the label allowed to wrap, so the words end on the solid part of the fill (checked: at 390 and at 320 px).
+  - Sticky, not fixed: at the foot of the page the bar rests at the end of the Hand and covers none of the footer.
+  - `padding-bottom: max(12px, env(safe-area-inset-bottom))`; `index.html` already has `viewport-fit=cover`.
+  - Only when the Hand is open and the link is live; a closed, expired or public view has no bar.
+  - While a text field has the focus, or the visible window is at least 150 px shorter than the window at the page's own scale (a keyboard, not a zoom), the bar steps aside and the two buttons stand in the page as on wide screens: they are never absent.
+  - While the bar stands, `scroll-padding-bottom` on the root keeps a focused control from being scrolled under it (UX-SPEC §13).
+  - One set of buttons is in the document at any time (`hand-pass`, `hand-help` keep their ids), chosen by a media query in script, so every existing spec finds exactly one.
+- **A choice.** The honest line "The asker decides whether to thank…" stays in the page, where the buttons stand on wide screens, and is not in the bar. UX-SPEC §8.2 says "under the help button, always"; in the bar it would take three more lines of the first screen. The Deal card on the first screen already says "If you help and they thank you" and "If nobody is thanked by {date}".
+
+### 3. An address that is not its link's own Hand is said as that
+
+- **Before.** The SDK's `openAddress` weighs the public part first: a link under another Hand's address read "Part of this address doesn't match its link", and a path naming another chain read "another hand".
+- **Now.** `openHeld` compares `seenIn(before)` with `peekLink(fragment)` before anything else, with no network read:
+  - a path, or a link, naming a chain or Core the build does not read → `UntrustedCore`, the "doesn't read" sentence;
+  - a path naming another Hand than the link → `another-hand`;
+  - the right Hand with a public part that is not its own → `unmatched-data`, from the SDK as before.
+- **A choice.** The finding said "a different chain or Core gives the untrusted sentence". That is what happens whenever the path's or the link's contract is outside the build's list (always, in a build with one trusted Core). When both are contracts the build reads and they differ, the sentence is "another hand", because "doesn't read" would be false there.
+- The SDK is unchanged.
+
+### 4. The share sentence on `/pass` has no gaps
+
+- **Before.** `tabular-nums` on the whole sentence made "." and "," as wide as a digit in this face: "$2 . 50", «$2 , 50 , если».
+- **Now.** The class is gone from the sentence (the screen has no other use of it). `4-before-share-sentence-*.png` are the same element with the class put back, for the picture.
+
+### Files
+
+- `apps/hand/src/screens/hand/`: `held.ts`, `held.test.ts` (26 tests), `useHeld.ts`, `index.tsx`, `Unreachable.tsx` (new), `en.ts`, `ru.ts` (three sentences: `hand.offline.kept`, `.retry`, `.auto`).
+- `apps/hand/src/screens/pass/index.tsx`.
+- `tests/e2e/smoke/hand.spec.ts` (11 tests): three more bad addresses in the broken-links test; the share sentence's figures; a network that fails as a dark link opens; a link that opens while the latest block can't be read; the phone's first screen in both languages. The network is cut in the browser (`page.route` aborts every request to the RPC), not by stopping the chain: a stand can stop its chain and cannot start it again with its Hands, and every later spec file needs them.
+- `tests/e2e/lib/feat-hand/round1.ts` (new, a tool): the four findings looked at live, with the chain really stopped. It saves anvil's state, kills anvil, opens a link, starts anvil again from the saved state, and sees the Hand appear in the same document.
+- `tests/e2e/lib/feat-hand/helpers.ts`: `craft` names the stand by `STAND_FILE` when one is set.
+
+### What was run
+
+On this machine, on a chain and site of this agent's own in its port range: the wave 1 helper chain on 24550, Vite on 24551, a build served by `static.ts` on 24552; `STAND_FILE` and `STAND_BASE_URL` name them.
+
+| Command | Result |
+|---|---|
+| the five new or extended smoke tests against the committed source files | each failed: `hand-unreachable` never appears (twice); `hand-pass` 65% in the viewport; `link.unmatched-data` where `link.another-hand` is expected; `tabular-nums` |
+| `bun test src/screens/hand tests/guards` (apps/hand) | 155 pass, 0 fail |
+| `bunx tsc --noEmit -p apps/hand`, `-p tests/e2e` | no error in this package's files (other packages' files had errors of their own while their fixers worked) |
+| `bunx playwright test tests/e2e/smoke/hand.spec.ts` (dev server, phone) | 11 passed |
+| the same with `--project desk` | 11 passed |
+| the same against the build served by `static.ts` (with its CSP) | 11 passed |
+| `tests/e2e/guards/failclosed.spec.ts` on the same chain | 11 passed |
+| `tests/e2e/guards/a11y.spec.ts` on the same chain | 27 passed |
+| `bun tests/e2e/lib/feat-hand/round1.ts --stand … --out …` | exit 0, twice: anvil killed, the band in English and Russian at 390 and 1280 px and on `/pass`, anvil started again from its saved state, the Hand and the slider back in the same documents, the link then passed on. 34 pictures in the folder (5 before, 29 after); 14 of them were opened and looked at by the agent, among them every kind of state at least once |
+
+### Not verified
+
+- A real phone, a real on-screen keyboard, the home-indicator inset: Chromium at 390×844 and 320×568 only. The keyboard test focuses a text field put into the page.
+- The sticky bar in WebKit.
+- A slow network (answers that take longer than a block): `useBlockRead` keeps only the answer to its latest ask, so a read slower than the block time never lands. That is the chain layer's, and older than this round.
+- `tests/e2e/guards/russian.spec.ts` failed on this chain at "Кто-то ищет": the Deal card's intro was being changed by another fixer at the time; nothing of this package is involved.
+
+### For the integrator
+
+- Three test ids are written as literals because `testids.ts` is not this package's: `hand-unreachable`, `hand-retry`, `hand-action-bar`. They belong in `TID.hand`.
+- `tests/e2e/guards/lib/guard.ts` always passes `--slot` to its tools, so the guards cannot run against a `STAND_FILE` chain. For this round a `stand.json` naming this agent's chain was put into `infra/stand/.run/2/` for the two guard runs and removed afterwards.

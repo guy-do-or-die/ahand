@@ -14,7 +14,7 @@ Wave 2. Package `packages/deliver` (sources and tests) and `infra/relay/relay.ts
 | `outbox.ts` | `openOutbox(transport, store, {everyMs = 30000, need = 1, onChange?, now?})` → `{send, flush, list, forget, close}` over any `{get, set, delete, keys}` store (a `Map` satisfies it as is; values are plain data for IndexedDB). |
 | `index.ts` | Exports only. |
 
-`infra/relay/relay.ts`: `startRelay({port, hostname?, log?})` and, run as a program, `PORT=<n> [HOST=127.0.0.1] bun infra/relay/relay.ts` (exits 2 without PORT; stops on SIGINT/SIGTERM with exit 0). In memory, kind 1059 only, at most 10 000 events (oldest dropped), 1 MiB per message, 20 subscriptions per client. EVENT → `OK true` (stored), `OK true "duplicate:"`, or `OK false` (`blocked:` other kind, `invalid:` bad id/signature/shape). REQ with `kinds`, `ids`, `#p`, `since`, `until`, `limit` → stored matches, newest first, then `EOSE`; new events are pushed to open subscriptions; `CLOSE` ends one; an unsupported filter gets `CLOSED`, nonsense gets `NOTICE`. NIP-11 document on `Accept: application/nostr+json`. Every log line is counts only (stored, accepted, rejected, clients, subscriptions): no content, no event id, no key; a test checks it.
+`infra/relay/relay.ts`: `startRelay({port, hostname?, log?})` and, run as a program, `PORT=<n> [HOST=127.0.0.1] bun infra/relay/relay.ts` (exits 2 without PORT; stops on SIGINT/SIGTERM with exit 0). In memory, kind 1059 only. Storage is bounded twice: at most 10 000 events and at most 64 MiB of events (UTF-8 bytes of each event's JSON), the oldest dropped first when either is passed; an event over 64 KiB gets `OK false "invalid: event is … bytes"` (the WebSocket message limit is 128 KiB, so an oversized event is answered rather than the socket closed). One REQ is answered with at most 8 MiB of stored events, newest first, then `EOSE`. 20 subscriptions per client. `startRelay({limits})` can lower (never raise) the three storage limits, for tests; `counts()` includes `storedBytes`. EVENT → `OK true` (stored), `OK true "duplicate:"`, or `OK false` (`blocked:` other kind, `invalid:` bad id/signature/shape). REQ with `kinds`, `ids`, `#p`, `since`, `until`, `limit` → stored matches, newest first, then `EOSE`; new events are pushed to open subscriptions; `CLOSE` ends one; an unsupported filter gets `CLOSED`, nonsense gets `NOTICE`. NIP-11 document on `Accept: application/nostr+json`. Every log line is counts only (stored, accepted, rejected, clients, subscriptions): no content, no event id, no key; a test checks it.
 
 ### Interface (the contract for waves 3–4)
 
@@ -38,7 +38,7 @@ Wrap kind 1059 and at most 1 MiB of content; NIP-44 decryption of the wrap (a th
 - **`since` is honoured on the rumor's time.** NIP-59 back-dates the seal and wrap by up to two days, so the relay filter asks from `since − 2 days` and the listener drops rumors older than `since`.
 - **Delivered means `acks ≥ need`, default 1**, matching "Delivered to 1 of 1 relay". The ADR's 3-of-5 rule is not applied (no public relays tonight); `need` is the knob.
 - **The outbox never deletes on its own.** Delivered entries stay with their chat key (the thread needs it after a reload); `forget(key)` is the only exit. An attempt that throws (for example a relay limit) is recorded in `error` and retried. A malformed envelope is refused before it is written, so the outbox holds only sendable messages. An entry forgotten during an attempt is not written back.
-- **No size cap of our own on the envelope.** nostr-tools 2.26.1's NIP-44 accepts up to 4 GiB (extended length prefix); the reader refuses wraps over 1 MiB and the stand relay messages over 1 MiB, both far above a give link (2 000 bytes → about 5 kB wrapped; 40 000 bytes tested).
+- **No size cap of our own on the envelope.** nostr-tools 2.26.1's NIP-44 accepts up to 4 GiB (extended length prefix); the reader refuses wraps over 1 MiB and the stand relay events over 64 KiB, both far above a give link (2 000 bytes → about 5 kB wrapped; 40 000 bytes round-trip in isolation, not through the relay).
 - **Ports in tests**: relay tests 15100–15119, delivery tests 15120–15149, each picked by trying to bind.
 
 ## Run, with results (2026-11-20, this machine)
@@ -46,7 +46,7 @@ Wrap kind 1059 and at most 1 MiB of content; NIP-44 decryption of the wrap (a th
 | Command | Result |
 |---|---|
 | `cd packages/deliver && bun test` | 34 pass, 0 fail (run five times, once in parallel with the relay suite) |
-| `cd infra/relay && bun test` | 7 pass, 0 fail |
+| `cd infra/relay && bun test` | 7 pass, 0 fail (12 after the round-1 fix below) |
 | `bunx tsc --noEmit -p packages/deliver`, `-p infra/relay` | 0 errors each |
 | `grep -rn "wss://" packages/deliver infra/relay` | no output (exit 1) |
 | `sha256sum contracts/src/AHandCore.sol` | `118f4d37…d738` |
@@ -77,3 +77,23 @@ What those tests run live (the relay as its own process from `infra/relay/relay.
 ## Checked by the wave 2 integrator
 
 - `apps/hand/tests/integration/outbox.test.ts`: `openOutbox` over the app's own IndexedDB `outbox` store (`outboxStore()` in `store/db.ts`, fake-indexeddb under Bun) with `nostrTransport` to `infra/relay/relay.ts` run as a process on port 19060. The give arrives once at the inbox key with `replyTo` the chat key; after the database is closed and a new outbox opened, the entry is there with the same key, chat key, message id and `deliveredAt`. Still not run: a browser's WebSocket and a browser's IndexedDB.
+
+## Review round 1 fix: bounded relay memory
+
+Finding: `MAX_MESSAGE_BYTES = 1 MiB` × `MAX_EVENTS = 10 000` let the stand relay hold about 10 GB.
+
+- **Limits now** (`infra/relay/relay.ts`): `MAX_EVENT_BYTES = 64 KiB` per event, `MAX_STORED_BYTES = 64 MiB` and `MAX_EVENTS = 10 000` in all, oldest evicted first by either; `MAX_MESSAGE_BYTES = 128 KiB`. Worst-case stored payload is 64 MiB. The size check runs before signature verification, so an oversized event costs no hashing. An evicted event's id leaves the duplicate set, so it can be published again.
+- **Found while testing, fixed too: one REQ over a full store lost messages.** Bun's WebSocket drops sends once a socket has 16 MiB queued (its default backpressure limit) and `send` returns 0. A probe (a copy of the relay with the reply uncapped, 1 024 events of 65 kB, one `REQ {kinds:[1059]}`) counted 725 dropped EVENTs and a dropped EOSE; the client got 299 events and never EOSE. The relay now answers one REQ with at most `MAX_REPLY_BYTES = 8 MiB` of stored events, newest first, then EOSE. Real readers filter by `#p` and `since`, so they stay far below it.
+- **Decided:** limits measured on the event's JSON (what the relay keeps and sends), not on JS heap; base64 NIP-44 content is ASCII, so the two agree within the per-string overhead. NIP-11 now reports `max_content_length: 65536` beside `max_message_length`.
+
+Tests added to `infra/relay/tests/relay.test.ts` (all five failed against the previous relay with the new constants patched in, 7 pass / 5 fail; all pass now):
+
+| Test | What it runs |
+|---|---|
+| limits and NIP-11 | the constants, and the NIP-11 document from the running relay |
+| 64 KiB + 1 byte | `OK false "invalid:"`, socket still open, an exactly 64 KiB event then `OK true`; the large one is not stored |
+| byte budget | relay with `maxStoredBytes` = 3 × 10 000 + 500, five 10 000-byte events → the newest three kept, `storedBytes` 30 000; the evicted first one is accepted again as new |
+| event count | relay with `maxEvents: 2`, three events → the newest two |
+| real defaults | 1 030 events of exactly 64 KiB over one socket → all `OK true`, 1 024 kept, `storedBytes` = 64 MiB, the oldest six absent by `ids`, the seventh and the newest present; `REQ {kinds:[1059]}` → exactly the newest 128, newest first, then EOSE |
+
+Run 2026-11-20 on ports 25150–25199: `cd infra/relay && RELAY_TEST_PORTS=25150-25169 bun test` → 12 pass, 0 fail (10.5 s); `cd packages/deliver && DELIVER_TEST_PORTS=25170-25199 bun test` → 34 pass, 0 fail; `bunx tsc --noEmit -p infra/relay` and `-p packages/deliver` → 0 errors. Nothing visible changed, so no screenshot. Not run: `apps/hand/tests/integration/outbox.test.ts` (not this package's; it sends a give far under 64 KiB).

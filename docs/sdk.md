@@ -9,7 +9,7 @@ const { view, stateAt } = await readHand(client, core, opened.head.handId);
 stateAt(now.timestamp);                                               // "open" | "expired" | "thanked" | "refunded" | "missing"
 ```
 
-`packages/sdk` (`@ahand/sdk`, TypeScript, viem 2.52.0). Everything protocol lives here; the app, `exit.html`, face, the stand and the CLI call it. Tests: `cd packages/sdk && bunx vitest run` (21 files, 413 tests passed on 2026-11-20 in `bun run check`); several start their own anvil through `tests/helpers/anvil.ts`. Exports are listed in `packages/sdk/src/index.ts`.
+`packages/sdk` (`@ahand/sdk`, TypeScript, viem 2.52.0). Everything protocol lives here; the app, `exit.html`, face, the stand and the CLI call it. Tests: `cd packages/sdk && bunx vitest run` (part of `bun run check`; the counts of the last run are in [evidence](evidence.md)); several start their own anvil through `tests/helpers/anvil.ts`. Exports are listed in `packages/sdk/src/index.ts`.
 
 ## Calls per role
 
@@ -25,7 +25,7 @@ stateAt(now.timestamp);                                               // "open" 
 | thank | open the give link, `checkGiveOnChain`, `judgeGive` against Gives already seen (`resign.ts`), `payeeProblem` (`payee.ts`), `worstThankGas` (`gas.ts`), `thankCall`, then `receiptOf(handLogsAt(…))` |
 | newer Hand | `findLaterHands(client, core, raiser, range)`: bounded, announces its request count first |
 
-**Holder**: `openAddress`/`openLink` (proves the route against the Hand), `readHand`, `readDescription`, `passesLeft`, `carryFor`, `passOn` (signs a Shake with the link key: no wallet), `canReshape`, `toAddress`.
+**Holder**: `openAddress`/`openLink` (proves the route against the Hand), `readHand`, `readDescription` (and `readDescriptionOf(hand, matched)` where only a faced address's `d` was matched), `passesLeft`, `carryFor`, `passOn` (signs a Shake with the link key: no wallet), `canReshape`, `toAddress`.
 
 **Helper (giver)**: `signGive` (a key's answer brought to Core's 65-byte form by `toCoreSignature`; a contract's or a wrapped one returned as it came), offline `checkGive` with `askSigner` (`wallet.ts`; ERC-1271 for a deployed account, ERC-6492 for one not deployed yet), then `checkGiveOnChain`, then `encodeGive`. Delivery is `@ahand/deliver` (NIP-17 gift wrap to the Hand's `inbox.n1`).
 
@@ -33,7 +33,7 @@ stateAt(now.timestamp);                                               // "open" 
 
 **Anyone**: `refundCall` from the expiry; `costOf` and `l1FeeOf` (`money.ts`, a dated price snapshot `prices.json`); `decodeCoreError`, `messageIdOf` (`errors.ts`).
 
-**Verifier**: `collect`, `passportOf`, `exportBundle`, `verifyBundle`, `thankInputOf` (`proof.ts`); `checkOrder`, `runSteps` (`steps.ts`). `bun tools/ahand.ts verify` is the same from a clone.
+**Verifier**: `collect`, `passportOf`, `exportBundle`, `verifyBundle` (no network: signatures, hashes and sums keep their verdict; rows built on the file's events and views read `"recorded"`, never ok), `verifyBundleOnChain` and `rereadRecord` (the file re-read from the chain by block hash), `thankInputOf` (`proof.ts`); `handLogsInBlock` (`chain.ts`); `checkOrder`, `runSteps` (`steps.ts`); `linkLayout` (`link.ts`: where a link's parts lie, offsets and lengths only, for `/check`'s ruler). `bun tools/ahand.ts verify` is the same from a clone.
 
 ## Trust: fail closed
 

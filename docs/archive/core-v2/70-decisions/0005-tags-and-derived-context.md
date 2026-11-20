@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # ADR-0005: Use one tag namespace and derive context
 
 Status: accepted

@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Open questions
 
 Genuinely unresolved items. Settling one should update this file and, where load-bearing, add an ADR.

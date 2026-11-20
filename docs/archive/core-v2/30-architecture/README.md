@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # System architecture
 
 Escrow and authorization live in three small contracts on Base Sepolia. Everything around them — the web client, the SDK, the subgraph, naming, storage, messaging — is replaceable and cannot authorize or block Core money.

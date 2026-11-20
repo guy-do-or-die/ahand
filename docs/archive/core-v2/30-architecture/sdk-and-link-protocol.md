@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # SDK and link protocol
 
 `packages/sdk` is a pure TypeScript protocol SDK — no chain access, no UI. It is the shared surface the web app builds its raise, pass, give, and thank flows on, and any compatible client can use it to import bytes created by another. Five modules, all re-exported from `index.ts`:

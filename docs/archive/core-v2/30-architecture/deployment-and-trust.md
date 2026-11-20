@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Deployment and trust boundaries
 
 ## Live deployment — Base Sepolia (chainId 84532)

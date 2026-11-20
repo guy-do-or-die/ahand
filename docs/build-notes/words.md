@@ -110,7 +110,7 @@ One deliberate difference: §8.6 names the first choice "My wallet". The kit say
 
 | § | EN quote | found (EN) | found (RU) |
 |---|---|---|---|
-| §4 | Someone is looking for | ui/words.ts deal.intro | ui/words.ts deal.intro |
+| §4 | Someone is looking for (since review round 1: "Someone raised a hand:" / «Кто-то поднял руку:», see app-design.md) | ui/words.ts deal.intro | ui/words.ts deal.intro |
 | §4 | If you help and they thank you | ui/words.ts deal.ifHelp | ui/words.ts deal.ifHelp |
 | §4 | If you pass it on | ui/words.ts deal.ifPass | ui/words.ts deal.ifPass |
 | §4 | keep a share you choose | ui/words.ts deal.keepShare | ui/words.ts deal.keepShare |
@@ -337,7 +337,7 @@ const norm = (s: string) => s.replace(/\{[^{}]*\}/g, "§").replace(/\s+/g, " ").
 
 // [section, EN, RU or ""]
 const QUOTES: [string, string, string][] = [
-  ["§4", "Someone is looking for", "Кто-то ищет"],
+  ["§4", "Someone raised a hand:", "Кто-то поднял руку:"], // §4's "Someone is looking for", changed in review round 1 (app-design.md)
   ["§4", "If you help and they thank you", "Поможешь, и тебя поблагодарят"],
   ["§4", "If you pass it on", "Передашь дальше"],
   ["§4", "keep a share you choose", "оставь себе долю, сколько решишь"],
@@ -556,3 +556,94 @@ process.exitCode = missing ? 1 : 0;
 - **The give screen's voluntary line went into an existing key** (`give.agree.intro`), so no code had to change. The alternative was a new key that the screen would render. That needed harden-app to change code in the same wave.
 - **Reverted sends:** a new key, plus a request for the code change, instead of rewriting "Nothing left your account.". That sentence is UX-SPEC's for refusals caught before sending, and it is true there.
 - **«Нашёл? Отсканируй.» was kept** because an e2e spec asserts it. The «ты» voice in the spec already uses the generic masculine.
+
+## Review round 1 (fix-words)
+
+Written 2026-11-20 by an AI assistant during the overnight experiment. Six findings of review round 1, all in the catalogues. Every wording below is the assistant's; the owner has not read it. Files touched: catalogues (`en.ts`, `ru.ts`), `apps/hand/src/i18n/common/chain.ts` (new), two test files beside it (new), `docs/glossary.md`, this note.
+
+### What changed
+
+| Finding | Key | Before | Now (EN / RU) |
+|---|---|---|---|
+| 1 | `thank.done` | Thanked. Here's who got what — straight from the chain. / «Спасибо сказано. Кто сколько получил — прямо из сети.» | Thanked. Here's every payout — straight from the chain. / «Спасибо сказано. Все выплаты — прямо из сети.» |
+| 1 | `thank.done.before` | …Here's who got what… / …«Кто сколько получил»… | …Here's every payout — straight from the chain. / …«Все выплаты — прямо из сети.» |
+| 1 | `proof.giverAmount` | The helper got {amount}: the reward minus the shares. / «Помощник получил {amount}…» | The helper's part is {amount}: the reward minus the shares. / «Часть помощника — {amount}: награда минус доли.» |
+| 1 | `print.receipt.lead` (found by the new test, not by the reviewer) | Who got what, from the network's own records. / «Кто сколько получил — по записям самой сети.» | Every payout, from the network's own records. / «Все выплаты — по записям самой сети.» |
+| 2 | `common.chain.31337` (new) | — | Local test network / «Локальная тестовая сеть», read through `chainName(config.chain)` |
+| 2 | `waiting.safe` (RU) | Нажать „Доставить“ за тебя… | Нажать «Доставить» за тебя… |
+| 3 | `thank.lens.fit` | Worst case {gas} gas · {bytes} bytes of calldata · limit 16 777 216 gas | the same line, then: "The worst case is used only to check that this route fits one transaction; your wallet's own estimate is what is sent." / «Худший случай нужен только для проверки, что этот путь помещается в одну транзакцию; отправляется оценка твоего кошелька.» |
+| 4 | `raise.expiry.nudge` | Long hands need a nudge. You'll get a calendar reminder. / «…Добавим в календарь.» | Long hands need a nudge. After you raise it, you'll get a button to add a calendar reminder. / «Долгим рукам нужно напоминание. После подъёма появится кнопка — добавить его в календарь.» |
+| 5 | `proof.route`, `proof.keys`, `proof.share` | Hand {n} continued… / Hand {n} passed it on with the very key… / Hand {n} kept {amount}… («Рука {n} …») | Pass {n} continued… / Pass {n} was made with the very key that held the link. / Pass {n} kept {amount}… («Передача {n} продолжила… / сделана… / оставила себе…») |
+| 5 | `proof.route.to`, `proof.share.to` (new, waiting for code) | — | …said where its own part lands: {who}. / Pass {n} kept {amount} for {who}: … |
+| 6 | `give.words.meta` (RU) | Твои слова уйдут автору сообщением, а не в сеть. | Твои слова придут автору сообщением. В записи сети они не попадут. |
+| 6 | `give.agree.confirms` (RU) | Кто подтверждает | Подтверждает |
+| 6 | `give.agree.byWords`, `give.agree.byOneTime` | The address made from your twelve words, here / «Адрес из твоих двенадцати слов, здесь»; A one-time key, here; … / «Одноразовый ключ, здесь; …» | The address made from your 12 words, on this page / «Адрес из твоих 12 слов, прямо на этой странице»; A one-time key, on this page; … / «Одноразовый ключ, прямо на этой странице; …» |
+| 6 | `give.agree.tick` (new, waiting for code) | — | Tick that the 12 words are written down. / «Отметь, что 12 слов записаны.» |
+| 6 | `pass.oldLink` (RU) | У кого была старая ссылка, тот всё ещё может передать её иначе. | Ссылка, которую тебе прислали, тоже продолжает работать: её могут передать дальше и другим путём. |
+| 6 | `my.unlock.connect` | Connect the account that raised these hands… / «…который поднял эти руки…» | Connect the account you raise hands from to unlock links and replies. / «Подключи аккаунт, с которого поднимаешь руки, чтобы открыть ссылки и ответы.» |
+
+### For the owner: the spec's headline and duty 19 disagree
+
+- UX-SPEC §7.5.7 gives the headline after a thank as "Thanked. Here's who got what — straight from the chain." / «Спасибо сказано. Кто сколько получил — прямо из сети.» The same paragraph says the rows read "left the contract for {payee}", "never received".
+- Brief 02, duty 19: "Never show `Paid` as the amount received." With a token that starts taking its own cut after the raise, `Paid` is what left Core and the payee gets less (R-2, R-101).
+- **Settled for the duty.** The headline, the same sentence for a hand thanked before, the printed receipt's lead and the passport's line about the helper no longer say "got" / «получил».
+- The reviewer proposed "Here's what was sent to whom" / «Кому сколько отправлено». This note chose **"Here's every payout" / «Все выплаты»** instead: when a payee is blocked, the row under the headline says "{amount} is waiting for {payee}", and that money was not sent. "Payout" / «выплата» is already the app's word for a `Paid` and a `Pending` alike ("If a payout can't move, it waits…", the passport's "Payouts").
+- Left as they are, and yours to judge: the two headings **before** the thank, `thank.predicted.title` "Who gets what" / «Кто сколько получит» and `my.answer.split` "Who would get what if you thank it now". They are forecasts, not `Paid` amounts, and e2e specs assert them; the same token caveat applies to them in principle.
+- UX-SPEC itself was not edited (the vault is read-only for this package). Its §7.5.7 headline, its §7.2 nudge and the „…“ in its §9 Russian sentence now differ from the catalogues on purpose; the spec-quotes script above reports those three.
+
+### For the owner: an open choice — send the worst-case gas limit with a thank, or the wallet's estimate
+
+What exists now (read in the code and on a local chain, 2026-11-20):
+
+- The SDK counts a worst case (`estimateThankGas`, `packages/sdk/src/gas.ts`); its comment calls `gasLimit` "the gas to send the thank with: at worst all of it is used, and no payout gets less than its limit".
+- The app sends a thank **without** a gas limit (`apps/hand/src/wallet/send.ts`), so the account's app estimates it. The "Do it without us" `cast send` line carries no `--gas-limit` either.
+- Core (`AHandCore.sol`, the comment on `_pay`): "Sent with too little gas on purpose, a payout that itself needs a lot of gas can end up pending too; anyone can then withdraw it to the payee." A payout that runs out of gas does not undo the thank: it waits.
+- Measured tonight on a private stand (anvil, the dev wallet), one pass and a helper, test dollars: worst case 679 983 gas; the thank went out with a limit of 155 503 and used 155 503, both payouts `Paid` (block 1 393, traced with `cast run`). The reviewer's route: worst case 973 882, sent 183 796, used 178 996. The dev wallet adds no head-room to its estimate; what MetaMask or a smart account adds was not measured.
+
+What each option means. Dollars at the app's own snapshot (fee study of 2026-11-10: Base 0.006 gwei, Ethereum 0.3 gwei, ETH $2,400), for tonight's route. The limit is money the account must hold up front, not money spent: unused gas is never charged, so the cost of the thank is the same in both.
+
+| | A. The wallet's estimate (now) | B. The SDK's worst case as the limit |
+|---|---|---|
+| Must be on the account before sending | 155 503 gas: about $0.0022 on Base, $0.11 on Ethereum | 679 983 gas: about $0.0098 on Base, $0.49 on Ethereum (4.4 times more; 5.3 times on the reviewer's route) |
+| Security | A payout that needs more gas than the estimate left it goes to "waiting" instead of being paid; nothing is lost, one more step (`withdraw`, by anyone) delivers it | Every payout gets its whole allowance (`payoutGasK`), so none waits for lack of gas |
+| What the reader sees | The wallet shows its usual small maximum | The wallet shows a maximum several times the real cost, on the screen where the asker decides |
+| Fidelity to the SDK | The SDK's `gasLimit` is used only to say whether the route fits | The SDK's value is used as its comment says |
+| Bytes, code | none | one argument in `send.ts`, one flag in the `cast` line |
+| Reversible | yes | yes |
+
+A third way would be the estimate with a margin, capped by the worst case. This package changed only the sentence: it now says what happens (the worst case is a fit check; the wallet's estimate is sent). The sending is yours to decide; `apps/hand/src/wallet/send.ts` belongs to app-wallet.
+
+### Where this note went another way than the review proposed
+
+- **Headline:** "every payout", not "what was sent to whom" (above).
+- **`proof.giverAmount`:** "The helper's part is {amount}" / «Часть помощника — {amount}», not "The helper's amount is" / «Доля помощника». The line stands under the heading "The helper's amount" and would echo it; «доля» is the passers' word (a share), and the helper's is «часть» (`proof.giveClaim`, `give.agree.claim`).
+- **`give.words.meta`:** not «получит только автор». The Share button on the done screen sends the helper's words together with the address (`shareText` in `give/index.tsx`), and when no relay answers the app asks to send it back through whoever sent the link. "Only the asker" would be a promise the app does not keep. The new sentence removes the confusion the reviewer saw («сеть» is the chain in this app): "В записи сети они не попадут."
+- **`my.unlock.connect`:** one sentence that names no number of hands, right on the list and on a single hand's page, instead of «…который поднял эту руку», which would be wrong on the list. No code had to change.
+- **`pass.oldLink`:** the Russian now says which link ("the one you were sent") and uses «путь», the app's word for a route. The English is UX-SPEC's own sentence and the command-line tool prints the same one, so it stayed.
+- **The address beside "Pass {n}"** needs code: a pass that keeps nothing has the zero address as its payee, and "Pass 1 kept $0 for 0x0000…0000" would be worse than no address. The sentences are ready under `.to` keys (Needs, 5).
+- **Step 3 of the give screen** cannot tell "nothing chosen" from "the tick is missing" without code (Needs, 4).
+
+### Tests
+
+- `apps/hand/src/i18n/common/review-1.test.ts`: ten tests, one per rule (no "got / received / получил" on screens that show paid amounts; the headline; «…» only; the network's name; the fit line; the nudge; "Pass", never "Hand {n}"; the tick key; the unlock line; the Russian sentences that went). All ten failed before the catalogues changed.
+- `apps/hand/src/i18n/common/chain.test.ts`: `chainName` in both languages, a chain the catalogue does not know, and that the ribbon and the name are the same words.
+
+### Checks run (2026-11-20)
+
+| Command | Result |
+|---|---|
+| `cd apps/hand && bun test src/i18n/common` before the fixes | 0 pass, 11 fail (ten rules, and `chain.ts` missing) |
+| `cd apps/hand && bun test` after | 460 pass, 0 fail, 45 files (other packages were editing the tree at the same time) |
+| `cd apps/hand && bun run typecheck` | clean |
+| A private stand on ports 25350–25352 (`tests/e2e/lib/feat-my/own-stand.ts`: anvil, the relay, the built app), Playwright Chromium 390×844, ru-RU and en-GB: raise for 90 days, pass keeping 10%, help from twelve words, thank with the lens on, the passport, the printed receipt, /my before connecting, /waiting with a blocked payout | 4 tests pass; each asserts the new sentence on the screen and that none of the old ones is there; 24 screenshots in `knowledge/plan/research/2026-11-20-experiment/shots/round-1/fix-words/` |
+| The chain afterwards (`cast`) | five thanks in test dollars went through the app: the passer's address holds $10 (5 × $2). The two receipts read (blocks 1 365 and 1 393) have seven logs each; the one traced has `Thanked`, `Shaken`, `Paid`, `Given`, `Paid` and the token's two `Transfer`s |
+
+Not verified live, because the code that shows it belongs to other packages: the Russian network name on /give, /core and /without-us (Needs, 2), «У меня нет — создать адрес» (Needs, 3), the tick sentence (Needs, 4), the address beside "Pass {n}" (Needs, 5). `tests/e2e/guards/russian.spec.ts` was run unchanged against the same stand and stopped earlier than the headline, at its line 112 («Кто-то ищет» on the Deal card, a sentence another package changed tonight), so the three specs' new strings were checked through this package's own run, not through the specs themselves.
+
+### Needs of this round (files this package does not own)
+
+1. **The three specs that pin the old headline.** `tests/e2e/life.spec.ts:339` and `tests/e2e/smoke/thank.spec.ts:187`: `"Thanked. Here's who got what — straight from the chain."` → `"Thanked. Here's every payout — straight from the chain."`. `tests/e2e/guards/russian.spec.ts:157`: `"Спасибо сказано. Кто сколько получил — прямо из сети."` → `"Спасибо сказано. Все выплаты — прямо из сети."`.
+2. **The network's name on three screens.** Add `import { chainName } from "../../i18n/common/chain";` and replace `config.chain.name` with `chainName(config.chain)` in `apps/hand/src/screens/give/index.tsx` (the agree card, `{config.chain.name} <span …>`), `apps/hand/src/screens/core/index.tsx` (`{config.chain.name} · CHAIN ID …`) and `apps/hand/src/screens/without-us/index.tsx` (`name: config.chain.name`). `tests/e2e/smoke/give.spec.ts:135` keeps passing: the English name is unchanged.
+3. **`apps/hand/src/ui/words.ts`**, `RU.land.fresh`: «У меня нет — сделать» → «У меня нет — создать адрес».
+4. **The tick on the give screen.** `LandPicker` (`apps/hand/src/ui/LandSheet.tsx`) knows that words are made and "I wrote them down" is unticked (`choice === "fresh" && fresh && !wrote`), and tells its caller only `undefined`. Give it an optional `onWaiting?: (what: "tick" | undefined) => void`, reported beside `onChange`; in `apps/hand/src/screens/give/index.tsx`, step 3 then shows `t(waiting === "tick" ? "give.agree.tick" : "give.agree.pick")`.
+5. **The address beside "Pass {n}".** In `apps/hand/src/screens/proof/model.ts`, `sentenceKeyOf`: when `check.sentence` is `proof.share` or `proof.route` and `check.inputs.payee` is an address other than zero, return `` `${check.sentence}.to` ``. `sentenceOf` in `proof/index.tsx` already passes `who`.

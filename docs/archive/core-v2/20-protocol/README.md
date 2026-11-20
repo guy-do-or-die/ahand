@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Protocol
 
 The contract-facing specification of aHand as implemented in `contracts/src`: `AHandCore.sol` (escrow and settlement), `AHandSignals.sol` (soulbound receipts and Up), `AHandWitness.sol` (peripheral timestamping), and `AHandTypes.sol` (shared types plus the `AHandSig` EIP-712 library).

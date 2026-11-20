@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Events and indexing
 
 Events let an independent indexer reconstruct lifecycle, economics, policy history, route attribution, and payout state without trusting any application database. The signatures below are copied from the Solidity in `contracts/src`. Enum-typed parameters (`Visibility`, `AllocationKind`) appear as `uint8` in the ABI.

@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Testing
 
 Two suites cover the protocol: a Foundry suite for the contracts and a vitest suite for the SDK, tied together by generated cross-language signature vectors.

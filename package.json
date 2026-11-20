@@ -23,10 +23,11 @@
     "test:sdk": "bun run --cwd packages/sdk test",
     "test:unit": "bun run --cwd packages/abi test && bun run --cwd packages/deliver test && bun run --cwd apps/hand test && bun run --cwd apps/face test && bun run --cwd infra/stand test && bun run --cwd infra/relay test && bun run --cwd tools test",
     "typecheck": "tsc --noEmit -p packages/sdk && tsc --noEmit -p packages/abi && tsc --noEmit -p packages/deliver && tsc --noEmit -p apps/hand && tsc --noEmit -p apps/face && tsc --noEmit -p infra/stand && tsc --noEmit -p infra/relay && tsc --noEmit -p tools && tsc --noEmit -p tests/e2e",
+    "test:docs": "bun test docs/tests",
     "build": "bun run --cwd apps/hand build",
     "stand": "bun infra/stand/stand.ts",
     "e2e": "playwright test tests/e2e",
-    "check": "bun run check:core && bun run check:abi && bun run typecheck && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run test:unit && bun run build && bun run check:core"
+    "check": "bun run check:core && bun run check:abi && bun run typecheck && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run test:unit && bun run test:docs && bun run build && bun run check:core"
   },
   "devDependencies": {
     "@ahand/abi": "workspace:*",

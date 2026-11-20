@@ -19,7 +19,7 @@ agent that built it. What is listed as run was run on this machine; what was not
   `format.ts`, `words.ts`, `ambient.tsx`.
 - `apps/hand/src/gallery/`: its own Vite entry (`gallery.html`). Both themes side by side;
   `?lang=ru`, `?theme=light|dark`, `?lens=on`; `twist.tsx` is the stub wave 5 fills.
-- `tests/e2e/smoke/gallery.spec.ts`: 13 browser tests.
+- `tests/e2e/smoke/gallery.spec.ts`: 14 browser tests (13 in wave 2, one more in review round 1).
 
 ## How a screen uses the kit
 
@@ -98,6 +98,62 @@ twelve words, held in memory only).
     look for `qr.tsx`; it would also collide on a case-blind disk. The logic is `qr-code.ts`.
 15. **The logo's two CSS blocks for image lockups were dropped** from `components.css`: the
     lockup is composed in HTML and nothing uses those classes.
+
+## Review round 1 (2026-11-20): three findings, fixed
+
+1. **The Deal card's lead-in is "Someone raised a hand:" / «Кто-то поднял руку:»**, no longer
+   "Someone is looking for" / «Кто-то ищет». The old line needed a title that completes it, and
+   people type questions: the raise screen's own placeholder is one, and so are 11 of the 13
+   seed titles. Reproduced in the gallery with a question as the sample title («Кто-то ищет / Кто
+   знает, где снять квартиру…?»). The new line is the bare card's own sentence ending in a colon,
+   so a question, a noun phrase and a plea all read after it; D-37's "Someone" stays.
+   **This departs from the letter of UX-SPEC §4**, whose sample shows "Someone is looking for /
+   a sublet in Yerevan, June."; the spec file is read-only tonight and still shows the old line.
+   The gallery's sample title is now a question, and the public-view case keeps a noun phrase
+   ("A sublet in Yerevan, June."), so both shapes are on screen and in the spec.
+2. **Every date on the card opens to its source, like the reward.** "open until 20 Dec",
+   "was open until 20 Dec" and "until 20 Dec" open to `hands(12).expiry = 1797768000`, then that
+   second as a date and time in the reader's zone and in UTC (one line when the reader is in
+   UTC), the chain mark and the block. "Thanked on 3 Dec.", "The reward went back on 21 Dec." and
+   "This hand closed on …" open to `hands(12).closedAt` the same way, and the chain mark beside
+   the sentence is now a button that opens the same source (`Mark` gained `opens`, for a mark
+   whose source stands elsewhere). The lens opens them all. New in `format.ts`: `second` and
+   `inBothZones`.
+3. **The receipt's caption is "What was sent to whom, from the chain's own records"** /
+   «Кому сколько отправлено — по записям самой сети». `Paid` means it left the contract, not
+   that somebody got it (brief 02, duty 19). A unit test keeps "got", "received" and «получ…»
+   out of the receipt's words.
+
+Decided on the way:
+
+- **A card with no `handId` names no source.** The raise screen's preview shows a Hand that is
+  not on the chain yet, and used to open its reward to `hands(id).reward … ON CHAIN`. Now the
+  reward and the date of such a card are plain text; the floor still opens (it is a sum done
+  here). Seen live on `/raise` with the lens on: no `hands(`, no chain mark.
+- **The date's evidence is three mono lines and no new human sentence**: Core's field and its
+  second, the reader's zone, UTC. The zone is in the line itself ("GMT+4", "UTC").
+- **Seconds are shown.** `expiry` is a second, and at that second `thank` is already refused.
+- The words stay functions of a date (`openUntil(date)`); the card cuts the sentence where the
+  date stands and sets the button there, so no sentence was split into halves in `words.ts`.
+
+Run for this round (the dev server reloads whenever another fixer saves a file, so the
+browser tests ran against a build served by `infra/stand/static.ts`):
+
+| Check | Result |
+|---|---|
+| before the fix: `bun test src/ui/words.test.ts`; the three changed gallery tests | 2 unit tests and 3 browser tests failed on the old wording and the missing sources |
+| `cd apps/hand && bun test src/ui` | 32 passed |
+| `STAND_BASE_URL=http://127.0.0.1:24852 bunx playwright test tests/e2e/smoke/gallery.spec.ts` (a build with the example configuration) | 14 passed (phone); with `--project desk` 14 passed |
+| A real chain: the SDK's helper anvil on 24860 with Core, `infra/stand/seed.ts`, the app built for it and served on 24853; Chromium at 390 px, time zone Asia/Tbilisi, English and Russian | hand 4 (open): "open until 29 Jan" opens to `hands(4).expiry = 1801211575`, 12:32:55 GMT+4 and 08:32:55 UTC; hand 3 (thanked) and hand 1 (refunded): `closedAt = 1798619575`. `cast call … hands(uint256)` returned the same three numbers. No console error |
+| `bunx tsc --noEmit -p apps/hand`, `-p tests/e2e` | no error in `src/ui`, `src/gallery`, `src/design` or `gallery.spec.ts` (other packages were mid-edit) |
+
+Screenshots: `knowledge/plan/research/2026-11-20-experiment/shots/round-1/fix-app-design/`
+(`before-*`, `after-*`, `live-*`).
+
+Left for the owners of other files: `tests/e2e/guards/russian.spec.ts` line 112 still expects
+«Кто-то ищет»; `README.md`, `docs/how-it-works.md`, `docs/ru/how-it-works.md` and `docs/app.md`
+quote the old lead-in; `screens/print/{en,ru}.ts` (`print.receipt.lead`) still says "Who got
+what" / «Кто сколько получил».
 
 ## A fault found by running, and fixed
 

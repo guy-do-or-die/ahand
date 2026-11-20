@@ -13,9 +13,9 @@ The frame every screen is mounted in: router, route table, link intake, i18n, de
 | `apps/hand/src/link-intake.ts` | `intake()` reads everything after the first `#` with the address before it into memory, `replaceState`s the address without it, marks `/` as the Hand view; `startIntake()` also runs on `hashchange`. |
 | `apps/hand/src/store/memory.ts` | `remember`, `rememberText(text, via)` (split at the first `#`; no `#` = a bare link or QR digits), `openedLink()`, `addressOf()` (for Copy and Share), `forget()`, `useOpened()`. Memory only. |
 | `apps/hand/src/store/db.ts` | IndexedDB `ahand` v1 with the eight stores of §11; `put/get/remove/all/forHand/handsOf`; `outboxStore()` (the shape of `packages/deliver`'s `OutboxStore`); `loadPrefs/setPref`; `reserveNumber(raiser)`, `bookOf`, `setRepeats`; `vaultKey`, `lockSeed(intent, seed)`, `openSeed(intent)`, `dropSeed(intent)`, `lockedIntents()`; `handKey(chainId, core, handId)`; `deviceClock()` (the one device-clock read, for labelled first-seen times). |
-| `apps/hand/src/i18n/{index,catalogue}.ts` | Glob of `screens/*/{en,ru}.ts` + `common`, a key defined twice refuses to load, `compileMessage` per message; `t`, `useLang`, `setLang` (kept in prefs), `initLang`, `currentLang`, `intlLocale`. `catalogue.ts` is the glob-free half the guards import. |
+| `apps/hand/src/i18n/{index,catalogue,lang-en,lang-ru}.ts` | `lang-en.ts` / `lang-ru.ts` each merge `common` + `screens/*/<lang>.ts` (a key defined twice refuses to load; the dev wallet's catalogue only when `__AHAND_LOCAL__`) and are imported on demand, one chunk per language; `index.ts` compiles each with `compileMessage` when it arrives; `t`, `useLang`, `setLang` (awaits the words, then switches; kept in prefs), `initLang` (async, awaited at boot), `preloadLang`, `currentLang`, `intlLocale`. `catalogue.ts` is the glob-free half the guards import. |
 | `apps/hand/src/i18n/common/{en,ru}.ts` | Shell words, the vocabulary of UX-SPEC §5, the three marks, the four TxRail states and the stand-in tag, hand states, §15 time lines, shared error lines, all 10 `link.*` ids and all 26 `core.*` ids that `messageIdOf` returns. |
-| `apps/hand/src/shell/` | `Shell` (skip button, ribbon, header, main, footer), `ErrorBoundary`, `NotFound`, `GalleryRedirect`, `lens.ts` (`useLens`, `setLens`, `toggleLens`, `?` key, `data-lens="on"` on `<html>`), `theme.ts` (`applyTheme`, `rememberTheme`, `watchTheme`). |
+| `apps/hand/src/shell/` | `Shell` (skip button, header with the local ribbon inside it, main, footer), `ErrorBoundary`, `NotFound`, `GalleryRedirect`, `lens.ts` (`useLens`, `setLens`, `toggleLens`, `?` key, `data-lens="on"` on `<html>`), `theme.ts` (`applyTheme`, `rememberTheme`, `watchTheme`). |
 | `apps/hand/src/testids.ts` | `TID`, about 250 ids grouped by screen (`TID.raise.swipe` = `"raise-swipe"`), plus `TID.kit` for the shared components. Repeated elements keep one id and carry `data-value` / `data-index`. |
 | `apps/hand/tests/guards/` | `secrets`, `clock`, `colour`, `words` (banned words, key parity, ICU, placeholders, key prefixes, «ты»), `store` (fake-indexeddb), `intake` (happy-dom); `files.ts` is the shared scanner. |
 
@@ -62,3 +62,37 @@ Both servers I started (18311, 15150) were stopped by their process ids.
 - `vite.config.ts` defines `__AHAND_LOCAL__` from the configuration's `chain.local` (`isLocalChain()` in `vite.shared.ts`). A build with `local: false` no longer emits the dev-wallet or gallery-redirect chunks (checked by listing `dist/assets`); with the example configuration they are emitted as before.
 - `ThemeToggle` and `Disclose` needed no change: the kit sets `data-theme` (the shell's `watchTheme` keeps it) and reads `data-lens` itself.
 - The footer's short Core address uses the kit's `shortAddress` (same output); the unused `lib/format.ts`, `lib/ens.ts` and `hooks/useEnsIdentity.ts` of the old app were removed.
+
+## Review round 1 fixes
+
+### 1. Every catalogue in the entry chunk (minor) — fixed
+
+Reproduced: a public build (`chain.local: false`) put every screen's words in both languages into `index-*.js`, the dev wallet's sentences included. The new guard `tests/guards/catalogues.test.ts` (runs two real `vite build`s, about 2 s each) failed 5 of 7 before the fix.
+
+- `src/i18n/lang-en.ts` and `lang-ru.ts`: one module per language, each an eager glob of that language only (`screens/*/<lang>.ts` minus `dev-wallet`, plus `dev-wallet` behind `__AHAND_LOCAL__`, so a public build drops it as dead code). Imported with `import()` from `index.ts`: one chunk per language, none in the entry.
+- `initLang(saved)` is async and awaited in `main.tsx` before the first render. `preloadLang()` starts fetching the device language's chunk before boot reads IndexedDB, so the extra round trip overlaps the prefs read. If the wanted language's chunk cannot be fetched the other one is tried; if neither, the ids show (the existing fallback).
+- `setLang(lang)` awaits the words, then calls `i18n.activate`; a later click overtakes an earlier one still loading; a failed fetch keeps the current language and is retried on the next click. Loaded languages are cached; switching back fetches nothing.
+- The common catalogue is in the language chunk too; `ui/Flip.tsx` (not mine) still imports `common/en` and `common/ru` directly, so those two small modules (6.5 kB and 9.7 kB minified) stay in the shared graph. The finding was about the screens' 216 kB, which is gone from the entry.
+- The words guard (key parity, ICU, banned words) still reads the source files and passes unchanged.
+
+Measured after the fix (public build): `lang-en-*.js` 68.6 kB, `lang-ru-*.js` 106.6 kB, neither in the entry; the dev wallet's sentences are in no emitted file. The entry chunk's total size also moved for reasons outside this fix (the gallery entry left public builds in a parallel fix, which merged a shared chunk into the entry), so compare the guard's assertions, not the entry's byte count.
+
+### 2. The ribbon outside every landmark (polish) — fixed
+
+`Header` now renders `<header>` containing the ribbon and then the row (lockup, EN · RU, lens); `Shell` no longer renders the ribbon on its own. Same look (checked by screenshot). Guard: `tests/guards/landmarks.test.tsx` renders the shell with the example (local) configuration and checks the ribbon sits inside the header and the frame's children are the skip button, header, main and footer; it failed on the old `Shell.tsx` and passes now.
+
+### Also
+
+- `tests/guards/secrets.test.ts`: the fetch rule flagged `async fetch(request) {` in `src/wallet/dev.test.ts` (another package's new test: a `Bun.serve` handler, a definition, not a request). The rule now skips method definitions named `fetch`; real calls are still held to a literal same-site path.
+
+### What I ran (round 1)
+
+| Check | Result |
+|---|---|
+| `bun test tests/guards` | 128 pass, 0 fail (9 files) |
+| `bun test` (whole app) | 374 pass, 5 fail; the 5 are in `screens/thank` and `screens/check`, files other fixers are editing right now, none imports `i18n/index.ts` |
+| `bunx tsc --noEmit -p apps/hand` | no error in my paths (errors remain in `screens/waiting/logic.test.ts`, another package mid-edit) |
+| Playwright Chromium against `vite preview` of a local build (port 24951) and a public build (24952), no chain running | EN device: only `lang-en` fetched at start, `/raise` in English; RU click fetches `lang-ru`, then `<html lang="ru">` and Russian text; back to EN fetches nothing; RU kept after reload; RU device: only `lang-ru` fetched at start; `/dev/wallet` on the local build renders its Russian words; no page error except refused RPC connections (no chain was started); axe `region` and landmark rules: 0 violations on both builds; the ribbon is inside `<header>` on the local build and absent on the public one |
+| Screenshots, looked at | `knowledge/plan/research/2026-11-20-experiment/shots/round-1/fix-app-shell/`: local landing EN 1280, `/raise` EN and RU 390, `/dev/wallet` RU 390, public landing RU 390 |
+
+Both preview servers were stopped by their process ids.

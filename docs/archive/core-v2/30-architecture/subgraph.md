@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Subgraph
 
 `packages/subgraph` is a Graph subgraph indexing `AHandCore` on Base Sepolia (manifest network `base-sepolia`, Subgraph Studio target `ahand-base-sepolia`). It has a single datasource — Core; there is no Signals or Witness datasource. It is an application-layer convenience: Core events are the facts, the subgraph is one queryable projection of them, and its outage affects nothing user-facing today.

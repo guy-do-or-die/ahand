@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Architecture decisions
 
 This directory records decisions that would otherwise be easy to reverse accidentally while evolving aHand. An ADR fixes a boundary or principle; detailed ABIs and parameters live in the protocol documents it links.

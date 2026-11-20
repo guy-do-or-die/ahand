@@ -3,7 +3,7 @@
 What the helper sees after two passes (the Deal card, `apps/hand/src/ui/DealCard.tsx`):
 
 ```
-✋  Someone is looking for
+✋  Someone raised a hand:
     a sublet in Yerevan, June.
 
     $40 reward · open until 29 Jan
@@ -52,7 +52,7 @@ The person who knows a flat (account 4, `0x15d3…6A65`) presses "I can help". T
 
 ## 5. Thanks
 
-The asker opens the answer, sees who gets what, and thanks. Without the site:
+The asker opens the answer, sees what will be sent to whom, and thanks. Without the site:
 
 ```sh
 bun tools/ahand.ts thank-calldata "$GIVE" --rpc $RPC --out thank.hex    # Core's checkGive, the payouts, worst gas 973 882
@@ -74,7 +74,7 @@ The balances moved by exactly these amounts (read with `cast call balanceOf` bef
 bun tools/ahand.ts verify --rpc $RPC --core $CORE 14
 ```
 
-23 checks: 22 ok, 1 not checkable here (the description: the words travel only in links), 0 failed. The same check ids appear on the passport page `/31337/14/proof`. The proof saved with `--save` checks again with `verify --bundle` and no network.
+23 checks: 22 ok, 1 not checkable here (the description: the words travel only in links), 0 failed. The same check ids appear on the passport page `/31337/14/proof`. The proof saved with `--save` is a bundle: `verify --bundle` checks its signatures and arithmetic with no network; amounts need the chain, because only the chain can say that the events the bundle carries really happened (`verify --bundle FILE --rpc $RPC` re-reads every event of the file by its block hash, and `hands`, `thanks` and `pending` at its block, and fails on any difference).
 
 ## If nobody is thanked
 

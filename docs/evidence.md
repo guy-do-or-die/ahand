@@ -17,7 +17,9 @@ then every command below once, in this order, from the worktree root, between 10
 test ports moved into 20000–20049 (`SELFTEST_PORT=20000 RELAY_TEST_PORTS=20010-20014
 DELIVER_TEST_PORTS=20015-20024 TOOLS_TEST_PORT_BASE=20025 STAND_STATIC_TEST_PORT=20040
 FIXTURES_TEST_PORT=20042 STAND_TEST_SLOTS=0,9`). Foundry is `~/.foundry/bin` 1.8.6, Bun 1.4.4,
-Playwright 1.65.1 with Chromium 1255. Every exit code was 0.
+Playwright 1.65.1 with Chromium 1255. Every exit code was 0. (Since review round 1 the stand's
+slots can be moved too, with `STAND_PORT_BASE`, and the app's and face's fixed test ports with
+`HAND_TEST_PORT_BASE` and `FACE_TEST_PORT_BASE`; see the README. This run predates them.)
 
 | # | Command | Seconds | Last lines, as printed |
 |---|---|---|---|

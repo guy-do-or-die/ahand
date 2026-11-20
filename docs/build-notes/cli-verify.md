@@ -50,3 +50,26 @@ Every helper chain was stopped by its own `stop()`. The proxy was stopped in `fi
 - No real RPC with log-range limits; not run on Base; the find rate on 216+ windows not measured.
 - `recover` was not run with a smart-account signature (one that need not repeat) or on a TTY, where it asks for Ctrl-D.
 - No screenshots: this package has nothing in a browser.
+
+## Review round 1 fixes
+
+Three findings, all reproduced first. The new tests run the CLI as a child process in a clone of its own (`cloneAt` in `tests/fixtures.ts`: this tool's code copied into a temporary folder, the packages and modules linked, `AHandCore.sol` copied, and `contracts/out` and `contracts/deployments` written by the test). So a test can doctor the build or the deployment files without touching the repository's, which stands and other runs use.
+
+1. **A stale or foreign `contracts/out` was the trust anchor.** Reproduced: run in a clone whose artifact records another `AHandCore.sol`, the pre-fix `verify --rpc … 1` trusted the doctored address and failed with `could not read Hand 1: The contract function "hands" returned no data`. Fixed: `cloneCore()` in `lib/cli.ts` returns the build's address only when `sourceMatches` is true. `trustedCore`, `cloneBuildFacts`, `inspect`'s canonical Core and `core-check` all use it. When the build is stale, the deployment file is trusted, and the header says `…; contracts/out is stale, so it was not used`. With no deployment file, every command fails with core-check's sentence (`no Core to trust: contracts/out was not built from contracts/src/AHandCore.sol as it is now: rebuild it …`). `--core` still decides on its own. Tests: `tests/trust.test.ts` "the trust anchor …", 4 tests (verify, find, inspect, core-check).
+2. **`manifest` and `core-check` did not find a stand's deployment file.** Reproduced: with only `31337-slotN.json` present, `manifest` failed and `core-check` printed "no deployment file". Fixed: `deploymentFileOf()` in `lib/cli.ts` picks, in order: `--deployment`; on chain 31337 with `STAND_SLOT` set, `31337-slot<N>.json` (a missing one is an error that names it); `<chainId>.json`; the chain's only `<chainId>-slot<N>.json`. Several slot files and no `STAND_SLOT` give exit 2, listing them. `manifest` prints `deployment  <file> (<why>)` first, and `core-check`'s line names the file and why. `trustedCore`, `cloneBuildFacts` (verify) and thank-calldata's forwarder lookup use the same order. When the forwarder named in a file has no code on the RPC's chain, the failure names that file. Two choices of mine: `STAND_SLOT` applies only to chain 31337, because stands run only anvil. And `manifest` without `--out` now writes next to the deployment file, named after it (`31337-slot3.manifest.json`), so stand slots no longer share one `31337.manifest.json`. For `31337.json` and `<chainId>.json` the name is unchanged. Tests: `tests/trust.test.ts` "a stand slot's deployment file", 5 tests. The docs (`docs/evidence.md`, `docs/build-notes/docs.md`) already show `--deployment` in the lines they run, so they stay true as written.
+3. **The CLI had its own `unwrap6492`.** Removed. `thank-calldata` imports `unwrap6492` from `packages/sdk/src/wallet.ts` and handles its `undefined` at the call site. A wrapped signature that names no factory call still fails with the same sentence as before. The ERC-6492 thank tests pass unchanged.
+
+`tests/thank.test.ts`'s "without a forwarder" test no longer depends on the repository's deployment files. It used to accept either outcome. It now runs in a clean clone and expects the R-28 sentence. Then it adds a slot file that names a forwarder the chain lacks, and expects the failure to name that file. `cli()` and `cliWithInput()` now drop `STAND_SLOT` from the environment, as they already dropped `RPC` and `CORE`.
+
+### What I ran (round 1)
+
+| Command | Result |
+|---|---|
+| the new `trust.test.ts` against the pre-fix code (HEAD's `tools/*.ts` copied into the clone) | 6 of 8 fail: the doctored build trusted, `manifest` "no deployment file at …/31337.json", `core-check` exit 0 with several slot files |
+| `cd tools && TOOLS_TEST_PORT_BASE=25200 bun test` | 51 pass, 0 fail, 7 files (anvil on 25202 to 25209 only) |
+| `cd tools && bunx tsc --noEmit -p .` | 0 errors |
+| `bun tools/ahand.ts manifest 31337 --app infra/stand/.run/0/dist --out <scratch>` in the worktree while another agent's slot 4 stand was up | `deployment  contracts/deployments/31337-slot4.json (the only stand slot file of chain 31337; …)`, exit 0 |
+| the same after that stand went down | `there is no deployment file for chain 31337 (neither contracts/deployments/31337.json nor a stand slot's): …`, exit 1 |
+| `sha256sum contracts/src/AHandCore.sol` | `118f4d37…d738` |
+
+Not verified: `core-check` against a real stand slot. My range has no stand slot, so I did not run one. The clone tests run `core-check` and `verify` against a real anvil, through a slot-named file. One full run failed the ERC-6492 thank test inside `contracts/exit/ahand.sh` (`Error: Broken pipe (os error 32)` from the exit kit, after this CLI's output had passed its checks). Another package was changing `ahand.sh` at that moment. The next runs passed. No screenshots: nothing here is in a browser.

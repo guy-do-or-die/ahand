@@ -71,3 +71,52 @@ Screenshots, all looked at: `knowledge/plan/research/2026-11-20-experiment/shots
 ## Applied by the integrator (wave 4)
 
 The resolver fix in "Needs" is applied: `apps/hand/vite.shared.ts` drops the `source` condition and both Vite configs read `@ahand/{sdk,abi,deliver}` from their sources by alias (`workspaceAlias`). The stand-in Vite config under `tests/e2e/lib/feat-my/` is deleted; the smoke passes against the stand's own built app on slot 0.
+
+## Review round 1 fixes
+
+### 1. Locked, the screen said there were no answers (major)
+
+Reproduced live before any change: with a give already delivered to the Hand's inbox on the relay, `/my` connected and locked showed `No answers yet` (`shots/round-1/fix-feat-my/before-list-locked-en.png`), and the new smoke test failed on it.
+
+What the screen may say is now one value, `inboxSight` (`logic.ts`): `no-relay`, `locked`, `no-key`, `reading`, `unreachable`, `read`. Only `read` lets a screen say there are none.
+
+- `locked`: "Answers are locked — unlock to check." / «Ответы закрыты — открой доступ, чтобы проверить.» in the list and on the Hand's page. Answers this device already holds from an earlier visit are still counted and shown: "1 answer here — unlock to check for more." in the list, "Unlock to check for new answers." over the cards.
+- `read` means an unlocked read that the relays answered. `reads.ts` keeps, per inbox key and relay, whether the relay ended the stored messages of that subscription (NIP-01 `EOSE`) or could not be read. The transport of `packages/deliver` does not report this, so `inbox.ts` hands it a WebSocket class that watches the frames going by (`TransportOptions.WebSocket`) and changes none. `read` needs every relay to have answered or failed, at least one answered, the arrived answers written to the store, read back and judged by Core. Until then the line is "Checking for answers…".
+- `unreachable` (no relay answered): "No relay can be reached right now, so answers can't be checked."
+- `no-key` (unlocked, but the device has no reply key for the Hand: added by its number with no place in a code, or a non-repeating account with no stored inbox secret): "This device doesn't hold this hand's reply key, so it can't read its answers." Before, this case also read "No answers yet", and the Hand's page told an unlocked account to unlock.
+- `no-relay` builds: the list says "No answers pasted here yet"; the Hand's page keeps its no-relay sentence and no longer adds "Nothing has arrived yet." under it.
+- `useAnswers` returns `{ reads, settled }` and re-reads the store only when an answer was written to it (`useStoredVersion`), not on every thread line or relay mark. An answer the network could not check (`offline`, another package's change in `answers.ts`) keeps the line at "Checking for answers…".
+- `data-state` on `my-answer-count` and on `my-answers` carries the sight for tests.
+
+### 2. English quotes around the helper's words on Russian screens (polish)
+
+Reproduced (`before-answer-quotes-ru.png`). Two catalogue keys, `my.answer.quoted`: `“{words}”` in `en.ts`, `«{words}»` in `ru.ts`; both places in `Answer.tsx` use it. `ui/format.ts` is not this package's file, so the helper went into the catalogue.
+
+### Forks decided
+
+- **How to know a relay was read: a settle timer, a second probe socket, or watching the transport's own socket.** Watching: it is the same subscription, so the relay's end-of-stored mark comes after every stored message on it; a timer would say "none" to a slow relay, a probe could finish before the listener's own socket. The better home is a callback on `listen` in `packages/deliver` (see needs).
+- **Several relays: read when one answered, or when all have answered or failed.** All: a helper's answer may sit on the one relay that has not answered yet.
+- **Locked with answers already stored: hide them, or count them.** Count them and say more may wait: they are real, Core-checked, and a give link holds no secret.
+- **Ports.** The stand's slots have fixed ports (18300–18637) outside the range this fix was given, so `tests/e2e/lib/feat-my/own-stand.ts` brings up the helper chain, the stand's relay and the built app on any base port, and `my.spec.ts` and `shots.ts` take `STAND_FILE` / `--stand`.
+
+### Needs (files not owned)
+
+- `packages/deliver/src/transport.ts`: `listen(secret, onEnvelope, since?, onRead?)` calling `onRead(relayUrl, ok)` on `EOSE` / on a socket closed before it. `reads.ts` and the watched socket could then go. Not required for the fix to work.
+- `apps/hand/src/testids.ts`: nothing new; `data-state` was added to two existing ids.
+
+### What was run (round 1 fix)
+
+Stand of its own on 24600 (anvil), 24601 (relay), 24602 (built app, static.ts): `bun tests/e2e/lib/feat-my/own-stand.ts up --base 24600 --dir <scratch>`.
+
+| Command | Result |
+|---|---|
+| the new smoke tests on the unfixed build | failed as the finding says: `my-answer-count` read "No answers yet" while locked; the RU card held `“…”` |
+| `bun test src/screens/my` (apps/hand) | 21 pass (9 new: the sight, the list and page lines, the words, the read book against a fake socket) |
+| `bunx tsc --noEmit -p apps/hand`, `-p tests/e2e` | no error in this package's files (errors in `screens/hand` came and went while another fixer worked there) |
+| `bun test tests/guards` (apps/hand) | 128 pass, 1 fail: the new lint-directive guard, on `screens/hand` and `ui/Flip.tsx`; none in `screens/my` |
+| `STAND_FILE=… STAND_BASE_URL=http://127.0.0.1:24602 bunx playwright test tests/e2e/smoke/my.spec.ts --repeat-each 2` | 14 passed (7 tests twice) |
+| `bun tests/e2e/lib/feat-my/shots.ts --stand … --site http://127.0.0.1:24602 --out …/shots/round-1/fix-feat-my` | 21 screenshots; looked at the RU and EN phone ones |
+
+What the smoke now proves live: locked, both languages, list and page say locked and never "none", with an answer already on the relay; while unlocking, every text the count line shows is recorded and none is "No answers yet"; the hand nobody answered says "No answers yet" / "Nothing has arrived yet." only at `read`; after a reload the held answer reads "1 answer here — unlock to check for more."; with the relay's WebSocket closed by the browser the line is the unreachable sentence; a Hand added by number says `no-key` once unlocked; the helper's words are `“…”` in EN and `«…»` in RU on both the answer and the refused card.
+
+Not verified: more than one relay live (the two-relay rule is unit-tested only); a relay that accepts the connection and never ends the stored messages (the line stays "Checking for answers…"); a no-relay build in a browser (unit-tested lines only); a private window where the store refuses the write (the answer is then lost, as before this fix, and the line would read "No answers yet"); the `desk` project.

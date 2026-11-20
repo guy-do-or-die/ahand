@@ -93,3 +93,70 @@ Screenshots, all looked at: `knowledge/plan/research/2026-11-20-experiment/shots
 ## Needs (files I do not own)
 
 - `apps/hand/src/testids.ts`: add `proof: { tally: "proof-tally", givehashMatches: "proof-givehash-matches", verifyLine: "proof-verify-line" }`, `check: { agree: "check-agree" }`, `core: { buildLabel: "core-build-label", buildValue: "core-build-value", unaudited: "core-unaudited" }`. The screens use these literal ids now; after the change they should use the constants.
+
+## Review round 1 (2026-11-20): five findings, fixed in this package's files
+
+Written by the AI agent that fixed them. Nothing was committed. Each finding was first reproduced on a build made before the fix (the new e2e tests failed there), then fixed, then run on a dev server and on a built site.
+
+### 1. /check called a thanked Hand's answer thankable (major)
+
+- **Cause.** Step 3 asked only `checkGive`/`checkRoute`. Core's `checkGive` does not look at `closedAt`, the expiry or the caller.
+- **Fix.** `check/index.tsx` reads the latest block once (`chainNow`), then `hands(id)`, `thanks(id)` and Core's answer, all pinned to that block (`pinnedTo` hands the SDK's reads a client that adds the block number). `check/model.ts` `handNow` turns that into one of six states: `open`, `expired`, `thanked-this`, `thanked-other`, `thanked` (a route was pasted) and `refunded`.
+- **On screen.** "The contract accepts this answer." now stands alone, with a line saying that this check does not look at whether the Hand is open. Under it, a box "The hand itself, at the same block" carries the state sentence, a link to the passport for a closed Hand, and its source (`hands(id) · thanks(id) · block · network time`). "The asker can thank this answer" appears only for an open Hand in time.
+- **"This is the answer that was thanked"** is decided by `giveHash(hand, give)` of the pasted Give being equal to `thanks(id).giveHash`. It is computed with the SDK, not taken from Core's return, so it also holds when a contract giver now answers differently.
+
+### 2. /check with the network off (major)
+
+- **Cause.** The early return after a failed `openAddress` left the Core column in `waiting`; the sentence and `kept` both said "Nothing was sent."; the header promised more than can be done offline.
+- **Fix.** One band above the columns says "Can't reach the network right now. Nothing was sent." once, with "Try again" (the pasted text is kept in memory only). The Core column says "Not asked". A link the SDK refuses now also ends the Core column ("Not asked: this link did not open here").
+- **Column 2 offline** is `check/offline.ts`: each pass's share and payee, what the route leaves, the answer's helper and payee, whether the helper's confirmation is a key's or an account's, and the words in the link and in `?d=`, labelled "not compared with the chain". Every row has a dashed "?" and no mark.
+- **Not done, and why: "that the keys follow one another".** The link does not carry a pass's next key; it is recovered from the next confirmation, and a confirmation is made over the Hand's terms, which only the contract has. So nothing about keys can be shown from the bytes alone. The page says exactly that.
+- **The header** now reads "With no network, this page measures its bytes and shows what they say. With the hand's terms read once from the contract, it walks the contract's own checks…".
+- **The lazy chunk.** viem 2.52.0 does `await import("../../utils/ccip.js")` in the handler of every failed `eth_call`. Two guards: /check asks nothing when `navigator.onLine` is false, and `check/ccip.ts` names the helper so the screen's chunk imports it statically (seen in the build: `check-*.js` starts with `import … from "./ccip-*.js"`).
+- **Which errors count as the network** is the chain layer's `isNetworkError` (added by another fixer in this round). Anything else is "The check itself failed here".
+
+### 3. The passport had no transaction line, no Transfers and no block-time checks (minor)
+
+- `proof/sent.ts` reads, beside the SDK's record: the closing transaction's receipt (`from`, `gasUsed`, `effectiveGasPrice`, an L1 fee if the receipt has one), the token's `Transfer` logs from Core in it, and the two blocks of `Raised` and of `Thanked`/`Refunded`.
+- **The transaction line** opens the Payouts part (or "The reward went back"): who sent it, the block, what it cost in ETH and in dollars at the dated price snapshot. It is tagged "For information" and has no verdict. Its evidence lists the receipt's fields and where this Hand's logs and the token's logs stand.
+- **Each `Paid` line** shows the token's own Transfer under it (token, to, amount, log index), matched by payee, amount and place: between the Hand's event before the `Paid` and the `Paid` itself. A `Pending` line shows none.
+- **Two more checks:** `time.opened` (`block(Raised).timestamp = hands(id).openedAt`) and `time.closed` (`block(Thanked or Refunded).timestamp = hands(id).closedAt`). A time that could not be read is "not checkable", never failed.
+- **The downloaded file** holds these facts under `extra` (`format: "aHand.proof-page/1"`). The SDK's `readBundle` ignores unknown keys, so `verifyBundle` and the CLI still pass; they do not check the two time lines. The note under the button says so.
+
+### 4. /core's "about 70" (minor)
+
+The record's sentence stays word for word. Under it, in mono: "With this site's default of 250 thousand gas per payout: 55 paid passes at worst." The number is `passesLeft` from an empty route at `config.defaults.payoutGasK`, computed at run time (`core/facts.ts` `paidPassesAtWorst`).
+
+### 5. Passport check 1 without its caveat (polish)
+
+The first line now says "The factory, the salt and the code's hash come with this site…". Its evidence carries the from-a-clone command (the same `reproduceLine` /core prints) and, as information, the runtime code hash and the factory's code hash read at the record's block, with a sentence that they are recorded and are not the proof (D-10).
+
+### What I ran (2026-11-20, this machine)
+
+The stand's slots use ports outside my range, so I ran the SDK's helper chain on 24800 (`anvil.ts --serve --write-stand --write-config`), Vite on 24801 and a built copy served by `infra/stand/static.ts` on 24802. `proof.spec.ts` now takes `STAND_FILE` for `craft.ts` as well as for the seed.
+
+| Command | Result |
+|---|---|
+| new /check and offline tests against the build made **before** the fix | failed as the findings describe: no state line; Core column stuck in `waiting` |
+| `STAND_FILE=… STAND_BASE_URL=http://127.0.0.1:24802 bunx playwright test tests/e2e/smoke/proof.spec.ts --project phone --project desk` (built site) | 20 passed |
+| the same against the dev server on 24801, `phone` | 10 passed |
+| `cd apps/hand && bun test tests/guards src/screens/{proof,check,core}` | 180 pass, 0 fail |
+| `bunx tsc --noEmit -p apps/hand` | exit 0 |
+| `bun tools/ahand.ts verify --bundle <the file the page downloaded>` | 18 checks: 17 ok, 1 not checkable, 0 failed (the page shows those 18 and its own 2) |
+| `sha256sum contracts/src/AHandCore.sol` | `118f4d37…d738` |
+
+Screenshots, looked at: `knowledge/plan/research/2026-11-20-experiment/shots/round-1/fix-proof-pages/` (three `before-*`, then /check on a thanked, expired, refunded and open Hand, /check offline in light and dark, the passport plain and with the lens, /core; EN and RU at 390 and 1280 px; none overflows sideways).
+
+### Not verified
+
+- A `time.*` line that **fails**, and a Paid line with **no** Transfer: the chain gives neither. Both are unit-tested (`proof/sent.test.ts`).
+- The L1 fee on a receipt: the local chain has none. The field is read if present; unit-tested only.
+- /check's "The check itself failed here" state was not produced in a browser.
+- The Russian of the new sentences is mine; the owner has not read it.
+
+### Needs (files I do not own)
+
+- `packages/sdk/src/proof.ts`: take `proof/sent.ts` in. `collect` should read the receipt fields, the token's Transfers and the two block times into `HandRecord`; `passportOf` should produce `time.opened` and `time.closed`; `bundleSchema` should carry them. Then the page drops `readPageFacts`/`timeChecks` and the bundle's and the CLI's checks equal the page's again.
+- `apps/hand/src/screens/limits/{en,ru}.ts` and its screen: under `limits.length.say`, this build's own figure, in that page's words (no "gas" there): "With this site's setting, that is 55 paid shares." / «При настройке этого сайта это 55 оплаченных долей.», computed with `passesLeft` at `config.defaults.payoutGasK`.
+- `apps/hand/src/chain/clients.ts`: reference viem's `offchainLookup` there, so every screen's failed `eth_call` finds the helper loaded, not only /check's.
+- `apps/hand/src/testids.ts`: `check: { handNow: "check-hand-now", passport: "check-passport", offline: "check-offline", offlineBand: "check-offline-band", offlinePass: "check-offline-pass", retry: "check-retry" }`, `proof: { sent: "proof-sent", move: "proof-move", coreCaveat: "proof-core-caveat", coreCommand: "proof-core-command", codeHashes: "proof-code-hashes" }`, `core: { limitHere: "core-limit-here" }`. The screens use these literals now.

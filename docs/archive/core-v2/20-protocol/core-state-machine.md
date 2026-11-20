@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Core state machine
 
 `AHandCore` is the escrow and settlement engine. One deployment binds a single immutable `rewardToken` (an ERC-20 whose `decimals` is read once at construction) and its `usdScale = 10**(18 - decimals)`, snapshotted into every Hand at raise. There is no proxy, no pause switch, no protocol fee, and no `receive()` or `fallback()`. Four entry points mutate state — `raise`, `thank`, `reclaim`, `withdraw` — and all four are guarded by a transient-storage reentrancy lock (`Reentrancy`).

@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Glossary
 
 Terms in this file are canonical. Contracts, SDK types, UI labels, and subgraph entities use them consistently.

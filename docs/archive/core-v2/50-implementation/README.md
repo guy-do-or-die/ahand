@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Implementation
 
 The protocol is implemented and running: contracts on Base Sepolia, a TypeScript SDK, the web app at https://ahand.in, a subgraph, and local tooling.

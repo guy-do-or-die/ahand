@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # ENS
 
 ENS is an optional, client-side display layer. Nothing in the contracts reads, writes, or depends on ENS, and no protocol action requires a name.

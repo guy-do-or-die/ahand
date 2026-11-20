@@ -44,7 +44,7 @@ The thank's calldata comes from the give link:
 bun tools/ahand.ts thank-calldata "<give address>" --rpc $RPC --out thank.hex
 ```
 
-It asks Core's `checkGive`, prints who gets what, the worst gas (pass it as `--gas-limit`, so every payee gets its whole payout gas) and the ready `ahand.sh` line. For a 6492-wrapped answer from an account with no code it prints, first, a `cast send` to the forwarder that sets the account up, then the thank calldata with the inner signature. `bun tools/ahand.ts pass "<live address>" --rpc $RPC` passes a link on with no site; `bun tools/ahand.ts verify --rpc $RPC --core $CORE <handId>` checks a Hand's whole proof.
+It asks Core's `checkGive`, prints what will be sent to whom, the worst gas (pass it as `--gas-limit`, so every payee gets its whole payout gas) and the ready `ahand.sh` line. For a 6492-wrapped answer from an account with no code it prints, first, a `cast send` to the forwarder that sets the account up, then the thank calldata with the inner signature. `bun tools/ahand.ts pass "<live address>" --rpc $RPC` passes a link on with no site; `bun tools/ahand.ts verify --rpc $RPC --core $CORE <handId>` checks a Hand's whole proof.
 
 `bash contracts/exit/selftest.sh` proves refund, pending, withdraw both ways, extend, fund and thank on a fresh local chain (set `SELFTEST_PORT`).
 

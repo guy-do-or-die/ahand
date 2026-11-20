@@ -1,3 +1,5 @@
+> **These pages describe an earlier Core. They are kept for history.** The current documentation starts at [`README.md`](../../../../README.md).
+
 # Invariants and threat model
 
 The invariants below are enforced by the code in `contracts/src` and verified by the Foundry suite in `contracts/test`; the file map at the end names which test covers what.
