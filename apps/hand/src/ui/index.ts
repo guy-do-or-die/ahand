@@ -8,6 +8,7 @@ export { WORDS, useWords, wordsOf, type Words } from "./words";
 export { count, day, minute, money, percent, shortAddress, unitsText } from "./format";
 
 export { AddressInput, type AddressInputProps } from "./AddressInput";
+export { Flip, type FlipProps } from "./Flip";
 export { ChainRail, type ChainRailProps, type RailHand, type RailRoute } from "./ChainRail";
 export { ChipRow, type ChipOption, type ChipRowProps } from "./ChipRow";
 export { CopyRow, type CopyRowProps } from "./CopyRow";

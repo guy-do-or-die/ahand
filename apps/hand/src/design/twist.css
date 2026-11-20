@@ -1,5 +1,364 @@
 /*
- * aHand: the twist (UX-SPEC §3). Flip and Sweep are written here in wave 5.
- * Kept as its own file so that work touches no other stylesheet. Tokens only; no raw colours,
- * no shadows.
+ * aHand: the twist (UX-SPEC §3, D-54). Every hand turns over: the flip card (ui/Flip.tsx) and
+ * its backs (ShakeBack, GiveBack, the asker's terms, a receipt row's formula), and the marker
+ * sweep drawn by the receipt table (ui/Sweep.tsx). Tokens only; no raw colours, no shadows.
+ * Amber is only ever a fill with ink over it.
  */
+
+/* ── Flip: a two-sided card ──────────────────────────────────────────── */
+.ah-flip {
+  position: relative;
+  perspective: 1000px;
+  border-radius: var(--r-chip-lg);
+}
+/* The button that turns the card keeps the focus while it faces away, so the ring is drawn on
+   the card, which never turns. */
+.ah-flip:has(.ah-flip__front:focus-visible) {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+.ah-flip__card {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 360ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.ah-flip--flipped > .ah-flip__card {
+  transform: rotateY(180deg);
+}
+.ah-flip__face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.ah-flip__front {
+  display: block;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.ah-flip__front:focus-visible {
+  outline: none; /* drawn on .ah-flip, which does not turn */
+}
+.ah-flip__back {
+  transform: rotateY(180deg);
+  cursor: pointer;
+}
+.ah-flip__back[hidden] {
+  display: none;
+}
+/* Only the side facing up takes a tap. */
+.ah-flip--flipped .ah-flip__front,
+.ah-flip:not(.ah-flip--flipped) .ah-flip__back {
+  pointer-events: none;
+}
+.ah-flip__hint {
+  margin: 10px 0 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-xs);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* On the rail: the hand is a 44px target; its back is a card on the rail itself. */
+.ah-flip--rail .ah-flip__front {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  border-radius: var(--r-chip-lg);
+  transition: background-color var(--dur-hover);
+}
+.ah-flip--rail .ah-flip__front .ah-rail__hand {
+  justify-content: flex-end;
+  min-height: 44px;
+}
+.ah-flip--rail:not(.ah-flip--flipped) .ah-flip__front:hover {
+  background: var(--ink-a08);
+}
+/* A hand that can turn says so with a dashed foot: "there is more under this". */
+.ah-flip--rail .ah-rail__name {
+  text-decoration: underline dashed var(--ink-a30);
+  text-underline-offset: 3px;
+}
+.ah-flip--rail .ah-flip__back {
+  width: min(320px, calc(100vw - 64px));
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card-sm);
+  padding: 14px;
+  background: var(--card);
+}
+/* With cards that turn, the rail hangs from the top: a turned card grows downwards and the
+   other hands stay where they were, joined at the height of the gestures. */
+.ah-rail--flips {
+  align-items: flex-start;
+  scroll-padding: 0 8px;
+}
+.ah-rail--flips .ah-rail__item {
+  align-items: flex-start;
+}
+.ah-rail--flips .ah-rail__line {
+  margin: 34px 5px 0;
+}
+.ah-rail--flips .ah-rail__you {
+  margin-top: 27px;
+}
+.ah-rail--flips .ah-rail__slot {
+  margin-top: 22px;
+}
+
+/* In a receipt: one row turns; its back spans the table's width. */
+.ah-flip--row {
+  border-radius: var(--r-chip);
+}
+.ah-flip--row .ah-flip__front {
+  width: 100%;
+}
+.ah-flip--row .ah-flip__back {
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-lg);
+  padding: 10px 12px;
+  margin: 4px 0;
+  background: var(--card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-flip__card,
+  .ah-flip--rail .ah-flip__front {
+    transition: none;
+  }
+}
+
+/* ── The back: machine truth, in mono ───────────────────────────────── */
+.ah-back {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  line-height: 1.5;
+  color: var(--ink);
+  text-align: left;
+  white-space: normal;
+  cursor: auto;
+}
+.ah-back__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+.ah-back__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ah-back__fact dt,
+.ah-back__label {
+  margin: 0;
+  font-size: var(--fs-mono-xs);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.ah-back__label {
+  margin-top: 6px;
+}
+.ah-back__fact dd {
+  margin: 0;
+  font-weight: var(--fw-medium);
+}
+.ah-back__line {
+  display: block;
+  margin: 0;
+}
+.ah-back__exact {
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+.ah-back__steps,
+.ah-back__events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-back__step {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: baseline;
+}
+.ah-back__step[data-shown="false"] {
+  color: var(--ink-a40);
+}
+.ah-back__tick {
+  font-weight: var(--fw-bold);
+}
+.ah-back__name {
+  color: var(--ink-quiet);
+}
+.ah-back__core {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: var(--bw-hair) solid var(--ink-a15);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+.ah-back__core .ah-back__label {
+  margin-top: 0;
+}
+.ah-back__answer {
+  margin: 0;
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+/* Core's yes, said in ink fill: the "on chain" mark's own shape. */
+.ah-back__core[data-status="ok"] .ah-back__answer {
+  align-self: flex-start;
+  border-radius: var(--r-chip-sm);
+  padding: 2px 6px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.ah-back__verdict {
+  align-self: flex-start;
+  margin: 2px 0 0;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-sm);
+  padding: 2px 6px;
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+}
+.ah-back__verdict[data-status="match"] {
+  background: var(--amber);
+  color: var(--on-amber);
+}
+.ah-back__verdict[data-status="differ"] {
+  border-style: dashed;
+}
+.ah-back__events li {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── The receipt's rows as cards ─────────────────────────────────────── */
+.ah-receipt--flips td.ah-receipt__cell {
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.ah-receipt__line {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 0;
+}
+.ah-receipt__what {
+  min-width: 0;
+  font-family: var(--font-meta);
+  font-size: 11.5px;
+  letter-spacing: var(--track-mono-sm);
+  line-height: 1.5;
+  text-transform: uppercase;
+  text-decoration: underline dashed var(--ink-a30);
+  text-underline-offset: 3px;
+}
+.ah-receipt__sum {
+  flex-shrink: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.ah-receipt__sum.ah-receipt__none {
+  flex-shrink: 1;
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-medium);
+  color: var(--ink-quiet);
+  white-space: normal;
+}
+.ah-receipt__row--highlight .ah-receipt__line {
+  min-height: 44px;
+}
+.ah-receipt__row--highlight .ah-receipt__what {
+  color: var(--ink);
+}
+.ah-receipt__row--highlight .ah-receipt__sum {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-heavy);
+}
+.ah-receipt--flips tr[data-landed="false"] .ah-receipt__line {
+  color: var(--ink-quiet);
+}
+.ah-receipt--flips .ah-receipt__row--highlight .ah-receipt__what {
+  font-weight: var(--fw-medium);
+}
+
+/* ── The marker sweep ────────────────────────────────────────────────── */
+/* A marker stroke runs along the foot of the row, left to right, and stays there. It never
+   lies behind the row's words: amber carries ink-on-amber text only, and in the dark theme the
+   row's words are paper-coloured. The finished state is the stroke's own style, so with no
+   animation (less motion) a swept row simply shows it. */
+.ah-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  border-radius: var(--r-bar);
+  background: var(--amber);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.ah-sweep--idle {
+  visibility: hidden;
+}
+.ah-sweep--sweeping {
+  animation: ah-sweep 420ms cubic-bezier(0.5, 0, 0.3, 1) both;
+}
+@keyframes ah-sweep {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+/* 🙏 bows twice beside the helper's chip, then rests. */
+.ah-sweep__bow {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--emoji);
+  font-size: 18px;
+  line-height: 1;
+  vertical-align: middle;
+  transform-origin: 50% 90%;
+  animation: ah-bow 1.2s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-sweep--sweeping,
+  .ah-sweep__bow {
+    animation: none;
+  }
+}
