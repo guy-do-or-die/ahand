@@ -10,7 +10,7 @@ let raised: Raised;
 let faced: string;
 
 beforeAll(async () => {
-  chain = await chainOn(15251);
+  chain = await chainOn(18357);
   raised = await raise(chain, { content: "Twice a week, evenings.\nBeginner, adult." });
   faced = await liveAddress(chain, raised, "faced");
 }, 60_000);

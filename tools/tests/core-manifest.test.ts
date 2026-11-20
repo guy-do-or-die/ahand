@@ -12,7 +12,7 @@ let chain: Chain;
 const scratch = mkdtempSync(join(tmpdir(), "ahand-tools-core-"));
 
 beforeAll(async () => {
-  chain = await chainOn(15253);
+  chain = await chainOn(18352);
 }, 60_000);
 
 afterAll(async () => {
@@ -64,9 +64,9 @@ describe("core-check", () => {
     const other = cli("core-check", "--rpc", chain.rpc, "--deployment", writeDeployment("chain.json", { chainId: 8453, tokens: [], forwarder: null, accountFactory: null }));
     expect(other.status).toBe(1);
     expect(other.stderr).toContain("describes chain 8453");
-    const down = cli("core-check", "--rpc", "http://127.0.0.1:15298");
+    const down = cli("core-check", "--rpc", "http://127.0.0.1:18398");
     expect(down.status).toBe(1);
-    expect(down.stderr).toBe("ahand: the RPC at http://127.0.0.1:15298 did not answer\n");
+    expect(down.stderr).toBe("ahand: the RPC at http://127.0.0.1:18398 did not answer\n");
   });
 });
 

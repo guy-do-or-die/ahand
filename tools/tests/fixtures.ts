@@ -11,6 +11,8 @@ import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 import {
   createWalletClient,
   encodeFunctionData,
+  hexToBigInt,
+  hexToBytes,
   http,
   serializeErc6492Signature,
   zeroHash,
@@ -22,7 +24,8 @@ import { foundry } from "viem/chains";
 
 import { toAddress, type AddressShape } from "../../packages/sdk/src/address.ts";
 import { dataHashOf, textValue, type Statement } from "../../packages/sdk/src/data.ts";
-import { encodeGive, encodeLive, keyOfSeed, newSeed, openLink, packAttachments, type Attachments, type OpenedLink } from "../../packages/sdk/src/link.ts";
+import { thankCalldata } from "../../packages/sdk/src/gas.ts";
+import { encodeGive, encodeLive, keyOfSeed, newSeed, openLink, packAttachments, toText, type Attachments, type OpenedLink } from "../../packages/sdk/src/link.ts";
 import { signGiveWithKey } from "../../packages/sdk/src/sign.ts";
 import { domain, type Give, type Hand } from "../../packages/sdk/src/types.ts";
 
@@ -30,7 +33,7 @@ export const REPO = resolve(import.meta.dir, "../..");
 export const SITE = "http://127.0.0.1:15299";
 export const FOUNDRY_BIN = process.env.FOUNDRY_BIN || join(process.env.HOME ?? "", ".foundry/bin");
 
-/** This package's ports are 15250 to 15299; each test file takes its own. */
+/** Each test file takes its own port of 18352 to 18358 (wave 5's range is 18350-18399, but stand slots 5 to 9 serve on 183N0 and 183N1). */
 export function chainOn(port: number): Promise<Chain> {
   return startChain({ port });
 }
@@ -45,13 +48,13 @@ export interface Raised {
 }
 
 /** Raises a Hand in MockUSD from anvil account `raiser` with a fresh seed, its words hashed into dataHash. */
-export async function raise(chain: Chain, options: { raiser?: number; reward?: bigint; minClaimBps?: number; days?: number; title?: string; content?: string } = {}): Promise<Raised> {
+export async function raise(chain: Chain, options: { raiser?: number; reward?: bigint; minClaimBps?: number; days?: number; title?: string; content?: string; seed?: Hex } = {}): Promise<Raised> {
   const raiserKey = ANVIL_KEYS[options.raiser ?? 1]!;
   const account = privateKeyToAccount(raiserKey);
   const wallet = createWalletClient({ account, chain: foundry, transport: http(chain.rpc) });
   const token = chain.tokens.find((t) => t.kind === "usd")!.address;
   const reward = options.reward ?? 100_000_000n;
-  const seed = newSeed();
+  const seed = options.seed ?? newSeed();
   const rootKey = privateKeyToAddress(keyOfSeed(seed));
   const title = options.title ?? "Looking for a violin teacher in Tbilisi";
   const texts = options.content ? [title, options.content] : [title];
@@ -153,6 +156,43 @@ export function cli(...args: string[]): Run {
   delete env.CORE;
   const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: REPO, env, encoding: "utf8", timeout: 60_000 });
   return { status: run.status ?? -1, stdout: run.stdout, stderr: run.stderr };
+}
+
+/** Runs the CLI with `input` on its standard input (for `recover`, which reads the signature there). */
+export function cliWithInput(input: string, ...args: string[]): Run {
+  const env = { ...process.env };
+  delete env.RPC;
+  delete env.CORE;
+  const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: REPO, env, input, encoding: "utf8", timeout: 120_000 });
+  return { status: run.status ?? -1, stdout: run.stdout, stderr: run.stderr };
+}
+
+/** Sends `thank` for a give address as the raiser, straight through viem (what the app's /thank does). */
+export async function thank(chain: Chain, raised: Raised, give: string): Promise<Hex> {
+  const opened = await openWith(chain, give, raised.hand);
+  if (!opened.signedGive) throw new Error("not a give address");
+  const account = privateKeyToAccount(raised.raiserKey);
+  const wallet = createWalletClient({ account, chain: foundry, transport: http(chain.rpc) });
+  const data = thankCalldata(raised.hand.handId, opened.signedShakes, opened.signedGive);
+  const hash = await wallet.sendTransaction({ to: chain.core, data });
+  const receipt = await chain.client.waitForTransactionReceipt({ hash, pollingInterval: 50 });
+  if (receipt.status !== "success") throw new Error(`thank ${hash} reverted`);
+  return hash;
+}
+
+/** Moves the chain's clock forward and mines one block. */
+export async function advance(chain: Chain, seconds: number): Promise<void> {
+  await chain.client.request({ method: "evm_increaseTime" as never, params: [seconds] as never });
+  await chain.client.request({ method: "evm_mine" as never, params: [] as never });
+}
+
+/** Every way a secret could leak into text: hex (any case, with or without 0x), base64url, decimal digits. */
+export function leaks(output: string, secret: Hex): string[] {
+  const found: string[] = [];
+  if (output.toLowerCase().includes(secret.slice(2).toLowerCase())) found.push("hex");
+  if (output.includes(toText(hexToBytes(secret)))) found.push("base64url");
+  if (output.includes(hexToBigInt(secret).toString(10))) found.push("digits");
+  return found;
 }
 
 /** Runs a shell line (bash), with extra environment. */

@@ -25,7 +25,7 @@ let chain: Chain;
 const scratch = mkdtempSync(join(tmpdir(), "ahand-tools-thank-"));
 
 beforeAll(async () => {
-  chain = await chainOn(15252);
+  chain = await chainOn(18358);
 }, 60_000);
 
 afterAll(async () => {

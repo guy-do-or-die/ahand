@@ -4,5 +4,5 @@
     "lib": ["ES2023", "DOM"],
     "types": ["bun"]
   },
-  "include": ["*.ts", "tests"]
+  "include": ["*.ts", "lib", "tests"]
 }

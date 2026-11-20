@@ -2,13 +2,13 @@
 /**
  * aHand from a clone: no site, no published package, no server. Run from the repository:
  *
- *   bun tools/ahand.ts <command> [arguments] [options]
+ *   bun tools/ahand.ts <command> [arguments] [options]      (bun tools/ahand.ts help lists them)
  *
- * It uses the parts of the SDK that are frozen with the link format (link, address, gas, verify,
- * sign, data), viem and the ABIs, and it reads time from the chain's latest block, never from
- * this machine's clock. It never prints a link's secret: a live link's seed shows only as
- * "secret: present (16 bytes)". The one command that prints a secret is `pass`, whose output is
- * the new link itself; it prints it once, on standard output, and nothing else there.
+ * It uses the SDK, viem and the ABIs, and it reads time from the chain's latest block, never from
+ * this machine's clock. It never prints a secret unless a command's own explicit option asks for
+ * it: a live link's seed shows only as "secret: present (16 bytes)". `pass` prints the new link
+ * (its output is the link itself), once, on standard output; `recover` prints a rebuilt link only
+ * with --print-link. Everything the site proves, `verify` proves from here (D-51).
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -18,14 +18,10 @@ import { AHandCoreAbi, ForwarderAbi } from "@ahand/abi";
 import {
   BaseError,
   ContractFunctionRevertedError,
-  createPublicClient,
   decodeErrorResult,
   decodeFunctionResult,
   encodeFunctionData,
-  formatUnits,
   getAddress,
-  http,
-  isAddress,
   isAddressEqual,
   isErc6492Signature,
   parseAbi,
@@ -35,7 +31,6 @@ import {
   zeroHash,
   type Address,
   type Hex,
-  type PublicClient,
 } from "viem";
 
 import { openAddress, seenIn, toAddress, type AddressShape, type SeenAddress } from "../packages/sdk/src/address.ts";
@@ -58,6 +53,10 @@ import {
 import { EIP712_DOMAIN_NAME, EIP712_DOMAIN_VERSION, type Hand, type SignedGive } from "../packages/sdk/src/types.ts";
 import { isKeySignature } from "../packages/sdk/src/verify.ts";
 import { textValue } from "../packages/sdk/src/data.ts";
+import { Fail, addressFlag, amountOf, clean, connect, group, parseArgs, pct, span, trustedCore, utc, type Args, type Chain, type TrustedCore } from "./lib/cli.ts";
+import { findCommand } from "./lib/find.ts";
+import { recoverCommand } from "./lib/recover.ts";
+import { verifyCommand } from "./lib/verify.ts";
 import {
   CORE_SALT,
   CREATE2_FACTORY,
@@ -69,100 +68,67 @@ import {
   reproduceCommand,
 } from "./manifest.ts";
 
+export { Fail };
 
-/* ------------------------------------------------------------------ basics */
-
-/** A failure the person can act on: printed as one plain sentence, exit status 1. */
-export class Fail extends Error {
-  constructor(message: string, readonly status = 1) {
-    super(message);
-    this.name = "Fail";
-  }
-}
-
-const USAGE = `aHand from a clone: bun tools/ahand.ts <command> ...
+/** Every command with one example. `help` prints it; a test checks that each command is named. */
+export const USAGE = `aHand from a clone: bun tools/ahand.ts <command> ... (no site, no published package)
 
   inspect <address-or-link> [--rpc URL] [--core 0x...]
       The link's head, each pass (payee, share, key), where it ends, its sizes, and with an RPC
       the Hand's state by the latest block's time. Never prints the link's secret.
+      e.g. bun tools/ahand.ts inspect 'https://site/31337/7#AQ...' --rpc http://127.0.0.1:8545
+
   thank-calldata <give-address> --rpc URL [--core 0x...] [--forwarder 0x...] [--out FILE]
       Asks Core's checkGive and prints the calldata for contracts/exit/ahand.sh thank, with the
       worst gas. For a giver's account that is not deployed yet (ERC-6492): first a cast send line
       that sets it up through the forwarder, then the thank calldata with the inner signature.
+      e.g. bun tools/ahand.ts thank-calldata 'https://site/31337/7#BQ...' --rpc $RPC --out thank.hex
+
   pass <live-address> --rpc URL [--share-bps N --payee 0x...] [--core 0x...]
       Passes a live link on without any site and prints the new address (and only it) on stdout.
+      e.g. bun tools/ahand.ts pass 'https://site/31337/7#AQ...' --rpc $RPC --share-bps 1000 --payee 0xYou
+
   manifest <chainId> [--deployment FILE] [--app DIR] [--out FILE]
       Writes contracts/deployments/<chainId>.manifest.json: the deployment, the commit, the dirty
       flag, the compiler settings, the SDK version, and the hash of a built app folder.
+      e.g. bun tools/ahand.ts manifest 8453 --app apps/hand/dist
+
   core-check --rpc URL [--deployment FILE]
       Recomputes the initcode hash from contracts/out, derives the CREATE2 address, compares it
       with the deployment, and checks the code and the EIP-712 domain on chain.
+      e.g. bun tools/ahand.ts core-check --rpc $RPC
+
+  verify --rpc URL [--core 0x...] <handId> [--give ADDRESS] [--between] [--details] [--save FILE]
+  verify --bundle FILE [--details]
+      The Hand's passport, check by check, the same checks and ids as the site's proof page: one
+      line each with ok, FAIL or "not checkable" and its sentence. Exit 0 only when none failed.
+      With --bundle, the same from a saved proof with no network. --give adds a give address so
+      the description and signatures are checked from it; --save writes the bundle; --between
+      reads the blocks between the raise and the closing however many requests that takes.
+      e.g. bun tools/ahand.ts verify --rpc $RPC --core $CORE 7
+           bun tools/ahand.ts verify --bundle hand-7.proof.json
+
+  find --rpc URL [--core 0x...] --raiser 0x... [--days N] [--chunk BLOCKS]
+      Every Hand a raiser opened in the last N days (default 1, by the chain's time): Raised logs
+      filtered by the raiser, in windows of 2 000 blocks (a day of Base is about 216). Prints the
+      number of requests before the first, shows progress, and Ctrl-C stops it and prints what was
+      found. Each Hand with its number, state and reward. An indexer would replace this search.
+      e.g. bun tools/ahand.ts find --rpc $RPC --raiser 0xRaiser --days 7
+
+  recover --book HEX [--max N] --rpc URL [--core 0x...] <handId> [--print-link [--site URL]]
+      Rebuilds a Hand's root key from the raiser's keys signature, read from standard input (never
+      from an argument, so it stays out of shell history), and the device's book (its 16-character
+      code). Prints whether a number n was found and the root key's first characters; only with
+      --print-link the live link itself, under a warning.
+      e.g. pbpaste | bun tools/ahand.ts recover --book 0x1f2e3d4c5b6a7980 --rpc $RPC 7
+
+  help
+      This list.
 
   --rpc defaults to $RPC and --core to $CORE, as in contracts/exit/ahand.sh. Without --core the
   trusted Core is the one this clone builds: create2(factory, salt, initcode of contracts/out).`;
 
-interface Args {
-  positional: string[];
-  flags: Map<string, string>;
-}
-
-const VALUE_FLAGS = ["--rpc", "--core", "--forwarder", "--share-bps", "--payee", "--deployment", "--app", "--out"];
-
-function parseArgs(argv: string[]): Args {
-  const positional: string[] = [];
-  const flags = new Map<string, string>();
-  for (let index = 0; index < argv.length; index++) {
-    const arg = argv[index]!;
-    if (arg === "-h" || arg === "--help") {
-      flags.set("--help", "");
-    } else if (arg.startsWith("--")) {
-      const [name, inline] = arg.includes("=") ? [arg.slice(0, arg.indexOf("=")), arg.slice(arg.indexOf("=") + 1)] : [arg, undefined];
-      if (!VALUE_FLAGS.includes(name)) throw new Fail(`unknown option ${name}; see bun tools/ahand.ts --help`, 2);
-      const value = inline ?? argv[++index];
-      if (value === undefined || value === "") throw new Fail(`${name} needs a value`, 2);
-      flags.set(name, value);
-    } else {
-      positional.push(arg);
-    }
-  }
-  return { positional, flags };
-}
-
-function addressFlag(args: Args, name: string, env?: string): Address | undefined {
-  const value = args.flags.get(name) ?? (env ? process.env[env] || undefined : undefined);
-  if (value === undefined) return undefined;
-  if (!isAddress(value, { strict: false })) throw new Fail(`${name} is not an address: ${clean(value)}`, 2);
-  return getAddress(value);
-}
-
-/** Text that came from a link or a chain, made safe for a terminal: no control or direction characters. */
-function clean(text: string, max = 120): string {
-  const unsafe = new RegExp("[\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]", "g");
-  const safe = text.replace(unsafe, (char) =>
-    char === "\n" ? "\\n" : char === "\t" ? "\\t" : `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
-  return safe.length > max ? `${safe.slice(0, max)}…` : safe;
-}
-
-function pct(bps: number | bigint): string {
-  const value = Number(bps) / 100;
-  return `${Number.isInteger(value) ? value : value.toFixed(2).replace(/0$/, "")}%`;
-}
-
-function utc(seconds: number): string {
-  return `${new Date(seconds * 1000).toISOString().replace("T", " ").replace(/\.\d+Z$/, "")} UTC`;
-}
-
-function span(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${d ? `${d}d ` : ""}${d || h ? `${h}h ` : ""}${m}m`;
-}
-
-function group(n: number | bigint): string {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-}
+/* ------------------------------------------------------------------ basics */
 
 function castPath(): string {
   const path = join(process.env.FOUNDRY_BIN || join(homedir(), ".foundry/bin"), "cast");
@@ -224,56 +190,10 @@ function refusalOf(error: unknown): string | undefined {
 
 /* ------------------------------------------------------------------- chain */
 
-interface Chain {
-  rpc: string;
-  client: PublicClient;
-  chainId: number;
-}
-
-async function connect(args: Args, required: boolean): Promise<Chain | undefined> {
-  const rpc = args.flags.get("--rpc") ?? (process.env.RPC || undefined);
-  if (!rpc) {
-    if (required) throw new Fail("this command needs the chain: give --rpc URL (or set RPC)", 2);
-    return undefined;
-  }
-  if (!/^https?:\/\//.test(rpc)) throw new Fail(`--rpc is a web address (http:// or https://), not ${clean(rpc)}`, 2);
-  const client = createPublicClient({ transport: http(rpc, { retryCount: 1, timeout: 15_000 }) }) as PublicClient;
-  let chainId: number;
-  try {
-    chainId = await client.getChainId();
-  } catch {
-    throw new Fail(`the RPC at ${clean(rpc)} did not answer`);
-  }
-  return { rpc, client, chainId };
-}
-
 /** The latest block: the only clock this tool reads. */
 async function chainNow(chain: Chain): Promise<{ number: bigint; timestamp: number }> {
   const block = await chain.client.getBlock({ blockTag: "latest" });
   return { number: block.number, timestamp: Number(block.timestamp) };
-}
-
-interface TrustedCore {
-  core: Address;
-  /** How this tool came to trust it. */
-  source: string;
-}
-
-/**
- * The Core this run reads and trusts: the one given, else the one this clone builds (its CREATE2
- * address from contracts/out: the derivation of D-10), else the deployment file of the chain.
- */
-function trustedCore(args: Args, chainId: number): TrustedCore {
-  const given = addressFlag(args, "--core", "CORE");
-  if (given) return { core: given, source: "given with --core" };
-  try {
-    return { core: coreAddressOf(coreBuild().initcodeHash), source: "create2(factory, salt, initcode built in contracts/out)" };
-  } catch {
-    // no build here: fall back to the deployment file
-  }
-  const file = deploymentPath(chainId);
-  if (existsSync(file)) return { core: getAddress(readDeployment(file).core), source: `contracts/deployments/${chainId}.json` };
-  throw new Fail("no Core to trust: give --core 0x..., build the contracts (cd contracts && forge build), or add a deployment file");
 }
 
 /** Code at the address, and an EIP-712 domain that says aHand / core, this chain and this address. */
@@ -353,20 +273,6 @@ function stateLine(view: HandView, now: number): string {
       return `closed: thanked at ${utc(view.closedAt)}`;
     case "refunded":
       return `closed: refunded at ${utc(view.closedAt)}`;
-  }
-}
-
-const ERC20 = parseAbi(["function symbol() view returns (string)", "function decimals() view returns (uint8)"]);
-
-async function amountOf(chain: Chain, token: Address, units: bigint): Promise<string> {
-  try {
-    const [symbol, decimals] = await Promise.all([
-      chain.client.readContract({ address: token, abi: ERC20, functionName: "symbol" }),
-      chain.client.readContract({ address: token, abi: ERC20, functionName: "decimals" }),
-    ]);
-    return `${formatUnits(units, decimals)} ${clean(symbol, 16)} (${units} units)`;
-  } catch {
-    return `${units} units`;
   }
 }
 
@@ -882,6 +788,12 @@ export async function main(argv: string[]): Promise<number> {
       case "core-check":
         await coreCheck(args);
         break;
+      case "verify":
+        return await verifyCommand(args);
+      case "find":
+        return await findCommand(args);
+      case "recover":
+        return await recoverCommand(args);
       default:
         throw new Fail(`unknown command ${clean(command)}; see bun tools/ahand.ts help`, 2);
     }
