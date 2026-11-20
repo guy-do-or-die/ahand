@@ -6,6 +6,7 @@ import { connect, disconnect, getConnection, getConnectors, switchChain, watchCo
 import { config as app } from "../config";
 import { chainOf } from "../chain/clients";
 import { walletConfig } from "./config";
+import { FALLBACK_ID } from "./fallback";
 import type { DevRole, DevWho } from "./dev";
 import { unknownNetwork } from "./errors";
 import { safeIcon } from "./icons";
@@ -42,6 +43,8 @@ export interface WalletOption {
   /** A `data:` image, or none. */
   icon?: string;
   kind: "found" | "dev";
+  /** `window.ethereum`, offered only when no wallet announced itself (wallet/config.ts). */
+  fallback?: boolean;
   devRole?: DevRole;
   devWho?: DevWho;
 }
@@ -68,6 +71,7 @@ function optionOf(connector: Connector): WalletOption {
     id: connector.id,
     name: connector.name,
     kind: dev ? "dev" : "found",
+    ...(!dev && connector.id === FALLBACK_ID ? { fallback: true } : {}),
     ...(icon ? { icon } : {}),
     ...(dev ? { devRole: extra.devRole, devWho: extra.devWho } : {}),
   };
@@ -117,6 +121,8 @@ export function useWallet(): WalletState {
 export function useWalletOptions(): WalletOption[] {
   return useSyncExternalStore(subscribe, () => snapshot.options);
 }
+
+export { foundOptions } from "./fallback";
 
 export type ConnectOutcome = { ok: true; address: Address } | { ok: false; reason: "refused" | "failed" | "unknown-network" };
 

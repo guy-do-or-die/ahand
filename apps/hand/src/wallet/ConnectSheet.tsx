@@ -3,15 +3,17 @@ import type { Address } from "viem";
 
 import { config as app } from "../config";
 import { t } from "../i18n";
+import { chainName } from "../i18n/common/chain";
 import { TID } from "../testids";
 import { ErrorBand, Identity, QuietButton, Sheet } from "../ui";
 import { clsx } from "../lib/clsx";
-import { connectWallet, disconnectWallet, optionAddress, useWallet, useWalletOptions, type WalletOption } from "./state";
+import { connectWallet, disconnectWallet, foundOptions, optionAddress, useWallet, useWalletOptions, type WalletOption } from "./state";
 import { useWalletWords } from "./words";
 
 /**
  * "Connect a wallet" (ARCHITECTURE §7 Wallets, D-29). It lists the wallets this browser announced
- * (EIP-6963), each with the name and icon it gave itself: an icon only as a `data:` image shown
+ * (EIP-6963), each with the name and icon it gave itself, or, when none announced, the page's own
+ * `window.ethereum` as "The crypto app in this browser" (a phone app's built-in browser): an icon only as a `data:` image shown
  * through <img>, and nothing ever read from its `rdns`; the sheet says that these names are the
  * apps' own. In a local build the dev wallet's test accounts follow, under their own heading.
  *
@@ -37,7 +39,7 @@ function Initial({ name, mark }: { name: string; mark?: string }) {
 function Option({ option, address, busy, onPick }: { option: WalletOption; address?: Address; busy: boolean; onPick: () => void }) {
   const words = useWalletWords();
   const dev = option.kind === "dev";
-  const title = dev ? (option.devWho === "not-set-up" ? words.dev.unset : words.dev.account(option.devWho as number)) : option.name;
+  const title = dev ? (option.devWho === "not-set-up" ? words.dev.unset : words.dev.account(option.devWho as number)) : option.fallback ? words.browser : option.name;
   const testId = dev ? devAccountTid(option.devWho!) : TID.kit.connectOption;
   return (
     <li>
@@ -84,7 +86,7 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
   const wallet = useWallet();
   const [busy, setBusy] = useState<WalletOption | undefined>();
   const [problem, setProblem] = useState<"refused" | "failed" | "unknown-network" | undefined>();
-  const found = options.filter((o) => o.kind === "found");
+  const found = foundOptions(options);
   const dev = options.filter((o) => o.kind === "dev");
 
   async function pick(option: WalletOption) {
@@ -136,10 +138,10 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
 
         {busy ? (
           <p role="status" className="ah-label m-0">
-            {words.waiting(busy.kind === "dev" ? (busy.devWho === "not-set-up" ? words.dev.unset : words.dev.account(busy.devWho as number)) : busy.name)}
+            {words.waiting(busy.kind === "dev" ? (busy.devWho === "not-set-up" ? words.dev.unset : words.dev.account(busy.devWho as number)) : busy.fallback ? words.browser : busy.name)}
           </p>
         ) : null}
-        {problem ? <ErrorBand what={problem === "refused" ? words.refused : problem === "unknown-network" ? t("common.error.unknownNetwork", { network: app.chain.name }) : words.failed} /> : null}
+        {problem ? <ErrorBand what={problem === "refused" ? words.refused : problem === "unknown-network" ? t("common.error.unknownNetwork", { network: chainName(app.chain) }) : words.failed} /> : null}
         {wallet.status === "connected" && wallet.address ? (
           <p className="ah-label m-0 flex flex-wrap items-baseline gap-2">
             {words.connected}: <Identity address={wallet.address} />

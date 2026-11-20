@@ -10,7 +10,8 @@ import { useLang, type Lang } from "../ui/ambient";
 const EN = {
   title: "Connect a wallet",
   found: "Found in this browser",
-  none: "Nothing to connect was found in this browser. Add a crypto app's browser extension, then reload this page.",
+  none: "Nothing to connect was found in this browser. On a computer, add a crypto app's browser extension, then reload this page. On a phone, open this page in the browser inside your crypto app (MetaMask, Rabby, Trust and others have one).",
+  browser: "The crypto app in this browser",
   selfNamed: "Each name and icon comes from the app itself; this site can't check them.",
   waiting: (name: string) => `Waiting for your answer in ${name}…`,
   refused: "You said no. Nothing was connected.",
@@ -36,7 +37,8 @@ export type WalletWords = typeof EN;
 const RU: WalletWords = {
   title: "Подключить кошелёк",
   found: "Найдено в этом браузере",
-  none: "В этом браузере нечего подключить. Добавь расширение криптоприложения для браузера и перезагрузи страницу.",
+  none: "В этом браузере нечего подключить. На компьютере добавь расширение криптоприложения для браузера и перезагрузи страницу. На телефоне открой эту страницу в браузере внутри своего криптоприложения (он есть в MetaMask, Rabby, Trust и других).",
+  browser: "Криптоприложение в этом браузере",
   selfNamed: "Название и значок каждое приложение задаёт само; этот сайт их не проверяет.",
   waiting: (name) => `Ждём твоего ответа в ${name}…`,
   refused: "Ты отказался. Ничего не подключено.",
