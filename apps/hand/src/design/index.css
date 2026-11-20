@@ -1,9 +1,12 @@
 @import "tailwindcss";
 @import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/onest";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "./tokens.css";
 @import "./components.css";
+@import "./twist.css";
+@import "./print.css";
 
 @theme {
   --color-paper: var(--paper);

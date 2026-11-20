@@ -30,9 +30,9 @@
 }
 
 /*
- * Follow the device appearance by default (no storage — the stateless rule
- * forbids persisting a choice). `[data-theme]` on <html> overrides this for
- * the session; the dev gallery still forces a theme on a subtree.
+ * Follow the device appearance by default. `[data-theme]` on <html> overrides
+ * it: the footer switch writes the choice there (design/theme.ts) and the shell
+ * keeps it on this device. The gallery forces a theme on a subtree the same way.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -99,11 +99,18 @@
   --color-card: var(--card);
   --color-amber: var(--amber);
   --color-gold: var(--amber); /* legacy alias, removed once all screens are redesigned */
+
+  /* Text that must pass WCAG AA at small sizes on paper and on card. Measured: ink at 55% on
+     paper is 4.2:1 and fails; at 60% it is 4.9:1 on paper and 5.0:1 on card (dark: 7.6:1).
+     So every small quiet text uses the 60% step, which is inside the brief's 50–70% range. */
+  --ink-quiet: var(--ink-a60);
 }
 
 /* ── Typography ─────────────────────────────────────────────────────── */
 :root {
-  --font-display: "Schibsted Grotesk Variable", "Schibsted Grotesk", system-ui, sans-serif;
+  /* Human voice. Schibsted Grotesk ships Latin only, so Onest stands right after it and draws
+     every Cyrillic glyph; Latin, digits and punctuation stay Schibsted. Both are self-hosted. */
+  --font-display: "Schibsted Grotesk Variable", "Onest Variable", system-ui, sans-serif;
   --font-meta: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 
@@ -176,6 +183,12 @@
   --dur-idle-shake: 3.2s;
   --dur-idle-cheer: 3s;
   --dur-idle-bow: 4s;
+  --dur-hover: 140ms; /* flat border and colour changes */
+
+  /* ── Layout widths ── */
+  --w-sheet: 560px; /* a sheet from 768px up */
+  --w-focus: 640px; /* focus columns are 620–680px */
+  --w-action: 400px; /* the action card beside the content on desktop */
 }
 
 /* ── Idle gesture keyframes (verbatim from the mock package) ────────── */

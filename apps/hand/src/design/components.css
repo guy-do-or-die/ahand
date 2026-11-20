@@ -1,7 +1,13 @@
 /*
- * aHand — primitive component styles.
- * Every value here is either a token (styles/tokens.css) or a mock-exact
- * metric from local/redesign/aHand Standalone.html. No raw colors.
+ * aHand: component styles.
+ * The first part is the owner's design system carried over from apps/web: every value is a
+ * token (tokens.css) or a metric taken from the v0.1 mocks. The second part ("New pieces")
+ * extends it in its own terms for this build. No raw colours and no shadows anywhere.
+ *
+ * Changes to the carried part, all forced:
+ * - quiet text went from ink 45–55% to ink 60% (--ink-quiet): the old steps fail WCAG AA;
+ * - the two inset highlights that were drawn with a shadow are a background line and an outline;
+ * - the sheet is a native <dialog>, so focus stays inside it without any script.
  */
 
 /* ── Marker-swipe button (signature CTA) ────────────────────────────── */
@@ -145,22 +151,37 @@
   color: var(--ink-a40);
   gap: 8px;
 }
+/* A quiet action that sits inside a sentence or a row: no frame, an underline */
+.ah-quiet--text {
+  height: auto;
+  min-height: 44px;
+  border: 0;
+  padding: 0 4px;
+  margin: 0 -4px;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-a30);
+  text-underline-offset: 4px;
+}
 
-/* ── Pot bar ────────────────────────────────────────────────────────── */
-.ah-pot {
-  height: 12px;
+/* ── Reward bar (the old pot bar): a 4px amber track; the mock sizes stay ── */
+.ah-reward {
+  height: 4px;
   border-radius: var(--r-bar);
-  background: var(--ink-a08);
+  background: var(--ink-a12);
   overflow: hidden;
 }
-.ah-pot--md {
+.ah-reward--lg {
+  height: 12px;
+}
+.ah-reward--md {
   height: 10px;
 }
-.ah-pot--sm {
+.ah-reward--sm {
   height: 8px;
 }
-.ah-pot__fill {
+.ah-reward__fill {
   height: 100%;
+  border-radius: var(--r-bar);
   background: var(--amber);
 }
 
@@ -189,7 +210,7 @@
 .ah-chip--dashed {
   border: var(--bw-emph) dashed var(--ink-a30);
   font-weight: var(--fw-semibold);
-  color: var(--ink-a50);
+  color: var(--ink-quiet);
 }
 .ah-chip--desktop {
   height: 48px;
@@ -197,35 +218,90 @@
   font-size: var(--fs-body-lg);
 }
 
-/* ── Chain rail (provenance) ────────────────────────────────────────── */
+/* ── Chain rail: hands joined by 2px lines ───────────────────────────
+   The segment that reached the viewer is amber, YOU is an amber chip, and a dashed
+   slot after it stands for the next person. A long route scrolls sideways. */
 .ah-rail {
+  /* positioned, so the words kept for screen readers scroll with their hands and are clipped
+     with them; unpositioned, they would widen the page itself */
+  position: relative;
   display: flex;
+  align-items: flex-end;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 6px 2px 4px;
+  margin: 0;
+  list-style: none;
+  scrollbar-width: none;
+}
+.ah-rail__item {
+  display: flex;
+  align-items: flex-end;
+  flex: 1 0 auto;
+}
+.ah-rail__item:first-child {
+  flex: 0 0 auto;
+}
+.ah-rail__hand {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  min-width: 34px;
+}
+.ah-rail__gesture {
+  font-family: var(--emoji);
+  font-size: 22px;
+  line-height: 1;
 }
 .ah-rail__name {
   font-family: var(--font-meta);
   font-size: var(--fs-mono-2xs);
-  color: var(--ink-a55);
+  line-height: 16px;
+  color: var(--ink-quiet);
   text-transform: uppercase;
+  white-space: nowrap;
+}
+/* "someone" is a human word, so it speaks in the human voice */
+.ah-rail__name--human {
+  font-family: var(--font-display);
+  font-size: var(--fs-mono-sm);
+  font-weight: var(--fw-medium);
+  text-transform: none;
 }
 .ah-rail__line {
   flex: 1;
+  min-width: 14px;
   height: 2px;
   background: var(--ink-a15);
-  margin: 0 5px;
+  margin: 0 5px 7px;
 }
 .ah-rail__line--reaching {
   background: var(--amber);
 }
+.ah-rail__line--next {
+  height: 0;
+  background: none;
+  border-top: 2px dashed var(--ink-a25);
+}
 .ah-rail__you {
   font-family: var(--font-meta);
   font-size: var(--fs-mono-2xs);
+  line-height: 12px;
   font-weight: var(--fw-bold);
   background: var(--amber);
   color: var(--on-amber);
   padding: 2px 6px;
   border-radius: var(--r-bar);
   text-transform: uppercase;
+  white-space: nowrap;
+}
+.ah-rail__slot {
+  width: 26px;
+  height: 26px;
+  border: var(--bw-emph) dashed var(--ink-a30);
+  border-radius: var(--r-chip);
 }
 
 /* ── Receipt table (Thank / Pocket) ─────────────────────────────────── */
@@ -247,11 +323,38 @@
   color: var(--ink-a70);
   text-align: left;
 }
+.ah-receipt th {
+  padding: 8px 12px 8px 0;
+  line-height: 1.5;
+}
 .ah-receipt td {
+  padding: 8px 0;
   font-size: var(--fs-body-sm);
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+}
+/* A row with no payout says so in words, in the quiet human voice */
+.ah-receipt td.ah-receipt__none {
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-medium);
+  color: var(--ink-quiet);
+  white-space: normal;
+}
+/* landed={false}: the row's log has not been read yet (wave 5 draws the sweep from this) */
+.ah-receipt tr[data-landed="false"] td,
+.ah-receipt tr[data-landed="false"] th {
+  color: var(--ink-quiet);
+}
+.ah-receipt tr[data-landed="false"] .ah-receipt__amount--chip {
+  background: none;
+  outline: var(--bw-emph) dashed var(--ink-a30);
+  color: var(--ink-quiet);
+}
+.ah-receipt__mark {
+  display: block;
+  margin-top: 4px;
 }
 .ah-receipt tr.ah-receipt__row--highlight {
   border-bottom: var(--bw-hair) solid var(--ink-a10);
@@ -296,23 +399,34 @@
 .ah-meta {
   font-family: var(--font-meta);
   font-size: 10.5px;
+  line-height: 1.6;
   letter-spacing: var(--track-mono);
   text-transform: uppercase;
-  color: var(--ink-a55);
+  color: var(--ink-quiet);
 }
 .ah-meta--dim {
   letter-spacing: var(--track-mono-sm);
-  color: var(--ink-a50);
 }
+.ah-meta--ink {
+  color: var(--ink);
+}
+/* An address or a hash may break anywhere; it never pushes the page sideways */
+.ah-meta--exact {
+  text-transform: none;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+/* Inside an uppercase mono line, exact data keeps its own letters: 0x stays 0x, and an
+   address keeps the capitals that are its checksum. */
 .ah-label {
   font-family: var(--font-display);
   font-size: 13.5px;
   font-weight: var(--fw-medium);
-  line-height: 1.35;
-  color: var(--ink-a55);
+  line-height: 1.4;
+  color: var(--ink-quiet);
 }
 .ah-label--dim {
-  color: var(--ink-a45);
+  font-weight: var(--fw-regular);
 }
 
 /* ── Text input / textarea ──────────────────────────────────────────── */
@@ -338,16 +452,17 @@
    (owner-reported "crippled corners"). Focus = border snaps to full ink. */
 .ah-input,
 .ah-chip {
-  transition: border-color 140ms ease;
+  transition: border-color var(--dur-hover) ease;
 }
 .ah-input:focus-visible,
 .ah-chip:focus-visible {
   outline: none;
   border-color: var(--ink);
 }
-.ah-chip--selected:focus-visible,
-.ah-chip--selected:focus-within {
-  box-shadow: inset 0 0 0 2px var(--paper);
+/* A selected chip already has the full ink border, so it takes the page's own focus ring. */
+.ah-chip--selected:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
 }
 
 /* Chip-shaped input with a money/unit adornment ($ 150 · 5 %) */
@@ -414,21 +529,24 @@
   caret-color: var(--amber);
   resize: none;
   overflow: hidden;
-  box-shadow: 0 1.5px 0 0 var(--ink-a15);
-  transition: box-shadow 0.15s ease;
+  /* The 1.5px underline is a background line: no border (it would move the text), no shadow. */
+  background-image: linear-gradient(var(--ink-a15), var(--ink-a15));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1.5px;
 }
 .ah-compose:hover {
-  box-shadow: 0 1.5px 0 0 var(--ink-a35);
+  background-image: linear-gradient(var(--ink-a40), var(--ink-a40));
 }
 .ah-compose::placeholder {
   color: var(--ink-a55);
 }
 /* The poster compose surface is borderless by design (mock 03/13); the
-   focus ring would box it. Alternative visible indicator: 2px ink underline
-   + the amber caret. Logged in DEVIATIONS.md (a11y). */
+   focus ring would box it. Its visible focus is a 2.5px ink underline and the amber caret. */
 .ah-compose:focus-visible {
   outline: none;
-  box-shadow: 0 2.5px 0 0 var(--ink);
+  background-image: linear-gradient(var(--ink), var(--ink));
+  background-size: 100% 2.5px;
 }
 @media (min-width: 1024px) {
   .ah-compose {
@@ -530,11 +648,16 @@
   font-size: var(--fs-mono-md);
   color: var(--ink-a65);
   cursor: pointer;
-  transition: border-color 140ms ease, color 140ms ease;
+  transition: border-color var(--dur-hover) ease, color var(--dur-hover) ease;
+}
+.ah-linkrow--dashed {
+  border-style: dashed;
 }
 .ah-linkrow__value {
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .ah-linkrow__action {
   flex-shrink: 0;
@@ -601,35 +724,69 @@
   color: var(--ink-a60);
 }
 
-/* ── Sheet: phone full-screen page · ≥768px 560px modal (mock 14/15) ──
-   The full-screen variant caps its height so the bottom-pinned CTA never
-   drifts a whole viewport away from the content on tall windows. */
-.ah-sheet {
+/* ── Sheet: a full screen on phones, a 560px modal from 768px (mock 14/15) ──
+   A native <dialog> opened with showModal(): the browser keeps focus inside, closes on
+   Escape and puts it above everything, so no ribbon or header can cover its focus ring.
+   The full-screen variant caps its height so the bottom-pinned action never drifts a whole
+   viewport away from the content on tall windows. */
+dialog.ah-sheet {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: 0;
   background: var(--paper);
+  color: var(--ink);
   overflow: auto;
   display: flex;
   flex-direction: column;
+}
+dialog.ah-sheet:not([open]) {
+  display: none;
+}
+dialog.ah-sheet::backdrop {
+  background: transparent;
 }
 .ah-sheet__panel {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-height: min(100%, 820px);
-  padding: 20px 24px;
+  padding: 20px var(--pad-screen);
+}
+.ah-sheet__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -8px;
+  border: 0;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-quiet);
+  cursor: pointer;
 }
 @media (min-width: 768px) {
-  .ah-sheet {
+  dialog.ah-sheet {
     background: var(--scrim);
-    display: grid;
-    place-items: center;
+    align-items: center;
     padding: 56px 24px;
   }
   .ah-sheet__panel {
+    /* auto margins centre the panel while it fits and let it start at the top when it is
+       taller than the window, so its first lines can always be scrolled to */
+    flex-shrink: 0;
+    margin: auto 0;
     min-height: 0;
-    width: 560px;
+    width: var(--w-sheet);
+    max-width: 100%;
     background: var(--paper);
     background-clip: padding-box;
     border: var(--bw-emph) solid var(--ink);
@@ -668,10 +825,11 @@
   font-size: 10.5px;
   letter-spacing: var(--track-mono);
   text-transform: uppercase;
-  color: var(--ink-a60);
-  transition: color 140ms ease;
+  color: var(--ink-quiet);
+  transition: color var(--dur-hover) ease;
   flex-wrap: wrap;
   row-gap: 2px;
+  text-align: left;
 }
 .ah-disclose__toggle {
   text-decoration: underline dashed var(--ink-a30);
@@ -679,7 +837,6 @@
   white-space: nowrap;
 }
 .ah-disclose__summary {
-  color: var(--ink-a40);
   white-space: nowrap;
 }
 
@@ -708,7 +865,7 @@
   padding: 16px;
   font-size: var(--fs-body-lg);
   line-height: 1.45;
-  color: var(--ink-a45);
+  color: var(--ink-quiet);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -722,7 +879,7 @@
   border: var(--bw-emph) dashed var(--ink-a25);
   border-radius: var(--r-chip-sm);
   padding: 3px 7px;
-  color: var(--ink-a50);
+  color: var(--ink-quiet);
   flex-shrink: 0;
 }
 
@@ -735,43 +892,6 @@
     padding: 26px;
   }
 }
-
-/* ── Logo lockup theme-switching ─────────────────────────────────────── */
-.ah-logo-dark-theme {
-  display: none;
-}
-.ah-logo-light-theme {
-  display: inline-block;
-}
-
-[data-theme="dark"] .ah-logo-dark-theme {
-  display: inline-block;
-}
-[data-theme="dark"] .ah-logo-light-theme {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .ah-logo-dark-theme {
-    display: inline-block;
-  }
-  :root:not([data-theme="light"]) .ah-logo-light-theme {
-    display: none;
-  }
-}
-
-/* ── Responsive Header Logo Size & Vertical Alignment ────────────────── */
-header .ah-logo-lockup {
-  --logo-height: calc(26px * 2.05) !important;
-  transform: translateY(-3px);
-}
-@media (min-width: 1024px) {
-  header .ah-logo-lockup {
-    --logo-height: calc(32px * 2.05) !important;
-    transform: translateY(-4px);
-  }
-}
-
 
 /* ── Thread (talk it over): thin themed scroll + pill composer ──────── */
 .ah-scroll {
@@ -808,4 +928,586 @@ header .ah-logo-lockup {
 }
 .ah-chatline:focus {
   border-color: var(--ink-a45);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   New pieces, in the same language (UX-SPEC §2 "New pieces", §4, §8.6)
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Marker: the brand covers' highlighter block. Money stands on it. ── */
+.ah-marker {
+  display: inline-block;
+  border: 0;
+  border-radius: var(--r-chip);
+  padding: 1px 8px 2px;
+  background: var(--amber);
+  color: var(--on-amber);
+  font: inherit;
+  font-weight: var(--fw-heavy);
+  white-space: nowrap;
+}
+
+/* ── A figure that opens to its source: a dashed underline says "tap me" ── */
+.ah-figure {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dashed var(--ink-a40);
+  text-underline-offset: 4px;
+}
+.ah-figure.ah-marker {
+  padding: 1px 8px 2px;
+  background: var(--amber);
+  color: var(--on-amber);
+  text-decoration-color: var(--on-amber);
+  text-underline-offset: 3px;
+}
+/* The words stay small; the target is 44px tall */
+.ah-figure::after,
+.ah-mark--button::after {
+  content: "";
+  position: absolute;
+  inset: -11px -4px;
+}
+
+/* ── Evidence: what a disclosure, a mark or a figure opens. Mono lines under a dashed rule. ── */
+.ah-evidence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0 6px;
+  border-left: var(--bw-emph) dashed var(--ink-a30);
+  padding: 4px 0 4px 12px;
+  text-align: left;
+}
+.ah-evidence--wide {
+  align-self: stretch;
+  width: 100%;
+}
+
+/* ── Marks: three tags that never look alike ───────────────────────────
+   checked here = ink outline · on chain = ink fill, paper text · waiting = dashed outline */
+.ah-markbox {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  vertical-align: middle;
+  max-width: 100%;
+}
+.ah-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-sm);
+  padding: 0 7px;
+  background: none;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.ah-mark--chain {
+  background: var(--ink);
+  color: var(--paper);
+}
+.ah-mark--waiting {
+  border-style: dashed;
+  border-color: var(--ink-a45);
+}
+.ah-mark--button {
+  cursor: pointer;
+}
+.ah-mark__glyph {
+  font-family: var(--emoji);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+.ah-mark__caret {
+  font-size: 8px;
+  letter-spacing: 0;
+}
+
+/* ── Tag: a small mono label for a fact about the thing beside it ── */
+.ah-tag {
+  display: inline-block;
+  border: var(--bw-hair) dashed var(--ink-a40);
+  border-radius: var(--r-chip-sm);
+  padding: 1px 5px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  line-height: 14px;
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.ah-tag--ink {
+  border: var(--bw-hair) solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.ah-tag--outline {
+  border: var(--bw-hair) solid var(--ink);
+  color: var(--ink);
+}
+
+/* ── TxRail: four mono steps joined like the chain rail ── */
+.ah-tx {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-tx__step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+.ah-tx__track {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 12px;
+}
+.ah-tx__dot {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: var(--bw-emph) solid var(--ink-a40);
+  border-radius: var(--r-pill);
+}
+.ah-tx__step[data-state="done"] .ah-tx__dot {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.ah-tx__step[data-state="now"] .ah-tx__dot {
+  border-color: var(--ink);
+  background: var(--amber);
+}
+.ah-tx__line {
+  flex: 1;
+  height: 2px;
+  margin: 0 5px;
+  background: var(--ink-a15);
+}
+.ah-tx__line[data-done="true"] {
+  background: var(--ink);
+}
+.ah-tx__label {
+  padding-right: 8px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  line-height: 1.45;
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  overflow-wrap: break-word;
+}
+/* The tag that steps three and four share on a chain with no Ethereum behind it */
+.ah-tx__local {
+  grid-column: 3 / 5;
+  margin-top: 8px;
+  border-top: var(--bw-emph) dashed var(--ink-a40);
+  padding-top: 5px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  line-height: 1.45;
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.ah-tx__step[data-state="done"] .ah-tx__label,
+.ah-tx__step[data-state="now"] .ah-tx__label {
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+}
+
+/* ── Deal card: the top of every Hand screen (UX-SPEC §4) ── */
+.ah-deal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card);
+  padding: 20px;
+  background: var(--card);
+  background-clip: padding-box;
+}
+.ah-deal__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.ah-deal__gesture {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-family: var(--emoji);
+  font-size: 40px;
+  line-height: 1;
+}
+.ah-deal__intro {
+  margin: 0;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-medium);
+  line-height: 1.3;
+  color: var(--ink-quiet);
+}
+.ah-deal__title {
+  margin: 3px 0 0;
+  font-size: var(--fs-title-m-sm);
+  font-weight: var(--fw-heavy);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.ah-deal__content {
+  margin: 10px 0 0;
+  font-size: var(--fs-body-md);
+  line-height: var(--lh-body);
+  color: var(--ink-a80);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.ah-deal__money {
+  margin: 0;
+  font-size: var(--fs-body-xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.5;
+}
+.ah-deal__state {
+  margin: 0;
+  font-size: var(--fs-card-title);
+  font-weight: var(--fw-heavy);
+  line-height: 1.2;
+  letter-spacing: var(--track-display);
+}
+.ah-deal__rows {
+  margin: 0;
+  border-top: var(--bw-emph) solid var(--ink);
+}
+.ah-deal__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+  border-bottom: var(--bw-hair) solid var(--ink-a10);
+  padding: 11px 0;
+}
+.ah-deal__row dt {
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
+  color: var(--ink-a70);
+}
+.ah-deal__row dd {
+  margin: 0 0 0 auto;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
+  line-height: 1.4;
+  text-align: right;
+}
+/* An opened figure takes the row's whole width: the figure stays right, its source reads left */
+.ah-deal__row dd[data-open="true"] {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.ah-deal__row .ah-evidence {
+  align-self: stretch;
+  margin-top: 8px;
+  font-weight: var(--fw-regular);
+}
+.ah-deal__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+@media (min-width: 768px) {
+  .ah-deal {
+    border-radius: var(--r-card-lg);
+    padding: 26px;
+  }
+  .ah-deal__gesture {
+    font-size: 46px;
+  }
+  .ah-deal__title {
+    font-size: var(--fs-title-m);
+  }
+}
+
+/* ── Note: a dashed band for "not here" and "check this". Not an error. ── */
+.ah-note {
+  border: var(--bw-emph) dashed var(--ink-a30);
+  border-radius: var(--r-btn);
+  padding: 13px 16px;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+}
+
+/* ── Error band: what happened, then what was not lost ── */
+.ah-alert__kept {
+  display: block;
+  font-weight: var(--fw-regular);
+  color: var(--paper-a85);
+}
+.ah-alert__action {
+  margin-top: 10px;
+}
+.ah-alert .ah-quiet {
+  border-color: var(--paper-a50);
+  color: var(--paper);
+}
+
+/* ── Field: a label in the human voice above a control ── */
+.ah-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ah-field__label {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
+  line-height: 1.3;
+}
+
+/* ── Money input: the amount in poster weight, the unit beside it ── */
+.ah-money {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  border: var(--bw-emph) solid var(--ink-a15);
+  border-radius: var(--r-btn);
+  padding: 10px 16px;
+  font-size: var(--fs-title-m-sm);
+  font-weight: var(--fw-heavy);
+  letter-spacing: var(--track-display);
+  cursor: text;
+  transition: border-color var(--dur-hover) ease;
+}
+.ah-money:focus-within {
+  border-color: var(--ink);
+}
+.ah-money input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  outline: none;
+  caret-color: var(--amber);
+}
+.ah-money input::placeholder {
+  color: var(--ink-a45);
+}
+
+/* ── Address input: exact data, so it is typed in mono ── */
+.ah-input--exact {
+  font-family: var(--font-meta);
+  font-size: var(--fs-body-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ah-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+}
+.ah-verdict .ah-tag {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Where the money lands: three choices, one open at a time ── */
+.ah-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.ah-choice {
+  border: var(--bw-emph) solid var(--ink-a20);
+  border-radius: var(--r-card-sm);
+  background: var(--card);
+  background-clip: padding-box;
+  transition: border-color var(--dur-hover) ease;
+}
+.ah-choice--on {
+  border-color: var(--ink);
+}
+.ah-choice__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+.ah-choice__radio {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  margin: 2px 0 0;
+  border: var(--bw-emph) solid var(--ink-a40);
+  border-radius: var(--r-pill);
+  background: none;
+  cursor: pointer;
+}
+.ah-choice__radio:checked {
+  border: 6px solid var(--ink);
+  background: var(--amber);
+}
+.ah-choice__title {
+  display: block;
+  font-size: var(--fs-card-title-sm);
+  font-weight: var(--fw-bold);
+  line-height: 1.3;
+}
+.ah-choice__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: var(--bw-hair) solid var(--ink-a10);
+  padding: 14px 16px 16px;
+}
+.ah-words {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-words li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border: var(--bw-hair) solid var(--ink-a20);
+  border-radius: var(--r-chip);
+  padding: 7px 8px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-lg);
+  font-weight: var(--fw-medium);
+  min-width: 0;
+}
+.ah-words li span {
+  font-size: var(--fs-mono-2xs);
+  font-weight: var(--fw-regular);
+  color: var(--ink-quiet);
+}
+.ah-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.ah-check input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  display: grid;
+  place-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-sm);
+  background: none;
+  cursor: pointer;
+}
+.ah-check input:checked {
+  background: var(--amber);
+}
+.ah-check input:checked::after {
+  content: "✓";
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: var(--fw-heavy);
+  line-height: 1;
+  color: var(--on-amber);
+}
+
+/* ── QR: always ink on paper in both themes (an inverted code reads as decoration to many
+      cameras), so the tile uses the raw palette. The quiet zone is inside the drawing. ── */
+.ah-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+}
+.ah-qr__tile {
+  box-sizing: content-box;
+  width: 100%;
+  max-width: 420px;
+  /* In the dark theme --ink is the paper colour, so the frame joins the tile. */
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-lg);
+  background: var(--ah-raw-paper);
+  overflow: hidden;
+}
+.ah-qr__tile svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ah-qr__tile path {
+  fill: var(--ah-raw-ink);
+}
+
+/* ── Cost line ── */
+.ah-cost {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* ── Stack: the kit's one vertical rhythm ── */
+.ah-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ── Exact data inside an uppercase mono line keeps its own letters: 0x stays 0x, an address
+      keeps the capitals that are its checksum, Core's names keep theirs. Last in the file, so
+      it holds on any element. ── */
+.ah-exact {
+  text-transform: none;
+  letter-spacing: 0;
 }

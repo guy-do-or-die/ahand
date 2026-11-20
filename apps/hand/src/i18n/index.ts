@@ -1,56 +1,70 @@
 import { i18n } from "@lingui/core";
-import { compileMessage } from "@lingui/message-utils/compileMessage";
+import { useSyncExternalStore } from "react";
 
+import { setPref } from "../store/db";
+import { compileCatalogue, deviceLang, LANGS, mergeCatalogue, type CatalogueModules, type Lang } from "./catalogue";
 import commonEn from "./common/en";
 import commonRu from "./common/ru";
 
 /**
- * Lingui runtime setup, carried over from apps/web (macro-less: explicit ids, hand-kept
- * catalogues). Ids are dotted keys (`raise.title`); each screen owns `en.ts` and `ru.ts`, and
- * `common/` holds the shared words. A missing entry falls back to the id, so nothing renders
- * blank.
+ * The app's words (ARCHITECTURE §7, D-53). Ids are dotted keys (`raise.title`); each screen owns
+ * `screens/<name>/en.ts` and `ru.ts`, collected here by glob; `common/` holds the shared words and
+ * every error sentence. Messages are compiled at start with `compileMessage`, so a production
+ * build renders ICU values (lingui compiles raw strings on the fly only in development). A
+ * missing id falls back to the id itself, so nothing renders blank; the key-parity guard keeps
+ * that from happening.
  *
- * Messages are compiled here with `compileMessage` rather than by @lingui/cli: lingui only
- * compiles raw strings on the fly in development, so a production build would render ICU
- * placeholders literally ("{amount}" instead of the value).
+ * Language: the device's (navigator.language) unless this device chose another, which is kept
+ * in the `prefs` store (not a secret).
  */
 
-export type Lang = "en" | "ru";
-export const LANGS: readonly Lang[] = ["en", "ru"];
+export type { Lang } from "./catalogue";
+export { LANGS } from "./catalogue";
 
-type Catalogue = Record<string, string>;
-
-const screens = import.meta.glob<{ default: Catalogue }>("../screens/*/{en,ru}.ts", { eager: true });
-
-function catalogue(lang: Lang): Catalogue {
-  const merged: Catalogue = { ...(lang === "en" ? commonEn : commonRu) };
-  for (const [path, module] of Object.entries(screens)) {
-    if (path.endsWith(`/${lang}.ts`)) Object.assign(merged, module.default);
-  }
-  return merged;
-}
+const screens = import.meta.glob<{ default: Record<string, string> }>("../screens/*/{en,ru}.ts", { eager: true }) as CatalogueModules;
 
 for (const lang of LANGS) {
-  i18n.load(
-    lang,
-    Object.fromEntries(Object.entries(catalogue(lang)).map(([id, message]) => [id, compileMessage(message)])),
-  );
+  i18n.load(lang, compileCatalogue(mergeCatalogue(lang, lang === "en" ? commonEn : commonRu, screens)));
 }
 
-/** The device's language first; anything that is not Russian reads English. */
-export function deviceLang(): Lang {
-  const first = typeof navigator === "undefined" ? "en" : (navigator.languages?.[0] ?? navigator.language ?? "en");
-  return first.toLowerCase().startsWith("ru") ? "ru" : "en";
-}
-
-export function setLang(lang: Lang): void {
+function apply(lang: Lang): void {
   i18n.activate(lang);
   if (typeof document !== "undefined") document.documentElement.lang = lang;
 }
 
-setLang(deviceLang());
+apply(deviceLang(typeof navigator === "undefined" ? undefined : navigator));
 
-/** Translate helper: t("raise.title"), t("common.footer", { core }). */
+/** Starts in the language this device chose before, or the device's own. Called once at boot. */
+export function initLang(saved: Lang | undefined): void {
+  apply(saved && LANGS.includes(saved) ? saved : deviceLang(typeof navigator === "undefined" ? undefined : navigator));
+}
+
+/** Switches the language now and remembers the choice on this device. */
+export function setLang(lang: Lang): void {
+  apply(lang);
+  void setPref("lang", lang).catch(() => undefined); // a private window may refuse storage; the switch still holds for this tab
+}
+
+/** The active language. */
+export function currentLang(): Lang {
+  return i18n.locale as Lang;
+}
+
+/** The Intl locale for dates and money in the active language. */
+export function intlLocale(lang: Lang = currentLang()): string {
+  return lang === "ru" ? "ru-RU" : "en-GB";
+}
+
+function subscribe(onChange: () => void): () => void {
+  return i18n.on("change", onChange);
+}
+
+/** The active language, re-rendering the caller when it changes. */
+export function useLang(): Lang {
+  return useSyncExternalStore(subscribe, currentLang, currentLang);
+}
+
+/** Translate: t("raise.title"), t("common.footer", { core }). */
 export function t(id: string, values?: Record<string, unknown>): string {
   return i18n._(id, values);
 }

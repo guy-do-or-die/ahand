@@ -1,45 +1,31 @@
-import { useEffect, useState } from "react";
-import { t } from "../i18n";
+import { useState } from "react";
 
-function currentTheme(): "light" | "dark" {
-  if (typeof document === "undefined") return "light";
-  const attr = document.documentElement.dataset.theme;
-  if (attr === "light" || attr === "dark") return attr;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+import { currentTheme, setTheme, type Theme } from "../design/theme";
+import { useWords } from "./words";
 
 /**
- * Theme override. The app follows the device appearance until the user flips
- * this control; the choice is saved to localStorage and re-applied before
- * first paint by the inline script in __root, so it sticks across reloads
- * until flipped again.
+ * The footer's theme switch. The page follows the device until this is used. It sets the
+ * choice on <html>; the shell keeps it on this device (design/theme.ts says why).
  *
- * A CSS half-disc (the universal contrast glyph) rather than a sun/moon
- * emoji — emoji are reserved for the brand gestures in this system.
+ * A half-filled disc, the usual contrast glyph, and not a sun or a moon: emoji are kept for
+ * the brand's gestures.
  */
-const THEME_KEY = "ahand-theme";
-
 export function ThemeToggle({ className, label = false }: { className?: string; label?: boolean }) {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  useEffect(() => setTheme(currentTheme()), []);
+  const words = useWords();
+  const [theme, setShown] = useState<Theme>(() => currentTheme());
 
   const flip = () => {
-    const next = currentTheme() === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem(THEME_KEY, next);
-    } catch {
-      /* private mode — the flip still applies for this session */
-    }
+    const next: Theme = currentTheme() === "dark" ? "light" : "dark";
     setTheme(next);
+    setShown(next);
   };
 
   return (
     <button
       type="button"
       onClick={flip}
-      aria-label={t("Switch theme")}
-      title={t("Switch theme")}
+      // With its word shown, the name starts with that word, so what is seen is what is heard.
+      aria-label={label ? `${theme === "dark" ? words.theme.dark : words.theme.light}: ${words.theme.switch}` : words.theme.switch}
       className={className}
       style={{
         display: "inline-flex",
@@ -52,25 +38,18 @@ export function ThemeToggle({ className, label = false }: { className?: string; 
         background: "none",
         border: 0,
         cursor: "pointer",
-        color: label ? "var(--ink-a60)" : "var(--ink)",
+        color: label ? "var(--ink-quiet)" : "var(--ink)",
       }}
     >
       <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" style={{ transform: theme === "dark" ? "rotate(180deg)" : "none" }}>
         <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
         <path d="M10 2.5 A7.5 7.5 0 0 1 10 17.5 Z" fill="currentColor" />
       </svg>
-      {label && (
-        <span
-          style={{
-            fontFamily: "var(--font-meta)",
-            fontSize: "var(--fs-mono-xs)",
-            letterSpacing: "var(--track-mono)",
-            textTransform: "uppercase",
-          }}
-        >
-          {theme === "dark" ? t("dark") : t("light")}
+      {label ? (
+        <span className="ah-label" style={{ color: "inherit" }}>
+          {theme === "dark" ? words.theme.dark : words.theme.light}
         </span>
-      )}
+      ) : null}
     </button>
   );
 }

@@ -1,0 +1,101 @@
+/*
+ * The gallery's own layout. It is a workbench, not a screen of the app: the kit's rules still
+ * hold (tokens only, no raw colours, no shadows).
+ */
+.g-page {
+  min-height: 100dvh;
+  background: var(--ink-a08);
+}
+.g-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  border-bottom: var(--bw-emph) solid var(--ink);
+  padding: 10px var(--pad-screen);
+  background: var(--paper);
+}
+.g-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.g-switch {
+  min-width: 44px;
+  height: 44px;
+  border: var(--bw-emph) solid var(--ink-a20);
+  border-radius: var(--r-control);
+  padding: 0 12px;
+  background: none;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+}
+.g-switch[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.g-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.g-panel {
+  min-width: 0;
+  padding: 28px var(--pad-screen) 56px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.g-panel__name {
+  margin: 0 0 24px;
+}
+.g-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+.g-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.g-section__name {
+  margin: 0;
+  border-bottom: var(--bw-hair) solid var(--ink-a15);
+  padding-bottom: 6px;
+}
+.g-case {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.g-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+@media (min-width: 1100px) {
+  .g-panels--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .g-panel {
+    padding: 36px var(--pad-screen-desktop) 72px;
+  }
+  /* One theme alone has the whole width: the sections flow in two columns. */
+  .g-panels--one .g-sections {
+    display: block;
+    columns: 2;
+    column-gap: 64px;
+  }
+  .g-panels--one .g-section {
+    break-inside: avoid;
+    margin-bottom: 44px;
+  }
+}

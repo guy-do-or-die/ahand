@@ -23,6 +23,16 @@ export const outDir = fromRoot(process.env.AHAND_OUT_DIR || "dist");
 export const cacheDir = fromRoot(process.env.AHAND_VITE_CACHE || "node_modules/.vite");
 export const conditions = ["source", ...defaultClientConditions];
 
+/**
+ * Whether the configuration names a local chain, read once when Vite loads its config. The main
+ * build turns it into the `__AHAND_LOCAL__` define, so a public build drops the local-only
+ * screens (dev wallet, gallery redirect) from its output, not only from its routes.
+ */
+export function isLocalChain(): boolean {
+  const parsed = JSON.parse(readFileSync(configFile, "utf8")) as { chain?: { local?: unknown } };
+  return parsed.chain?.local === true;
+}
+
 const VIRTUAL = "virtual:ahand-config";
 const RESOLVED = `\0${VIRTUAL}`;
 

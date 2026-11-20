@@ -1,0 +1,67 @@
+import { useId, useState, type ReactNode } from "react";
+
+import { clsx } from "../lib/clsx";
+import { useLens } from "./ambient";
+import { useWords } from "./words";
+
+export type MarkKind = "checked" | "chain" | "waiting";
+
+export interface MarkProps {
+  /**
+   * How a claim is known (brief 06 §3, UX-SPEC §2):
+   * checked = checked in this browser; chain = read from an event or a view on chain;
+   * waiting = money that waits in the contract for its payee.
+   */
+  kind: MarkKind;
+  /** What the mark opens: its source, in mono. With none, the mark is a plain tag. */
+  source?: ReactNode;
+  className?: string;
+}
+
+const GLYPH: Record<MarkKind, string> = { checked: "✓", chain: "⛓️", waiting: "⏳" };
+
+/**
+ * The three marks, which never look alike: an ink outline, an ink fill, a dashed outline.
+ * Each carries its words, so the state is never told by shape or colour alone. A mark with a
+ * source is a button that opens it underneath; the lens opens every one.
+ */
+export function Mark({ kind, source, className }: MarkProps) {
+  const words = useWords();
+  const lens = useLens();
+  const [own, setOwn] = useState(false);
+  const id = useId();
+  const open = lens || own;
+  const face = (
+    <>
+      <span aria-hidden="true" className="ah-mark__glyph">
+        {GLYPH[kind]}
+      </span>
+      {words.marks[kind]}
+    </>
+  );
+
+  if (source === undefined || source === null) {
+    return <span className={clsx("ah-mark", `ah-mark--${kind}`, className)}>{face}</span>;
+  }
+  return (
+    <span className={clsx("ah-markbox", className)}>
+      <button
+        type="button"
+        className={clsx("ah-mark ah-mark--button", `ah-mark--${kind}`)}
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        onClick={() => setOwn(!open)}
+      >
+        {face}
+        <span aria-hidden="true" className="ah-mark__caret">
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+      {open ? (
+        <span id={id} className="ah-evidence">
+          {source}
+        </span>
+      ) : null}
+    </span>
+  );
+}

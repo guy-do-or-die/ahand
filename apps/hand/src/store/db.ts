@@ -1,0 +1,392 @@
+import { bytesToHex, hexToBytes, isHex, type Hex } from "viem";
+
+/**
+ * What this device keeps (ARCHITECTURE §11), in one IndexedDB database. Nothing stored here can
+ * sign a Shake or a Give in the clear. The one exception is `escrow`: a new Hand's seed, encrypted
+ * under the device's non-extractable `vault` key, from before `raise` is sent until the raiser
+ * ticks "I saved the link" (§5, D-63). That copy protects against a storage dump and a crash; it
+ * does not protect against this site's own code, which reads links anyway.
+ *
+ * | store   | holds                                                                  | key            |
+ * |---------|------------------------------------------------------------------------|----------------|
+ * | books   | the 8-byte book per raiser, the next n, whether the account repeats    | raiser (lower) |
+ * | hands   | my Hands: chain, Core, n, the raise intent and hash, mode, own words   | intent         |
+ * | inbox   | Gives received or pasted, as give links, with first-seen times         | id             |
+ * | outbox  | the giver's envelopes on their way (packages/deliver's OutboxStore)    | any string     |
+ * | passed  | Hands this device passed on: chain, handId, position, payee            | id             |
+ * | prefs   | language, lens, theme                                                  | name           |
+ * | vault   | one AES-GCM key per device, made non-extractable                      | "device"       |
+ * | escrow  | the locked copy of a new Hand's seed (signers that do not repeat)      | intent         |
+ *
+ * Only this module touches `indexedDB`; the secrets guard checks that.
+ */
+
+export const DB_NAME = "ahand";
+export const DB_VERSION = 1;
+export const STORES = ["books", "hands", "inbox", "outbox", "passed", "prefs", "vault", "escrow"] as const;
+export type StoreName = (typeof STORES)[number];
+
+export type Mode = "public" | "unlisted" | "dark";
+
+export interface BookRecord {
+  /** The raiser's address, lower case. */
+  raiser: string;
+  /** 8 random bytes made once per device and raiser (§5). Not a secret. */
+  book: Hex;
+  /** The next Hand number to hand out; never given back. */
+  next: number;
+  /** Whether the account's keys confirmations came out equal when asked twice (D-18). */
+  repeats?: boolean;
+}
+
+export interface HandRecord {
+  /** The raise intent: made before anything is signed, the record's key. */
+  intent: string;
+  raiser: string;
+  chainId: number;
+  core: string;
+  book: Hex;
+  n: number;
+  mode: Mode;
+  /** The raiser's own words, normalised. */
+  title: string;
+  content?: string;
+  salt?: Hex;
+  /** `handKey(chainId, core, handId)` once the receipt gave the Hand's number. */
+  hand?: string;
+  handId?: string;
+  txHash?: Hex;
+  /** For a signer that does not repeat only: the Hand's inbox secret, a chat key (§11). */
+  inboxSecret?: Hex;
+  /** "sent" while the raise waits for its receipt; "up" once it is in a block; "reverted". */
+  status?: "intent" | "sent" | "up" | "reverted";
+}
+
+export interface InboxRecord {
+  /** The Give's hash, or another id that stands for one Give. */
+  id: string;
+  hand: string;
+  /** A give link holds no secret by its format. */
+  giveLink: string;
+  /** This device's clock (`deviceClock`), labelled so wherever it is shown. */
+  firstSeen: number;
+  /** The route's keys as seen, for judging re-signed Gives (R-29). */
+  routeKeys?: string[];
+  words?: string;
+  replyTo?: string;
+}
+
+export interface PassedRecord {
+  id: string;
+  hand: string;
+  chainId: number;
+  core: string;
+  handId: string;
+  /** The holder's position on the route. */
+  position: number;
+  payee?: string;
+}
+
+export interface Prefs {
+  lang?: "en" | "ru";
+  lens?: boolean;
+  theme?: "light" | "dark";
+}
+
+interface EscrowRecord {
+  intent: string;
+  iv: Uint8Array;
+  ciphertext: Uint8Array;
+}
+
+/** `chainId:core:handId`, the one spelling of a Hand used as an index here. */
+export function handKey(chainId: number, core: string, handId: bigint | string | number): string {
+  return `${chainId}:${core.toLowerCase()}:${handId.toString()}`;
+}
+
+/**
+ * The device's own clock, read here and nowhere in screens/, ui/ or chain/ (the clock guard):
+ * it is used only for "first seen on this device" times, which are labelled as such. Every
+ * "now" that a state, a countdown or an expiry depends on is the chain's (D-61).
+ */
+export function deviceClock(): number {
+  return Date.now();
+}
+
+/* ─────────────────────────────────────────────────────────── opening ── */
+
+let factory: IDBFactory | undefined;
+let name = DB_NAME;
+let opening: Promise<IDBDatabase> | undefined;
+
+/** Tests point the store at their own factory or database name; the app never calls this. */
+export function configureDb(options: { factory?: IDBFactory; name?: string }): void {
+  closeDb();
+  factory = options.factory;
+  name = options.name ?? DB_NAME;
+}
+
+/** Closes the connection; the next call opens it again. */
+export function closeDb(): void {
+  const pending = opening;
+  opening = undefined;
+  void pending?.then((db) => db.close()).catch(() => undefined);
+}
+
+function upgrade(db: IDBDatabase): void {
+  const has = (store: string) => db.objectStoreNames.contains(store);
+  if (!has("books")) db.createObjectStore("books", { keyPath: "raiser" });
+  if (!has("hands")) {
+    const hands = db.createObjectStore("hands", { keyPath: "intent" });
+    hands.createIndex("raiser", "raiser");
+    hands.createIndex("hand", "hand");
+  }
+  if (!has("inbox")) db.createObjectStore("inbox", { keyPath: "id" }).createIndex("hand", "hand");
+  if (!has("outbox")) db.createObjectStore("outbox");
+  if (!has("passed")) db.createObjectStore("passed", { keyPath: "id" }).createIndex("hand", "hand");
+  if (!has("prefs")) db.createObjectStore("prefs");
+  if (!has("vault")) db.createObjectStore("vault");
+  if (!has("escrow")) db.createObjectStore("escrow", { keyPath: "intent" });
+}
+
+/** The open database. Rejects where storage is refused (some private windows): callers carry on without it. */
+export function openDb(): Promise<IDBDatabase> {
+  if (opening) return opening;
+  const source = factory ?? globalThis.indexedDB;
+  if (!source) return Promise.reject(new Error("IndexedDB is not available here"));
+  opening = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = source.open(name, DB_VERSION);
+    request.onupgradeneeded = () => upgrade(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        opening = undefined;
+      };
+      resolve(db);
+    };
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error("IndexedDB upgrade blocked by another tab"));
+  });
+  opening.catch(() => {
+    opening = undefined;
+  });
+  return opening;
+}
+
+function settled(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function result<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// IDBRequest is invariant in its result; requests whose result is not read are passed as this.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRequest = IDBRequest<any>;
+
+async function single<T>(store: StoreName, mode: IDBTransactionMode, act: (s: IDBObjectStore) => IDBRequest<T> | AnyRequest): Promise<T> {
+  const db = await openDb();
+  const tx = db.transaction(store, mode);
+  const value = result(act(tx.objectStore(store)) as IDBRequest<T>);
+  value.catch(() => undefined); // its error also aborts the transaction, which is what is thrown
+  await settled(tx);
+  return value;
+}
+
+/* ──────────────────────────────────────────────────────── plain access ── */
+
+interface Records {
+  books: BookRecord;
+  hands: HandRecord;
+  inbox: InboxRecord;
+  passed: PassedRecord;
+}
+type Keyed = keyof Records;
+
+/** Writes one record of a keyed store (books, hands, inbox, passed). */
+export function put<S extends Keyed>(store: S, value: Records[S]): Promise<void> {
+  return single(store, "readwrite", (s) => s.put(value)).then(() => undefined);
+}
+
+/** Reads one record of a keyed store by its key. */
+export function get<S extends Keyed>(store: S, key: string): Promise<Records[S] | undefined> {
+  return single(store, "readonly", (s) => s.get(key) as IDBRequest<Records[S] | undefined>);
+}
+
+/** Deletes one record of a keyed store. */
+export function remove(store: Keyed, key: string): Promise<void> {
+  return single(store, "readwrite", (s) => s.delete(key)).then(() => undefined);
+}
+
+/** Every record of a keyed store. */
+export function all<S extends Keyed>(store: S): Promise<Records[S][]> {
+  return single(store, "readonly", (s) => s.getAll() as IDBRequest<Records[S][]>);
+}
+
+/** The records of hands, inbox or passed that belong to one Hand (`handKey`). */
+export function forHand<S extends "hands" | "inbox" | "passed">(store: S, hand: string): Promise<Records[S][]> {
+  return single(store, "readonly", (s) => s.index("hand").getAll(hand) as IDBRequest<Records[S][]>);
+}
+
+/** My Hands raised by one account on this device. */
+export function handsOf(raiser: string): Promise<HandRecord[]> {
+  return single("hands", "readonly", (s) => s.index("raiser").getAll(raiser.toLowerCase()) as IDBRequest<HandRecord[]>);
+}
+
+/**
+ * A key-value view of the `outbox` store with the shape packages/deliver's `OutboxStore` takes
+ * (get, set, delete, keys). Values must be plain data.
+ */
+export function outboxStore<V>() {
+  return {
+    get: (key: string) => single("outbox", "readonly", (s) => s.get(key) as IDBRequest<V | undefined>),
+    set: (key: string, value: V) => single("outbox", "readwrite", (s) => s.put(value, key)).then(() => undefined),
+    delete: (key: string) => single("outbox", "readwrite", (s) => s.delete(key)).then(() => undefined),
+    keys: () => single("outbox", "readonly", (s) => s.getAllKeys()).then((keys) => keys.map(String)),
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────── prefs ── */
+
+/** Every preference this device chose. Empty where storage is refused. */
+export async function loadPrefs(): Promise<Prefs> {
+  const db = await openDb();
+  const tx = db.transaction("prefs", "readonly");
+  const store = tx.objectStore("prefs");
+  const [keys, values] = await Promise.all([result(store.getAllKeys()), result(store.getAll())]);
+  await settled(tx);
+  return Object.fromEntries(keys.map((key, i) => [String(key), values[i]])) as Prefs;
+}
+
+export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]): Promise<void> {
+  return single("prefs", "readwrite", (s): AnyRequest => (value === undefined ? s.delete(key) : s.put(value, key))).then(() => undefined);
+}
+
+/* ─────────────────────────────────────────────────────────────── books ── */
+
+function newBook(): Hex {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(8)));
+}
+
+/**
+ * Takes the raiser's next Hand number on this device, in one transaction, before anything is
+ * signed (§5). The book is made here the first time. A number is never given back, even if the
+ * raise fails, so two tabs or two calls can never get the same (book, n).
+ */
+export async function reserveNumber(raiser: string): Promise<{ book: Hex; n: number }> {
+  const key = raiser.toLowerCase();
+  const db = await openDb();
+  const tx = db.transaction("books", "readwrite");
+  const store = tx.objectStore("books");
+  const taken = new Promise<{ book: Hex; n: number }>((resolve, reject) => {
+    const read = store.get(key);
+    read.onerror = () => reject(read.error);
+    read.onsuccess = () => {
+      const record: BookRecord = (read.result as BookRecord | undefined) ?? { raiser: key, book: newBook(), next: 0 };
+      const n = record.next;
+      const write = store.put({ ...record, next: n + 1 });
+      write.onerror = () => reject(write.error);
+      write.onsuccess = () => resolve({ book: record.book, n });
+    };
+  });
+  taken.catch(() => undefined); // its error also aborts the transaction, which is what is thrown
+  await settled(tx);
+  return taken;
+}
+
+/** The raiser's book on this device, if one was made. */
+export function bookOf(raiser: string): Promise<BookRecord | undefined> {
+  return get("books", raiser.toLowerCase());
+}
+
+/** Stores whether the account's keys confirmations repeat (asked twice once per account and device). */
+export async function setRepeats(raiser: string, repeats: boolean): Promise<void> {
+  const key = raiser.toLowerCase();
+  const db = await openDb();
+  const tx = db.transaction("books", "readwrite");
+  const store = tx.objectStore("books");
+  const read = store.get(key);
+  read.onsuccess = () => {
+    const record: BookRecord = (read.result as BookRecord | undefined) ?? { raiser: key, book: newBook(), next: 0 };
+    store.put({ ...record, repeats });
+  };
+  await settled(tx);
+}
+
+/* ────────────────────────────────────────────── the locked copy (D-63) ── */
+
+const VAULT_KEY = "device";
+
+/** The device's AES-GCM key, made non-extractable on first use and kept in `vault`. */
+export async function vaultKey(): Promise<CryptoKey> {
+  const existing = await single("vault", "readonly", (s) => s.get(VAULT_KEY) as IDBRequest<CryptoKey | undefined>);
+  if (existing) return existing;
+  const made = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  try {
+    await single("vault", "readwrite", (s) => s.add(made, VAULT_KEY));
+    return made;
+  } catch {
+    // Another tab made one first: use that one, so every copy opens with the same key.
+    const theirs = await single("vault", "readonly", (s) => s.get(VAULT_KEY) as IDBRequest<CryptoKey | undefined>);
+    if (!theirs) throw new Error("the device key could not be kept");
+    return theirs;
+  }
+}
+
+function boundTo(intent: string): Uint8Array<ArrayBuffer> {
+  return new TextEncoder().encode(`aHand.escrow/1:${intent}`);
+}
+
+/**
+ * Writes the locked copy of a new Hand's seed, before `raise` is sent. Only ciphertext reaches
+ * storage: AES-GCM under the vault key, a fresh 12-byte IV, the intent bound as associated data.
+ */
+export async function lockSeed(intent: string, seed: Hex): Promise<void> {
+  if (!isHex(seed) || seed.length < 4) throw new TypeError("lockSeed: the seed must be hex bytes");
+  const key = await vaultKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: boundTo(intent) }, key, new Uint8Array(hexToBytes(seed))),
+  );
+  const record: EscrowRecord = { intent, iv, ciphertext };
+  await single("escrow", "readwrite", (s) => s.put(record));
+}
+
+/**
+ * Opens the locked copy of the seed for this raise intent: undefined when there is none, or when
+ * it can no longer be opened (the vault key was cleared or the record was altered).
+ */
+export async function openSeed(intent: string): Promise<Hex | undefined> {
+  const record = await single("escrow", "readonly", (s) => s.get(intent) as IDBRequest<EscrowRecord | undefined>);
+  if (!record) return undefined;
+  try {
+    const key = await vaultKey();
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: new Uint8Array(record.iv), additionalData: boundTo(intent) },
+      key,
+      new Uint8Array(record.ciphertext),
+    );
+    return bytesToHex(new Uint8Array(plain));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Deletes the locked copy: when the raiser ticks "I saved the link", or the raise is found reverted. */
+export async function dropSeed(intent: string): Promise<void> {
+  await single("escrow", "readwrite", (s) => s.delete(intent));
+}
+
+/** The intents that still have a locked copy, so a reloaded tab can find its pending raise. */
+export function lockedIntents(): Promise<string[]> {
+  return single("escrow", "readonly", (s) => s.getAllKeys()).then((keys) => keys.map(String));
+}
