@@ -6,34 +6,14 @@ import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { createPublicClient, createWalletClient, custom, http, parseEventLogs, type Address, type Hex, type PublicClient } from "viem";
-import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { createPublicClient, custom, http, type Address, type Hex, type PublicClient } from "viem";
 import { foundry } from "viem/chains";
 
-import {
-  CORE_ABI,
-  approveCall,
-  chainNow,
-  describeHand,
-  domain,
-  encodeLive,
-  expiryAfter,
-  fromBase64Url,
-  keyOfSeed,
-  newSeed,
-  packAttachments,
-  raiseCall,
-  readHand,
-  readLimits,
-  refundCall,
-  toAddress,
-  toText,
-  type Call,
-  type DescribeMode,
-} from "@ahand/sdk";
+import { fromBase64Url, refundCall, toText, type Call } from "@ahand/sdk";
 import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 
 import { isolate } from "../src/bidi.ts";
+import { USD, metaOf, pngSize, raiseHand, send as sendFrom, unescape, type RaiseOptions } from "./hands.ts";
 import type { FaceConfig } from "../src/config.ts";
 import { createFace, type FaceOptions } from "../src/server.ts";
 
@@ -51,8 +31,6 @@ const PROCESS_PORT = FACE_BASE + 1;
 const TTL = 250;
 const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 const SITE = `http://127.0.0.1:${PORT}`;
-const USD = 1_000_000n;
-const DAY = 86_400;
 
 let chain: Chain;
 let face: Server;
@@ -76,64 +54,14 @@ const EXIT = `<!doctype html><html><head><title>exit</title><script type="module
 const rpc = (method: string, params: unknown[] = []) =>
   (chain.client.request as (a: { method: string; params: unknown[] }) => Promise<unknown>)({ method, params });
 
-async function send(key: Hex, call: Call) {
-  const wallet = createWalletClient({ account: privateKeyToAccount(key), chain: foundry, transport: http(chain.rpc) });
-  const hash = await wallet.sendTransaction({ to: call.to, data: call.data, value: call.value ?? 0n });
-  const receipt = await chain.client.waitForTransactionReceipt({ hash, pollingInterval: 50 });
-  if (receipt.status !== "success") throw new Error(`reverted: ${hash}`);
-  return receipt;
-}
+const send = (key: Hex, call: Call) => sendFrom(chain, key, call);
 
-/** Raises a Hand described in `mode` and returns its faced (or bare) address, as the app writes it. */
-async function raise(opts: { mode: DescribeMode; title: string; content?: string; reward: bigint; seconds?: number }) {
-  const usd = chain.tokens.find((token) => token.kind === "usd")!.address;
-  const described = describeHand({ mode: opts.mode, title: opts.title, content: opts.content });
-  const seed = newSeed();
-  if (opts.reward > 0n) await send(raiserKey, approveCall(usd, chain.core, opts.reward));
-  const { timestamp } = await chainNow(chain.client);
-  const { maxExpiryPeriod } = await readLimits(chain.client, chain.core);
-  const receipt = await send(
-    raiserKey,
-    raiseCall(chain.core, {
-      token: usd,
-      reward: opts.reward,
-      expiry: expiryAfter(timestamp, opts.seconds ?? 30 * DAY, maxExpiryPeriod),
-      rootKey: privateKeyToAddress(keyOfSeed(seed)),
-      payoutGasK: 250,
-      minClaimBps: 7_000,
-      dataHash: described.dataHash,
-    }),
-  );
-  const [raised] = parseEventLogs({ abi: CORE_ABI, logs: receipt.logs, eventName: "Raised" });
-  const handId = raised!.args.handId;
-  const { hand } = await readHand(chain.client, chain.core, handId);
-  const options = { canonicalCore: chain.core };
-  const outside = described.outside && packAttachments(described.outside);
-  const link = await encodeLive(
-    { domain: domain(chain.chainId, chain.core), hand, signedShakes: [], seed, attachments: described.inside },
-    { ...options, outside },
-  );
-  const address = toAddress({ site: SITE, link, shape: described.shape, outside: described.outside }, options);
-  // What a browser or a robot sends: everything before `#`, as path and query.
-  const before = address.split("#")[0]!.slice(SITE.length);
-  return { handId, address, before };
-}
+/** Raises a Hand described in `mode` and returns its faced (or bare) address, as the app writes it (hands.ts). */
+const raise = (opts: RaiseOptions) => raiseHand(chain, SITE, raiserKey, opts);
 
 async function get(path: string, headers: Record<string, string> = {}) {
   const response = await fetch(`${SITE}${path}`, { headers, redirect: "manual" });
   return { response, status: response.status, text: await response.clone().text(), bytes: new Uint8Array(await response.arrayBuffer()) };
-}
-
-const metaOf = (html: string, property: string) =>
-  new RegExp(`<meta (?:property|name)="${property.replace(/[.:]/g, "\\$&")}" content="([^"]*)"`).exec(html)?.[1];
-
-const unescape = (text: string | undefined) =>
-  text?.replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)));
-
-function pngSize(bytes: Uint8Array) {
-  const view = new DataView(bytes.buffer, bytes.byteOffset);
-  const magic = Buffer.from(bytes.subarray(0, 8)).toString("hex");
-  return { magic, width: view.getUint32(16), height: view.getUint32(20) };
 }
 
 beforeAll(async () => {

@@ -34,6 +34,8 @@ local/
 .vercel
 
 # aHand end-to-end build (ARCHITECTURE §14)
+# the Vercel Function's folder, made by `bun apps/hand/vercel.ts build` (face bundled, index.html, fonts, resvg)
+apps/web/face/
 contracts/deployments/31337*.json
 # tests/e2e/fork/run.ts deploys Core on a local fork of a public network; that file is never a real deployment
 contracts/deployments/*-fork.json

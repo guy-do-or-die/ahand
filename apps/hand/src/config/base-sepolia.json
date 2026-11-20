@@ -28,7 +28,7 @@
   "accountFactory": null,
   "relays": ["wss://relay.damus.io", "wss://nos.lol"],
   "site": "https://exp-e2e.ahand.in",
-  "previews": false,
+  "previews": true,
   "faucets": [
     { "asset": "USDC", "url": "https://faucet.circle.com" },
     { "asset": "ETH", "url": "https://docs.base.org/base-chain/tools/network-faucets" }

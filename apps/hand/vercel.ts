@@ -21,11 +21,22 @@
  * Paths: every app path (no file extension in its last part) serves index.html; a file that exists
  * is served as it is (filesystem first, as Vercel always does); a missing path with an extension
  * is a 404, never the index, as static.ts does.
+ *
+ * Link previews (the configuration's `previews`, absent or true): a Hand's address
+ * (`/<chain>/<hand>`, `/<chain>/<core>/<hand>`) and its card (`/og/….png`) are rewritten to one
+ * Vercel Function, apps/web/api/face.mjs, before the rule that gives every other app path
+ * index.html. That file only re-exports apps/web/face/handler.mjs, which the build bundles from
+ * face (apps/face/src/function-entry.ts, `faceFunction`) with Bun, beside the built index.html,
+ * face's settings (face.json), its fonts and lockup, and resvg's prebuilt binary; `functions`
+ * names that folder in `includeFiles`. With `previews` false the site is static only: no rewrite
+ * reaches the function. Vercel runs the build command before it traces a function (its frontend
+ * builder runs first), so the folder is there when the function is put together.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { parseDeployment } from "@ahand/abi";
 
@@ -46,9 +57,32 @@ export const VERCEL_OUT = "dist";
 /** Every path whose last part has no dot: the app's own addresses. Unnamed, so Vercel adds no query. */
 export const APP_PATHS = "/((?:[^/]*/)*[^/.]*)";
 
+/**
+ * A Hand's address as face reads it (apps/face/src/preview.ts HAND_PATH), and its card (server.ts
+ * OG_PATH, generic.png too). Unnamed groups, so Vercel adds nothing to the query: `d` arrives as written.
+ */
+export const HAND_PATHS = "/([0-9]+/(?:0x[0-9a-fA-F]{40}/)?[0-9]+)";
+export const CARD_PATHS = "/og/(generic|[0-9]+/(?:0x[0-9a-fA-F]{40}/)?[0-9]+)\\.png";
+
+/** The Vercel Function (Root Directory relative), the URL it answers on, and the folder the build fills for it. */
+export const FUNCTION_ENTRY = "api/face.mjs";
+export const FUNCTION_URL = "/api/face";
+export const FUNCTION_DIR = "face";
+/** How long one answer may take: a cold card is under a second, a chain read gives up after 4 s (preview.ts). */
+export const FUNCTION_MAX_SECONDS = 10;
+export const FACE_DIR = join(REPO_ROOT, "apps/face");
+
 interface PublicConfig {
   chain: { id: number; local?: boolean; rpcUrls: string[] };
+  cores: { trusted: { chainId: number; core: string }[]; canonical?: string };
   relays: string[];
+  site: string;
+  previews?: boolean;
+}
+
+/** Whether this build answers a Hand's address with face's tags and card (absent means yes). */
+export function previewsOn(config: Pick<PublicConfig, "previews">): boolean {
+  return config.previews !== false;
 }
 
 function sourcesOf(config: PublicConfig): CspSources {
@@ -94,7 +128,16 @@ export function vercelJson(config: PublicConfig, exitHtml: string) {
     installCommand: "cd ../.. && bun install --frozen-lockfile",
     buildCommand: "cd ../.. && bun apps/hand/vercel.ts build",
     outputDirectory: VERCEL_OUT,
-    rewrites: [{ source: APP_PATHS, destination: "/index.html" }],
+    ...(previewsOn(config) ? { functions: { [FUNCTION_ENTRY]: { includeFiles: `${FUNCTION_DIR}/**`, maxDuration: FUNCTION_MAX_SECONDS } } } : {}),
+    rewrites: [
+      ...(previewsOn(config)
+        ? [
+            { source: HAND_PATHS, destination: FUNCTION_URL },
+            { source: CARD_PATHS, destination: FUNCTION_URL },
+          ]
+        : []),
+      { source: APP_PATHS, destination: "/index.html" },
+    ],
     headers: [
       { source: "/(.*)", headers: asList(rest) },
       { source: "/((?!exit\\.html$).*)", headers: asList({ "Content-Security-Policy": csp! }) },
@@ -179,6 +222,130 @@ export function buildApp(configFile: string, outDir: string, cacheDir?: string):
   if (exit) throw new Error(exit);
 }
 
+/**
+ * Face's settings for the function, as the FACE_* names of apps/face/src/config.ts: the
+ * configuration's one RPC (face's CSP names only that one, so the page's header stays the static
+ * one), the chain, the Cores it trusts on that chain, the canonical Core and the relays.
+ */
+export function faceEnvOf(config: PublicConfig): Record<string, string> {
+  if (config.chain.rpcUrls.length !== 1) throw new Error("face reads one RPC, and its CSP would name only that one: the public configuration must have exactly one");
+  const cores = config.cores.trusted.filter((entry) => entry.chainId === config.chain.id).map((entry) => entry.core);
+  if (cores.length === 0) throw new Error(`the public configuration trusts no Core on chain ${config.chain.id}`);
+  return {
+    FACE_RPC: config.chain.rpcUrls[0]!,
+    FACE_CHAIN: String(config.chain.id),
+    FACE_CORES: cores.join(","),
+    FACE_CANONICAL: config.cores.canonical ?? "",
+    FACE_RELAYS: config.relays.join(","),
+    FACE_SITE: config.site,
+  };
+}
+
+/** apps/web/api/face.mjs: the function Vercel finds, a thin re-export of the bundle the build makes. */
+export const FUNCTION_SOURCE = `// The Vercel Function of the public test deployment: face's link previews for a Hand's address
+// and its card (docs/public-test-deployment.md). Written by \`bun apps/hand/vercel.ts write\`;
+// ../face/ is made by the build command (apps/hand/vercel.ts buildFunction) before Vercel traces this file.
+export { default } from "../${FUNCTION_DIR}/handler.mjs";
+`;
+
+/**
+ * apps/web/api/package.json: the function's own package, so Vercel's Node.js builder, which installs
+ * the nearest package.json, installs nothing (apps/web/package.json is the old app's) and runs it
+ * on Node.js 24 as ES modules.
+ */
+export const FUNCTION_PACKAGE = formatJson({ private: true, type: "module", engines: { node: "24.x" } });
+
+/** The files under the Root Directory that `write` makes besides vercel.json, and what they hold. */
+export function functionFiles(): Record<string, string> {
+  return { [FUNCTION_ENTRY]: FUNCTION_SOURCE, [join(dirname(FUNCTION_ENTRY), "package.json")]: FUNCTION_PACKAGE };
+}
+
+/**
+ * resvg's JavaScript and every prebuilt binary installed beside it (bun.lock installs the ones for
+ * this machine: on Vercel's build image linux-x64-gnu), copied as files, for the bundle to require.
+ */
+function copyResvg(outDir: string): string[] {
+  const own = dirname(realpathSync(createRequire(join(FACE_DIR, "package.json")).resolve("@resvg/resvg-js/package.json")));
+  const scope = dirname(own);
+  const names = readdirSync(scope).filter((name) => name === basename(own) || name.startsWith(`${basename(own)}-`));
+  for (const name of names) cpSync(join(scope, name), join(outDir, "node_modules/@resvg", name), { recursive: true, dereference: true });
+  const binaries = names.filter((name) => name.startsWith(`resvg-js-${process.platform}-${process.arch}`));
+  if (binaries.length === 0) throw new Error(`no prebuilt resvg for ${process.platform}-${process.arch} next to ${own}`);
+  return binaries;
+}
+
+/**
+ * The function's folder (apps/web/face on Vercel): face bundled for Node.js by Bun (one entry,
+ * handler.mjs, and chunks; og.tsx and resvg load with the first card), the built index.html as
+ * it is, face.json, face's fonts and lockup, and resvg. `distDir` is the build the site serves.
+ */
+export async function buildFunction(configFile: string, distDir: string, outDir: string): Promise<void> {
+  const config = JSON.parse(readFileSync(configFile, "utf8")) as PublicConfig;
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  const built = await Bun.build({
+    entrypoints: [join(FACE_DIR, "src/function-entry.ts")],
+    target: "node",
+    format: "esm",
+    splitting: true,
+    outdir: outDir,
+    naming: { entry: "handler.mjs", chunk: "[name]-[hash].mjs" },
+    // Workspace packages export their TypeScript under "source"; resvg is native and copied as files.
+    conditions: ["source"],
+    external: ["@resvg/resvg-js"],
+    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  });
+  if (!built.success) throw new Error(`face's function did not bundle: ${built.logs.map(String).join("\n")}`);
+  cpSync(join(FACE_DIR, "src/fonts"), join(outDir, "fonts"), { recursive: true });
+  cpSync(join(FACE_DIR, "src/og"), join(outDir, "og"), { recursive: true });
+  cpSync(join(distDir, "index.html"), join(outDir, "index.html"));
+  writeFileSync(join(outDir, "face.json"), formatJson(faceEnvOf(config)));
+  copyResvg(outDir);
+}
+
+/**
+ * The Root Directory's part of the function, put together in `webDir` (a stand-in for apps/web):
+ * the generated api files and the build's folder for them. What a Vercel build has before it traces.
+ */
+export async function stageFunction(configFile: string, distDir: string, webDir: string): Promise<void> {
+  await buildFunction(configFile, distDir, join(webDir, FUNCTION_DIR));
+  for (const [path, text] of Object.entries(functionFiles())) {
+    mkdirSync(dirname(join(webDir, path)), { recursive: true });
+    writeFileSync(join(webDir, path), text);
+  }
+}
+
+function filesUnder(dir: string, base: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...filesUnder(path, base));
+    else out.push(path.slice(base.length + 1));
+  }
+  return out;
+}
+
+/**
+ * The files Vercel's Node.js builder (@vercel/node) puts into the function, gathered the same way:
+ * @vercel/nft traces the entry from the repository's root (`ts`, `mixedModules`, the Root
+ * Directory as the process's folder), and `includeFiles` (the build's folder) is added whole.
+ * Paths are relative to `repoDir`; `traced` is what the tracer found on its own.
+ */
+export async function functionFileList(repoDir: string, webDir: string): Promise<{ traced: string[]; files: string[] }> {
+  const { nodeFileTrace } = await import("@vercel/nft");
+  const { fileList } = await nodeFileTrace([join(webDir, FUNCTION_ENTRY)], { base: repoDir, processCwd: webDir, ts: true, mixedModules: true });
+  const traced = [...fileList].sort();
+  const files = [...new Set([...traced, ...filesUnder(join(webDir, FUNCTION_DIR), repoDir)])].sort();
+  return { traced, files };
+}
+
+/** Copies `files` (relative to `repoDir`) into `outDir`, as the function's own file system: nothing else of this machine. */
+export function copyFunction(repoDir: string, files: string[], outDir: string): string {
+  rmSync(outDir, { recursive: true, force: true });
+  for (const file of files) cpSync(join(repoDir, file), join(outDir, file), { dereference: true });
+  return outDir;
+}
+
 /** What `vercel.json` should be for a fresh public build in `outDir`. */
 export function expectedVercelJson(outDir: string, configFile = PUBLIC_CONFIG) {
   const config = JSON.parse(readFileSync(configFile, "utf8")) as PublicConfig;
@@ -189,7 +356,7 @@ export function formatJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
   const [command] = argv;
   if (command === "build") {
     console.log(`vercel: bun ${Bun.version}`);
@@ -206,11 +373,15 @@ function main(argv: string[]): number {
     const record = buildRecord(out);
     writeFileSync(join(out, "build.json"), formatJson(record));
     console.log(`vercel: built ${record.files.length} files into ${out}, hash ${record.hash}, commit ${record.commit ?? "unknown"}${record.dirty ? " (dirty)" : ""}`);
+    const functionDir = join(VERCEL_ROOT, FUNCTION_DIR);
+    await buildFunction(configFile, out, functionDir);
+    console.log(`vercel: face's function bundled into ${functionDir} for ${FUNCTION_ENTRY}`);
     const want = formatJson(expectedVercelJson(out, configFile));
     rmSync(scratch, { recursive: true, force: true });
     const have = existsSync(VERCEL_JSON) ? readFileSync(VERCEL_JSON, "utf8") : "";
-    if (have !== want) {
-      console.error("vercel: apps/web/vercel.json is not what this build needs (its headers would not match the pages). Run: bun apps/hand/vercel.ts write");
+    const stale = Object.entries(functionFiles()).filter(([path, text]) => !existsSync(join(VERCEL_ROOT, path)) || readFileSync(join(VERCEL_ROOT, path), "utf8") !== text);
+    if (have !== want || stale.length > 0) {
+      console.error(`vercel: ${have !== want ? "apps/web/vercel.json" : stale.map(([path]) => `apps/web/${path}`).join(", ")} is not what this build needs (its headers or its function would not match the pages). Run: bun apps/hand/vercel.ts write`);
       return 1;
     }
     return 0;
@@ -222,6 +393,11 @@ function main(argv: string[]): number {
       buildApp(configFile, join(scratch, "dist"), join(scratch, "vite"));
       writeFileSync(VERCEL_JSON, formatJson(expectedVercelJson(join(scratch, "dist"), configFile)));
       console.log(`vercel: wrote ${VERCEL_JSON}`);
+      for (const [path, text] of Object.entries(functionFiles())) {
+        mkdirSync(dirname(join(VERCEL_ROOT, path)), { recursive: true });
+        writeFileSync(join(VERCEL_ROOT, path), text);
+        console.log(`vercel: wrote ${join(VERCEL_ROOT, path)}`);
+      }
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
@@ -233,7 +409,7 @@ function main(argv: string[]): number {
 
 if (import.meta.main) {
   try {
-    process.exit(main(process.argv.slice(2)));
+    process.exit(await main(process.argv.slice(2)));
   } catch (error) {
     console.error(`vercel: ${(error as Error).message}`);
     process.exit(1);

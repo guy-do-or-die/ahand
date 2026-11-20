@@ -4,7 +4,21 @@
   "installCommand": "cd ../.. && bun install --frozen-lockfile",
   "buildCommand": "cd ../.. && bun apps/hand/vercel.ts build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/face.mjs": {
+      "includeFiles": "face/**",
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
+    {
+      "source": "/([0-9]+/(?:0x[0-9a-fA-F]{40}/)?[0-9]+)",
+      "destination": "/api/face"
+    },
+    {
+      "source": "/og/(generic|[0-9]+/(?:0x[0-9a-fA-F]{40}/)?[0-9]+)\\.png",
+      "destination": "/api/face"
+    },
     {
       "source": "/((?:[^/]*/)*[^/.]*)",
       "destination": "/index.html"
@@ -46,7 +60,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-NhAoU2ByLn0LiLWCOf7zmkqnIr8xOeH87cBOUTH90gU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://sepolia.base.org wss://relay.damus.io wss://nos.lol https: http://127.0.0.1:* http://localhost:*; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-xvnnfLGBHHO2+qw5XqNpzs+WRyfhd89nN3p78+I+M70='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://sepolia.base.org wss://relay.damus.io wss://nos.lol https: http://127.0.0.1:* http://localhost:*; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
         }
       ]
     },

@@ -93,8 +93,9 @@ export interface AppConfig {
   faucets?: FaucetConfig[];
   /**
    * Whether a server in front of the site (face) writes each page address's link-preview tags.
-   * False for a static host (the public test deployment on Vercel): every address is /index.html
-   * as built, and a chat's preview shows only the site's name. Absent means true.
+   * False for a static-only host: every address is /index.html as built, and a chat's preview
+   * shows only the site's name. Absent means true. The public test deployment on Vercel says true:
+   * a Vercel Function runs face for a Hand's address and its card (apps/hand/vercel.ts).
    */
   previews?: boolean;
 }

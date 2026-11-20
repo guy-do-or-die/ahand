@@ -62,6 +62,7 @@ bun test docs/tests                                                   # these pa
 | `HAND_TEST_PORT_BASE` | `apps/hand` tests with a fixed port: watcher `B`, send `B+1`, dev wallet `B+2` and its fake Base RPC `B+3`, outbox relay `B+4` | `16110`, `16111`, `16112`, `25051`, `19060` |
 | `SDK_TEST_PORT_BASE` | `packages/sdk/tests`: money `B`, wallet `B+1`, proof `B+2`, steps `B+3` (the others pick free ports) | `15051`, `15052`, `16201`, `16202` |
 | `FACE_TEST_PORT_BASE` | `apps/face/tests/face.test.ts`: faces and its chain at `B` … `B+5` | `25100` |
+| `VERCEL_TEST_PORT` | `apps/hand/tests/vercel.test.ts`, the anvil face's Vercel Function reads | a free port |
 | `STAND_PORT_BASE` | every stand slot (see above) | the fixed layout |
 
 The SDK's own tests (`test:sdk`) start their anvils on free ports the system picks, except the four named under `SDK_TEST_PORT_BASE`.

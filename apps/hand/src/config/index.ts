@@ -14,8 +14,9 @@ export const config = parseConfig(raw);
 export const TESTNET = isTestnet(config.chain);
 
 /**
- * A server in front of the site (face) writes each page address's link-preview tags. False on a
- * static host: a chat's preview of any link shows only the site's name.
+ * A server in front of the site (face, or face's Vercel Function on the public test deployment)
+ * writes a Hand's address's link-preview tags. False on a static-only host: a chat's preview of
+ * any link shows only the site's name.
  */
 export const PREVIEWS = config.previews ?? true;
 

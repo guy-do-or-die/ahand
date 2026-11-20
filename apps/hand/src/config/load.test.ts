@@ -41,14 +41,15 @@ describe("chain.local belongs to chain 31337 only", () => {
 describe("the public test network's fields", () => {
   const sepolia = JSON.parse(readFileSync(new URL("./base-sepolia.json", import.meta.url), "utf8"));
 
-  test("base-sepolia.json is a test network with an explorer, faucets and no link previews", () => {
+  test("base-sepolia.json is a test network with an explorer, faucets and link previews (face's Vercel Function)", () => {
     const config = parseConfig(sepolia);
     expect(config.chain.local).toBe(false);
     expect(config.chain.testnet).toBe(true);
     expect(config.chain.explorer).toBe("https://sepolia.basescan.org");
     expect(config.faucets?.map((f) => f.asset)).toEqual(["USDC", "ETH"]);
     expect(config.faucets?.[0]?.url).toBe("https://faucet.circle.com");
-    expect(config.previews).toBe(false);
+    expect(config.previews).toBe(true);
+    expect(parseConfig({ ...sepolia, previews: false }).previews).toBe(false);
   });
 
   test("the fields are optional, and a configuration without them reads as before", () => {
