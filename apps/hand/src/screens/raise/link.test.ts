@@ -1,0 +1,118 @@
+import { describe, expect, test } from "bun:test";
+import { describeHand, fromText, keyOfSeed, newSeed, openAddress, readDescription, type Hand } from "@ahand/sdk";
+import { publicKeyOf } from "@ahand/deliver";
+import { encodeAbiParameters, encodeEventTopics, keccak256, stringToBytes, zeroHash, type Address, type Hex, type TransactionReceipt } from "viem";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
+
+import { CORE_ABI } from "@ahand/sdk";
+import { assertNewRoot, expiryFor, inboxKeyOf, passesAt, raisedIn, writeLinks } from "./link";
+
+const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
+const RAISER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
+const TOKEN = "0x6B867aFa284Ce84eE76424373420E1170da2eE7b" as Address;
+const SITE = "http://127.0.0.1:18311";
+const DAY = 86_400;
+const CAP = 180 * DAY;
+
+function handOf(seed: Hex, dataHash: Hex, handId = 7n): Hand {
+  return { handId, raiser: RAISER, token: TOKEN, rootKey: privateKeyToAddress(keyOfSeed(seed)), payoutGasK: 250, minClaimBps: 7000, dataHash };
+}
+
+function raisedLog(handId: bigint, rootKey: Address, dataHash: Hex, address: Address = CORE) {
+  const topics = encodeEventTopics({ abi: CORE_ABI, eventName: "Raised", args: { handId, raiser: RAISER, token: TOKEN } });
+  const data = encodeAbiParameters(
+    [{ type: "uint256" }, { type: "uint40" }, { type: "address" }, { type: "uint16" }, { type: "uint16" }, { type: "bytes32" }],
+    [50_000_000n, 1_800_000_000, rootKey, 250, 7000, dataHash],
+  );
+  return { address, topics, data } as unknown as TransactionReceipt["logs"][number];
+}
+
+describe("raise: the Raised log of this transaction", () => {
+  test("gives the hand's number and its terms", () => {
+    const seed = newSeed();
+    const rootKey = privateKeyToAddress(keyOfSeed(seed));
+    const dataHash = keccak256(stringToBytes("words"));
+    const receipt = { logs: [raisedLog(12n, rootKey, dataHash)] } as TransactionReceipt;
+    const raised = raisedIn(receipt, CORE);
+    expect(raised.hand.handId).toBe(12n);
+    expect(raised.hand.rootKey).toBe(rootKey);
+    expect(raised.hand.dataHash).toBe(dataHash);
+    expect(raised.reward).toBe(50_000_000n);
+    expect(raised.expiry).toBe(1_800_000_000);
+  });
+
+  test("ignores a log of another contract and throws when Core's is missing", () => {
+    const receipt = { logs: [raisedLog(3n, RAISER, zeroHash, TOKEN)] } as TransactionReceipt;
+    expect(() => raisedIn(receipt, CORE)).toThrow();
+  });
+});
+
+describe("raise: the inbox key", () => {
+  test("is the x-only public key packages/deliver writes", () => {
+    for (let i = 0; i < 20; i++) {
+      const secret = generatePrivateKey();
+      expect(inboxKeyOf(secret)).toBe(publicKeyOf(secret));
+    }
+  });
+});
+
+describe("raise: the expiry by the network's clock", () => {
+  test("30 days from the block's time", () => {
+    expect(expiryFor(1_000_000, 30, CAP)).toBe(1_000_000 + 30 * DAY);
+  });
+  test("the 180-day chip is the cap less ten minutes", () => {
+    expect(expiryFor(1_000_000, 180, CAP)).toBe(1_000_000 + CAP - 600);
+  });
+});
+
+describe("raise: room for passes", () => {
+  test("250 leaves 55 worst-case passes, 200 leaves 66", () => {
+    expect(passesAt(250)).toBe(55);
+    expect(passesAt(200)).toBe(66);
+  });
+});
+
+describe("raise: a new root key is new on this device", () => {
+  test("refuses one the device already used, in any letter case", () => {
+    const key = privateKeyToAddress(generatePrivateKey());
+    expect(() => assertNewRoot(key, [key.toLowerCase() as Address])).toThrow();
+    expect(() => assertNewRoot(key, [privateKeyToAddress(generatePrivateKey())])).not.toThrow();
+  });
+});
+
+describe("raise: the first link, in each shape", () => {
+  const inbox = publicKeyOf(generatePrivateKey());
+  const options = { canonicalCore: CORE };
+
+  for (const mode of ["public", "unlisted", "dark"] as const) {
+    test(`${mode}: opens as this hand with its words, and the QR carries everything inside as digits`, async () => {
+      const seed = newSeed();
+      const described = describeHand({ mode, title: "A quiet room in Tbilisi", content: "For a week in June.", inbox });
+      const hand = handOf(seed, described.dataHash);
+      const written = await writeLinks({ site: SITE, chainId: 31337, core: CORE, hand, seed, described, options });
+
+      expect(written.shape).toBe(described.shape);
+      if (mode === "dark") expect(written.address.startsWith(`${SITE}/#`)).toBe(true);
+      else expect(written.address.startsWith(`${SITE}/31337/7?d=`)).toBe(true);
+      expect(written.description).toEqual({ status: "attached", title: "A quiet room in Tbilisi", content: "For a week in June.", inbox });
+
+      const opened = await openAddress(written.address, async () => hand, options);
+      expect(opened.linkKey).toBeDefined();
+      expect(readDescription(opened).title).toBe("A quiet room in Tbilisi");
+
+      expect(written.qr.startsWith(`${SITE}/#`)).toBe(true);
+      const digits = written.qr.slice(written.qr.indexOf("#") + 1);
+      expect(/^[0-9]+$/.test(digits)).toBe(true);
+      const bare = await openAddress(written.qr, async () => hand, options);
+      expect(bare.seen.shape).toBe("bare");
+      expect(readDescription(bare)).toEqual({ status: "attached", title: "A quiet room in Tbilisi", content: "For a week in June.", inbox });
+      expect(fromText(digits).length).toBe(written.qrBytes);
+    });
+  }
+
+  test("a seed that is not the hand's root key is refused", async () => {
+    const described = describeHand({ mode: "unlisted", title: "Someone who repairs film cameras", inbox });
+    const hand = handOf(newSeed(), described.dataHash);
+    await expect(writeLinks({ site: SITE, chainId: 31337, core: CORE, hand, seed: newSeed(), described, options })).rejects.toThrow();
+  });
+});
