@@ -272,7 +272,7 @@ describe("the step path (no atomic support)", () => {
     const result = await sendCalls(env(), double.wallet, [approveCall(usd, chain.core, terms.reward), raiseCall(chain.core, terms)], {
       onIntent: (intent) => {
         intents.push(intent);
-        events.push(`intent ${intent.kind === "tx" ? intent.step : "batch"}`);
+        events.push(`intent ${intent.kind === "tx" ? intent.step : "batch"}${intent.hash ? "" : " asking"}`);
       },
       between: (step, of) => {
         events.push(`between ${step}/${of}`);
@@ -286,8 +286,11 @@ describe("the step path (no atomic support)", () => {
     if (!result.ok) return;
     expect(result.atomic).toBe(false);
     expect(result.hashes).toHaveLength(2);
-    expect(events).toEqual(["intent 0", "in-block 0", "between 1/2", "intent 1", "in-block 1"]);
-    expect(intents.map((i) => (i.kind === "tx" ? i.hash : undefined))).toEqual(result.hashes);
+    // Each step's intent is handed over before the wallet is asked (its nonce, no hash) and again with its hash.
+    expect(events).toEqual(["intent 0 asking", "intent 0", "in-block 0", "between 1/2", "intent 1 asking", "intent 1", "in-block 1"]);
+    expect(intents.filter((i) => i.hash).map((i) => i.hash)).toEqual(result.hashes);
+    expect(intents.filter((i) => !i.hash).map((i) => i.nonce)).toEqual([intents[0]!.nonce, intents[0]!.nonce! + 1]);
+    expect(intents.every((i) => i.from === raiser && i.fromBlock !== undefined)).toBe(true);
     expect(double.sendTransactions()).toBe(2);
     expect(double.sendBatches()).toBe(0);
     expect(handIdOf(result)).toBeGreaterThan(0n);
@@ -336,11 +339,14 @@ describe("the batch path (atomic support)", () => {
     expect(double.sendBatches()).toBe(1);
     expect(double.sendTransactions()).toBe(0);
     expect(betweenCalls).toBe(0);
-    // First the batch's id (before waiting), then the same id with its hash.
-    expect(intents).toHaveLength(2);
-    expect(intents[0]).toMatchObject({ kind: "batch", of: 2 });
-    expect(intents[0]!.hash).toBeUndefined();
-    expect(intents[1]).toMatchObject({ kind: "batch", id: (intents[0] as { id: string }).id, hash: result.receipt.transactionHash });
+    // Before the wallet is asked (the nonce, no id), then the batch's id (before waiting), then the same id with its hash.
+    expect(intents).toHaveLength(3);
+    expect(intents[0]).toMatchObject({ kind: "batch", of: 2, from: raiser });
+    expect(intents[0]!.nonce).toBeGreaterThanOrEqual(0);
+    expect((intents[0] as { id?: string }).id).toBeUndefined();
+    expect(intents[1]).toMatchObject({ kind: "batch", of: 2 });
+    expect(intents[1]!.hash).toBeUndefined();
+    expect(intents[2]).toMatchObject({ kind: "batch", id: (intents[1] as { id: string }).id, hash: result.receipt.transactionHash });
     expect(handIdOf(result)).toBeGreaterThan(0n);
   });
 });

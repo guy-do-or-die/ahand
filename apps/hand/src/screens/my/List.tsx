@@ -2,12 +2,15 @@ import { MATCH_ROOT_MAX_N, matchRoot, openAddress, readDescription, readHand, ro
 import { useEffect, useState } from "react";
 import { isAddressEqual, type Address, type Hex } from "viem";
 
-import { clientOf, useHand, useNow } from "../../chain";
+import { clientOf, useHand, useNow, watcherOf } from "../../chain";
+import { config } from "../../config";
 import { t } from "../../i18n";
+import { navigate } from "../../router";
 import { bookOf, forHand, handKey, put, type HandRecord, type PassedRecord } from "../../store/db";
 import { TID } from "../../testids";
-import { CopyRow, Mark, QuietButton, RewardBar, day, money, useLang, useLens } from "../../ui";
-import { ConnectButton, useWallet } from "../../wallet";
+import { CopyRow, Mark, QuietButton, RewardBar, SwipeButton, day, money, useLang, useLens } from "../../ui";
+import { ConnectButton, resume, useWallet } from "../../wallet";
+import { onItsWay, resumeRaise, type RaiseContext } from "../raise/flow";
 import { listChanged, useAnswers, useMyHands, usePassed, useSecrets } from "./hooks";
 import { daysLeft, formatCode, parseCode, parseHandNumber, secondsLeft, wantsCare } from "./logic";
 import { GET_HAND, OPTIONS, SITE, coreOn, decimalsOf, domainOn } from "./place";
@@ -43,9 +46,9 @@ export default function MyList() {
       ) : (
         <div className="flex flex-col items-start gap-3" data-testid={TID.my.empty}>
           <p className="m-0 text-[length:var(--fs-card-title-lg)] font-extrabold tracking-[-0.02em]">{t("my.empty")}</p>
-          <a href="/raise" className="ah-quiet ah-quiet--compact">
+          <SwipeButton gesture="raise" data-testid={TID.my.raise} onClick={() => navigate("/raise")} className="w-full">
             {t("my.raise")}
-          </a>
+          </SwipeButton>
         </div>
       )}
       <Line testId={TID.my.deviceOnly} dim>
@@ -74,6 +77,42 @@ export default function MyList() {
   );
 }
 
+/**
+ * A raise of this device stuck in "sent" (or asked, its answer lost) is read again from the chain
+ * with the same check /raise uses (FINDINGS E-2): its hash, or its nonce and its own `Raised` log.
+ * Found: the record becomes the Hand. Dropped: the record says nothing left the account. Nothing
+ * is ever sent from here; the check stops when the list is left.
+ */
+function useSettleStuck(record: HandRecord): "checking" | undefined {
+  const stuck = onItsWay(record) && record.chainId === config.chain.id;
+  const [checking, setChecking] = useState(stuck);
+  useEffect(() => {
+    if (!stuck) return;
+    const stop = new AbortController();
+    const client = clientOf(record.chainId);
+    const ctx = {
+      client,
+      chainId: record.chainId,
+      core: record.core as Address,
+      token: record.core as Address,
+      maxExpiryPeriod: 0,
+      site: config.site,
+      options: config.cores.canonical ? { canonicalCore: config.cores.canonical } : {},
+    } as RaiseContext;
+    const env = { client, chainId: record.chainId, signal: stop.signal, tick: () => watcherOf(record.chainId).nextTip().then(() => undefined) };
+    setChecking(true);
+    resumeRaise(record, ctx, (intent, probe) => resume(env, intent, probe ? { probe } : {}))
+      .then((outcome) => {
+        if (stop.signal.aborted) return;
+        setChecking(false);
+        if (outcome.ok || outcome.problem.id !== "raise.error.lostSight") listChanged();
+      })
+      .catch(() => setChecking(false));
+    return () => stop.abort(new Error("the list was left"));
+  }, [stuck, record.intent]); // eslint-disable-line react-hooks/exhaustive-deps
+  return stuck && checking ? "checking" : undefined;
+}
+
 /** The state line of a Hand by the network's clock: time left, time's up, or how it closed. */
 function StateLine({ state, expiry, closedAt, funded }: { state: string | undefined; expiry: number; closedAt: number; funded: boolean }) {
   const lang = useLang();
@@ -100,12 +139,19 @@ function ListItem({ record, account }: { record: HandRecord; account: Address | 
   const key = record.hand ?? (handId !== undefined ? handKey(record.chainId, core, handId) : undefined);
   const answers = useAnswers(key, handId !== undefined ? { chainId: record.chainId, core, handId } : undefined, read.data?.state);
   const answered = answers.filter((answer) => answer.judged?.verdict === "answer").length;
+  const settling = useSettleStuck(record);
 
   if (handId === undefined || !key) {
     return (
-      <li className="ah-card flex flex-col gap-2 border-dashed p-4" data-testid={TID.my.item} data-value={record.intent}>
+      <li className="ah-card flex flex-col gap-2 border-dashed p-4" data-testid={TID.my.item} data-value={record.intent} data-status={record.status ?? ""}>
         <p className="m-0 font-extrabold">{record.title}</p>
-        <Line>{record.status === "reverted" ? t("my.reverted") : t("my.notUp")}</Line>
+        {record.status === "dropped" ? (
+          <p className="ah-label m-0" data-testid={TID.my.raiseDropped}>
+            {t("raise.my.dropped")}
+          </p>
+        ) : (
+          <Line>{record.status === "reverted" ? t("my.reverted") : settling ? t("raise.my.checking") : t("my.notUp")}</Line>
+        )}
       </li>
     );
   }
@@ -292,7 +338,10 @@ function RebuildFromCode({ account }: { account: Address | undefined }) {
     let session = unlockedFor(place.chainId, core, account);
     if (!session) {
       const outcome = await unlock(place.chainId, core, account, sign);
-      if (!outcome.ok) return setState({ status: "error", id: outcome.reason === "rejected" ? "my.unlock.refused" : "my.add.offline" });
+      if (!outcome.ok) {
+        if (outcome.reason === "wrong-network") return setState({ status: "error", id: "common.error.wrongNetwork", values: { network: config.chain.name } });
+        return setState({ status: "error", id: outcome.reason === "rejected" ? "my.unlock.refused" : "my.add.offline" });
+      }
       session = outcome.unlocked;
     }
     if (!session.master) return setState({ status: "error", id: "my.unlock.differs" });

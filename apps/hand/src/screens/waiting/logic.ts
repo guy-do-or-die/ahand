@@ -97,7 +97,7 @@ export function knownHands(stores: readonly (readonly StoredHand[])[], chainId: 
 export type Failure =
   | { kind: "token" }
   | { kind: "core"; id: string; refusal: CoreRefusal }
-  | { kind: "rejected" | "offline" | "needs-wallet" | "cannot-send" | "unknown" };
+  | { kind: "rejected" | "offline" | "needs-wallet" | "cannot-send" | "unknown" | "dropped" | "wrong-network" };
 
 /** Core's refusals that mean the token itself did not move the money. */
 const TOKEN_REFUSALS = new Set(["SafeERC20FailedOperation", "InexactTransfer"]);
@@ -123,6 +123,9 @@ export function failureOf(result: FailedSend): Failure {
     case "offline":
     case "needs-wallet":
     case "cannot-send":
+    case "dropped":
+    case "wrong-network":
+    case "unknown":
       return { kind: result.reason };
     default:
       return { kind: "unknown" };

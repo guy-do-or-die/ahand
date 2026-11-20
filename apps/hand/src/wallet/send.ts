@@ -1,7 +1,7 @@
 import { decodeCoreError, type Call, type CoreRefusal } from "@ahand/sdk";
 import type { Account, Address, Chain, Hex, PublicClient, TransactionReceipt, Transport, WalletClient } from "viem";
 
-import { follow, type Progress, type Reached } from "../chain/finality";
+import { DroppedError, fateOf, follow, type Fate, type Probe, type Progress, type Reached, type Sent } from "../chain/finality";
 import { simulateAll, simulateOne } from "../chain/simulate";
 
 /**
@@ -13,16 +13,44 @@ import { simulateAll, simulateOne } from "../chain/simulate";
  *    ready), all calls go as one batch that must run whole. Otherwise one call after another, each
  *    waited for in a block before the next; before each later step `between(step, of)` lets the
  *    screen check again (a thank re-asks Core's `checkGive`), and the step is simulated again.
- * 3. The intent (the hash, or the batch's id and then its hash) is handed to `onIntent` before
- *    anything is waited for, so a screen can store it and `resume` it after a reload.
- * 4. Nothing is ever sent twice from here: no retry, no resend after a drop or a reorg. A send
- *    that is not answered keeps waiting; the screen decides what to offer.
- * 5. After the last step lands, `settled` follows it to Final through the chain's own tags.
+ * 3. The intent is handed to `onIntent` before the wallet is asked (who sends, the account's
+ *    `pending` nonce, the latest block, the action), and again once the wallet answers with the
+ *    hash or the batch's id, then the batch's hash: a reload always finds it and can `resume` it.
+ * 4. Nothing is ever sent twice from here: no retry, no resend after a drop or a reorg.
+ * 5. A wallet error that is not a refusal (4001) or "this account can't" (4100, 4200) may come
+ *    after the transaction left: it is "unknown", carries the intent, and never reads "nothing was
+ *    sent". `resume` then settles it from the account's nonce and the action's own effect
+ *    (`fateOf`, chain/finality.ts): landed (under whichever hash carried it), or "dropped" when
+ *    nothing from it left the account. A followed hash ends the same way when it is replaced or
+ *    dropped, so no follow runs for ever on a hash nobody knows.
+ * 6. After the last step lands, `settled` follows it to Final through the chain's own tags.
  */
 
+/** What a send does, kept with its intent so a reload knows which effect to look for. */
+export type SendAction = "raise" | "approve" | "fund" | "extend" | "withdraw" | "refund" | "thank" | "setup";
+
+/** One call's action and the probe of its effect (see wallet/effects.ts). */
+export interface StepInfo {
+  action: SendAction;
+  probe?: Probe;
+}
+
+interface Known {
+  chainId: number;
+  /** The account the wallet was asked to send from. */
+  from?: Address;
+  /** Its `pending` transaction count just before the wallet was asked. */
+  nonce?: number;
+  /** The latest block then: the effect of this send is looked for from here on. */
+  fromBlock?: number;
+  action?: SendAction;
+}
+
 export type Intent =
-  | { kind: "tx"; chainId: number; hash: Hex; /** 0-based */ step: number; of: number }
-  | { kind: "batch"; chainId: number; id: string; of: number; hash?: Hex };
+  | (Known & { kind: "tx"; /** Unknown until the wallet answers. */ hash?: Hex; /** 0-based */ step: number; of: number })
+  | (Known & { kind: "batch"; /** Unknown until the wallet answers. */ id?: string; of: number; hash?: Hex });
+
+export type { Probe } from "../chain/finality";
 
 export interface SendProgress {
   phase: "checking" | "between" | "asking" | "watching";
@@ -60,8 +88,15 @@ export type SendResult =
   | (Failed<"failed-check"> & { message: string })
   | Failed<"rejected">
   | Failed<"cannot-send">
-  | Failed<"stopped">
+  /** The screen stopped following (or `between` said no); a send already made may still land. */
+  | (Failed<"stopped"> & { intent?: Intent })
   | (Failed<"reverted"> & { hash: Hex; refusal?: CoreRefusal })
+  /** Not known whether the transaction left the wallet: never "nothing was sent". */
+  | (Failed<"unknown"> & { intent: Intent; message: string })
+  /** Its nonce was used by another transaction, or stayed free for good, and its effect is not on the chain: nothing from it left the account. */
+  | (Failed<"dropped"> & { intent: Intent })
+  /** The wallet is on another network and would not switch: nothing was sent. */
+  | Failed<"wrong-network">
   | (Failed<"offline" | "error" | "needs-wallet"> & { message: string });
 
 export type SignedInWallet = WalletClient<Transport, Chain, Account>;
@@ -76,6 +111,8 @@ export interface SendEnv {
 
 export interface SendOptions {
   onIntent?: (intent: Intent) => void | Promise<void>;
+  /** Each call's action and effect probe, in order (a batch uses the last). */
+  steps?: readonly StepInfo[];
   /** Before each later step (1-based count of steps already done = `step`); false stops. */
   between?: (step: number, of: number) => boolean | void | Promise<boolean | void>;
   onProgress?: (progress: SendProgress) => void;
@@ -99,12 +136,45 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message.split("\n")[0]! : String(error);
 }
 
-/** How a wallet's "no" is read: 4001 the person said no; 4100/4200 the account can't do it. */
-function walletFailure(error: unknown, step: number, sent: Hex[]): SendResult {
+/** viem's errors thrown before the request reaches the wallet: nothing left. */
+function beforeAsking(error: unknown): "wrong-network" | "error" | undefined {
+  const name = (error as { name?: unknown } | undefined)?.name;
+  if (name === "ChainMismatchError") return "wrong-network";
+  if (name === "ChainNotFoundError" || name === "AccountNotFoundError" || name === "AccountTypeNotSupportedError") return "error";
+  return undefined;
+}
+
+/**
+ * How a wallet's error is read: 4001 the person said no; 4100/4200 the account can't do it; an
+ * error viem raised before asking. Anything else may come after the transaction left the wallet
+ * (an internal error, a timeout, the page's own RPC failing after the broadcast): unknown.
+ */
+function walletFailure(error: unknown, step: number, sent: Hex[], intent: Intent): SendResult {
   const code = codeOf(error);
   if (code === 4001) return { ok: false, reason: "rejected", step, sent };
   if (code === 4100 || code === 4200) return { ok: false, reason: "cannot-send", step, sent };
-  return { ok: false, reason: "error", step, sent, message: messageOf(error) };
+  const before = beforeAsking(error);
+  if (before === "wrong-network") return { ok: false, reason: "wrong-network", step, sent };
+  if (before === "error") return { ok: false, reason: "error", step, sent, message: messageOf(error) };
+  return { ok: false, reason: "unknown", step, sent, intent, message: messageOf(error) };
+}
+
+/** A follow that ended without a receipt: dropped, stopped by the screen, or (anything else) unknown. */
+function followFailure(error: unknown, step: number, sent: Hex[], intent: Intent, signal: AbortSignal | undefined): SendResult {
+  if (error instanceof DroppedError) return { ok: false, reason: "dropped", step, sent, intent };
+  if (signal?.aborted) return { ok: false, reason: "stopped", step, sent, intent };
+  return { ok: false, reason: "unknown", step, sent, intent, message: messageOf(error) };
+}
+
+/** What the wallet is about to be asked: the account's pending nonce and the latest block, read now. */
+async function knownBefore(env: SendEnv, from: Address): Promise<{ nonce: number; fromBlock: number }> {
+  const [nonce, block] = await Promise.all([env.client.getTransactionCount({ address: from, blockTag: "pending" }), env.client.getBlockNumber({ cacheTime: 0 })]);
+  return { nonce, fromBlock: Number(block) };
+}
+
+function sentOf(intent: Intent): Omit<Sent, "hash"> | undefined {
+  if (!intent.from || intent.nonce === undefined) return undefined;
+  return { from: intent.from, nonce: intent.nonce, ...(intent.fromBlock !== undefined ? { fromBlock: intent.fromBlock } : {}) };
 }
 
 /** Whether the wallet can run these calls as one that must go whole (EIP-5792 `atomic`). */
@@ -135,7 +205,7 @@ async function refusalOfRevert(client: PublicClient, from: Address, call: Call, 
 }
 
 /** Follows a hash: `landed` resolves with its first receipt, `settled` with the last state reached. */
-function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void) {
+function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void, known?: { sent?: Omit<Sent, "hash">; probe?: Probe }) {
   const stop = new AbortController();
   const signal = env.signal ? AbortSignal.any([env.signal, stop.signal]) : stop.signal;
   let land!: (receipt: TransactionReceipt) => void;
@@ -147,6 +217,8 @@ function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void) {
   const settled = follow(env.client, hash, {
     tick: env.tick,
     signal,
+    ...(known?.sent ? { sent: known.sent } : {}),
+    ...(known?.probe ? { probe: known.probe } : {}),
     onProgress: (progress) => {
       report(progress);
       if (progress.reached === "in-block" && progress.receipt) land(progress.receipt);
@@ -160,11 +232,12 @@ function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void) {
 
 /** Simulates, then sends `calls` from the wallet's account as a batch or as steps. */
 export async function sendCalls(env: SendEnv, wallet: SignedInWallet, calls: readonly Call[], options: SendOptions = {}): Promise<SendResult> {
-  const { onIntent, between, onProgress } = options;
+  const { onIntent, between, onProgress, steps } = options;
   const from = wallet.account.address;
   const of = calls.length;
   const sent: Hex[] = [];
   if (of === 0) throw new Error("nothing to send");
+  if (steps && steps.length !== of) throw new Error("one step description per call");
 
   onProgress?.({ phase: "checking", step: 0, of, atomic: false });
   let simulation: Awaited<ReturnType<typeof simulateAll>>;
@@ -205,6 +278,17 @@ export async function sendCalls(env: SendEnv, wallet: SignedInWallet, calls: rea
       }
     }
 
+    // Before the wallet is asked: the nonce and the block, and the intent handed over.
+    let before: { nonce: number; fromBlock: number };
+    try {
+      before = await knownBefore(env, from);
+    } catch (error) {
+      return { ok: false, reason: "offline", step, sent, message: messageOf(error) };
+    }
+    const info = steps?.[step];
+    const asked: Intent = { kind: "tx", chainId: env.chainId, step, of, from, ...before, ...(info ? { action: info.action } : {}) };
+    await onIntent?.(asked);
+
     onProgress?.({ phase: "asking", step, of, atomic });
     let hash: Hex;
     try {
@@ -216,21 +300,32 @@ export async function sendCalls(env: SendEnv, wallet: SignedInWallet, calls: rea
         ...(call.value ? { value: call.value } : {}),
       });
     } catch (error) {
-      return walletFailure(error, step, sent);
+      return walletFailure(error, step, sent, asked);
     }
     sent.push(hash);
-    await onIntent?.({ kind: "tx", chainId: env.chainId, hash, step, of });
+    const intent: Intent = { ...asked, hash };
+    await onIntent?.(intent);
 
-    const followed = watch(env, hash, (p) => onProgress?.({ phase: "watching", step, of, atomic, reached: p.reached, hash, ...(p.reorged ? { reorged: true } : {}) }));
+    const followed = watch(
+      env,
+      hash,
+      (p) => onProgress?.({ phase: "watching", step, of, atomic, reached: p.reached, hash: p.hash, ...(p.reorged ? { reorged: true } : {}) }),
+      { sent: { from, ...before }, ...(info?.probe ? { probe: info.probe } : {}) },
+    );
     let receipt: TransactionReceipt;
     try {
       receipt = await followed.landed;
     } catch (error) {
-      return { ok: false, reason: "error", step, sent, message: messageOf(error) };
+      return followFailure(error, step, sent, intent, env.signal);
+    }
+    if (receipt.transactionHash !== hash) {
+      // Replaced (a speed-up): the action landed under another hash, which is the one kept.
+      sent[sent.length - 1] = receipt.transactionHash;
+      await onIntent?.({ ...intent, hash: receipt.transactionHash });
     }
     if (receipt.status === "reverted") {
       followed.stop();
-      return { ok: false, reason: "reverted", step, sent, hash, refusal: await refusalOfRevert(env.client, from, call, receipt) };
+      return { ok: false, reason: "reverted", step, sent, hash: receipt.transactionHash, refusal: await refusalOfRevert(env.client, from, call, receipt) };
     }
     if (step < of - 1) {
       followed.stop(); // the last step's block comes later and settles every block before it
@@ -242,9 +337,19 @@ export async function sendCalls(env: SendEnv, wallet: SignedInWallet, calls: rea
 }
 
 async function sendBatch(env: SendEnv, wallet: SignedInWallet, calls: readonly Call[], options: SendOptions): Promise<SendResult> {
-  const { onIntent, onProgress } = options;
+  const { onIntent, onProgress, steps } = options;
   const of = calls.length;
   const sent: Hex[] = [];
+  const from = wallet.account.address;
+  let before: { nonce: number; fromBlock: number };
+  try {
+    before = await knownBefore(env, from);
+  } catch (error) {
+    return { ok: false, reason: "offline", step: 0, sent, message: messageOf(error) };
+  }
+  const last = steps?.[of - 1];
+  const asked: Intent = { kind: "batch", chainId: env.chainId, of, from, ...before, ...(last ? { action: last.action } : {}) };
+  await onIntent?.(asked);
   onProgress?.({ phase: "asking", step: 0, of, atomic: true });
   let id: string;
   try {
@@ -255,10 +360,11 @@ async function sendBatch(env: SendEnv, wallet: SignedInWallet, calls: readonly C
       forceAtomic: true,
     }));
   } catch (error) {
-    return walletFailure(error, 0, sent);
+    return walletFailure(error, 0, sent, asked);
   }
-  await onIntent?.({ kind: "batch", chainId: env.chainId, id, of });
-  return followBatch(env, wallet, { kind: "batch", chainId: env.chainId, id, of }, options);
+  const intent: Intent = { ...asked, id };
+  await onIntent?.(intent);
+  return followBatch(env, wallet, intent, { ...options, ...(last?.probe ? { probe: last.probe } : {}) });
 }
 
 /** Waits for a batch's hash through the wallet (EIP-5792 `wallet_getCallsStatus`), then follows it. */
@@ -266,56 +372,98 @@ async function followBatch(
   env: SendEnv,
   wallet: SignedInWallet,
   intent: Extract<Intent, { kind: "batch" }>,
-  options: SendOptions,
+  options: Pick<SendOptions, "onIntent" | "onProgress"> & { probe?: Probe },
 ): Promise<SendResult> {
   const { onIntent, onProgress } = options;
   const { of } = intent;
   let hash = intent.hash;
   onProgress?.({ phase: "watching", step: 0, of, atomic: true, reached: "sent" });
   while (!hash) {
-    if (env.signal?.aborted) return { ok: false, reason: "stopped", step: 0, sent: [] };
-    const status = await wallet.getCallsStatus({ id: intent.id }).catch(() => undefined);
+    if (env.signal?.aborted) return { ok: false, reason: "stopped", step: 0, sent: [], intent };
+    const status = intent.id ? await wallet.getCallsStatus({ id: intent.id }).catch(() => undefined) : undefined;
     const receipts = status?.receipts ?? [];
     if (receipts.length > 0) hash = receipts[receipts.length - 1]!.transactionHash;
     else if (status?.status === "failure") return { ok: false, reason: "error", step: 0, sent: [], message: "the wallet reports that the batch failed" };
     else await env.tick();
   }
-  await onIntent?.({ ...intent, hash });
-  return followLast(env, hash, 0, of, true, onProgress);
+  const withHash = { ...intent, hash };
+  await onIntent?.(withHash);
+  return followLast(env, withHash, 0, of, true, options);
 }
 
 async function followLast(
   env: SendEnv,
-  hash: Hex,
+  intent: Intent & { hash: Hex },
   step: number,
   of: number,
   atomic: boolean,
-  onProgress: SendOptions["onProgress"],
+  options: Pick<SendOptions, "onIntent" | "onProgress"> & { probe?: Probe },
 ): Promise<SendResult> {
-  const followed = watch(env, hash, (p) => onProgress?.({ phase: "watching", step, of, atomic, reached: p.reached, hash, ...(p.reorged ? { reorged: true } : {}) }));
+  const { onProgress, onIntent, probe } = options;
+  const { hash } = intent;
+  const sent = sentOf(intent);
+  const followed = watch(
+    env,
+    hash,
+    (p) => onProgress?.({ phase: "watching", step, of, atomic, reached: p.reached, hash: p.hash, ...(p.reorged ? { reorged: true } : {}) }),
+    { ...(sent ? { sent } : {}), ...(probe ? { probe } : {}) },
+  );
   let receipt: TransactionReceipt;
   try {
     receipt = await followed.landed;
   } catch (error) {
-    return { ok: false, reason: "error", step, sent: [hash], message: messageOf(error) };
+    return followFailure(error, step, [hash], intent, env.signal);
   }
+  if (receipt.transactionHash !== hash) await onIntent?.({ ...intent, hash: receipt.transactionHash });
   if (receipt.status === "reverted") {
     followed.stop();
-    return { ok: false, reason: "reverted", step, sent: [hash], hash };
+    return { ok: false, reason: "reverted", step, sent: [receipt.transactionHash], hash: receipt.transactionHash };
   }
-  return { ok: true, atomic, step, of, hashes: [hash], receipt, settled: followed.settled };
+  return { ok: true, atomic, step, of, hashes: [receipt.transactionHash], receipt, settled: followed.settled };
 }
 
 /**
- * Picks up a stored intent after a reload: watches the known hash and sends nothing. A batch
- * whose hash was not known yet needs the wallet that holds it.
+ * An intent with no hash (the wallet's answer was lost, or a reload came before it): its fate,
+ * read on every tick from the account's nonce and the action's effect, until it landed (then
+ * followed like any hash) or was dropped. Sends nothing.
  */
-export async function resume(env: SendEnv, intent: Intent, options: Pick<SendOptions, "onIntent" | "onProgress"> & { wallet?: SignedInWallet } = {}): Promise<SendResult> {
+async function settleUnknown(env: SendEnv, intent: Intent, options: Pick<SendOptions, "onIntent" | "onProgress"> & { probe?: Probe }): Promise<SendResult> {
+  const step = intent.kind === "tx" ? intent.step : 0;
+  const atomic = intent.kind === "batch";
+  onProgress(options, { phase: "watching", step, of: intent.of, atomic, reached: "sent" });
+  for (;;) {
+    if (env.signal?.aborted) return { ok: false, reason: "stopped", step, sent: [], intent };
+    const fate = await fateOf(env.client, intent, options.probe).catch((): Fate => ({ state: "waiting" }));
+    if (env.signal?.aborted) return { ok: false, reason: "stopped", step, sent: [], intent };
+    if (fate.state === "dropped") return { ok: false, reason: "dropped", step, sent: [], intent };
+    if (fate.state === "landed") {
+      const found = { ...intent, hash: fate.receipt.transactionHash };
+      await options.onIntent?.(found);
+      return followLast(env, found, step, intent.of, atomic, options);
+    }
+    await env.tick();
+  }
+}
+
+function onProgress(options: Pick<SendOptions, "onProgress">, progress: SendProgress): void {
+  options.onProgress?.(progress);
+}
+
+/**
+ * Picks up a stored intent after a reload, or settles one whose answer was "unknown": watches the
+ * known hash, or reads the account's nonce and the action's effect (`probe`), and sends nothing.
+ * A batch whose hash was not known yet asks the wallet that holds it, when there is one.
+ */
+export async function resume(
+  env: SendEnv,
+  intent: Intent,
+  options: Pick<SendOptions, "onIntent" | "onProgress"> & { wallet?: SignedInWallet; probe?: Probe } = {},
+): Promise<SendResult> {
   if (intent.chainId !== env.chainId) throw new Error(`this intent is on chain ${intent.chainId}, not ${env.chainId}`);
-  if (intent.kind === "tx") return followLast(env, intent.hash, intent.step, intent.of, false, options.onProgress);
-  if (intent.hash) return followLast(env, intent.hash, 0, intent.of, true, options.onProgress);
-  if (!options.wallet) return { ok: false, reason: "needs-wallet", step: 0, sent: [], message: "connect the wallet that holds this batch to find it" };
-  return followBatch(env, options.wallet, intent, options);
+  if (intent.hash) return followLast(env, { ...intent, hash: intent.hash }, intent.kind === "tx" ? intent.step : 0, intent.of, intent.kind === "batch", options);
+  if (intent.kind === "batch" && intent.id && options.wallet) return followBatch(env, options.wallet, intent, options);
+  if (sentOf(intent)) return settleUnknown(env, intent, options);
+  return { ok: false, reason: "needs-wallet", step: 0, sent: [], message: "connect the wallet that holds this batch to find it" };
 }
 
 /** Waits `ms` with the event loop's timer (a pause, not a reading of any clock). */

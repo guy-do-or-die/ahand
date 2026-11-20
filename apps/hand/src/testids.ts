@@ -26,6 +26,8 @@ export const TID = {
     notFoundHome: "shell-not-found-home",
     crash: "shell-crash",
     crashRetry: "shell-crash-retry",
+    offline: "shell-offline", // a screen whose code could not load; data-value: common.time.offline
+    offlineRetry: "shell-offline-retry",
   },
 
   /** Landing `/` (§7.1). */
@@ -66,7 +68,6 @@ export const TID = {
     up: "raise-up",
     pending: "raise-pending",
     copy: "raise-copy",
-    share: "raise-share",
     qr: "raise-qr",
     print: "raise-print",
     reminder: "raise-reminder",
@@ -75,6 +76,14 @@ export const TID = {
     copyGone: "raise-copy-gone",
     error: "raise-error",
     cost: "raise-cost",
+    stopWaiting: "raise-stop-waiting",
+    unknown: "raise-unknown",
+    dropped: "raise-dropped",
+    offline: "raise-offline",
+    size: "raise-size", // data-value: bytes of the public address's `d`; data-over: true | false
+    sizeRefused: "raise-size-refused",
+    accountChanged: "raise-account-changed",
+    allowSent: "raise-allow-sent",
   },
 
   /** My hands `/my`, `/my/<chain>/<hand>` (§7.3). */
@@ -82,6 +91,7 @@ export const TID = {
     list: "my-list",
     item: "my-item", // data-value: handKey
     empty: "my-empty",
+    raise: "my-raise", // the empty list's swipe to /raise
     deviceOnly: "my-device-only",
     unlock: "my-unlock",
     careBand: "my-care-band",
@@ -110,6 +120,12 @@ export const TID = {
     rebuildOpen: "my-rebuild-open",
     linkRefused: "my-link-refused",
     answerCount: "my-answer-count", // data-value: accepted answers
+    proofLink: "my-proof-link",
+    answersMine: "my-answers-mine",
+    answerMine: "my-answer-mine",
+    answerThread: "my-answer-thread",
+    thankOnWay: "my-thank-on-way",
+    raiseDropped: "my-raise-dropped",
   },
 
   /** Care `/care/<chain>/<hand>` (§7.4). */
@@ -124,6 +140,8 @@ export const TID = {
     txRail: "care-tx-rail",
     fundDone: "care-tx-rail-fund-done",
     extendDone: "care-tx-rail-extend-done",
+    inFlight: "care-in-flight", // data-value: fund | extend
+    unknown: "care-unknown",
   },
 
   /** Thank `/thank` (§7.5). */
@@ -157,6 +175,8 @@ export const TID = {
     payout: "thank-payout", // data-kind: paid | waiting; data-payee, data-amount, data-landed
     noMoney: "thank-no-money",
     receiptEvent: "thank-receipt-event", // data-value: the event's name
+    onWay: "thank-on-way", // data-value: the inbox record's id
+    unknown: "thank-unknown",
   },
 
   /** Hand view `/#…`, `/<chain>/<hand>` (§8.1–8.3). */
@@ -186,9 +206,15 @@ export const TID = {
     wentBack: "hand-went-back",
     statements: "hand-statements",
     copy: "hand-copy",
-    share: "hand-share",
     error: "hand-error",
     networkTime: "hand-network-time",
+    proofLink: "hand-proof-link",
+    checkLink: "hand-check-link",
+    retry: "hand-retry",
+    offline: "hand-offline",
+    giveRefused: "hand-give-refused",
+    sendBackInFlight: "hand-send-back-in-flight",
+    sendBackRail: "hand-send-back-rail",
   },
 
   /** Pass on `/pass` (§8.4). */
@@ -199,7 +225,6 @@ export const TID = {
     darker: "pass-darker",
     swipe: "pass-swipe",
     copy: "pass-copy",
-    share: "pass-share",
     qr: "pass-qr",
     qrTooLong: "pass-qr-too-long",
     readBack: "pass-read-back",
@@ -217,13 +242,13 @@ export const TID = {
     delivered: "give-delivered",
     fallback: "give-fallback",
     copy: "give-copy",
-    share: "give-share",
     qr: "give-qr",
     thread: "give-thread",
     replyInput: "give-reply-input",
     replySend: "give-reply-send",
     toWaiting: "give-to-waiting",
     error: "give-error",
+    wrongNetwork: "give-wrong-network",
   },
 
   /** Where the money lands, the shared sheet (§8.6). */
@@ -257,6 +282,9 @@ export const TID = {
     error: "waiting-error",
     txRail: "waiting-tx-rail",
     events: "waiting-events",
+    inFlight: "waiting-in-flight",
+    unknown: "waiting-unknown",
+    connectHint: "waiting-connect-hint",
   },
 
   /** The passport `/<chain>/<hand>/proof` (§10.1). */
@@ -281,6 +309,7 @@ export const TID = {
     coreAnswer: "check-core-answer",
     finding: "check-finding",
     agree: "check-agree",
+    handState: "check-hand-state",
   },
 
   /** This contract `/core` (§10.3). */
@@ -320,6 +349,7 @@ export const TID = {
     open: "print-open",
     receipt: "print-receipt",
     verify: "print-verify",
+    header: "print-header",
   },
 
   /** The twist: every hand and receipt row turns over to its proof (UX-SPEC §3). */
@@ -390,6 +420,11 @@ export const TID = {
     sheet: "kit-sheet",
     sheetClose: "kit-sheet-close",
     withoutUs: "kit-without-us",
+    dealWordsLabel: "kit-deal-words-label",
+    dealReadAll: "kit-deal-read-all",
+    dealAmountFlag: "kit-deal-amount-flag",
+    dealHiddenChars: "kit-deal-hidden-chars",
+    txOffline: "kit-tx-offline",
   },
 } as const;
 

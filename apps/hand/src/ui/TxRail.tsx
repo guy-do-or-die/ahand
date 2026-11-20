@@ -1,3 +1,4 @@
+import { TID } from "../testids";
 import { clsx } from "../lib/clsx";
 import { Disclose } from "./Disclose";
 import { useWords } from "./words";
@@ -12,6 +13,11 @@ export interface TxRailProps {
    * tag LOCAL STAND-IN, and a disclosure says what they mean there.
    */
   local?: boolean;
+  /**
+   * The network can't be reached (or blocks stopped arriving): the rail is where it was last seen,
+   * and a line beside it says so, instead of a "Sent (now)" that seems to be waiting calmly (E-5).
+   */
+  offline?: boolean;
   className?: string;
 }
 
@@ -23,7 +29,7 @@ const ORDER: readonly TxReached[] = ["sent", "in-block", "safe", "final"];
  * each also says "done", "now" or "not yet" to a screen reader, so the state is never told by
  * colour alone.
  */
-export function TxRail({ reached, local = false, className }: TxRailProps) {
+export function TxRail({ reached, local = false, offline = false, className }: TxRailProps) {
   const words = useWords();
   const at = ORDER.indexOf(reached);
   return (
@@ -55,6 +61,11 @@ export function TxRail({ reached, local = false, className }: TxRailProps) {
           </li>
         ) : null}
       </ol>
+      {offline ? (
+        <p className="ah-note m-0" role="status" data-testid={TID.kit.txOffline}>
+          {words.deal.noClock}
+        </p>
+      ) : null}
       {local ? (
         <Disclose label={words.tx.localTag}>
           <span className="ah-label">{words.tx.localWhy}</span>

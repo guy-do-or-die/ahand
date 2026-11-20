@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Address } from "viem";
 
-import { clientOf } from "../../chain";
+import { clientOf, useChainStatus } from "../../chain";
+import { config } from "../../config";
 import { t, useLang } from "../../i18n";
+import { all } from "../../store/db";
 import { addressOf, openedLink } from "../../store/memory";
 import { TID } from "../../testids";
-import { ErrorBand, QuietButton } from "../../ui";
-import { checkThank, isGiveFragment, type CheckResult } from "./check";
+import { ErrorBand, QuietButton, TxRail } from "../../ui";
+import { thankedProbe, useSend, type SendResult } from "../../wallet";
+import { checkThank, isGiveFragment, keepIntent, type CheckResult, type ThankRecord } from "./check";
 import { ThankFlow } from "./Flow";
 
 /**
  * /thank (UX-SPEC §7.5): one careful tap that pays everyone. A give address is pasted here, or
  * handed over by /my through store/memory.ts. Nothing is called an answer before Core's
  * `checkGive` passes; until then the screen says it is checking.
+ *
+ * Before anything is pasted, a thanks sent from this device and still on its way (an inbox record
+ * with a `thank` intent) is named and followed by its hash, or by the raiser's nonce and the Hand's
+ * `Thanked`, and never sent again (FINDINGS R-5).
  */
 export default function ThankScreen() {
   useLang(); // re-render on a language switch
@@ -59,6 +67,11 @@ export default function ThankScreen() {
         <h1 className="m-0 text-[length:var(--fs-title-m)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title)]">{t("thank.title")}</h1>
         {showInput ? <p className="m-0 text-[length:var(--fs-body-lg)] leading-snug">{t("thank.lead")}</p> : null}
       </header>
+
+      {showInput ? <OnTheirWay onOpen={(link) => {
+        setText(link);
+        void check(link);
+      }} /> : null}
 
       {showInput ? (
         <form
@@ -113,5 +126,78 @@ export default function ThankScreen() {
 
       {result?.ok ? <ThankFlow key={result.checked.giveHash} checked={result.checked} onAnother={reset} /> : null}
     </section>
+  );
+}
+
+/** The Hand a stored record belongs to: `chainId:core:handId`. */
+function placeOf(record: ThankRecord): { chainId: number; core: Address; handId: bigint } | undefined {
+  const [chain, core, hand] = record.hand.split(":");
+  if (!chain || !core || !hand || !/^[0-9]+$/.test(chain) || !/^[0-9]+$/.test(hand)) return undefined;
+  return { chainId: Number(chain), core: core as Address, handId: BigInt(hand) };
+}
+
+/** Thanks sent from this device that are still on their way, followed until each lands or is dropped. */
+function OnTheirWay({ onOpen }: { onOpen: (link: string) => void }) {
+  const [records, setRecords] = useState<ThankRecord[]>([]);
+  useEffect(() => {
+    let live = true;
+    all("inbox")
+      .then((list) => live && setRecords((list as ThankRecord[]).filter((record) => record.thank && record.thank.chainId === config.chain.id)))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (records.length === 0) return null;
+  return (
+    <ul className="m-0 flex list-none flex-col gap-3 p-0">
+      {records.map((record) => (
+        <OnItsWay key={record.id} record={record} onOpen={onOpen} />
+      ))}
+    </ul>
+  );
+}
+
+function OnItsWay({ record, onOpen }: { record: ThankRecord; onOpen: (link: string) => void }) {
+  const send = useSend();
+  const place = placeOf(record);
+  const { offline, stale } = useChainStatus();
+  const [result, setResult] = useState<SendResult | undefined>();
+  useEffect(() => {
+    if (!record.thank || !place) return;
+    let live = true;
+    const probe = thankedProbe(place.core, place.handId);
+    void send.resume(record.thank, { probe, onIntent: (intent) => keepIntent(record, intent) }).then(async (settled) => {
+      if (!settled.ok && settled.reason === "stopped") return;
+      await keepIntent(record, undefined).catch(() => undefined);
+      if (live) setResult(settled);
+    });
+    return () => {
+      live = false;
+    };
+    // Followed once, when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!place) return null;
+  const id = place.handId.toString();
+  const landed = result?.ok === true && result.step === result.of - 1;
+  return (
+    <li className="ah-card flex flex-col gap-3 p-4" data-testid={TID.thank.onWay} data-value={record.id} data-state={result ? (landed ? "landed" : result.ok ? "first-step" : result.reason) : "on-its-way"}>
+      {result === undefined ? (
+        <>
+          <p className="m-0 font-semibold leading-snug">{t("thank.onWay", { id })}</p>
+          <TxRail reached={send.state.reached ?? "sent"} local={!config.chain.hasL1} offline={offline || stale} />
+        </>
+      ) : landed ? (
+        <>
+          <p className="m-0 font-semibold leading-snug">{t("thank.onWay.done", { id })}</p>
+          <QuietButton compact className="self-start" onClick={() => onOpen(record.giveLink)}>
+            {t("thank.onWay.open")}
+          </QuietButton>
+        </>
+      ) : !result.ok && result.reason === "dropped" ? (
+        <p className="m-0 font-semibold leading-snug">{t("common.send.dropped")}</p>
+      ) : null}
+    </li>
   );
 }

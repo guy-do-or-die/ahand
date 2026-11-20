@@ -2,7 +2,7 @@
 // This is the one screen where "safe" may stand, and only in waiting.safe (the words guard allows it here).
 // Keys with a `lens` segment are the specialist layer: Core's own names, in mono.
 const en = {
-  "waiting.title": "Waiting for you.",
+  "waiting.title": "Money waiting for an address.",
   "waiting.intro": "When money can't reach its address at the moment a hand is thanked or sent back, it waits in the contract. From here it can be taken out, or delivered.",
 
   // Whose money
@@ -15,7 +15,7 @@ const en = {
   "waiting.for": "For this address",
 
   // What waits
-  "waiting.heading": "Waiting for you",
+  "waiting.heading": "Waiting for this address",
   "waiting.reading": "Reading the contract…",
   "waiting.nothing": "Nothing is waiting for this address.",
   "waiting.offline": "Can't reach the network right now. Nothing was sent, and the money is where it was.",
@@ -30,9 +30,10 @@ const en = {
   "waiting.deliver": "Deliver",
   "waiting.deliver.note": "Whoever presses, it lands only at this address.",
   "waiting.cost.checking": "Working out what it costs…",
+  "waiting.connectHint": "Connect a wallet to press Deliver; it still lands only at this address.",
 
   // When nobody here can pay the cost
-  "waiting.safe": "Your money is safe where it is. Anyone can press Deliver for you; it always lands at your address.",
+  "waiting.safe": "This money is safe where it is. Anyone can press Deliver; it always lands at this address.",
   "waiting.friend": "Send this page to anyone who can press Deliver:",
 
   // When it doesn't go

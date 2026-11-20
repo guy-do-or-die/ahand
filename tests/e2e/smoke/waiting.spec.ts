@@ -122,10 +122,14 @@ test("a pasted address shows what waits for it, read only, with the sentence for
 
   await expect(row(page, token)).toHaveAttribute("data-amount", onChain.toString());
   await expect(row(page, token)).toContainText("$");
-  // Nobody connected: no action, the money-is-safe sentence and a link that opens this page for the payee.
-  await expect(page.getByTestId("waiting-deliver")).toHaveCount(0);
+  // Nobody connected (F11): the page speaks of "this address", Deliver is drawn but off beside how to
+  // press it, there is no take-out, the money-is-safe sentence and a link that opens this page for the payee.
+  await expect(page.locator("h1")).toHaveText("Money waiting for an address.");
+  await expect(page.getByTestId("waiting-deliver")).toBeVisible();
+  await expect(page.getByTestId("waiting-deliver")).toBeDisabled();
+  await expect(page.getByTestId("waiting-connect-hint")).toHaveText("Connect a wallet to press Deliver; it still lands only at this address.");
   await expect(page.getByTestId("waiting-take-out")).toHaveCount(0);
-  await expect(page.getByTestId("waiting-safe")).toContainText("Your money is safe where it is.");
+  await expect(page.getByTestId("waiting-safe")).toContainText("This money is safe where it is.");
   const friend = await page.getByTestId("waiting-friend-link").getAttribute("data-value");
   expect(friend).toBe(`${new URL(page.url()).origin}/waiting?for=${payee}`);
 

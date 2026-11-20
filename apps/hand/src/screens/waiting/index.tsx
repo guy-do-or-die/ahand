@@ -29,7 +29,7 @@ import {
   type AddressReading,
   type Lang,
 } from "../../ui";
-import { ConnectButton, useSend, useWallet, type UseSend } from "../../wallet";
+import { ConnectButton, useKeptSend, useWallet, withdrawnProbe, type KeptSend, type SendResult } from "../../wallet";
 import {
   addressFromSearch,
   failureOf,
@@ -51,6 +51,12 @@ import {
  * `useSend`, which simulates first; a token that still refuses the payee is said in a sentence
  * before anything is pressed. History comes only from Hands this device knows, read in each
  * Hand's closing block by its number; nothing here scans the chain by payee.
+ *
+ * Each token's withdraw is one kept intent (`useKeptSend`): stored before the wallet is asked,
+ * followed again after a reload with the button held, and settled by the account's nonce and a
+ * `Withdrawn` for this payee when the wallet's answer is lost, never offered twice (W-6, U-2).
+ * The title and labels speak of "this address", since anyone may paste one (F11); without a
+ * connected account the Deliver control is still drawn, off, with how to press it.
  */
 
 const CORE: Address = config.cores.canonical ?? config.cores.trusted[0]!.core;
@@ -128,6 +134,14 @@ function FailureBand({ failure, code }: { failure: Failure; code?: string }) {
   else if (failure.kind === "rejected") {
     what = t("common.error.refused");
     kept = "";
+  } else if (failure.kind === "dropped") {
+    what = t("common.send.dropped");
+    kept = t("waiting.kept");
+  } else if (failure.kind === "wrong-network") {
+    what = t("common.error.wrongNetwork", { network: config.chain.name });
+  } else if (failure.kind === "unknown") {
+    what = t("common.send.unknown");
+    kept = "";
   } else if (failure.kind === "offline") what = t("waiting.offline");
   else what = t("waiting.failed");
   return (
@@ -167,24 +181,25 @@ function WithoutUs({ call }: { call: ReturnType<typeof withdrawCall> }) {
   );
 }
 
-function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig; payee: Address; offer: Offer; from: Address | undefined; tx: UseSend; onDone: (done: Done) => void }) {
+function Actions({ token, payee, offer, from, kept, onDone }: { token: TokenConfig; payee: Address; offer: Offer; from: Address | undefined; kept: KeptSend; onDone: (done: Done) => void }) {
   const [where, setWhere] = useState<"here" | "elsewhere">("here");
   const [reading, setReading] = useState<AddressReading>({ status: "empty" });
   const [failure, setFailure] = useState<{ failure: Failure; code?: string } | undefined>();
-  const busy = tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed";
+  const tx = kept.tx;
+  const busy = kept.holding || (tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed");
 
   const to: Address | undefined = offer.takeOut ? (where === "here" ? payee : payeeOf(reading)) : payee;
   const call = useMemo(() => (to ? withdrawCall(CORE, token.address, payee, to) : undefined), [to, token.address, payee]);
-  const cost = useCost(call && (offer.takeOut || offer.deliver) ? [call] : undefined, from);
+  const cost = useCost(call && (offer.takeOut || offer.deliver) && !busy ? [call] : undefined, from);
   const ahead: Failure | undefined =
     cost.status === "refused" ? refusalFailure(cost.refusal) : cost.status === "failed" ? { kind: "token" } : cost.status === "offline" ? { kind: "offline" } : undefined;
 
   async function go() {
-    if (!call) return;
+    if (!call || busy) return;
     setFailure(undefined);
-    const result = await tx.send([call]);
+    const result = await kept.send([call], { steps: [{ action: "withdraw", probe: withdrawnProbe(CORE, token.address, payee) }] });
     if (result.ok) onDone({ token: token.address, events: withdrawnIn(result.receipt, CORE) });
-    else setFailure({ failure: failureOf(result), ...("message" in result && result.reason === "failed-check" ? { code: result.message } : {}) });
+    else if (result.reason !== "stopped") setFailure({ failure: failureOf(result), ...("message" in result && result.reason === "failed-check" ? { code: result.message } : {}) });
   }
 
   if (!offer.takeOut && !offer.deliver) return null;
@@ -212,13 +227,13 @@ function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig
       ) : (
         <p className="ah-label m-0">{t("waiting.deliver.note")}</p>
       )}
-      {ahead ? (
+      {ahead && !busy ? (
         <FailureBand failure={ahead} {...(cost.status === "failed" ? { code: cost.message } : {})} />
       ) : cost.status === "ok" ? (
         <div data-testid={TID.kit.costLine}>
           <CostLine cost={cost.cost} prices={config.prices} gas={cost.gas} />
         </div>
-      ) : call ? (
+      ) : call && !busy ? (
         <p className="ah-label ah-label--dim m-0">{t("waiting.cost.checking")}</p>
       ) : null}
       <SwipeButton
@@ -228,6 +243,7 @@ function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig
         data-testid={takeOut ? TID.waiting.takeOut : TID.waiting.deliver}
         data-token={token.address}
         disabled={!call || busy || cost.status !== "ok"}
+        data-held={busy ? "true" : "false"}
         onClick={() => void go()}
       >
         {t(takeOut ? "waiting.takeOut" : "waiting.deliver")}
@@ -263,6 +279,89 @@ function Row({ token, amount, payee, atBlock, children }: { token: TokenConfig; 
       </div>
       {children}
     </li>
+  );
+}
+
+/** A send of this token's withdraw from before a reload, or one whose answer is unknown: said in words. */
+function InFlight({ kept }: { kept: KeptSend }) {
+  if (kept.unknown) {
+    return (
+      <p className="ah-note m-0" role="status" data-testid={TID.waiting.unknown}>
+        {t("common.send.unknown")}
+      </p>
+    );
+  }
+  const phase = kept.tx.state.phase;
+  if (!kept.resumed || !(kept.holding || (phase !== "done" && phase !== "failed" && phase !== "idle"))) return null;
+  return (
+    <p className="ah-note m-0" role="status" data-testid={TID.waiting.inFlight}>
+      {t("common.send.inFlight")}
+    </p>
+  );
+}
+
+/** Without a connected account: the Deliver control is drawn, off, beside how to press it (F11). */
+function Disconnected({ token }: { token: TokenConfig }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="ah-label m-0" data-testid={TID.waiting.connectHint}>
+        {t("waiting.connectHint")}
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <SwipeButton gesture="shake" emoji="🫱" variant="ink" data-testid={TID.waiting.deliver} data-token={token.address} disabled>
+          {t("waiting.deliver")}
+        </SwipeButton>
+        <ConnectButton />
+      </div>
+    </div>
+  );
+}
+
+/** One token's row: what waits, the way out, and its send kept across a reload. */
+function TokenRow({
+  token,
+  amount,
+  payee,
+  atBlock,
+  offer,
+  connected,
+  onDone,
+}: {
+  token: TokenConfig;
+  amount: bigint;
+  payee: Address;
+  atBlock: bigint | undefined;
+  offer: Offer | undefined;
+  connected: Address | undefined;
+  onDone: (done: Done) => void;
+}) {
+  const [resumedFailure, setResumedFailure] = useState<Failure | undefined>();
+  const kept = useKeptSend(`withdraw:${config.chain.id}:${payee.toLowerCase()}:${token.address.toLowerCase()}`, { withdraw: withdrawnProbe(CORE, token.address, payee) }, (result: SendResult) => {
+    if (result.ok) onDone({ token: token.address, events: withdrawnIn(result.receipt, CORE) });
+    else if (result.reason !== "stopped") setResumedFailure(failureOf(result));
+  });
+  const reached = kept.tx.state.reached;
+  const { offline, stale } = useChainStatus();
+  const phase = kept.tx.state.phase;
+  const inFlight = kept.holding || kept.unknown || phase === "asking" || phase === "watching" || phase === "between" || phase === "checking";
+  // Nothing waits and nothing of ours is on its way: no row (the screen says "nothing").
+  if (amount === 0n && !inFlight) return null;
+  return (
+    <Row token={token} amount={amount} payee={payee} {...(atBlock !== undefined ? { atBlock } : {})}>
+      <InFlight kept={kept} />
+      {reached ? (
+        <div data-testid={TID.waiting.txRail} data-value={reached} data-phase={kept.tx.state.phase}>
+          <TxRail reached={reached} local={!config.chain.hasL1} offline={(offline || stale) && kept.tx.state.phase === "watching"} />
+        </div>
+      ) : null}
+      {resumedFailure ? <FailureBand failure={resumedFailure} /> : null}
+      {offer && !offer.cannotPay ? (
+        <Actions token={token} payee={payee} offer={offer} from={connected} kept={kept} onDone={onDone} />
+      ) : !connected ? (
+        <Disconnected token={token} />
+      ) : null}
+      {offer?.takeOut === false && connected && !offer.cannotPay ? <p className="ah-label ah-label--dim m-0">{t("waiting.takeOut.only")}</p> : null}
+    </Row>
   );
 }
 
@@ -359,7 +458,6 @@ export default function WaitingScreen() {
   const place = usePlace();
   const wallet = useWallet();
   const { offline } = useChainStatus();
-  const tx = useSend();
   const [done, setDone] = useState<Done[]>([]);
 
   const connected = wallet.status === "connected" ? wallet.address : undefined;
@@ -411,19 +509,29 @@ export default function WaitingScreen() {
             <Heading>{t("waiting.heading")}</Heading>
             {waiting.data === undefined ? (
               <p className="ah-label m-0">{waiting.error || offline ? t("common.time.offline") : t("waiting.reading")}</p>
-            ) : rows.length === 0 ? (
-              <p className="m-0 text-[length:var(--fs-body-lg)] font-bold" data-testid={TID.waiting.nothing}>
-                {t("waiting.nothing")}
-              </p>
             ) : (
-              <ul className="m-0 flex list-none flex-col gap-4 p-0">
-                {rows.map(({ token, amount }) => (
-                  <Row key={token.address} token={token} amount={amount} payee={payee} {...(waiting.atBlock !== undefined ? { atBlock: waiting.atBlock } : {})}>
-                    {offer && !offer.cannotPay ? <Actions token={token} payee={payee} offer={offer} from={connected} tx={tx} onDone={(next) => setDone((before) => [...before, next])} /> : null}
-                    {offer?.takeOut === false && connected && !offer.cannotPay ? <p className="ah-label ah-label--dim m-0">{t("waiting.takeOut.only")}</p> : null}
-                  </Row>
-                ))}
-              </ul>
+              <>
+                {rows.length === 0 ? (
+                  <p className="m-0 text-[length:var(--fs-body-lg)] font-bold" data-testid={TID.waiting.nothing}>
+                    {t("waiting.nothing")}
+                  </p>
+                ) : null}
+                {/* Every token keeps its row mounted, so a send in flight is followed to its end even once nothing waits. */}
+                <ul className="m-0 flex list-none flex-col gap-4 p-0">
+                  {waiting.data.map(({ token, amount }) => (
+                    <TokenRow
+                      key={`${payee}:${token.address}`}
+                      token={token}
+                      amount={amount}
+                      payee={payee}
+                      atBlock={waiting.atBlock}
+                      offer={offer}
+                      connected={connected}
+                      onDone={(next) => setDone((before) => [...before, next])}
+                    />
+                  ))}
+                </ul>
+              </>
             )}
             {lens ? <p className="ah-meta m-0">{t("waiting.lens.perToken")}</p> : null}
           </section>
@@ -439,12 +547,6 @@ export default function WaitingScreen() {
               ) : null}
               <IssuerLine />
             </section>
-          ) : null}
-
-          {tx.state.reached ? (
-            <div data-testid={TID.waiting.txRail} data-value={tx.state.reached}>
-              <TxRail reached={tx.state.reached} local={!config.chain.hasL1} />
-            </div>
           ) : null}
 
           {last && last.events.length > 0 ? (

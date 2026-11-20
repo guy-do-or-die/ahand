@@ -1,15 +1,17 @@
-import { approveCall, castLine, extendCall, fundCall, getHandFor, readDescription, readLimits, type Call, type HandView } from "@ahand/sdk";
+import { approveCall, castLine, CORE_ABI, extendCall, fundCall, getHandFor, readDescription, readLimits, type Call, type HandView } from "@ahand/sdk";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { erc20Abi, isAddressEqual, type Address } from "viem";
+import { erc20Abi, isAddressEqual, parseEventLogs, type Address, type TransactionReceipt } from "viem";
 
-import { CLIENTS, clientOf, useBlockRead, useCost, useHand, useNow, type CostRead, type Now } from "../../chain";
+import { CLIENTS, clientOf, useBlockRead, useChainStatus, useCost, useHand, useNow, type CostRead, type Now } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import type { ScreenProps } from "../../routes";
+import { handKey } from "../../store/db";
 import { useOpened } from "../../store/memory";
 import { TID } from "../../testids";
 import { CopyRow, CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
-import { ConnectButton, useSend, useWallet, type SendResult } from "../../wallet";
+import { approvalProbe, ConnectButton, extendedProbe, fundedProbe, useKeptSend, useWallet, type KeptSend, type SendResult } from "../../wallet";
+import { exactMoney } from "../raise/exact";
 import { openHeldLink, peekHeld } from "../print/link";
 import { reminderIcs, reminderName, alarmLead } from "./calendar";
 import { DAY, capDays, extendChoices, inLastMinutes, type ChipKey } from "./extend";
@@ -19,6 +21,11 @@ import { DAY, capDays, extendChoices, inLastMinutes, type ChipKey } from "./exte
  * keep it open longer, and a reminder file. Every "now" is the network's (useNow, D-61); every
  * send is tried first by useSend, so Core's refusals arrive as sentences before anything is sent.
  * Only the account that raised the Hand is offered a send; anyone else reads NotRaiser.
+ *
+ * Each send is one kept intent (`useKeptSend`): stored on the device before the wallet is asked,
+ * followed again after a reload with its button held, and, when the wallet's answer is lost,
+ * settled by the account's nonce and the Hand's own `Funded` or `Extended` log, never sent twice
+ * (FINDINGS E-1, W-6). Amounts are named to their last digit when they have digits below a cent (M-2).
  */
 
 const CORE: Address = config.cores.canonical ?? config.cores.trusted[0]!.core;
@@ -83,10 +90,18 @@ function useWords(chainId: number, handId: bigint): DealDescription {
   return ours ? description : { status: "none" };
 }
 
-/** A send's outcome as one sentence and Core's name for the lens. */
-function sentenceOf(result: SendResult): { what: string; code?: string } {
-  if (result.ok) return { what: "" };
+/** A send's outcome as one sentence and Core's name for the lens; undefined when there is nothing to say. */
+function sentenceOf(result: SendResult): { what: string; code?: string } | undefined {
+  if (result.ok) return undefined;
   switch (result.reason) {
+    case "stopped":
+      return undefined;
+    case "dropped":
+      return { what: t("common.send.dropped"), code: "DROPPED" };
+    case "unknown":
+      return { what: t("common.send.unknown"), code: "UNKNOWN" };
+    case "wrong-network":
+      return { what: t("common.error.wrongNetwork", { network: config.chain.name }) };
     case "refused":
       return { what: t(`core.${result.refusal.name}`), code: result.refusal.name };
     case "reverted":
@@ -181,13 +196,33 @@ export default function CareScreen({ params }: ScreenProps) {
 
 /* ──────────────────────────────────────────────────── add to the reward */
 
+/** Whether a result carried the action itself, not only its permission step (a resumed approve). */
+function landedAll(result: SendResult): result is Extract<SendResult, { ok: true }> {
+  return result.ok && result.step === result.of - 1;
+}
+
+/** The reward after a fund, from the receipt's own `Funded` log. */
+function rewardAfter(receipt: TransactionReceipt): bigint | undefined {
+  return parseEventLogs({ abi: CORE_ABI, logs: receipt.logs, eventName: "Funded" })[0]?.args.reward;
+}
+
 function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: number; raiser: Address | undefined; handId: bigint }) {
   const lang = useLang();
-  const tx = useSend();
   const [reading, setReading] = useState<MoneyReading>({ status: "empty" });
   const [problem, setProblem] = useState<{ what: string; code?: string }>();
-  const [done, setDone] = useState(false);
+  /** The reward after the fund that landed; cleared when another amount is typed. */
+  const [done, setDone] = useState<bigint | undefined>();
   const amount = reading.status === "ok" && reading.amount > 0n ? reading.amount : undefined;
+
+  const settled = (result: SendResult) => {
+    if (landedAll(result)) setDone(rewardAfter(result.receipt) ?? view.reward);
+    else {
+      const sentence = sentenceOf(result);
+      if (sentence) setProblem(sentence);
+    }
+  };
+  const kept = useKeptSend(`fund:${handKey(config.chain.id, CORE, handId)}`, { fund: fundedProbe(CORE, handId), approve: approvalProbe(view.token, CORE) }, settled);
+  const tx = kept.tx;
 
   // What the raiser may already let Core take, and holds: read again on every block.
   const funds = useBlockRead(raiser ? `${raiser}:${view.token}` : undefined, async () => {
@@ -205,15 +240,15 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
     return needsApprove ? [approveCall(view.token, CORE, amount), fund] : [fund];
   }, [amount, needsApprove, funds.data === undefined, view.token, handId]); // eslint-disable-line react-hooks/exhaustive-deps
   const cost = useCost(calls, raiser);
-  const busy = tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed";
+  const busy = kept.holding || (tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed");
 
   const send = async () => {
-    if (!calls || !raiser || busy) return;
+    if (!calls || !raiser || busy || amount === undefined) return;
     setProblem(undefined);
-    setDone(false);
-    const result = await tx.send(calls);
-    if (result.ok) setDone(true);
-    else setProblem(sentenceOf(result));
+    setDone(undefined);
+    const fund = { action: "fund" as const, probe: fundedProbe(CORE, handId, amount) };
+    const steps = calls.length > 1 ? [{ action: "approve" as const, probe: approvalProbe(view.token, CORE) }, fund] : [fund];
+    settled(await kept.send(calls, { steps }));
   };
 
   return (
@@ -222,24 +257,36 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
         <MoneyInput
           label={t("care.fund.amount")}
           decimals={decimals}
-          onReading={setReading}
+          onReading={(next) => {
+            setReading(next);
+            setDone(undefined);
+          }}
           disabled={busy}
           {...(funds.data ? { max: funds.data.balance, hint: t("care.fund.balance", { amount: money(funds.data.balance, decimals, lang) }) } : {})}
         />
       </div>
-      {amount !== undefined && funds.data ? <p className="ah-label m-0">{needsApprove ? t("care.fund.twoSteps", { amount: money(amount, decimals, lang) }) : t("care.fund.oneStep")}</p> : null}
-      {raiser ? (
+      {amount !== undefined && funds.data ? <p className="ah-label m-0">{needsApprove ? t("care.fund.twoSteps", { amount: exactMoney(amount, decimals, lang) }) : t("care.fund.oneStep")}</p> : null}
+      {raiser || kept.holding || kept.resumed ? (
         <>
-          <Priced cost={cost} />
+          {raiser ? <Priced cost={cost} /> : null}
+          <InFlight kept={kept} action="fund" />
           {problem ? <Band what={problem.what} {...(problem.code ? { code: problem.code } : {})} /> : null}
-          <SwipeButton gesture="raise" variant="amber" data-testid={TID.care.fundSwipe} disabled={!calls || busy || cost.status === "refused"} onClick={() => void send()}>
-            {amount !== undefined ? t("care.fund.swipe", { amount: money(amount, decimals, lang) }) : t("care.fund.swipeEmpty")}
-          </SwipeButton>
+          {raiser ? (
+            <SwipeButton
+              gesture="raise"
+              variant="amber"
+              data-testid={TID.care.fundSwipe}
+              disabled={!calls || busy || cost.status === "refused" || done !== undefined}
+              onClick={() => void send()}
+            >
+              {amount !== undefined ? t("care.fund.swipe", { amount: exactMoney(amount, decimals, lang) }) : t("care.fund.swipeEmpty")}
+            </SwipeButton>
+          ) : null}
           <p className="ah-label m-0">{t("care.steps.why")}</p>
           <Sent tx={tx.state} testId={TID.care.txRail} action="fund" />
-          {done ? (
-            <p className="m-0 font-semibold" role="status" data-testid={`${TID.care.txRail}-fund-done`}>
-              {t("care.fund.done", { amount: money(view.reward, decimals, lang) })} {t("care.fund.stays")}
+          {done !== undefined ? (
+            <p className="m-0 font-semibold" role="status" data-testid={`${TID.care.txRail}-fund-done`} data-reward={done.toString()}>
+              {t("care.fund.done", { amount: exactMoney(done, decimals, lang) })} {t("care.fund.stays")}
             </p>
           ) : null}
         </>
@@ -253,10 +300,20 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
 
 function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now | undefined; cap: number | undefined; raiser: Address | undefined; handId: bigint }) {
   const lang = useLang();
-  const tx = useSend();
   const [chosen, setChosen] = useState<ChipKey>("30");
   const [problem, setProblem] = useState<{ what: string; code?: string }>();
   const [landed, setLanded] = useState<number>();
+  const settled = (result: SendResult) => {
+    if (landedAll(result)) {
+      const expiry = parseEventLogs({ abi: CORE_ABI, logs: result.receipt.logs, eventName: "Extended" })[0]?.args.expiry;
+      setLanded(expiry !== undefined ? Number(expiry) : view.expiry);
+    } else {
+      const sentence = sentenceOf(result);
+      if (sentence) setProblem(sentence);
+    }
+  };
+  const kept = useKeptSend(`extend:${handKey(config.chain.id, CORE, handId)}`, { extend: extendedProbe(CORE, handId) }, settled);
+  const tx = kept.tx;
 
   const choices = now && cap !== undefined ? extendChoices(now.timestamp, view.expiry, cap) : undefined;
   const choice = choices?.find((item) => item.key === chosen);
@@ -265,7 +322,7 @@ function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now |
   const minute = usable ? Math.floor(usable.target / 60) : undefined;
   const calls = useMemo<Call[] | undefined>(() => (usable ? [extendCall(CORE, handId, usable.target)] : undefined), [minute, chosen, handId]); // eslint-disable-line react-hooks/exhaustive-deps
   const cost = useCost(calls, raiser);
-  const busy = tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed";
+  const busy = kept.holding || (tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed");
   const late = now ? inLastMinutes(now.timestamp, view.expiry) : false;
 
   // If the chosen chip can no longer move the end (after an extension, say), choose the first that can.
@@ -284,9 +341,7 @@ function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now |
     if (!fresh?.moves) return;
     setProblem(undefined);
     setLanded(undefined);
-    const result = await tx.send([extendCall(CORE, handId, fresh.target)]);
-    if (result.ok) setLanded(fresh.target);
-    else setProblem(sentenceOf(result));
+    settled(await kept.send([extendCall(CORE, handId, fresh.target)], { steps: [{ action: "extend", probe: extendedProbe(CORE, handId, fresh.target) }] }));
   };
 
   const label = (key: ChipKey) => (key === "max" ? t("care.extend.max", { n: cap !== undefined ? capDays(cap) : 180 }) : t("care.extend.plus", { n: Number(key) }));
@@ -345,13 +400,16 @@ function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now |
           </span>
         </Disclose>
       ) : null}
-      {raiser ? (
+      {raiser || kept.holding || kept.resumed ? (
         <>
-          <Priced cost={cost} />
+          {raiser ? <Priced cost={cost} /> : null}
+          <InFlight kept={kept} action="extend" />
           {problem ? <Band what={problem.what} {...(problem.code ? { code: problem.code } : {})} /> : null}
-          <SwipeButton gesture="raise" data-testid={TID.care.extendSwipe} disabled={!usable || busy || cost.status === "refused"} onClick={() => void send()}>
-            {usable ? t("care.extend.swipe", { date: day(usable.target, lang) }) : t("care.extend.swipeEmpty")}
-          </SwipeButton>
+          {raiser ? (
+            <SwipeButton gesture="raise" data-testid={TID.care.extendSwipe} disabled={!usable || busy || cost.status === "refused"} onClick={() => void send()}>
+              {usable ? t("care.extend.swipe", { date: day(usable.target, lang) }) : t("care.extend.swipeEmpty")}
+            </SwipeButton>
+          ) : null}
           <Sent tx={tx.state} testId={TID.care.txRail} action="extend" />
           {landed !== undefined ? (
             <p className="m-0 font-semibold" role="status" data-testid={`${TID.care.txRail}-extend-done`} data-expiry={landed}>
@@ -419,13 +477,32 @@ function Priced({ cost }: { cost: CostRead }) {
   return null;
 }
 
-function Sent({ tx, testId, action }: { tx: ReturnType<typeof useSend>["state"]; testId: string; action: string }) {
+function Sent({ tx, testId, action }: { tx: KeptSend["tx"]["state"]; testId: string; action: string }) {
+  const { offline, stale } = useChainStatus();
   if (tx.phase === "idle" || tx.phase === "checking") return null;
   const reached = (tx.reached ?? "sent") as TxReached;
   return (
     <div data-testid={testId} data-action={action} data-value={reached} data-phase={tx.phase}>
-      <TxRail reached={reached} local={!config.chain.hasL1} />
+      <TxRail reached={reached} local={!config.chain.hasL1} offline={(offline || stale) && tx.phase !== "done" && tx.phase !== "failed"} />
     </div>
+  );
+}
+
+/** A send from before a reload, or one whose answer is not known, being followed: said in words, button held. */
+function InFlight({ kept, action }: { kept: KeptSend; action: "fund" | "extend" }) {
+  if (kept.unknown) {
+    return (
+      <p className="ah-note m-0" role="status" data-testid={TID.care.unknown} data-value={action}>
+        {t("common.send.unknown")}
+      </p>
+    );
+  }
+  const following = kept.resumed && (kept.holding || (kept.tx.state.phase !== "done" && kept.tx.state.phase !== "failed" && kept.tx.state.phase !== "idle"));
+  if (!following) return null;
+  return (
+    <p className="ah-note m-0" role="status" data-testid={TID.care.inFlight} data-value={action}>
+      {t("common.send.inFlight")}
+    </p>
   );
 }
 

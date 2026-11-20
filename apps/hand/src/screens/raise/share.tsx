@@ -57,15 +57,6 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
     }
   };
 
-  const share = async () => {
-    if (!written) return;
-    try {
-      await navigator.share({ text: `${t("raise.share.line")}\n${written.address}` });
-    } catch {
-      // the person closed the share sheet; the copy row is still there
-    }
-  };
-
   const go = (to: string) => {
     if (written) rememberText(written.address, "handover");
     navigate(to);
@@ -95,14 +86,9 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
         <div className="flex flex-col gap-3">
           <p className="ah-label m-0">{t("raise.share.line")}</p>
           <div data-testid={TID.raise.copy}>
-            <CopyRow value={written.address} />
+            <CopyRow value={written.address} shareText={`${t("raise.share.line")}\n${written.address}`} />
           </div>
           <div className="flex flex-wrap gap-2">
-            {typeof navigator !== "undefined" && "share" in navigator ? (
-              <QuietButton compact data-testid={TID.raise.share} onClick={() => void share()}>
-                {t("common.word.share")}
-              </QuietButton>
-            ) : null}
             <QuietButton compact data-testid={TID.raise.qr} aria-expanded={qr} onClick={() => setQr(!qr)}>
               {qr ? t("raise.share.hideQr") : t("raise.share.qr")}
             </QuietButton>

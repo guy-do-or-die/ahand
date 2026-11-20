@@ -3,13 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { erc20Abi, keccak256, stringToBytes, type Address } from "viem";
 
 import { config } from "../../config";
-import { clientOf, useCost, useNow } from "../../chain";
+import { clientOf, useChainStatus, useCost, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
 import type { HandRecord, Mode } from "../../store/db";
 import { TID } from "../../testids";
-import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, Sheet, SwipeButton, TxRail, day, money, percent, type MoneyReading, type TxReached } from "../../ui";
-import { ConnectSheet, useSend, useTypedSigner, useWallet } from "../../wallet";
-import { raise, rebuild, resumeRaise, unfinished, type Draft, type Outcome, type Problem, type RaiseContext, type Step, type Up } from "./flow";
+import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, Sheet, SwipeButton, TxRail, count, day, money, percent, type MoneyReading, type TxReached } from "../../ui";
+import { ConnectSheet, connectedWallet, useSend, useTypedSigner, useWallet } from "../../wallet";
+import { exactMoney } from "./exact";
+import { droppedSeen, lastDropped, publicSize, raise, rebuild, resumeRaise, stopWaiting, unfinished, type Draft, type Outcome, type Problem, type RaiseContext, type Step, type Up } from "./flow";
 import { expiryFor, passesAt } from "./link";
 import { Chips, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
@@ -17,7 +18,9 @@ import { Share } from "./share";
 /**
  * /raise (UX-SPEC §7.2): one screen from a thought to a link. The compose surface, then the swipe,
  * whose flow lives in flow.ts; then the share step. A raise found pending after a reload is followed
- * by its stored hash and never sent again. Every "now" here is the network's (useNow, D-61).
+ * by its stored hash, or settled by its nonce and its own `Raised` log, and never sent again; the
+ * pending phase always offers "Stop waiting", which only stops the screen from waiting. Every "now"
+ * here is the network's (useNow, D-61).
  */
 
 const REWARDS = ["5", "20", "50"] as const;
@@ -25,6 +28,9 @@ const DAYS = [7, 30, 90, 180] as const;
 const MIN_CLAIMS = [5000, 7000, 9000, 10000] as const;
 const ROOMS = [200, 250, 300] as const;
 const NUDGE_DAYS = 60;
+/** Caps on what can be typed (E-7). A public Hand is held to the address limit besides, shown live. */
+const POSTER_MAX = 2_000;
+const DETAILS_MAX = 8_000;
 /** A stand-in root key and description hash, only to price and try the call before the real ones exist. */
 const PREVIEW_ROOT: Address = "0x000000000000000000000000000000000000dEaD";
 const PREVIEW_HASH = keccak256(stringToBytes("aHand.raise.preview"));
@@ -36,7 +42,7 @@ type Phase =
   | { kind: "looking" }
   | { kind: "compose" }
   | { kind: "working"; step: Step | "connect"; of: number }
-  | { kind: "pending"; record: HandRecord }
+  | { kind: "pending"; record: HandRecord; unknown?: boolean }
   | { kind: "up"; up: Up };
 
 interface Facts {
@@ -74,6 +80,8 @@ export default function RaiseScreen() {
   const tx = useSend();
   const signer = useTypedSigner();
   const { facts, failed } = useFacts();
+  const chain = useChainStatus();
+  const unreachable = chain.offline || chain.stale;
 
   const [poster, setPoster] = useState("");
   const [details, setDetails] = useState("");
@@ -114,33 +122,68 @@ export default function RaiseScreen() {
   const expiry = now && facts ? expiryFor(now.timestamp, days, facts.cap) : undefined;
 
   /* ── after a reload: a raise still on its way, or up and not yet saved ── */
+  const live = useRef(true);
+  useEffect(
+    () => () => {
+      live.current = false;
+    },
+    [],
+  );
+
+  /** Follows a raise on its way (by its hash, or by its nonce and its `Raised` log) until it lands or is dropped. */
+  const settle = useCallback(
+    async (record: HandRecord, unknown: boolean) => {
+      setPhase({ kind: "pending", record, unknown });
+      const outcome = await resumeRaise(record, ctx, (intent, probe) => tx.resume(intent, probe ? { probe } : {}));
+      if (live.current) finish(outcome);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ctx, tx.resume],
+  );
+
   const finish = useCallback((outcome: Outcome) => {
     if (outcome.ok) {
       setPhase({ kind: "up", up: outcome.up });
       setProblem(undefined);
-    } else {
-      setProblem(outcome.problem);
-      setPhase((before) => (before.kind === "pending" && outcome.problem.pending ? before : { kind: "compose" }));
+      return;
     }
+    setProblem(outcome.problem);
+    if (outcome.record && outcome.problem.pending) {
+      const record = outcome.record;
+      // Still on its way, or not known: hold the swipe and keep checking, never send again.
+      setPhase((before) => (before.kind === "pending" && before.record.intent === record.intent ? before : { kind: "pending", record, unknown: outcome.problem.id === "raise.error.unknown" }));
+      if (outcome.problem.id === "raise.error.unknown") void settle(record, true);
+      return;
+    }
+    setPhase((before) => (before.kind === "pending" && outcome.problem.pending ? before : { kind: "compose" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    let live = true;
     unfinished(ctx)
       .then(async (record) => {
-        if (!live) return;
-        if (!record) return setPhase({ kind: "compose" });
-        setPhase({ kind: "pending", record });
-        const outcome = await resumeRaise(record, ctx, (intent) => tx.resume(intent));
-        if (live) finish(outcome);
+        if (!live.current) return;
+        if (!record) {
+          // A raise found dropped (here or on /my) is said once more, until the next raise.
+          const dropped = await lastDropped(ctx).catch(() => undefined);
+          if (live.current && dropped) setProblem({ id: "raise.error.dropped" });
+          return setPhase({ kind: "compose" });
+        }
+        await settle(record, record.status === "asked");
       })
-      .catch(() => live && setPhase({ kind: "compose" }));
-    return () => {
-      live = false;
-    };
+      .catch(() => live.current && setPhase({ kind: "compose" }));
     // Looked for once, when the screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** "Stop waiting": the screen stops following; nothing is sent or cancelled, and the form comes back. */
+  const giveUpWaiting = (record: HandRecord) => {
+    stopWaiting(record);
+    tx.reset();
+    setProblem(undefined);
+    setRaiseSent(false);
+    setPhase({ kind: "compose" });
+  };
 
   /* ── the ports flow.ts asks through ── */
   const confirmKeys = (twice: boolean) => new Promise<boolean>((answer) => setKeysAsk({ twice, answer }));
@@ -155,6 +198,7 @@ export default function RaiseScreen() {
     busy.current = true;
     setProblem(undefined);
     setRaiseSent(false);
+    void droppedSeen(ctx).catch(() => undefined);
     try {
       const raiser = await ensureWallet();
       if (!raiser) {
@@ -165,6 +209,7 @@ export default function RaiseScreen() {
       const draft: Draft = { title, content, reward, days, mode, minClaimBps, payoutGasK };
       const outcome = await raise(draft, { ...ctx, maxExpiryPeriod: facts.cap }, {
         raiser,
+        account: async () => (await connectedWallet())?.account.address,
         confirmKeys,
         signKeys: (typed) => signer.sign(typed),
         send: (calls, options) => tx.send(calls, options),
@@ -197,7 +242,8 @@ export default function RaiseScreen() {
   const priced = usePriced(reward, expiry, minClaimBps, payoutGasK, wallet.address);
 
   const reached: TxReached = (tx.state.reached ?? "sent") as TxReached;
-  const sentence = (p: Problem) => t(p.id, { ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
+  const sentence = (p: Problem) =>
+    t(p.id, { network: config.chain.name, ...(p.values ?? {}), ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
 
   /* ── the share step ── */
   if (phase.kind === "up") {
@@ -227,16 +273,33 @@ export default function RaiseScreen() {
   }
 
   if (phase.kind === "pending") {
+    const { record, unknown } = phase;
     return (
       <Frame>
-        <section className="flex flex-col gap-4" data-testid={TID.raise.pending} data-hash={phase.record.txHash}>
-          <h1 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{t("raise.pending")}</h1>
-          <div data-testid={TID.raise.txRail} data-value={reached}>
-            <TxRail reached={reached} local={!config.chain.hasL1} />
+        <section className="flex flex-col gap-4" data-testid={TID.raise.pending} data-hash={record.txHash} data-status={record.status} data-unknown={unknown ? "true" : "false"}>
+          <h1 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{t(unknown ? "raise.pending.unknown" : "raise.pending")}</h1>
+          {unknown ? (
+            <p className="m-0 text-[length:var(--fs-body-lg)] font-bold leading-snug" role="status" data-testid={TID.raise.unknown}>
+              {t("raise.error.unknown")}
+            </p>
+          ) : null}
+          <div data-testid={TID.raise.txRail} data-value={reached} data-offline={unreachable ? "true" : "false"}>
+            <TxRail reached={reached} local={!config.chain.hasL1} offline={unreachable} />
           </div>
+          {unreachable ? (
+            <p className="ah-label m-0" data-testid={TID.raise.offline}>
+              {t("raise.pending.offline")}
+            </p>
+          ) : null}
           <p className="ah-label m-0">{t("raise.pending.note")}</p>
-          <span className="ah-meta ah-meta--exact break-all">tx {phase.record.txHash}</span>
-          {problem ? <Band problem={problem} sentence={sentence(problem)} /> : null}
+          {record.txHash ? <span className="ah-meta ah-meta--exact break-all">tx {record.txHash}</span> : null}
+          {problem && problem.id !== "raise.error.unknown" ? <Band problem={problem} sentence={sentence(problem)} /> : null}
+          <div className="flex flex-col gap-2">
+            <QuietButton compact className="self-start" data-testid={TID.raise.stopWaiting} onClick={() => giveUpWaiting(record)}>
+              {t("common.send.stopWaiting")}
+            </QuietButton>
+            <p className="ah-label ah-label--dim m-0">{t("common.send.stopWaitingNote")}</p>
+          </div>
         </section>
       </Frame>
     );
@@ -244,7 +307,9 @@ export default function RaiseScreen() {
 
   const working = phase.kind === "working";
   const noTitle = title === "";
-  const canSwipe = phase.kind === "compose" && !noTitle && reward !== undefined && expiry !== undefined && !failed;
+  const size = mode === "public" ? publicSize(title, content || undefined) : undefined;
+  const tooLarge = size?.tooLarge === true;
+  const canSwipe = phase.kind === "compose" && !noTitle && reward !== undefined && expiry !== undefined && !failed && !tooLarge;
   const untilDate = expiry !== undefined ? day(expiry, lang) : undefined;
   const moneyLine =
     untilDate === undefined
@@ -268,6 +333,7 @@ export default function RaiseScreen() {
             className="ah-compose"
             rows={3}
             value={poster}
+            maxLength={POSTER_MAX}
             disabled={working}
             placeholder={t("raise.what.placeholder")}
             aria-describedby="raise-what-hint"
@@ -287,6 +353,7 @@ export default function RaiseScreen() {
                 className="ah-input"
                 rows={4}
                 value={details}
+                maxLength={DETAILS_MAX}
                 disabled={working}
                 placeholder={t("raise.details.placeholder")}
                 onChange={(event) => setDetails(event.target.value)}
@@ -371,6 +438,16 @@ export default function RaiseScreen() {
             <span className="ah-label">{t("raise.who.halvesBody")}</span>
           </Disclose>
           <Unfurl mode={mode} host={config.site.replace(/^https?:\/\//, "")} title={title} content={content} money={moneyLine} />
+          {size && title ? (
+            <p className={tooLarge ? "ah-alert m-0" : "ah-label m-0"} data-testid={TID.raise.size} data-value={size.bytes} data-over={tooLarge ? "true" : "false"}>
+              {t("raise.size", { bytes: count(size.bytes), max: count(size.max) })}
+            </p>
+          ) : null}
+          {tooLarge ? (
+            <div data-testid={TID.raise.sizeRefused}>
+              <ErrorBand what={t("raise.size.over")} code="DescriptionTooLarge" />
+            </div>
+          ) : null}
         </Part>
 
         {/* 5. Fine-tune */}
@@ -403,7 +480,8 @@ export default function RaiseScreen() {
 
         {/* 6. Preview */}
         <Part label={t("raise.preview.label")}>
-          <div data-testid={TID.raise.preview}>
+          <div data-testid={TID.raise.preview} data-raiser={wallet.address ? "connected" : "none"}>
+            {/* F5: before an account is connected the card's "Asked by" row says the address comes then. */}
             {expiry !== undefined && reward !== undefined ? (
               <DealCard
                 state={now ? "open" : undefined}
@@ -412,9 +490,8 @@ export default function RaiseScreen() {
                 decimals={decimals}
                 expiry={expiry}
                 claimBps={10_000}
-                raiser={wallet.address ?? "0x0000000000000000000000000000000000000000"}
+                {...(wallet.address ? { raiser: wallet.address } : {})}
                 heading="h2"
-                {...(wallet.address ? {} : { className: "[&_.ah-deal__foot]:hidden" })}
                 {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}
               />
             ) : (
@@ -425,17 +502,21 @@ export default function RaiseScreen() {
 
         {/* 7. The swipe */}
         <section className="flex flex-col gap-4 pt-6">
-          {working ? <Steps phase={phase} needsConnect={wallet.status !== "connected"} /> : null}
+          {working ? <Steps phase={phase} needsConnect={wallet.status !== "connected"} amount={reward !== undefined && reward > 0n ? exactMoney(reward, decimals, lang) : undefined} /> : null}
           {working && raiseSent ? (
-            <div data-testid={TID.raise.txRail} data-value={reached}>
-              <TxRail reached={reached} local={!config.chain.hasL1} />
+            <div data-testid={TID.raise.txRail} data-value={reached} data-offline={unreachable ? "true" : "false"}>
+              <TxRail reached={reached} local={!config.chain.hasL1} offline={unreachable} />
             </div>
+          ) : working && unreachable ? (
+            <p className="ah-note m-0" data-testid={TID.raise.offline}>
+              {t("common.time.offline")}
+            </p>
           ) : null}
           {problem ? <Band problem={problem} sentence={sentence(problem)} /> : null}
           {failed ? <ErrorBand what={t("raise.error.facts")} /> : null}
           {priced.status === "refused" && !working ? <ErrorBand what={t(`core.${priced.refusal.name}`)} code={priced.refusal.name} /> : null}
           <SwipeButton gesture="raise" variant="amber" data-testid={TID.raise.swipe} disabled={!canSwipe} aria-describedby="raise-swipe-note" onClick={() => void swipe()}>
-            {t("raise.swipe")}
+            {reward !== undefined && reward > 0n ? t("raise.swipe.amount", { amount: exactMoney(reward, decimals, lang) }) : t("raise.swipe")}
           </SwipeButton>
           <p id="raise-swipe-note" className="ah-label m-0">
             {noTitle ? t("raise.swipe.needTitle") : !now ? t("raise.swipe.noClock") : t("raise.steps.tried")}
@@ -491,8 +572,8 @@ function Band({ problem, sentence }: { problem: Problem; sentence: string }) {
   );
 }
 
-function Steps({ phase, needsConnect }: { phase: Extract<Phase, { kind: "working" }>; needsConnect: boolean }) {
-  const lock = phase.step === "allow" ? t("raise.steps.allow") : phase.step === "raise" && phase.of > 1 ? t("raise.steps.raise2") : phase.step === "raise" ? t("raise.steps.raise") : t("raise.steps.lock");
+function Steps({ phase, needsConnect, amount }: { phase: Extract<Phase, { kind: "working" }>; needsConnect: boolean; amount: string | undefined }) {
+  const lock = phase.step === "allow" ? (amount ? t("raise.steps.allowAmount", { amount }) : t("raise.steps.allow")) : phase.step === "raise" && phase.of > 1 ? t("raise.steps.raise2") : phase.step === "raise" ? t("raise.steps.raise") : t("raise.steps.lock");
   const items: { key: string; label: string }[] = [
     ...(needsConnect || phase.step === "connect" ? [{ key: "connect", label: t("raise.steps.connect") }] : []),
     { key: "keys", label: t("raise.steps.keys") },
