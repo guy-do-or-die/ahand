@@ -1,0 +1,66 @@
+# Build note: sdk-chain (wave 2)
+
+Chain reads, the clock, transaction builders and Core's errors in `packages/sdk`. The signatures of
+ARCHITECTURE §4 are kept; where a type gained a field it is optional, so nothing written against the
+wave 1 stubs breaks. `contracts/src/AHandCore.sol` was not touched.
+
+## What exists
+
+| File | What |
+|---|---|
+| `src/chain.ts` | `chainNow`; `readHand` (the ten fields of `hands(id)` as `HandView`, the signed terms as `Hand`, `stateAt(now)` = missing, open, expired, thanked or refunded; "thanked" vs "refunded" from `thanks(id).giveHash`); `EXPIRY_MARGIN` (600) and `expiryAfter`; `readThank`, `readPending`, `readLimits` (`MAX_EXPIRY_PERIOD`, `eip712Domain` name and version); `UntrustedCore` and `getHandFor`; `checkRouteOnChain`, `checkGiveOnChain` (with a setup: one `eth_call` to the forwarder); `findBlockAt`; `handLogs`, `handLogsAt`; `receiptOf`; `findLaterHands`; `finalityOf`. Constants `LOG_WINDOW` (2 000) and `LATER_HANDS_WINDOWS` (216) |
+| `src/tx.ts` | `approveCall`, `raiseCall`, `fundCall`, `extendCall`, `thankCall`, `refundCall`, `withdrawCall`, `setupCall`, each `{to, data}`; `castLine`; `simulate`; `innerGiverSig` (viem's ERC-6492 parser); `CORE_ABI` (the parts of Core the SDK uses) and `FORWARDER_ABI` (Multicall3's `aggregate3`) |
+| `src/errors.ts` | `CORE_ERRORS_ABI` (Core's 23 errors in source order, then OpenZeppelin's three), `CORE_OWN_ERRORS`; `CoreRefusal` (`name`, `position?`, `args?`) and the throwable `CoreRefused`; `decodeCoreError`, `refusalOfData`, `isCoreRefusal`; `messageIdOf`; `NO_CANONICAL_WORDS` |
+| `tests/chain.test.ts` | 14 tests on a chain of their own (`slotsInAnEpoch: 1`) |
+| `tests/tx.test.ts` | 27 tests on a chain of their own |
+| `tests/errors.test.ts` | 8 tests, no chain |
+
+## What each "done" item rests on (all run, see the end)
+
+- **Whole way, proven from logs** (`chain.test.ts`, "raises, passes twice…"): reward 100 test dollars, two Shakes keeping 10 % and 5 %, a Give by a key. `checkRouteOnChain` equals the offline `checkRoute`; `checkGiveOnChain` passes; `simulate(thankCall)` ok; sent. Then `receiptOf(handLogs(from findBlockAt(openedAt)))` gives `Thanked, Shaken, Paid, Shaken, Paid, Given, Paid`; each `Paid` equals the payee's token balance afterwards (10, 5, 85), Core's balance fell by exactly the reward, `hands().closedAt` is the thank block's time, `hands().reward` is `Thanked.reward`, `thanks().giveHash` equals the offline `checkGive` and `giveHash`. A second test does the same in `BlacklistToken` with a blocked payee: `Pending` row, `readPending` = 10, then `withdrawCall` by a stranger delivers it.
+- **stateAt by block time**: `mineAt(expiry − 1)` gives "open", `mineAt(expiry)` gives "expired"; at that second `simulate` returns `Expired` for thank and extend and ok for refund; after the refund "refunded", and the receipt is `Refunded`, `Paid` to the raiser. `expiryAfter(chainNow, 180 days, cap)` raised without a revert (and the `Raised` log carries that expiry); `simulate` gave `ExpiryTooLate` for `chainNow + cap + 1` and `ExpiryTooEarly` for `chainNow − 1`.
+- **Where events sit**: the raise is made the first of three blocks that share one second (`anvil_setBlockTimestampInterval 0`), the thank the last of three that share another. `findBlockAt(openedAt)` = the raise block, in at most 2 + log2(latest) reads; `handLogsAt(openedAt) ++ handLogsAt(closedAt)` equals `handLogs` from the deployment block, event for event. With 4 500 empty blocks between raise and thank, every `eth_getLogs` of `handLogs` covers ≤ 2 000 blocks, the windows tile the range with no gap, and the `handId` topic is set (checked for the default window, a 5 000 request, capped to 2 000, and 700). `findLaterHands` over ~4 000 blocks announced 2 requests, made exactly 2 (counted by a recording transport), found the later Hand of the same raiser and not the other raiser's; `maxWindows: 1` announces 1 and finds nothing; returning `false` from `onProgress` stops after 1.
+- **Trust**: `getHandFor` throws `UntrustedCore` for another Core, for chain 8453, and for a trusted pair with no client; a Hand never raised throws `CoreRefused("NotRaised")`. `openLink` lets `UntrustedCore` through unchanged. `messageIdOf` gives `link.untrusted`, `link.unsupported` (a link whose version nibble is 2) and `link.no-canonical` (a link and an address naming the canonical Core with none configured). The two SDK sentences are pinned word for word in `errors.test.ts`; the mapping reads `NO_CANONICAL_WORDS`.
+- **ERC-6492** (`tx.test.ts`): a `KeyAccount` address from the factory, no code. Its owner's Give signature wrapped with viem's `serializeErc6492Signature`: `checkGiveOnChain` without setup refuses both the wrapper and the inner signature with `InvalidGiverSig`; with `{forwarder, factory, factoryData}` it passes; a wrapper around another key's signature is still refused; the `eth_call` deployed nothing. `thankCall` writes exactly `thankCalldata` with the inner signature. Sent as two transactions, `setupCall` then `thankCall`: the Hand reads "thanked", the receipt is `Thanked, Shaken, Paid, Given, Paid`, the account holds 18 and the shaker 2 test dollars.
+- **Reward 0**: raised by an account that holds no tokens and approved nothing; one Shake keeping 20 %; thanked. The receipt is `Thanked, Shaken, Given`, every amount 0, no `Paid`, no `Pending`. (The "where events sit" test is a second zero-reward thank with two Shakes, one of them without a payee.)
+- **thank's check order through simulate**: 16 cases, each carrying its own fault *and every later one*, so each refusal also proves the earlier check runs first: `NotOpen, NotRaiser, Expired, GiverIsRaiser, ZeroPayee, InvalidClaim(0), AnonymousMargin(0), InvalidKeySig(0), InvalidClaim(1), AnonymousMargin(1), InvalidKeySig(1), InvalidClaim(2), InvalidRouteHash, BelowMinClaim, InvalidKeySig(2), InvalidGiverSig`; names and positions match, and from `GiverIsRaiser` on the SDK's offline `checkGive` predicts the same `Refusal`. With no fault it passes, and the thanked Hand then answers `NotOpen`.
+- **All 23 of Core's errors met live**, through `simulate` or the on-chain checks: the 16 above plus `ExpiryTooEarly`, `ExpiryTooLate`, `ZeroRootKey`, `MinClaimTooHigh`, `NotRaised`, `NotExpired`, `NotPayee`, `ZeroDestination`, `NothingPending`, `NotCore`, `InexactTransfer` (`SenderFeeToken`), `Reentered` (`HookToken` calling `fund` from `transferFrom`), and OpenZeppelin's `SafeERC20FailedOperation(token)` (`ReturnsFalseToken`, withdraw to a refusing payee). All 26 of the ABI decode with their arguments from bytes, from a raw call error, from viem's decoded revert, from an RPC error's `data.data`, and from a thrown `CoreRefused`; `Error(string)`, `Panic`, an ERC-20 error and junk give `undefined`.
+
+## Choices the design did not make
+
+- **`CoreRefused`**, a class implementing `CoreRefusal`, is what the "throws CoreRefusal" functions throw. Its `name` is Core's error name (so `e.name === "InvalidKeySig"`), with `position` and `args`. `CoreRefusal` gained an optional `args`, for the lens (`SafeERC20FailedOperation`'s token, for one).
+- **`getHandFor` and a Hand never raised** throw `CoreRefused({name: "NotRaised"})`, which `messageIdOf` maps to `core.NotRaised`: the same words Core's own `checkRoute` would give. A call naming no chain, Core or number throws a plain `Error` (no address shape reaches it with one missing).
+- **`getHandFor` refuses a trusted pair without a client** as `UntrustedCore`: the build cannot read it, so it is not read.
+- **`simulate` returns only Core's refusals.** Anything else (a token's own error such as a missing allowance, `Panic`, a network failure) is rethrown as viem threw it, so a screen never names a token's error as Core's. Solidity's built-in `Error(string)` and `Panic` are excluded from decoding on purpose: viem's `decodeErrorResult` knows them for every ABI.
+- **`checkGiveOnChain` with a setup** sends both calls with `allowFailure: true`, so Core's own error comes back in the second result instead of the forwarder's "call failed". `setupCall` (the real transaction) uses `allowFailure: false`: a failed setup fails the transaction. A 6492 signature without a setup goes to Core as it is and is refused.
+- **`receiptOf` returns the closing only**: the rows of the transaction that holds `Thanked` or `Refunded`, in log order, and it checks Core's grammar as it goes (Shake positions 0, 1, …; one payout to the same payee and amount after each nonzero amount, none after a zero; nothing after the giver's payout; the rows add up to the reward). Logs that break it throw rather than show a wrong receipt. `Raised`, `Funded`, `Extended` are history, not rows. An open Hand gives no rows; no logs at all throws (no Hand to name). `Receipt` gained an optional `closedBy` ("thank" or "refund"). The `Refunded` row names the raiser, taken from its payout (`Refunded` itself names no one).
+- **`findLaterHands`**: `onProgress` may return `false` to stop; the type is widened to `void | boolean` for that (the design says the look can be stopped). Found Hands are the `Raised` logs of the raiser in `[fromBlock, toBlock]`; the caller passes the block after the Hand ended.
+- **`findBlockAt`** throws a `RangeError` when no block has reached the time yet, instead of inventing a block number.
+- **`finalityOf`** treats a chain that does not answer `safe` or `finalized` as "in-block".
+- **`castLine`** adds `--value` only for a nonzero value and `--from` when given, and quotes an RPC URL that needs it; how to sign (`--ledger`, `--account`) is left to the person.
+- **The ABI lives in the SDK** (`CORE_ABI`, `CORE_ERRORS_ABI`, `FORWARDER_ABI`, human-readable): the SDK's manifest does not name `@ahand/abi`. Tests compare every signature against the generated `packages/abi` and the error list against the `error` lines of `AHandCore.sol`, so a drift fails a test.
+- **Every "latest block number" read sets `cacheTime: 0`.** viem caches `getBlockNumber` for the client's polling interval; on the helper chain (automine) that returned a block before the last receipt and lost the thank's logs about one run in three. App code that reads "latest" after a receipt needs the same.
+
+## What Core did that surprised me
+
+Items 1, 3 and 6 are asserted by the tests; 2, 4, 5 and 7 are read from the source (4 and 7 are also hit by tests).
+
+1. **`checkGive` passes on a closed or expired Hand** (the whole-way test asks it again after the thank). It looks at neither the caller, the expiry nor `closedAt` (its NatSpec says so). So `checkGiveOnChain` succeeding means "this Give is well formed for this Hand", never "it can still be thanked". The app must ask `simulate(thankCall)` from the raiser for that; the thank screen should not stop at `checkGiveOnChain`.
+2. **`Paid` is emitted after the transfer, inside the `try`**; `Thanked`, `Shaken`, `Given`, `Refunded`, `Withdrawn` come before their transfers. Brief 02 §4's "events come before transfers" holds for all but the payout events. Order of the receipt is unaffected.
+3. **A zero reward never touches the token, so the token can be any address**, even one without code: `raise` with reward 0 and an EOA as token passes and the Hand carries that "token" forever (`fund` with amount 0 too). The app's token list is the only guard; worth a line in the app's input checks.
+4. **`withdraw` is not wrapped in `try`**, unlike payouts, so OpenZeppelin's `SafeERC20FailedOperation(token)` reaches the caller when a token answers `false`. Core's ABI therefore has 26 errors, not 23; the two `ShortStrings` errors can only come from the constructor.
+5. **A re-entering token turns `raise` into `Reentered`** only because the test token bubbles the inner revert; by reading, a token that swallowed it would let `raise` pass with the re-entry refused silently (not run).
+6. **`eth_call` judges time by the latest block.** On anvil, `simulate` of `raise` with `chainNow + cap + 1` is refused and `chainNow + cap` passes (both asserted), yet the real transaction lands one block later. `EXPIRY_MARGIN` (600 s) is what makes "simulated ok" mean "will land ok"; never simulate with the margin at 0.
+7. **Simulating `raise` before the approve is mined fails with the token's error, not Core's** (`simulate` throws). `useSend` must simulate the raise after the approve's receipt, or simulate the batch as a whole.
+
+## Run on this machine, 2026-11-20
+
+| Check | Result |
+|---|---|
+| `cd packages/sdk && bunx vitest run tests/chain.test.ts tests/tx.test.ts tests/errors.test.ts` | 49 passed, 0 failed (three runs in a row after the cache fix) |
+| `cd packages/sdk && bunx vitest run` (the whole SDK, with the other wave 2 packages' tests present) | 19 files, 381 tests, 0 failed |
+| `bunx tsc --noEmit -p packages/sdk` | 0 errors |
+| `tsc --noEmit --strict` over my three test files | 0 errors in them |
+| Mutation check: `stateAt` with `>` instead of `>=`, `findBlockAt` off by one, a 4 000-block window | 4 tests failed, as they should; restored |
+
+Every chain was started by the tests themselves (`startChain`, a free port each) and stopped in `afterAll`. Not verified: anything on Base (the 200 ms blocks, real `safe`/`finalized` tags, Multicall3 as the forwarder, RPC limits on `eth_getLogs`), and a real wallet.
