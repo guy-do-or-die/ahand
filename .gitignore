@@ -35,6 +35,8 @@ local/
 
 # aHand end-to-end build (ARCHITECTURE §14)
 contracts/deployments/31337*.json
+# tests/e2e/fork/run.ts deploys Core on a local fork of a public network; that file is never a real deployment
+contracts/deployments/*-fork.json
 tests/e2e/test-results/
 tests/e2e/playwright-report/
 # shots.spec.ts writes ~215 screenshots (~62 MB) here on every run; the chosen ones live in the knowledge folder

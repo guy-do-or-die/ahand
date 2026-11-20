@@ -35,6 +35,7 @@ import {
   zeroHash,
   http,
   type Address,
+  type Chain,
   type Hex,
   type PublicClient,
   type TestClient,
@@ -197,7 +198,10 @@ export function standFrom(argv: string[]): StandFacts {
   for (const field of ["rpc", "chainId", "core", "tokens"]) {
     if (json[field] === undefined || json[field] === null) throw new Error(`${file} has no ${field}`);
   }
-  if (json.chainId !== 31337) throw new Error(`fixtures are made on the local chain 31337 only, not ${json.chainId}`);
+  // A local fork of a public test network (tests/e2e/fork/run.ts writes `fork: true`) keeps that
+  // network's chain id; its RPC must still be this machine's anvil, where the test keys belong.
+  const forkHere = json.fork === true && /^http:\/\/(127\.0\.0\.1|localhost):[0-9]+\/?$/.test(String(json.rpc));
+  if (json.chainId !== 31337 && !forkHere) throw new Error(`fixtures are made on the local chain 31337 (or a local fork) only, not ${json.chainId}`);
   return {
     file,
     slot: typeof json.slot === "number" ? json.slot : null,
@@ -331,6 +335,8 @@ export function undeployedSigner(owner: PrivateKeyAccount, factory: Address, fac
 
 /** The chain, the SDK's options for it, the test accounts, and every step a fixture is made of. */
 export class World {
+  /** anvil's chain, under the stand's chain id (31337, or a forked network's). */
+  readonly chain: Chain;
   readonly client: PublicClient;
   readonly test: TestClient<"anvil">;
   readonly domain: Eip712Domain;
@@ -347,8 +353,9 @@ export class World {
     site?: string,
   ) {
     const transport = http(stand.rpc);
-    this.client = createPublicClient({ chain: foundry, transport, pollingInterval: 50 }) as PublicClient;
-    this.test = createTestClient({ chain: foundry, mode: "anvil", transport });
+    this.chain = { ...foundry, id: stand.chainId };
+    this.client = createPublicClient({ chain: this.chain, transport, pollingInterval: 50 }) as PublicClient;
+    this.test = createTestClient({ chain: this.chain, mode: "anvil", transport });
     this.domain = domainOf(stand.chainId, stand.core);
     // The stand's Core is the canonical one of its configuration (helper's configOf, stand's config.json).
     this.options = { canonicalCore: stand.core };
@@ -369,7 +376,7 @@ export class World {
   private wallet(index: number): WalletClient {
     let wallet = this.wallets.get(index);
     if (!wallet) {
-      wallet = createWalletClient({ account: this.account(index), chain: foundry, transport: http(this.stand.rpc) });
+      wallet = createWalletClient({ account: this.account(index), chain: this.chain, transport: http(this.stand.rpc) });
       this.wallets.set(index, wallet);
     }
     return wallet;
@@ -400,7 +407,7 @@ export class World {
     if (!simulated.ok) throw new CoreRefused(simulated.refusal);
     const hash = await this.wallet(from).sendTransaction({
       account,
-      chain: foundry,
+      chain: this.chain,
       to: call.to,
       data: call.data,
       gas: (simulated.gas * 13n) / 10n,
