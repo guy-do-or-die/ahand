@@ -6,7 +6,10 @@ solc = "0.8.35"
 evm_version = "prague" # tests need EIP-7702 accounts; Core's code is the same under cancun, prague and osaka
 optimizer = true
 optimizer_runs = 200
-fs_permissions = [{ access = "read-write", path = "./test/fixtures" }] # the fixtures Core writes for the SDK
+fs_permissions = [
+    { access = "read-write", path = "./test/fixtures" }, # the fixtures Core writes for the SDK
+    { access = "read-write", path = "./deployments" },   # the deployment JSON script/Deploy.s.sol writes
+]
 
 [fuzz]
 runs = 1024
