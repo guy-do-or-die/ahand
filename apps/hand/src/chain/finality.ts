@@ -216,9 +216,10 @@ export async function follow(client: PublicClient, first: Hex, options: FollowOp
         reorged = true;
         break;
       }
-      // A tag that lags behind an earlier look never moves the state back.
-      if (ORDER.indexOf(standing) > ORDER.indexOf(reached)) {
-        reached = standing;
+      // A tag that lags behind an earlier look never moves the state back. A look that comes late
+      // may find the block already final: final is safe too, so every state passed is still told, in order.
+      while (ORDER.indexOf(standing) > ORDER.indexOf(reached)) {
+        reached = ORDER[ORDER.indexOf(reached) + 1];
         onProgress?.({ reached, hash, receipt });
       }
       if (atLeast(reached, until)) return { reached, receipt };

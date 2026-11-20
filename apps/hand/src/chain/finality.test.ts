@@ -168,3 +168,25 @@ describe("E-2: a raise whose hash never lands", () => {
     expect((stopped as Error).message).toBe("stopped by the screen");
   });
 });
+
+describe("a late look still tells every state in order", () => {
+  test("a block already final at the first look after landing reports safe, then final", async () => {
+    const blockHash = `0x${"11".repeat(32)}` as Hex;
+    const receipt = { transactionHash: HASH, blockNumber: 5n, blockHash, status: "success", logs: [] };
+    // The chain's safe and finalized tags are already past the block: one look jumps from In a block to Final.
+    const client = {
+      getTransactionReceipt: async () => receipt,
+      getBlock: async (args: { blockNumber?: bigint; blockTag?: string }) =>
+        args.blockNumber !== undefined ? { hash: blockHash, number: args.blockNumber } : { number: 10n },
+    } as unknown as Parameters<typeof follow>[0];
+    const reached: string[] = [];
+    const result = await follow(client, HASH, {
+      tick: async () => {},
+      onProgress: (p) => {
+        if (reached.at(-1) !== p.reached) reached.push(p.reached);
+      },
+    });
+    expect(result.reached).toBe("final");
+    expect(reached).toEqual(["sent", "in-block", "safe", "final"]);
+  });
+});
