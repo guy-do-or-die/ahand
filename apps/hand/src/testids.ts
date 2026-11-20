@@ -28,6 +28,8 @@ export const TID = {
     crashRetry: "shell-crash-retry",
     offline: "shell-offline", // a screen whose code could not load; data-value: common.time.offline
     offlineRetry: "shell-offline-retry",
+    noCore: "shell-no-core", // the build's Core has no code on its chain; data-value: the Core's address
+    noCoreRetry: "shell-no-core-retry",
   },
 
   /** Landing `/` (§7.1). */
@@ -339,6 +341,7 @@ export const TID = {
   /** This contract `/core` (§10.3). */
   core: {
     address: "core-address",
+    absent: "core-absent", // eth_getCode found no code at the address on this network
     domain: "core-domain",
     cap: "core-cap",
     derivation: "core-derivation",

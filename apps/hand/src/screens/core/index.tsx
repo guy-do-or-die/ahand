@@ -33,6 +33,9 @@ interface OnChain {
   cap: number;
 }
 
+/** Read from the chain: Core's figures, or that its address holds no code at that block (presence.ts). */
+type ChainRead = OnChain | { block: bigint; codeBytes: 0; absent: true };
+
 type Read<T> = { state: "reading" } | { state: "done"; value: T } | { state: "failed" };
 
 function Part({ title, children, testid, ...rest }: { title: string; children: ReactNode; testid?: string; [data: `data-${string}`]: unknown }) {
@@ -55,7 +58,7 @@ function Row({ name, children }: { name: string; children: ReactNode }) {
 
 export default function CoreScreen() {
   useLang();
-  const [chain, setChain] = useState<Read<OnChain>>({ state: "reading" });
+  const [chain, setChain] = useState<Read<ChainRead>>({ state: "reading" });
   const [build, setBuild] = useState<Read<ServedBuild>>({ state: "reading" });
 
   useEffect(() => {
@@ -65,8 +68,10 @@ export default function CoreScreen() {
     (async () => {
       const block = await client.getBlockNumber({ cacheTime: 0 });
       const at = { blockNumber: block };
-      const [code, domain, cap] = await Promise.all([
-        client.getCode({ address: CORE, ...at }),
+      // The code first: an empty address is "not on this network yet", not a failed read.
+      const code = await client.getCode({ address: CORE, ...at });
+      if (!code || code === "0x") return { block, codeBytes: 0, absent: true } as const;
+      const [domain, cap] = await Promise.all([
         client.readContract({ address: CORE, abi: CORE_ABI, functionName: "eip712Domain", ...at }),
         client.readContract({ address: CORE, abi: CORE_ABI, functionName: "MAX_EXPIRY_PERIOD", ...at }),
       ]);
@@ -77,7 +82,7 @@ export default function CoreScreen() {
         cap: Number(cap),
       };
     })().then(
-      (value) => live && setChain({ state: "done", value }),
+      (value: ChainRead) => live && setChain({ state: "done", value }),
       () => live && setChain({ state: "failed" }),
     );
 
@@ -97,7 +102,9 @@ export default function CoreScreen() {
   const derivation = deployment && CORE ? derive(deployment, CORE) : undefined;
   const commit = deployment?.commit || undefined;
   const reproduce = reproduceLine(commit);
-  const onChain = chain.state === "done" ? chain.value : undefined;
+  const read = chain.state === "done" ? chain.value : undefined;
+  const absent = read && "absent" in read ? read : undefined;
+  const onChain = read && !("absent" in read) ? read : undefined;
   const paidPasses = paidPassesAtWorst(config.defaults.payoutGasK);
   const blockSource = onChain ? `BLOCK ${count(onChain.block)}` : undefined;
 
@@ -119,6 +126,13 @@ export default function CoreScreen() {
         </Row>
         {chain.state === "reading" ? <p className="ah-meta m-0">{t("core.reading")}</p> : null}
         {chain.state === "failed" ? <ErrorBand what={t("core.offline")} kept={t("core.offline.kept")} /> : null}
+        {absent ? (
+          <div className="core-claim" data-testid={TID.core.absent}>
+            <p className="m-0 font-bold">{t("common.noCore.title", { chain: chainName(config.chain) })}</p>
+            <p className="m-0">{t("core.absent.body")}</p>
+            <Mark kind="chain" source={`eth_getCode = 0x · BLOCK ${count(absent.block)}`} />
+          </div>
+        ) : null}
         {onChain ? (
           <div className="core-claim">
             <p className="m-0">{onChain.codeBytes > 0 ? t("core.code", { bytes: onChain.codeBytes }) : t("core.code.none")}</p>

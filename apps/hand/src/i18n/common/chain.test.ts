@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, spyOn, test } from "bun:test";
 import { i18n } from "@lingui/core";
 
 import { compileCatalogue } from "../catalogue";
@@ -29,11 +29,26 @@ describe("chainName", () => {
     expect(chainName({ id: 31337, name: "anvil" })).toBe("Локальная тестовая сеть");
   });
 
-  test("any other chain keeps the name its configuration gives", () => {
-    for (const lang of ["en", "ru"]) {
-      i18n.activate(lang);
-      expect(chainName({ id: 8453, name: "Base" })).toBe("Base");
-      expect(chainName({ id: 84532, name: "Base Sepolia" })).toBe("Base Sepolia");
+  test("Base and Base Sepolia have names of their own; Base Sepolia says it is a test network", () => {
+    i18n.activate("en");
+    expect(chainName({ id: 84532, name: "whatever" })).toBe("Base Sepolia (test network)");
+    expect(chainName({ id: 8453, name: "whatever" })).toBe("Base");
+    i18n.activate("ru");
+    expect(chainName({ id: 84532, name: "whatever" })).toBe("Base Sepolia (тестовая сеть)");
+    expect(chainName({ id: 8453, name: "whatever" })).toBe("Base");
+  });
+
+  test("any other chain keeps the name its configuration gives, and lingui is never asked for an id it lacks", () => {
+    // lingui answers a missing id with the id and warns "Uncompiled message detected".
+    const asked = spyOn(i18n, "_");
+    try {
+      for (const lang of ["en", "ru"]) {
+        i18n.activate(lang);
+        expect(chainName({ id: 10, name: "OP Mainnet" })).toBe("OP Mainnet");
+      }
+      expect(asked).not.toHaveBeenCalled();
+    } finally {
+      asked.mockRestore();
     }
   });
 

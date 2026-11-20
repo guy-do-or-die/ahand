@@ -11,6 +11,7 @@ const en = {
   "core.reading": "Reading the contract…",
   "core.offline": "Can't reach the network right now.",
   "core.offline.kept": "The figures read from the contract are missing below; the rest still stands.",
+  "core.absent.body": "No code was found at this address on this network just now. Its figures can't be read until the contract is put here; where its address comes from, below, still stands.",
 
   "core.domainTitle": "Its name for confirmations",
   "core.domain.body": "Every confirmation on a route names this contract and this network, so it can't be replayed anywhere else. Read from the contract now:",

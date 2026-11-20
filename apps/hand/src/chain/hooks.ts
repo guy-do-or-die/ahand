@@ -1,10 +1,11 @@
 import { costOf, l1FeeOf, readHand, readPending, type Call, type Cost, type CoreRefusal, type Hand, type HandState, type HandView } from "@ahand/sdk";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { serializeTransaction, type Address, type Hex, type PublicClient } from "viem";
 
 import { config as app } from "../config";
 import { clientsOf, watchClientOf } from "./clients";
 import { standingOf, type Reached } from "./finality";
+import { presenceOf, PresenceStore, type PresenceState } from "./presence";
 import { simulateAll } from "./simulate";
 import { BlockWatcher, latestTip, type ChainStatus, type Tip } from "./watcher";
 
@@ -40,6 +41,24 @@ export function clientOf(chainId: number = app.chain.id): PublicClient {
   const client = CLIENTS[chainId];
   if (!client) throw new Error(`chain ${chainId} is not configured in this build`);
   return client;
+}
+
+/** The build's own Core: the canonical one, else the one trusted on the build's chain. */
+export const CANONICAL_CORE: Address | undefined = app.cores.canonical ?? app.cores.trusted.find((c) => c.chainId === app.chain.id)?.core;
+
+let presence: PresenceStore | undefined;
+
+/** Whether the build's Core has code on the build's chain (presence.ts): one check for the tab. */
+export function corePresence(): PresenceStore {
+  presence ??= new PresenceStore(async () => (CANONICAL_CORE ? presenceOf(clientOf(app.chain.id), CANONICAL_CORE) : "here"));
+  return presence;
+}
+
+/** The build's Core's presence, asked for on first use; with `enabled` false nothing is asked. */
+export function useCorePresence(enabled = true): PresenceState {
+  const store = corePresence();
+  const subscribe = useCallback((listener: () => void) => (enabled ? store.subscribe(listener) : () => undefined), [store, enabled]);
+  return useSyncExternalStore(subscribe, store.state, store.state);
 }
 
 /** The chain's status: its latest block (none before the first), stale and offline flags. */

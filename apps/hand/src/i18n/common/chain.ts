@@ -10,7 +10,8 @@ import { i18n } from "@lingui/core";
  */
 export function chainName(chain: { id: number; name: string }): string {
   const id = `common.chain.${chain.id}`;
-  const words = i18n._(id);
-  // lingui answers a missing id with the id itself.
-  return words === id ? chain.name : words;
+  // Asked only for an id the catalogue holds: lingui answers a missing one with the id itself and
+  // warns "Uncompiled message detected" on the console.
+  if (!Object.hasOwn(i18n.messages, id)) return chain.name;
+  return i18n._(id);
 }

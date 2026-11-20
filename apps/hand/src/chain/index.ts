@@ -4,9 +4,13 @@ export { isNetworkError } from "./errors";
 export { giveOnChain, type GiveOnChain, type GiveOnChainInput } from "./give";
 export { WATCH_TIMING, chainOf, clientsOf, publicClientOf, transportOf, watchClientOf, type TransportTiming } from "./clients";
 export { follow, receiptOrNothing, standingOf, type FollowOptions, type Progress, type Reached } from "./finality";
+export { isNoDataError, presenceOf, PresenceStore, readFailureOf, type Presence, type PresenceState, type ReadFailure } from "./presence";
 export {
+  CANONICAL_CORE,
   CLIENTS,
   clientOf,
+  corePresence,
+  useCorePresence,
   useBlockRead,
   useChainStatus,
   useCost,

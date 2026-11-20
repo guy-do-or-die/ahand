@@ -18,6 +18,8 @@ const en = {
   "common.notBuilt": "Not built yet",
   "common.ribbon": "Local test network · Test dollars",
   "common.chain.31337": "Local test network",
+  "common.chain.84532": "Base Sepolia (test network)",
+  "common.chain.8453": "Base",
   "common.footer": "Unaudited · Core {core} · No owner · No fee",
   "common.footer.limits": "What it can't promise",
   "common.footer.withoutUs": "Do it without us",
@@ -102,6 +104,10 @@ const en = {
 
   // ── Time (UX-SPEC §15) ────────────────────────────────────────────────
   "common.time.offline": "Can't reach the network right now.",
+  "common.noCore.title": "This contract is not on {chain} yet.",
+  "common.noCore.body": "Its address is known before it is put anywhere, and on this network nothing is at that address yet. Until it is, nothing can be raised, passed or thanked here, and no money moves.",
+  "common.noCore.more": "What is checked about this contract",
+  "common.noCore.retry": "Check again",
   "common.lens.networkTime": "Network time · Block {block} · {time}",
   "common.lens.cap": "Cap 180 d · less 10 min, so it can't arrive too late",
   "common.lens.deviceTime": "First seen on this device {time}",
