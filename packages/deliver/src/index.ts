@@ -3,44 +3,19 @@
  * (kind 14 → 13 → 1059, NIP-44 v2) to the Hand's `inbox.n1` key, over a configured list of relays.
  * The SDK stays free of Nostr; everything about it lives here.
  *
- * Wave 1 stub: these types are the contract between packages. The module `deliver-relay` writes
- * `nostrTransport` and the outbox in wave 2.
+ * - `nostrTransport(relays)`: send an envelope, counting relays that answered OK true; listen for them.
+ * - `openOutbox(transport, store)`: write down before sending, retry every 30 s, never drop silently.
+ * - `newChatKey()`: the giver's random per-Give key (D-42), returned to the caller to keep.
+ * - `wrapEnvelope` / `unwrapEnvelope`: the NIP-17 layers alone, with every check on the way in.
+ *
+ * Timestamps here are the machine's (Nostr's), never the chain's; nothing here reads a Hand's expiry.
  */
 
-export type Hex = `0x${string}`;
-
-/** Which Hand a message is about. */
-export interface HandRef {
-  chainId: number;
-  core: Hex;
-  handId: string;
-}
-
-/** What travels inside a gift wrap. A give link holds no secret by format. */
-export interface Envelope {
-  v: 1;
-  kind: "give" | "note";
-  hand: HandRef;
-  giveLink?: string;
-  text?: string;
-  /** The x-only public key that answers reach: the sender's per-Give chat key. */
-  replyTo: Hex;
-}
-
-/** How many relays acknowledged (answered OK true), of how many were asked. */
-export interface Delivery {
-  acks: number;
-  of: number;
-}
-
-export interface GiveTransport {
-  /** Wraps `envelope` to the 32-byte x-only key `to`, signed by `from` (a chat key, never a link key). */
-  send(to: Hex, envelope: Envelope, from: Hex): Promise<Delivery>;
-  /** Unwraps what arrives for `secret`'s key since `since` (seconds); returns an unsubscribe. */
-  listen(secret: Hex, onEnvelope: (envelope: Envelope, from: Hex) => void, since?: number): () => void;
-}
-
-/** A transport over these relays (ws:// or wss:// URLs). */
-export function nostrTransport(_relays: string[]): GiveTransport {
-  throw new Error("nostrTransport: not built");
-}
+export type { Envelope, HandRef, Hex, ChatKey } from "./envelope.ts";
+export { checkEnvelope, newChatKey, publicKeyOf } from "./envelope.ts";
+export type { Opened } from "./wrap.ts";
+export { GIFT_WRAP_KIND, MAX_WRAP_CHARS, RUMOR_KIND, SEAL_KIND, WRAP_BACKDATE, unwrapEnvelope, wrapEnvelope } from "./wrap.ts";
+export type { Delivery, GiveTransport, Meta, Sent, TransportOptions } from "./transport.ts";
+export { nostrTransport } from "./transport.ts";
+export type { Outbox, OutboxEntry, OutboxOptions, OutboxStore } from "./outbox.ts";
+export { openOutbox } from "./outbox.ts";
