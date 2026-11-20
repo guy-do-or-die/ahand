@@ -104,6 +104,12 @@ export const TID = {
     rebuildInput: "my-rebuild-input",
     rebuildSubmit: "my-rebuild-submit",
     passedItem: "my-passed-item",
+    rebuildHand: "my-rebuild-hand",
+    rebuildResult: "my-rebuild-result",
+    rebuildError: "my-rebuild-error", // data-value: the message id
+    rebuildOpen: "my-rebuild-open",
+    linkRefused: "my-link-refused",
+    answerCount: "my-answer-count", // data-value: accepted answers
   },
 
   /** Care `/care/<chain>/<hand>` (§7.4). */
@@ -142,6 +148,12 @@ export const TID = {
     proof: "thank-proof",
     withoutUs: "thank-without-us",
     error: "thank-error",
+    dropped: "thank-dropped", // data-index, data-payee, data-bps: a holder the re-signed route drops
+    predictedRow: "thank-predicted-row", // data-kind, data-payee, data-amount
+    noReward: "thank-no-reward",
+    payout: "thank-payout", // data-kind: paid | waiting; data-payee, data-amount, data-landed
+    noMoney: "thank-no-money",
+    receiptEvent: "thank-receipt-event", // data-value: the event's name
   },
 
   /** Hand view `/#…`, `/<chain>/<hand>` (§8.1–8.3). */
@@ -284,6 +296,8 @@ export const TID = {
     exitFile: "without-us-exit",
     command: "without-us-command",
     explorer: "without-us-explorer",
+    download: "without-us-download",
+    core: "without-us-core",
   },
 
   /** Print `/print` (§11). */

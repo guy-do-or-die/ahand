@@ -9,7 +9,10 @@ import { defaultClientConditions, type Plugin } from "vite";
  *   (default: src/config/config.example.json);
  * - AHAND_OUT_DIR: both builds' output folder (default: dist);
  * - AHAND_VITE_CACHE: Vite's dependency cache (default: node_modules/.vite);
- * - the `source` export condition, so workspace packages are read from their TypeScript.
+ * - the workspace packages (@ahand/sdk, abi, deliver) read from their TypeScript sources by alias.
+ *   Not by the `source` export condition: that condition applies to every package, and
+ *   nostr-tools 2.26.1 declares `source` entries (./utils.ts, ./nip44.ts, …) its published
+ *   package does not ship, so @ahand/deliver could not load in dev or in the build.
  */
 
 const here = import.meta.dirname;
@@ -21,7 +24,10 @@ function fromRoot(path: string): string {
 export const configFile = fromRoot(process.env.AHAND_CONFIG || "src/config/config.example.json");
 export const outDir = fromRoot(process.env.AHAND_OUT_DIR || "dist");
 export const cacheDir = fromRoot(process.env.AHAND_VITE_CACHE || "node_modules/.vite");
-export const conditions = ["source", ...defaultClientConditions];
+export const conditions = [...defaultClientConditions];
+export const workspaceAlias = [
+  { find: /^@ahand\/(sdk|abi|deliver)$/, replacement: resolve(here, "../../packages/$1/src/index.ts") },
+];
 
 /**
  * Whether the configuration names a local chain, read once when Vite loads its config. The main

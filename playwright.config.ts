@@ -46,6 +46,10 @@ export default defineConfig({
   outputDir: join(root, "tests/e2e/test-results", `slot-${slotText ?? (fromEnv ? "x" : slot)}`),
   reporter: "line",
   fullyParallel: false,
+  // One stand is one chain: spec files share its dev accounts (and their nonces), its clock and
+  // its relay, so two files running at once can send from one account in the same block. Files
+  // pass in any order (each seeds its own fixtures), one at a time.
+  workers: 1,
   forbidOnly: true,
   timeout: 60_000,
   expect: { timeout: 10_000 },
