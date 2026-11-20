@@ -29,10 +29,13 @@ bash ahand.sh thank thank.hex -- --ledger
 Everything after `--` goes to `cast send` unchanged, so any signer cast knows works. Before sending,
 the script checks that `CORE` answers as an aHand Core (EIP-712 domain `aHand`, `core`) and that the
 Hand is in a state where the call can pass, judged by the latest block's time, never your computer's.
-If Core still refuses, the script names Core's error in plain words.
+If Core still refuses, the script names Core's error in plain words. When a withdraw fails because the
+token itself will not send to the destination (a blocked address, say), it asks the token, says so in one
+line, and names the way out: the payee sends it to another address of theirs (`withdraw <token> <payee>
+<to> -- <the payee's signer>`). `ahand.sh` needs only bash and cast.
 
 The thank calldata comes from `bun tools/ahand.ts thank-calldata <give-link>` or from `exit.html`.
-`bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain.
+`bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain (it needs jq too).
 
 ## 2. On a block explorer
 
@@ -79,6 +82,8 @@ First read `pending(token, payee)`: the amount waiting, in smallest units. Then:
 | `to (address)` | where to send it: the payee itself (anyone may send this), or another address (only the payee's own account may) |
 
 Never the zero address. The whole pending amount moves at once.
+If the token refuses to send to the payee itself, nothing moves and it keeps waiting; the payee then
+sends it to another address of theirs.
 
 ### Exit 3: `thank`
 

@@ -4,6 +4,7 @@
  * process exactly as a person runs it from a clone.
  */
 import { spawnSync } from "node:child_process";
+import { copyFileSync, cpSync, mkdirSync, symlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { AHandCoreAbi, KeyAccountFactoryAbi, MockUSDAbi } from "@ahand/abi";
@@ -155,21 +156,59 @@ export interface Run {
   stderr: string;
 }
 
-/** Runs `bun tools/ahand.ts …` from the repository root, as a person would, without RPC or CORE in the environment. */
-export function cli(...args: string[]): Run {
+/** The environment the CLI runs in: this one without RPC, CORE or STAND_SLOT, which would choose for it. */
+function cliEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.RPC;
   delete env.CORE;
-  const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: REPO, env, encoding: "utf8", timeout: 60_000 });
+  delete env.STAND_SLOT;
+  return { ...env, ...extra };
+}
+
+/** Runs `bun tools/ahand.ts …` from the repository root, as a person would, without RPC, CORE or STAND_SLOT in the environment. */
+export function cli(...args: string[]): Run {
+  const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: REPO, env: cliEnv(), encoding: "utf8", timeout: 60_000 });
   return { status: run.status ?? -1, stdout: run.stdout, stderr: run.stderr };
+}
+
+/**
+ * A clone of its own for the CLI: this tool's code copied into `dir`, the packages and modules
+ * linked, contracts/src/AHandCore.sol copied, and contracts/out and contracts/deployments as the
+ * test writes them. It lets a test doctor the build or the deployment files without touching the
+ * repository's own, which other runs use.
+ */
+export interface Clone {
+  dir: string;
+  artifact: string;
+  deployments: string;
+  run(args: string[], env?: Record<string, string>): Run;
+}
+
+export function cloneAt(dir: string): Clone {
+  mkdirSync(join(dir, "contracts/src"), { recursive: true });
+  mkdirSync(join(dir, "contracts/out/AHandCore.sol"), { recursive: true });
+  mkdirSync(join(dir, "contracts/deployments"), { recursive: true });
+  cpSync(join(REPO, "tools"), join(dir, "tools"), { recursive: true, filter: (path) => !path.includes("node_modules") });
+  symlinkSync(join(REPO, "tools/node_modules"), join(dir, "tools/node_modules"));
+  symlinkSync(join(REPO, "packages"), join(dir, "packages"));
+  symlinkSync(join(REPO, "node_modules"), join(dir, "node_modules"));
+  copyFileSync(join(REPO, "contracts/src/AHandCore.sol"), join(dir, "contracts/src/AHandCore.sol"));
+  const artifact = join(dir, "contracts/out/AHandCore.sol/AHandCore.json");
+  copyFileSync(join(REPO, "contracts/out/AHandCore.sol/AHandCore.json"), artifact);
+  return {
+    dir,
+    artifact,
+    deployments: join(dir, "contracts/deployments"),
+    run: (args, env = {}) => {
+      const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: dir, env: cliEnv(env), encoding: "utf8", timeout: 60_000 });
+      return { status: run.status ?? -1, stdout: run.stdout, stderr: run.stderr };
+    },
+  };
 }
 
 /** Runs the CLI with `input` on its standard input (for `recover`, which reads the signature there). */
 export function cliWithInput(input: string, ...args: string[]): Run {
-  const env = { ...process.env };
-  delete env.RPC;
-  delete env.CORE;
-  const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: REPO, env, input, encoding: "utf8", timeout: 120_000 });
+  const run = spawnSync("bun", ["tools/ahand.ts", ...args], { cwd: REPO, env: cliEnv(), input, encoding: "utf8", timeout: 120_000 });
   return { status: run.status ?? -1, stdout: run.stdout, stderr: run.stderr };
 }
 

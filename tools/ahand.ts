@@ -12,7 +12,7 @@
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { AHandCoreAbi, ForwarderAbi } from "@ahand/abi";
 import {
@@ -53,7 +53,8 @@ import {
 import { EIP712_DOMAIN_NAME, EIP712_DOMAIN_VERSION, type Hand, type SignedGive } from "../packages/sdk/src/types.ts";
 import { isKeySignature } from "../packages/sdk/src/verify.ts";
 import { textValue } from "../packages/sdk/src/data.ts";
-import { Fail, addressFlag, amountOf, clean, connect, group, parseArgs, pct, span, trustedCore, utc, type Args, type Chain, type TrustedCore } from "./lib/cli.ts";
+import { Fail, addressFlag, amountOf, clean, cloneCore, connect, deploymentFileOf, group, parseArgs, pct, shown, span, trustedCore, utc, type Args, type Chain, type TrustedCore } from "./lib/cli.ts";
+import { unwrap6492 } from "../packages/sdk/src/wallet.ts";
 import { findCommand } from "./lib/find.ts";
 import { recoverCommand } from "./lib/recover.ts";
 import { verifyCommand } from "./lib/verify.ts";
@@ -61,7 +62,6 @@ import {
   CORE_SALT,
   CREATE2_FACTORY,
   coreAddressOf,
-  coreBuild,
   deploymentPath,
   manifestOf,
   readDeployment,
@@ -99,14 +99,16 @@ export const USAGE = `aHand from a clone: bun tools/ahand.ts <command> ... (no s
       e.g. bun tools/ahand.ts core-check --rpc $RPC
 
   verify --rpc URL [--core 0x...] <handId> [--give ADDRESS] [--between] [--details] [--save FILE]
-  verify --bundle FILE [--details]
+  verify --bundle FILE [--rpc URL] [--details]
       The Hand's passport, check by check, the same checks and ids as the site's proof page: one
       line each with ok, FAIL or "not checkable" and its sentence. Exit 0 only when none failed.
-      With --bundle, the same from a saved proof with no network. --give adds a give address so
+      With --bundle, the same from a saved proof: with no network only its signatures, hashes and
+      sums are proven, and its events and views read "recorded" (never ok); with --rpc every log
+      and view in it is re-read from the chain first, and any difference fails. --give adds a give address so
       the description and signatures are checked from it; --save writes the bundle; --between
       reads the blocks between the raise and the closing however many requests that takes.
       e.g. bun tools/ahand.ts verify --rpc $RPC --core $CORE 7
-           bun tools/ahand.ts verify --bundle hand-7.proof.json
+           bun tools/ahand.ts verify --bundle hand-7.proof.json --rpc $RPC
 
   find --rpc URL [--core 0x...] --raiser 0x... [--days N] [--chunk BLOCKS]
       Every Hand a raiser opened in the last N days (default 1, by the chain's time): Raised logs
@@ -126,7 +128,11 @@ export const USAGE = `aHand from a clone: bun tools/ahand.ts <command> ... (no s
       This list.
 
   --rpc defaults to $RPC and --core to $CORE, as in contracts/exit/ahand.sh. Without --core the
-  trusted Core is the one this clone builds: create2(factory, salt, initcode of contracts/out).`;
+  trusted Core is the one this clone builds: create2(factory, salt, initcode of contracts/out),
+  only when contracts/out was built from AHandCore.sol as it is now; else the deployment file.
+  The deployment file is --deployment, else on chain 31337 with STAND_SLOT=N the stand's
+  contracts/deployments/31337-slotN.json, else contracts/deployments/<chainId>.json, else the
+  chain's only stand slot file. Each command names the file it used.`;
 
 /* ------------------------------------------------------------------ basics */
 
@@ -355,11 +361,8 @@ async function inspect(args: Args): Promise<void> {
   const trusted = chain ? trustedCore(args, chain.chainId) : given ? { core: given, source: "given with --core" } : undefined;
   let canonical = trusted?.core;
   if (!canonical) {
-    try {
-      canonical = coreAddressOf(coreBuild().initcodeHash);
-    } catch {
-      canonical = undefined;
-    }
+    const clone = cloneCore();
+    canonical = "core" in clone ? clone.core : undefined;
   }
   const options: LinkOptions = { canonicalCore: canonical };
   const input = readInput(args.positional[0], options);
@@ -483,6 +486,7 @@ async function thankCalldataCommand(args: Args): Promise<void> {
 
   const { give, keySig, giverSig } = opened.signedGive;
   const wrapped = unwrap6492(giverSig);
+  if (!wrapped && isErc6492Signature(giverSig)) throw new Fail("the giver's signature is wrapped per ERC-6492 but names no factory call");
   const inner: SignedGive = { give, keySig, giverSig: wrapped ? wrapped.signature : giverSig };
   const signerCode = (await chain.client.getCode({ address: give.signer })) ?? "0x";
   const deployed = signerCode !== "0x";
@@ -495,7 +499,9 @@ async function thankCalldataCommand(args: Args): Promise<void> {
   let setupData: Hex | undefined;
   let giverCodeGas = 0;
   if (needsSetup) {
-    forwarder = addressFlag(args, "--forwarder") ?? forwarderOf(chain.chainId);
+    const given = addressFlag(args, "--forwarder");
+    const named = given ? undefined : forwarderOf(args, chain.chainId);
+    forwarder = given ?? named?.address;
     if (!forwarder) {
       throw new Fail(
         "the giver's account is not deployed yet and no forwarder is known: give --forwarder 0x... (Multicall3's aggregate3, or the stand's Forwarder). " +
@@ -503,8 +509,10 @@ async function thankCalldataCommand(args: Args): Promise<void> {
       );
     }
     const forwarderCode = await chain.client.getCode({ address: forwarder });
-    if (!forwarderCode || forwarderCode === "0x") throw new Fail(`there is no forwarder contract at ${forwarder} on chain ${chain.chainId}`);
-    const setup = { target: wrapped!.address, allowFailure: false, callData: wrapped!.data };
+    if (!forwarderCode || forwarderCode === "0x") {
+      throw new Fail(`there is no forwarder contract at ${forwarder} on chain ${chain.chainId}${named ? `, the one ${named.from} names: give --forwarder 0x... for this chain` : ""}`);
+    }
+    const setup = { target: wrapped!.factory, allowFailure: false, callData: wrapped!.factoryData };
     setupData = encodeFunctionData({ abi: ForwarderAbi, functionName: "aggregate3", args: [[setup]] });
     const check = { target: opened.head.core, allowFailure: true, callData: encodeFunctionData({ abi: AHandCoreAbi, functionName: CHECK_GIVE, args: checkArgs }) };
     // One eth_call: the account's setup through the forwarder, then Core's checkGive with the inner signature.
@@ -513,7 +521,7 @@ async function thankCalldataCommand(args: Args): Promise<void> {
       const { data } = await chain.client.call({ to: forwarder, data: encodeFunctionData({ abi: ForwarderAbi, functionName: "aggregate3", args: [[setup, check]] }) });
       results = decodeFunctionResult({ abi: ForwarderAbi, functionName: "aggregate3", data: data ?? "0x" }) as typeof results;
     } catch {
-      throw new Fail(`the setup call of the giver's account fails (factory ${wrapped!.address}): the account cannot be set up this way`);
+      throw new Fail(`the setup call of the giver's account fails (factory ${wrapped!.factory}): the account cannot be set up this way`);
     }
     const answer = results[1]!;
     if (!answer.success) throw new Fail(refusalOf(answer.returnData) ?? "Core refused this Give with an error this tool does not know");
@@ -574,21 +582,14 @@ async function thankCalldataCommand(args: Args): Promise<void> {
   console.log(out.join("\n"));
 }
 
-/** An ERC-6492 wrapper read with viem's parser: the factory, its calldata and the inner signature. */
-function unwrap6492(signature: Hex): { address: Address; data: Hex; signature: Hex } | undefined {
-  if (!isErc6492Signature(signature)) return undefined;
-  const { address, data, signature: inner } = parseErc6492Signature(signature);
-  if (!address || !data) throw new Fail("the giver's signature is wrapped per ERC-6492 but names no factory call");
-  return { address, data, signature: inner };
-}
-
 const ERC1271 = parseAbi(["function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)"]);
 
-function forwarderOf(chainId: number): Address | undefined {
-  const file = deploymentPath(chainId);
-  if (!existsSync(file)) return undefined;
-  const forwarder = readDeployment(file).forwarder;
-  return forwarder ? getAddress(forwarder) : undefined;
+/** The forwarder the chain's deployment file names, and that file. */
+function forwarderOf(args: Args, chainId: number): { address: Address; from: string } | undefined {
+  const found = deploymentFileOf(args, chainId);
+  if (!found) return undefined;
+  const forwarder = readDeployment(found.file).forwarder;
+  return forwarder ? { address: getAddress(forwarder), from: `${shown(found.file)} (${found.why})` } : undefined;
 }
 
 /* --------------------------------------------------------------------- pass */
@@ -661,7 +662,12 @@ function manifestCommand(args: Args): void {
   const chainText = args.positional[0];
   if (!chainText || !/^[1-9][0-9]*$/.test(chainText)) throw new Fail("usage: manifest <chainId> [--deployment FILE] [--app DIR] [--out FILE]", 2);
   const chainId = Number(chainText);
-  const file = args.flags.get("--deployment") ?? deploymentPath(chainId);
+  const found = deploymentFileOf(args, chainId);
+  if (!found) {
+    throw new Fail(`there is no deployment file for chain ${chainId} (neither ${shown(deploymentPath(chainId))} nor a stand slot's): give --deployment FILE, or set STAND_SLOT=N for a stand`);
+  }
+  const file = found.file;
+  console.log(`deployment  ${shown(file)} (${found.why})`);
   let deployment;
   try {
     deployment = readDeployment(file);
@@ -675,7 +681,8 @@ function manifestCommand(args: Args): void {
   } catch (error) {
     throw new Fail((error as Error).message);
   }
-  const out = resolve(args.flags.get("--out") ?? join(dirname(resolve(file)), `${chainId}.manifest.json`));
+  // Next to the deployment file and named after it: 31337.json gives 31337.manifest.json, a stand slot's file its own.
+  const out = resolve(args.flags.get("--out") ?? join(dirname(resolve(file)), `${basename(file).replace(/\.json$/, "")}.manifest.json`));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`wrote ${out}`);
@@ -698,21 +705,17 @@ async function coreCheck(args: Args): Promise<void> {
     throw new Fail(text);
   };
 
-  let build;
-  try {
-    build = coreBuild();
-  } catch (error) {
-    return failWith((error as Error).message);
-  }
-  if (!build.sourceMatches) failWith("contracts/out was not built from contracts/src/AHandCore.sol as it is now: rebuild it (cd contracts && \"${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge\" build)");
+  const clone = cloneCore();
+  if (!("core" in clone)) return failWith(clone.why);
+  const { build } = clone;
   ok(`initcode hash ${build.initcodeHash} (${build.initcodeBytes} bytes, built from AHandCore.sol sha256 ${build.sourceSha256})`);
-  const derived = coreAddressOf(build.initcodeHash);
+  const derived = clone.core;
   ok(`create2(${CREATE2_FACTORY}, keccak256("aHand.core/1") = ${CORE_SALT}, initcode) = ${derived}`);
 
-  const named = args.flags.get("--deployment");
-  const file = named ?? deploymentPath(chain.chainId);
+  const found = deploymentFileOf(args, chain.chainId);
   let core = derived;
-  if (named !== undefined || existsSync(file)) {
+  if (found) {
+    const { file } = found;
     let deployment;
     try {
       deployment = readDeployment(file);
@@ -730,10 +733,10 @@ async function coreCheck(args: Args): Promise<void> {
     if (!isAddressEqual(getAddress(deployment.core), derived)) {
       failWith(`the deployment names Core ${getAddress(deployment.core)}, and the Core this tree builds stands at ${derived} (factory or salt differ)`);
     }
-    ok(`the deployment file ${file} names this Core, factory and salt`);
+    ok(`the deployment file ${shown(file)} (${found.why}) names this Core, factory and salt`);
     core = getAddress(deployment.core);
   } else {
-    lines.push(`note  no deployment file for chain ${chain.chainId}: checked the address this tree derives`);
+    lines.push(`note  no deployment file for chain ${chain.chainId} (neither ${shown(deploymentPath(chain.chainId))} nor a stand slot's): checked the address this tree derives`);
   }
 
   try {

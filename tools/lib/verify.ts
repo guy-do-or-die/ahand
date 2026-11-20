@@ -2,10 +2,15 @@
  * `verify`: the Hand's passport from a clone, with no site (D-51).
  *
  *   verify --rpc URL [--core 0x…] <handId>   the SDK's collect, then passportOf
- *   verify --bundle FILE                     a saved proof, through verifyBundle, with no network
+ *   verify --bundle FILE                     a saved proof, through verifyBundle, with no network:
+ *                                            its signatures, hashes and sums; its events and views
+ *                                            read "recorded in the file", never ok
+ *   verify --bundle FILE --rpc URL           the same file re-read from the chain (verifyBundleOnChain):
+ *                                            every log by block hash, the views at the file's block
  *
- * Both print the checks passportOf returns, in its order and with its ids, so they are the same
- * ones the proof page shows. Exit 0 only when no check failed; "not checkable" is not a failure.
+ * They print the checks passportOf returns, in its order and with its ids, so they are the same
+ * ones the proof page shows (the bundle against the chain adds one first line, `chain`). Exit 0
+ * only when no check failed; "not checkable" and "recorded in the file" are not failures.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -16,12 +21,12 @@ import { seenIn } from "../../packages/sdk/src/address.ts";
 import { LATER_HANDS_WINDOWS, chainNow } from "../../packages/sdk/src/chain.ts";
 import { decodeCoreError } from "../../packages/sdk/src/errors.ts";
 import { fromText, peekLink } from "../../packages/sdk/src/link.ts";
-import { collect, exportBundle, passportOf, readBetween, readBundle, verifyBundle, type BuildFacts, type Check } from "../../packages/sdk/src/proof.ts";
-import { CORE_SALT, CREATE2_FACTORY, coreBuild, deploymentPath, readDeployment } from "../manifest.ts";
-import { Fail, clean, connect, group, handIdOf, trustedCore, utc, type Args } from "./cli.ts";
+import { collect, exportBundle, passportOf, readBetween, readBundle, verifyBundle, verifyBundleOnChain, type BuildFacts, type Check } from "../../packages/sdk/src/proof.ts";
+import { CORE_SALT, CREATE2_FACTORY, readDeployment } from "../manifest.ts";
+import { Fail, clean, cloneCore, connect, deploymentFileOf, group, handIdOf, shown, trustedCore, utc, type Args, type Sources } from "./cli.ts";
 import { passportLines, summaryOf } from "./passport.ts";
 
-const USAGE = "verify --rpc URL [--core 0x...] <handId>, or verify --bundle FILE";
+const USAGE = "verify --rpc URL [--core 0x...] <handId>, or verify --bundle FILE [--rpc URL]";
 
 /**
  * The facts the "This contract" check derives Core's address from, as this clone knows them: the
@@ -29,26 +34,24 @@ const USAGE = "verify --rpc URL [--core 0x...] <handId>, or verify --bundle FILE
  * it is now), else the chain's deployment file. Undefined when neither is here: the check then
  * reads "not checkable".
  */
-export function cloneBuildFacts(chainId?: number): { facts: BuildFacts; from: string } | undefined {
+export function cloneBuildFacts(chainId?: number, args?: Args, sources: Sources = {}): { facts: BuildFacts; from: string } | undefined {
+  const clone = cloneCore(sources);
+  if ("core" in clone) {
+    return { facts: { factory: CREATE2_FACTORY, salt: CORE_SALT, initcodeHash: clone.build.initcodeHash }, from: "the initcode this clone builds (contracts/out)" };
+  }
+  if (chainId === undefined) return undefined;
+  const found = deploymentFileOf(args, chainId, sources);
+  if (!found) return undefined;
+  let deployment;
   try {
-    const build = coreBuild();
-    if (build.sourceMatches) {
-      return { facts: { factory: CREATE2_FACTORY, salt: CORE_SALT, initcodeHash: build.initcodeHash }, from: "the initcode this clone builds (contracts/out)" };
-    }
-  } catch {
-    // no build here
+    deployment = readDeployment(found.file);
+  } catch (error) {
+    throw new Fail((error as Error).message);
   }
-  if (chainId !== undefined) {
-    const file = deploymentPath(chainId);
-    if (existsSync(file)) {
-      const deployment = readDeployment(file);
-      return {
-        facts: { factory: getAddress(deployment.factory), salt: deployment.salt as Hex, initcodeHash: deployment.initcodeHash as Hex, commit: deployment.commit ?? undefined, dirty: deployment.dirty ?? undefined },
-        from: `contracts/deployments/${chainId}.json`,
-      };
-    }
-  }
-  return undefined;
+  return {
+    facts: { factory: getAddress(deployment.factory), salt: deployment.salt as Hex, initcodeHash: deployment.initcodeHash as Hex, commit: deployment.commit ?? undefined, dirty: deployment.dirty ?? undefined },
+    from: `${shown(found.file)} (${found.why})`,
+  };
 }
 
 /** A give address (or a give link as text): its bytes and the part that travelled outside it. Never a live link. */
@@ -81,7 +84,7 @@ export async function verifyCommand(args: Args): Promise<number> {
   const head: string[] = [];
 
   if (bundleFile !== undefined) {
-    if (args.flags.has("--rpc") || args.positional.length) throw new Fail(`--bundle checks a saved proof with no network: give no RPC and no number (${USAGE})`, 2);
+    if (args.positional.length) throw new Fail(`--bundle checks a saved proof: give no number (${USAGE})`, 2);
     let json: string;
     try {
       json = readFileSync(resolve(bundleFile), "utf8");
@@ -96,7 +99,7 @@ export async function verifyCommand(args: Args): Promise<number> {
     }
     // The contract check uses the code hash this clone builds, not the one the bundle carries:
     // a bundle cannot vouch for itself. Without a build here, the bundle's own facts are used and said so.
-    const clone = cloneBuildFacts(record.chainId);
+    const clone = cloneBuildFacts(record.chainId, args);
     let facts = "the bundle's own build facts (no build in this clone)";
     if (clone) {
       const parsed = JSON.parse(json) as { build?: Record<string, unknown> };
@@ -104,16 +107,23 @@ export async function verifyCommand(args: Args): Promise<number> {
       json = JSON.stringify(parsed);
       facts = clone.from;
     }
-    checks = await verifyBundle(json);
+    // Only an explicit --rpc goes to the network: a bundle is checked offline unless asked.
+    const chain = args.flags.has("--rpc") ? (await connect(args, true))! : undefined;
+    if (chain && chain.chainId !== record.chainId) throw new Fail(`the RPC is chain ${chain.chainId}; the bundle is of chain ${record.chainId}`, 2);
+    checks = chain ? await verifyBundleOnChain(chain.client, json) : await verifyBundle(json);
     head.push(`Hand ${record.handId} on chain ${record.chainId}, Core ${record.core}`);
-    head.push(`from the bundle ${clean(bundleFile)}, recorded at block ${record.block}; no network was used`);
+    if (chain) head.push(`from the bundle ${clean(bundleFile)}, recorded at block ${record.block}; every log and view re-read from the chain at ${clean(chain.rpc)}`);
+    else {
+      head.push(`from the bundle ${clean(bundleFile)}, recorded at block ${record.block}; no network was used`);
+      head.push("with no network only signatures, hashes and sums are proven; events, views and amounts are as the file records them (add --rpc URL to re-read them)");
+    }
     head.push(`the contract is checked against ${facts}`);
   } else {
     const chain = (await connect(args, true))!;
     const handId = handIdOf(args.positional[0], USAGE);
     if (args.positional.length > 1) throw new Fail(`one Hand at a time: ${USAGE}`, 2);
     const trusted = trustedCore(args, chain.chainId);
-    const clone = cloneBuildFacts(chain.chainId);
+    const clone = cloneBuildFacts(chain.chainId, args);
     const give = args.flags.has("--give") ? giveOf(args.flags.get("--give")!, trusted.core) : {};
     let record;
     try {

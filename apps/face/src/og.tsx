@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 import satori from "satori";
 
+import { Lru } from "./lru.ts";
 import { termsOf, type Preview } from "./preview.ts";
 import { WORDS, type Lang } from "./words.ts";
 
@@ -242,19 +243,29 @@ export async function renderCard(model: CardModel): Promise<Uint8Array> {
 }
 
 /**
- * A small memory of rendered cards, keyed by the model: a robot that fetches the same image twice
- * waits once. Oldest out first.
+ * A memory of drawn cards in front of `draw` (the render pool), keyed by the card's model: the
+ * model is everything the picture depends on (words, terms, theme, language) and nothing else, so
+ * two addresses that draw the same card share one entry, and a card whose Hand changed on chain
+ * gets a new model and so a new entry. Least recently used out first, at most `entries` cards and
+ * `bytes` bytes (a card is 25 to 40 kB). A card being drawn is shared by every request that asks
+ * for it meanwhile. When `draw` refuses (every renderer busy, queue full) the answer is undefined.
  */
-export function cardCache(limit = 128) {
-  const cache = new Map<string, Promise<Uint8Array>>();
-  return (model: CardModel): Promise<Uint8Array> => {
+export function cardCache(
+  draw: (model: CardModel) => Promise<Uint8Array> | undefined,
+  limits: { entries?: number; bytes?: number } = {},
+) {
+  const cache = new Lru<Promise<Uint8Array>>(limits.entries ?? 2_048, limits.bytes ?? 32 * 1024 * 1024);
+  return (model: CardModel): Promise<Uint8Array> | undefined => {
     const key = JSON.stringify(model);
-    let found = cache.get(key);
+    const found = cache.get(key);
     if (found) return found;
-    found = renderCard(model);
-    found.catch(() => cache.delete(key));
-    cache.set(key, found);
-    if (cache.size > limit) cache.delete(cache.keys().next().value!);
-    return found;
+    const drawn = draw(model);
+    if (!drawn) return undefined;
+    cache.set(key, drawn);
+    drawn.then(
+      (png) => cache.weigh(key, drawn, png.byteLength),
+      () => cache.delete(key, drawn),
+    );
+    return drawn;
   };
 }

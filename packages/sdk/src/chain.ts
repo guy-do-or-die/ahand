@@ -398,6 +398,19 @@ export async function handLogs(
 }
 
 /**
+ * The Hand's logs in one block named by its hash (`eth_getLogs` with `blockHash`), in log order.
+ * A block hash names one block on one branch, so a saved log can be re-read exactly where it was;
+ * a hash the node does not know is an error from the node.
+ */
+export async function handLogsInBlock(client: PublicClient, core: Address, handId: bigint, blockHash: Hex): Promise<HandLog[]> {
+  const raw = (await client.request({
+    method: "eth_getLogs",
+    params: [{ address: core, blockHash, topics: [HAND_EVENT_TOPICS, topicOf(handId)] }],
+  })) as RawLog[];
+  return decodeHandLogs(raw);
+}
+
+/**
  * The Hand's logs in the blocks that carry this second: `openedAt` holds the raise, `closedAt`
  * the whole thank or refund. On Base several blocks share one second; all of them are read.
  */

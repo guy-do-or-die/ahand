@@ -73,7 +73,7 @@ describe("usdText", () => {
 describe("l1FeeOf, on the helper chain", () => {
   let chain: Chain;
   beforeAll(async () => {
-    chain = await startChain({ port: 15051 });
+    chain = await startChain({ port: process.env.SDK_TEST_PORT_BASE ? Number(process.env.SDK_TEST_PORT_BASE) + 0 : 15051 });
   }, 60_000);
   afterAll(async () => {
     await chain?.stop();

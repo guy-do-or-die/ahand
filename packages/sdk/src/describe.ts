@@ -3,6 +3,7 @@ import { bytesToHex, keccak256, size, stringToBytes, zeroHash, type Hex } from "
 import type { AddressShape, OpenedAddress } from "./address.js";
 import { dataHashOf, isDataOf, type Statement } from "./data.js";
 import type { Attachments, MatchedData, OpenedLink } from "./link.js";
+import type { Hand } from "./types.js";
 
 /**
  * A Hand's description as this build writes it: lists of statements (`data.ts`) whose names are
@@ -156,9 +157,16 @@ function valueIn(lists: readonly Statement[][], name: string): Hex | undefined {
  * words). Reads the root list and, if it names one, the hidden list behind `private`.
  */
 export function readDescription(opened: OpenedLink): ReadDescription {
-  const { hand, ofHand } = opened;
+  return readDescriptionOf(opened.hand, opened.ofHand);
+}
+
+/**
+ * The same reader for a Hand and the data matched against its dataHash, where there is no opened
+ * link: a faced address's `d` (`faceOf`), on the Hand view and in face's previews.
+ */
+export function readDescriptionOf(hand: Pick<Hand, "dataHash">, matched: MatchedData): ReadDescription {
   if (hand.dataHash.toLowerCase() === zeroHash) return { status: "none" };
-  return readOfHand(hand.dataHash, ofHand);
+  return readOfHand(hand.dataHash, matched);
 }
 
 function readOfHand(dataHash: Hex, ofHand: MatchedData): ReadDescription {

@@ -6,16 +6,22 @@
 #
 # 1. refund   a Hand is extended, funded, refused a refund while it runs, then refunded by a
 #             stranger after a time jump; the raiser gets the whole reward back.
-# 2. pending  a refund to a blocked payee (BlacklistToken, D-14) waits in Core; a stranger may not
-#             send it elsewhere; the payee withdraws it to another address; a second one is
+# 2. pending  a refund to a blocked payee (BlacklistToken, D-14) waits in Core; a withdraw to the
+#             payee itself is refused in one plain line naming the way out (estimated, and mined
+#             with --gas-limit); a stranger may not send it elsewhere; the payee withdraws it to another address; a second one is
 #             withdrawn by a stranger to the payee once unblocked.
 # 3. thank    a Give signed with cast (EIP-712 typed data) is thanked from calldata in a file; a
 #             stranger's thank is refused; the giver is paid.
 #
 # Starts its own anvil on the first free port of 18945..18954 (or SELFTEST_PORT), deploys with
 # script/Deploy.s.sol under the stand's forge lock, and stops and removes everything it started.
-# Uses anvil's public test keys only. Environment: FOUNDRY_BIN (default ~/.foundry/bin).
+# Uses anvil's public test keys only. Needs bash, Foundry and jq. Environment: FOUNDRY_BIN (default ~/.foundry/bin).
 set -euo pipefail
+
+command -v jq >/dev/null || {
+  echo "selftest: needs jq to read the deployment JSON; install it (apt install jq, brew install jq, or https://jqlang.org) and run again" >&2
+  exit 1
+}
 
 FOUNDRY_BIN=${FOUNDRY_BIN:-$HOME/.foundry/bin}
 export FOUNDRY_BIN
@@ -82,6 +88,12 @@ DEPLOY_OUT=$out "$FOUNDRY_BIN/forge" script script/Deploy.s.sol --rpc-url "$RPC"
   { cat "$work/deploy.log" >&2; fail "deploy"; }
 rmdir "$lock"; locked=0
 bash script/check-deployment.sh "$out" "$RPC" >/dev/null || fail "check-deployment"
+mkdir "$work/empty-path"
+for script in script/check-deployment.sh exit/selftest.sh; do
+  if said=$(PATH="$work/empty-path" "$BASH" "$script" "$out" "$RPC" 2>&1); then fail "$script ran without jq"; fi
+  grep -q "needs jq" <<<"$said" || fail "$script without jq said: $said"
+  pass "$script without jq stops with: $said"
+done
 
 export CORE=$(jq -r .core "$out")
 USD=$(jq -r '.tokens[] | select(.kind == "usd") | .address' "$out")
@@ -144,6 +156,18 @@ expect_eq "$(pending "$BL" "$B")" 3000000 "the blocked raiser's refund waits in 
 expect_eq "$(balance "$BL" "$B")" "$before" "nothing reached the blocked raiser"
 [[ $(kit pending "$BL" "$B") == *"3 mUSD"* ]] || fail "ahand.sh pending does not say 3 mUSD"
 pass "ahand.sh pending says 3 mUSD"
+plain() { # plain <what> <command...>: refused with the token's plain line and none of cast's raw error
+  local what=$1 output
+  shift
+  if output=$("$@" 2>&1); then fail "$what: it was not refused"; fi
+  grep -q "the token refused to send to this payee" <<<"$output" || fail "$what: no plain line: $output"
+  grep -q "ahand.sh withdraw $BL $B <to> -- <the payee's signer>" <<<"$output" || fail "$what: the remedy is not named: $output"
+  grep -qiE "Failed to estimate gas|0x08c379a0|server returned" <<<"$output" && fail "$what: cast's raw error leaked: $output"
+  pass "$what (refused: $(grep -m1 "the token refused" <<<"$output"))"
+}
+plain "a withdraw to the blocked payee itself" kit withdraw "$BL" "$B" -- --private-key $KEY3
+plain "the same, mined with --gas-limit and replayed" kit withdraw "$BL" "$B" -- --private-key $KEY3 --gas-limit 200000
+expect_eq "$(pending "$BL" "$B")" 3000000 "the refused withdraws left pending() as it was"
 refused "a stranger sending it elsewhere" "NotPayee" kit withdraw "$BL" "$B" "$S" -- --private-key $KEY3
 s_before=$(balance "$BL" "$S")
 kit withdraw "$BL" "$B" "$S" -- --private-key $KEY2 >/dev/null

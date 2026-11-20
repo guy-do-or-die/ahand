@@ -3,6 +3,8 @@
 #
 #   bash script/check-deployment.sh <deployment.json> <rpc-url>
 #
+# Needs bash, Foundry's cast and jq.
+#
 # 1. Every field of ARCHITECTURE §3 is present.
 # 2. The chain answers with the file's chain id.
 # 3. `core` = create2(factory, salt, initcodeHash), and code is there. Code at that address can only
@@ -13,6 +15,11 @@
 # 6. On 31337: the test tokens, forwarder and account factory have code; the tokens' symbols and
 #    decimals read back as written.
 set -euo pipefail
+
+command -v jq >/dev/null || {
+  echo "check-deployment: needs jq to read the deployment JSON; install it (apt install jq, brew install jq, or https://jqlang.org) and run again" >&2
+  exit 1
+}
 
 FOUNDRY_BIN=${FOUNDRY_BIN:-$HOME/.foundry/bin}
 cast=$FOUNDRY_BIN/cast

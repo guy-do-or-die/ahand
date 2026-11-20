@@ -51,6 +51,7 @@ import {
   thankCall,
   thankInputOf,
   verifyBundle,
+  verifyBundleOnChain,
   type Call,
   type Check,
   type Eip712Domain,
@@ -68,7 +69,8 @@ import { ANVIL_KEYS, REPO_ROOT, startChain, type Chain } from "./helpers/anvil.j
  * contract's own probe, FactsReader, is deployed from contracts/out and must agree.
  */
 
-const PORT = 16201;
+// SDK_TEST_PORT_BASE=B moves the fixed ports of money, wallet, proof and steps to B … B+3.
+const PORT = process.env.SDK_TEST_PORT_BASE ? Number(process.env.SDK_TEST_PORT_BASE) + 2 : 16201;
 const raiserKey = ANVIL_KEYS[1]!;
 const giverKey = ANVIL_KEYS[3]!;
 const ownerKey = ANVIL_KEYS[5]!; // owns the smart-account raiser
@@ -281,11 +283,55 @@ describe("a thanked Hand with two passes, one keeping nothing", () => {
     expect(String(payouts[2]!.amount)).toBe(byId(checks, "giver-amount").actual);
   });
 
-  it("a bundle re-checks with no network and gives the same passport", async () => {
+  it("a bundle re-checks with no network: signatures, hashes and sums keep their verdict, events and views read 'recorded'", async () => {
     const json = exportBundle(record);
     expect(json).not.toMatch(/"\d+n"/);
     expect(readBundle(json)).toEqual(record);
-    expect(await verifyBundle(json)).toEqual(checks);
+    const offline = await verifyBundle(json);
+    expect(ids(offline)).toEqual(ids(checks));
+    for (const [index, check] of offline.entries()) {
+      const read = checks[index]!;
+      expect(check.basis).toBe(read.basis);
+      expect(check.ok).toBe(read.basis === "recorded" ? "recorded" : read.ok);
+    }
+    // What a file alone proves: the key signatures, the route and the giver's signature.
+    expect(offline.filter((check) => check.ok === true).map((check) => check.id)).toEqual(["description", "keys.0", "keys.1", "give-key", "giver"]);
+  });
+
+  it("the same bundle against the chain: every log and view equals the chain, and the passport is the one read from it", async () => {
+    const onChain = await verifyBundleOnChain(client, exportBundle(record));
+    expect(onChain[0]).toMatchObject({ id: "chain", ok: true, actual: "equal" });
+    expect(onChain.slice(1)).toEqual(checks);
+  });
+
+  it("a bundle with every amount multiplied by ten is never ok offline in its amounts, and fails against the chain", async () => {
+    const bundle = JSON.parse(exportBundle(record));
+    const times10 = (value: string) => String(BigInt(value) * 10n);
+    bundle.view.reward = times10(bundle.view.reward);
+    for (const log of bundle.logs as { eventName: string; args: Record<string, string>; blockHash: string; transactionHash: string }[]) {
+      for (const field of ["reward", "margin", "amount"]) if (log.args[field] !== undefined) log.args[field] = times10(log.args[field]!);
+    }
+    const forged = JSON.stringify(bundle);
+    const offline = await verifyBundle(forged);
+    expect(failed(offline)).toEqual([]);
+    for (const id of ["raised", "reward-time", "share.0", "giver-amount", "payout.shake.0", "payout.giver", "payouts"]) {
+      expect(byId(offline, id).ok, id).toBe("recorded");
+    }
+    const onChain = await verifyBundleOnChain(client, forged);
+    expect(onChain[0]!.id).toBe("chain");
+    expect(onChain[0]!.ok).toBe(false);
+    expect(onChain[0]!.actual).toContain(`hands(${record.handId}).reward is ${record.view.reward}`);
+    expect(onChain[0]!.actual).toContain("not on chain: Raised(");
+    expect(onChain.slice(1).some((check) => check.basis === "recorded" && check.ok === true)).toBe(false);
+
+    // Every block and transaction hash replaced: the logs are not found where the file says.
+    const moved = JSON.parse(exportBundle(record));
+    for (const log of moved.logs as { blockHash: string; transactionHash: string }[]) {
+      log.blockHash = keccak256(stringToBytes(`block ${log.blockHash}`));
+      log.transactionHash = keccak256(stringToBytes(`tx ${log.transactionHash}`));
+    }
+    const elsewhere = await verifyBundleOnChain(client, JSON.stringify(moved));
+    expect(elsewhere[0]!.ok).toBe(false);
   });
 
   it("tampering one field of the bundle fails at that check first", async () => {

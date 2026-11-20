@@ -99,7 +99,7 @@ describe("the chain", () => {
 });
 
 describe("configuration and stand.json", () => {
-  const ports = portsOf(9);
+  const ports = portsOf(9, {});
   const config = configOf(DEPLOYMENT, ports, "http://127.0.0.1:18390");
 
   test("the app's own loader accepts it", () => {
@@ -165,6 +165,8 @@ describe("static server: rule and headers", () => {
     expect(() => contentSecurityPolicy(["http://a.example; script-src *"])).toThrow();
     const headers = securityHeaders([]);
     expect(headers["Referrer-Policy"]).toBe("no-referrer");
+    expect(headers["Cross-Origin-Opener-Policy"]).toBe("same-origin");
+    expect(headers["Permissions-Policy"]).toBe("camera=(), microphone=(), geolocation=()");
     expect(headers["Content-Security-Policy"]).toContain("connect-src 'self';");
   });
 

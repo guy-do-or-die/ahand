@@ -97,7 +97,31 @@ explain() {
       found=1
     fi
   done
-  ((found)) || echo "$out" >&2
+  ((found)) && return 0
+  token_refused && return 0
+  echo "$out" >&2
+}
+
+# Set by withdraw: what it moves, so that a refusal Core does not name can be traced to the token.
+W_TOKEN="" W_PAYEE="" W_TO="" W_RAW=""
+
+# During a withdraw, asks the token itself whether it would move the amount from Core to the
+# destination; when it would not, says so in one plain line and names the way out. False otherwise.
+token_refused() {
+  local said reason
+  [[ -n $W_TOKEN ]] || return 1
+  if said=$(c call --from "$CORE" "$W_TOKEN" "transfer(address,uint256)(bool)" "$W_TO" "$W_RAW" 2>&1); then
+    [[ $said == false ]] || return 1 # the token would move it: the refusal came from elsewhere
+  else
+    grep -qi revert <<<"$said" || return 1 # the RPC failed, not the token
+  fi
+  reason=$(sed -nE 's/.*execution reverted: ([^,]+), data.*/\1/p' <<<"$said" | head -1)
+  reason=${reason:+ (it says: $reason)}
+  if [[ $(lower <<<"$W_TO") == $(lower <<<"$W_PAYEE") ]]; then
+    echo "ahand: the token refused to send to this payee$reason; the money still waits in Core, and the payee can send it elsewhere with: ahand.sh withdraw $W_TOKEN $W_PAYEE <to> -- <the payee's signer>" >&2
+  else
+    echo "ahand: the token refused to send to $W_TO$reason; the money still waits in Core: name another <to>" >&2
+  fi
 }
 
 # Replays a mined, failed transaction as a call on the block before it, so that Core's error
@@ -247,6 +271,7 @@ cmd_withdraw() {
   ((raw > 0)) || die "nothing is waiting for $payee in $token"
   [[ $(lower <<<"$to") == $(lower <<<"$payee") ]] || echo "note: sending elsewhere than the payee: only the payee's own account may do that"
   echo "withdrawing $(amount "$token" "$raw") for $payee to $to"
+  W_TOKEN=$token W_PAYEE=$payee W_TO=$to W_RAW=$raw
   send "$CORE" "withdraw(address,address,address)" "$token" "$payee" "$to"
 }
 

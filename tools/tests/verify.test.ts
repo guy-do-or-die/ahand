@@ -20,13 +20,13 @@ const scratch = mkdtempSync(join(tmpdir(), "ahand-tools-verify-"));
 function linesOf(stdout: string): { id: string; verdict: string }[] {
   const rows: { id: string; verdict: string }[] = [];
   for (const line of stdout.split("\n")) {
-    const match = /^(\S+)\s+(ok|FAIL|not checkable)\s{2,}\S/.exec(line);
+    const match = /^(\S+)\s+(ok|FAIL|not checkable|recorded)\s{2,}\S/.exec(line);
     if (match) rows.push({ id: match[1]!, verdict: match[2]! });
   }
   return rows;
 }
 
-const verdict = (check: Check) => (check.ok === true ? "ok" : check.ok === false ? "FAIL" : "not checkable");
+const verdict = (check: Check) => (check.ok === true ? "ok" : check.ok === false ? "FAIL" : check.ok === "recorded" ? "recorded" : "not checkable");
 
 beforeAll(async () => {
   chain = await chainOn(testPort(3));
@@ -122,14 +122,51 @@ describe("verify --rpc", () => {
 });
 
 describe("verify --bundle", () => {
-  test("a saved proof re-checks with no network and prints the same lines", () => {
+  test("a saved proof re-checks with no network: the same lines, its events and views read 'recorded'", () => {
     const file = join(scratch, "hand.proof.json");
     const online = cli("verify", "--rpc", chain.rpc, "--core", chain.core, String(thanked.hand.handId), "--give", give, "--save", file);
     expect(online.status).toBe(0);
     const offline = cli("verify", "--bundle", file);
     expect(offline.status).toBe(0);
     expect(offline.stdout).toMatch(/no network was used/);
-    expect(linesOf(offline.stdout)).toEqual(linesOf(online.stdout));
+    const onlineLines = linesOf(online.stdout);
+    const offlineLines = linesOf(offline.stdout);
+    expect(offlineLines.map((row) => row.id)).toEqual(onlineLines.map((row) => row.id));
+    // Signatures, hashes and sums stay ok; the rest is as the file records it, never ok.
+    expect(offlineLines.filter((row) => row.verdict === "ok").map((row) => row.id)).toEqual(["description", "keys.0", "give-key", "giver"]);
+    expect(offlineLines.filter((row) => row.verdict !== "ok").every((row) => row.verdict === "recorded")).toBe(true);
+    expect(offline.stdout).toMatch(/\d+ checks: 4 ok, \d+ recorded in the file \(not re-read\), 0 not checkable here, 0 failed/);
+  });
+
+  test("with --rpc the bundle is re-read from the chain: one more line, chain, then the online passport", () => {
+    const file = join(scratch, "hand.proof.json");
+    const online = cli("verify", "--rpc", chain.rpc, "--core", chain.core, String(thanked.hand.handId), "--give", give, "--save", file);
+    const rechecked = cli("verify", "--bundle", file, "--rpc", chain.rpc);
+    expect(rechecked.stderr).toBe("");
+    expect(rechecked.status).toBe(0);
+    expect(rechecked.stdout).toMatch(/re-read from the chain/);
+    expect(linesOf(rechecked.stdout)).toEqual([{ id: "chain", verdict: "ok" }, ...linesOf(online.stdout)]);
+  });
+
+  test("a bundle with every amount times ten: offline its amounts are only 'recorded'; against the chain it fails", () => {
+    const file = join(scratch, "times10.proof.json");
+    expect(cli("verify", "--rpc", chain.rpc, "--core", chain.core, String(thanked.hand.handId), "--save", file).status).toBe(0);
+    const bundle = JSON.parse(readFileSync(file, "utf8"));
+    const times10 = (value: string) => String(BigInt(value) * 10n);
+    bundle.view.reward = times10(bundle.view.reward);
+    for (const log of bundle.logs as { args: Record<string, string> }[]) {
+      for (const field of ["reward", "margin", "amount"]) if (log.args[field] !== undefined) log.args[field] = times10(log.args[field]!);
+    }
+    writeFileSync(file, JSON.stringify(bundle, null, 2));
+    const offline = cli("verify", "--bundle", file);
+    expect(offline.status).toBe(0);
+    const rows = linesOf(offline.stdout);
+    for (const id of ["raised", "reward-time", "share.0", "giver-amount", "payouts"]) expect(rows.find((row) => row.id === id)?.verdict, id).toBe("recorded");
+    const rechecked = cli("verify", "--bundle", file, "--rpc", chain.rpc);
+    expect(rechecked.status).toBe(1);
+    expect(linesOf(rechecked.stdout)[0]).toEqual({ id: "chain", verdict: "FAIL" });
+    expect(linesOf(rechecked.stdout).some((row) => row.verdict === "ok" && ["raised", "share.0", "payouts"].includes(row.id))).toBe(false);
+    expect(rechecked.stdout).toMatch(/hands\(\d+\)\.reward is \d+, the file says \d+/);
   });
 
   test("a tampered bundle exits non-zero and names the check", () => {

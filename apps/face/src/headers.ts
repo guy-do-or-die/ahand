@@ -50,11 +50,23 @@ export function cspFor(config: Pick<FaceConfig, "rpc" | "relays">, page: { inlin
   ].join("; ");
 }
 
-/** The headers every response carries, whatever it is. */
-export function baseHeaders(csp: string): Record<string, string> {
+/**
+ * The headers every response carries, whatever it is. Beyond §11's CSP, no-referrer and nosniff:
+ *
+ *   Cross-Origin-Opener-Policy: same-origin   a page that opened ours (a messenger's web client)
+ *       keeps no handle on our tab, so it cannot later send the tab to a look-alike asking for
+ *       the keys signature. The app opens no pop-up that would need the handle either.
+ *   Permissions-Policy: camera=(), microphone=(), geolocation=()   the app uses none of them.
+ *   Strict-Transport-Security: max-age=31536000   only when the site is served over https
+ *       (FACE_SITE); without includeSubDomains, which would bind every other host of the domain.
+ */
+export function baseHeaders(csp: string, options: { https?: boolean } = {}): Record<string, string> {
   return {
     "Content-Security-Policy": csp,
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    ...(options.https ? { "Strict-Transport-Security": "max-age=31536000" } : {}),
   };
 }

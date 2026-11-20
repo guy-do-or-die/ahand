@@ -6,6 +6,9 @@
 
 export type Lang = "en" | "ru";
 
+/** Every language face speaks. */
+export const LANGS: readonly Lang[] = ["en", "ru"];
+
 const LOCALE: Record<Lang, string> = { en: "en-GB", ru: "ru-RU" };
 
 /** "20 Dec" / "20 дек", in UTC; `timestamp` is in seconds. */

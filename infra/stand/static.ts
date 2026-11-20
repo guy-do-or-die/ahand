@@ -6,7 +6,8 @@
  * an HTML page as a script or a style.
  *
  * Every answer carries the CSP of §11 (with the configuration's RPC and relay URLs in
- * `connect-src`), `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`. It logs
+ * `connect-src`), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
+ * `Cross-Origin-Opener-Policy: same-origin` and the Permissions-Policy face sends. It logs
  * method, path without the query, and status; nothing else.
  *
  * Two additions to the CSP, the same as face's (apps/face/src/headers.ts), for the build's pages
@@ -69,6 +70,8 @@ export function securityHeaders(connect: readonly string[], page: PageSources = 
     "Content-Security-Policy": contentSecurityPolicy(connect, page),
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   };
 }
 

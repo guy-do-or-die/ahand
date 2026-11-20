@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
-import { startRelay, type RunningRelay } from "../relay.ts";
+import { MAX_EVENT_BYTES, MAX_EVENTS, MAX_MESSAGE_BYTES, MAX_REPLY_BYTES, MAX_STORED_BYTES, startRelay, type RunningRelay } from "../relay.ts";
 
 // This package's tests use ports 15100–15119 (the delivery package's use 15120–15149);
 // RELAY_TEST_PORTS="from-to" picks another range, for agents that share one machine.
@@ -156,6 +156,133 @@ describe("stand relay", () => {
     expect(all).toContain("stored");
     for (const needle of [secretContent, e.id, e.pubkey, e.sig, pTo]) expect(all).not.toContain(needle);
   });
+});
+
+/** A gift-wrap-shaped event whose JSON is exactly `bytes` long (ASCII content). */
+function wrapOfSize(bytes: number, created_at: number, p = pTo): NostrEvent {
+  const base = wrapLike(p, created_at, "");
+  const pad = bytes - JSON.stringify(base).length;
+  if (pad < 0) throw new Error("too small");
+  const e = wrapLike(p, created_at, "x".repeat(pad));
+  expect(JSON.stringify(e).length).toBe(bytes);
+  return e;
+}
+
+/** Ids the relay returns for the filter (by default every stored gift wrap), in its order. */
+async function storedIds(url: string, filter: Record<string, unknown> = { kinds: [1059] }): Promise<string[]> {
+  const c = await client(url);
+  const subId = `all-${Math.random().toString(36).slice(2)}`;
+  c.send(["REQ", subId, filter]);
+  await c.until((m) => m[0] === "EOSE" && m[1] === subId, 10_000);
+  c.ws.close();
+  return c.got.filter((m) => m[0] === "EVENT").map((m) => (m[2] as NostrEvent).id);
+}
+
+describe("stand relay limits", () => {
+  test("the limits are 64 KiB per event, 64 MiB and 10 000 events in all, and NIP-11 says so", async () => {
+    expect(MAX_EVENT_BYTES).toBe(64 * 1024);
+    expect(MAX_STORED_BYTES).toBe(64 * 1024 * 1024);
+    expect(MAX_EVENTS).toBe(10_000);
+    expect(MAX_MESSAGE_BYTES).toBeGreaterThan(MAX_EVENT_BYTES);
+    expect(MAX_REPLY_BYTES).toBe(8 * 1024 * 1024);
+    const info = await fetch(`http://127.0.0.1:${relay.port}/`, { headers: { accept: "application/nostr+json" } }).then((r) => r.json());
+    expect(info.limitation.max_message_length).toBe(MAX_MESSAGE_BYTES);
+    expect(info.limitation.max_content_length).toBe(MAX_EVENT_BYTES);
+  });
+
+  test("an event over 64 KiB gets OK false and the connection stays open; one at 64 KiB is kept", async () => {
+    const c = await client(relay.url);
+    const big = wrapOfSize(MAX_EVENT_BYTES + 1, 1_700_001_000);
+    c.send(["EVENT", big]);
+    const no = await c.until((m) => m[0] === "OK" && m[1] === big.id);
+    expect(no[2]).toBe(false);
+    expect(String(no[3])).toStartWith("invalid:");
+    const fits = wrapOfSize(MAX_EVENT_BYTES, 1_700_001_001);
+    c.send(["EVENT", fits]);
+    expect(await c.until((m) => m[0] === "OK" && m[1] === fits.id)).toEqual(["OK", fits.id, true, ""]);
+    expect(c.ws.readyState).toBe(WebSocket.OPEN);
+    c.ws.close();
+    const kept = await storedIds(relay.url);
+    expect(kept).toContain(fits.id);
+    expect(kept).not.toContain(big.id);
+  });
+
+  test("past the byte budget the oldest events go first, and the stored bytes stay within it", async () => {
+    const size = 10_000;
+    const r = startRelay({ port: await freePort(), log: () => {}, limits: { maxStoredBytes: 3 * size + 500 } });
+    try {
+      const c = await client(r.url);
+      const sent: NostrEvent[] = [];
+      for (let i = 0; i < 5; i++) {
+        const e = wrapOfSize(size, 1_700_002_000 + i);
+        sent.push(e);
+        c.send(["EVENT", e]);
+        await c.until((m) => m[0] === "OK" && m[1] === e.id && m[2] === true);
+      }
+      c.ws.close();
+      expect(r.counts().stored).toBe(3);
+      expect(r.counts().storedBytes).toBe(3 * size);
+      expect((await storedIds(r.url)).sort()).toEqual(sent.slice(2).map((e) => e.id).sort());
+      // An evicted event can be published again: the relay no longer counts it a duplicate.
+      const again = await client(r.url);
+      again.send(["EVENT", sent[0]]);
+      expect(await again.until((m) => m[0] === "OK" && m[1] === sent[0]!.id)).toEqual(["OK", sent[0]!.id, true, ""]);
+      again.ws.close();
+      expect(r.counts().stored).toBe(3);
+    } finally {
+      await r.stop();
+    }
+  });
+
+  test("past the event count the oldest events go first", async () => {
+    const r = startRelay({ port: await freePort(), log: () => {}, limits: { maxEvents: 2 } });
+    try {
+      const c = await client(r.url);
+      const sent = [0, 1, 2].map((i) => wrapLike(pTo, 1_700_003_000 + i));
+      for (const e of sent) {
+        c.send(["EVENT", e]);
+        await c.until((m) => m[0] === "OK" && m[1] === e.id && m[2] === true);
+      }
+      c.ws.close();
+      expect(r.counts().stored).toBe(2);
+      expect((await storedIds(r.url)).sort()).toEqual(sent.slice(1).map((e) => e.id).sort());
+    } finally {
+      await r.stop();
+    }
+  });
+
+  test("at the real defaults, 1 030 events of 64 KiB leave at most 64 MiB stored, oldest gone; one REQ gets 8 MiB, newest first", async () => {
+    const r = startRelay({ port: await freePort(), log: () => {} });
+    try {
+      const c = await client(r.url);
+      const total = 1_030;
+      const fit = Math.floor(MAX_STORED_BYTES / MAX_EVENT_BYTES); // 1 024
+      const all: string[] = [];
+      let last = "";
+      for (let i = 0; i < total; i++) {
+        const e = wrapOfSize(MAX_EVENT_BYTES, 1_700_004_000 + i);
+        all.push(e.id);
+        last = e.id;
+        c.send(["EVENT", e]);
+        if (i % 100 === 99) await c.until((m) => m[0] === "OK" && m[1] === e.id, 10_000);
+      }
+      await c.until((m) => m[0] === "OK" && m[1] === last, 10_000);
+      expect(c.got.filter((m) => m[0] === "OK" && m[2] === true)).toHaveLength(total);
+      c.ws.close();
+      expect(r.counts().stored).toBe(fit);
+      expect(r.counts().storedBytes).toBe(fit * MAX_EVENT_BYTES);
+      expect(r.counts().storedBytes).toBeLessThanOrEqual(MAX_STORED_BYTES);
+      // The oldest six are gone, the next one and the newest are there (asked by id: small answers).
+      expect(await storedIds(r.url, { ids: all.slice(0, total - fit) })).toEqual([]);
+      expect(await storedIds(r.url, { ids: [all[total - fit], last] })).toEqual([last, all[total - fit]!]);
+      // Everything asked at once: the newest 8 MiB worth, newest first, then EOSE.
+      const answer = await storedIds(r.url);
+      const perReply = Math.floor(MAX_REPLY_BYTES / MAX_EVENT_BYTES); // 128
+      expect(answer).toEqual(all.slice(-perReply).reverse());
+    } finally {
+      await r.stop();
+    }
+  }, 60_000);
 });
 
 describe("relay as a program", () => {

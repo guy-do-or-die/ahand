@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { deploymentOf } from "@ahand/sdk/testing";
 import { privateKeyToAddress } from "viem/accounts";
 
 import {
@@ -11,6 +12,7 @@ import {
   balanceOf,
   chainOn,
   cli,
+  cloneAt,
   giveAddress,
   handOnChain,
   keyGiver,
@@ -167,13 +169,17 @@ describe("thank-calldata", () => {
     const live = await liveAddress(chain, raised, "faced");
     const giver = await undeployedGiver(chain, ANVIL_KEYS[7]!, 1n, raised.hand);
     const give = await giveAddress(chain, live, raised.hand, giver);
-    const run = cli("thank-calldata", give, "--rpc", chain.rpc);
-    if (run.status === 0) {
-      // A deployment file for 31337 names a forwarder; then the line is printed.
-      expect(run.stdout).toContain("setup ");
-    } else {
-      expect(run.stderr).toContain("R-28's third way");
-    }
+    // In a clone with no deployment file, so that no file names a forwarder.
+    const clone = cloneAt(join(scratch, "clone-no-forwarder"));
+    const run = clone.run(["thank-calldata", give, "--rpc", chain.rpc]);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("R-28's third way");
+
+    // A stand slot's file of another chain names a forwarder this chain does not have: say which file.
+    writeFileSync(join(clone.deployments, "31337-slot4.json"), JSON.stringify({ ...deploymentOf(chain), forwarder: privateKeyToAddress(ANVIL_KEYS[8]!) }));
+    const stale = clone.run(["thank-calldata", give, "--rpc", chain.rpc]);
+    expect(stale.status).toBe(1);
+    expect(stale.stderr).toContain("the one contracts/deployments/31337-slot4.json (the only stand slot file of chain 31337; STAND_SLOT or --deployment choose another) names: give --forwarder 0x... for this chain");
   }, 60_000);
 
   test("a live link is not a give link", async () => {

@@ -13,6 +13,7 @@ export {
   fromBase64Url,
   fromText,
   keyOfSeed,
+  linkLayout,
   newSeed,
   openLink,
   openOutside,
@@ -25,8 +26,10 @@ export {
   type Attachments,
   type LinkErrorCode,
   type LinkHead,
+  type LinkLayout,
   type LinkOptions,
   type LinkRoute,
+  type LinkSegment,
   type MatchedData,
   type OpenedLink,
 } from "./link.js";

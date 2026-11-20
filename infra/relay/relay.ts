@@ -2,17 +2,36 @@
  * The stand's relay: a NIP-01 relay on Bun.serve WebSockets, in memory, for local stands only.
  * It keeps gift wraps (kind 1059) whose id and signature verify, answers REQ with the kinds, ids,
  * #p, since, until and limit filters, then EOSE, pushes new events to open subscriptions, and
- * answers every EVENT with OK. It logs counts, never content, ids or keys.
+ * answers every EVENT with OK. It keeps at most MAX_EVENTS events and MAX_STORED_BYTES bytes,
+ * dropping the oldest first, and no event over MAX_EVENT_BYTES; one REQ is answered with at most
+ * MAX_REPLY_BYTES of stored events. It logs counts, never content,
+ * ids or keys.
  *
  *   PORT=18547 bun infra/relay/relay.ts        (HOST defaults to 127.0.0.1)
  */
 import { verifyEvent, type NostrEvent } from "nostr-tools/pure";
 
 export const GIFT_WRAP_KIND = 1059;
-/** Largest WebSocket message taken. A give link with an ERC-6492 wrapper wraps to a few kB. */
-export const MAX_MESSAGE_BYTES = 1 << 20;
+/**
+ * Largest event kept, measured as the UTF-8 bytes of its JSON. A 2 000-byte give link wraps to
+ * about 5 kB, so 64 KiB leaves more than ten times the room; a larger event gets OK false.
+ */
+export const MAX_EVENT_BYTES = 64 * 1024;
+/**
+ * Largest WebSocket message taken: one largest event plus the frame around it. Bun closes the
+ * socket on anything longer, so it is kept above MAX_EVENT_BYTES for an oversized event to get
+ * an OK false answer rather than a dropped connection.
+ */
+export const MAX_MESSAGE_BYTES = 2 * MAX_EVENT_BYTES;
 /** Events kept; the oldest go first. A stand lives for hours, not weeks. */
 export const MAX_EVENTS = 10_000;
+/** Bytes kept (sum of the kept events' sizes as above); the oldest go first. */
+export const MAX_STORED_BYTES = 64 * 1024 * 1024;
+/**
+ * Most bytes of stored events sent in answer to one REQ, newest first, before EOSE. Bun drops
+ * messages, EOSE included, once a socket has 16 MiB queued, so an answer is kept well below that.
+ */
+export const MAX_REPLY_BYTES = 8 * 1024 * 1024;
 const MAX_SUBS_PER_CLIENT = 20;
 
 interface Filter {
@@ -33,13 +52,15 @@ export interface RelayOptions {
   hostname?: string;
   /** Where count lines go; console.log by default. */
   log?: (line: string) => void;
+  /** Lower storage limits than the defaults (MAX_EVENTS, MAX_STORED_BYTES, MAX_EVENT_BYTES), for tests. */
+  limits?: { maxEvents?: number; maxStoredBytes?: number; maxEventBytes?: number };
 }
 
 export interface RunningRelay {
   port: number;
   url: string;
   /** Counts only: what the log says. */
-  counts(): { stored: number; accepted: number; rejected: number; clients: number; subscriptions: number };
+  counts(): { stored: number; storedBytes: number; accepted: number; rejected: number; clients: number; subscriptions: number };
   stop(): Promise<void>;
 }
 
@@ -90,8 +111,13 @@ function eventOf(v: unknown): NostrEvent | undefined {
 
 export function startRelay(options: RelayOptions): RunningRelay {
   const log = options.log ?? ((line: string) => console.log(line));
-  const events: NostrEvent[] = [];
+  const maxEvents = Math.min(options.limits?.maxEvents ?? MAX_EVENTS, MAX_EVENTS);
+  const maxStoredBytes = Math.min(options.limits?.maxStoredBytes ?? MAX_STORED_BYTES, MAX_STORED_BYTES);
+  const maxEventBytes = Math.min(options.limits?.maxEventBytes ?? MAX_EVENT_BYTES, MAX_EVENT_BYTES, maxStoredBytes);
+  /** Kept events, oldest first, each with its size. */
+  const events: Array<{ event: NostrEvent; bytes: number }> = [];
   const ids = new Set<string>();
+  let storedBytes = 0;
   const clients = new Set<{ data: Client; send(s: string): unknown }>();
   let accepted = 0;
   let rejected = 0;
@@ -99,11 +125,11 @@ export function startRelay(options: RelayOptions): RunningRelay {
   const counts = () => {
     let subscriptions = 0;
     for (const c of clients) subscriptions += c.data.subs.size;
-    return { stored: events.length, accepted, rejected, clients: clients.size, subscriptions };
+    return { stored: events.length, storedBytes, accepted, rejected, clients: clients.size, subscriptions };
   };
   const report = (what: string) => {
     const c = counts();
-    log(`relay: ${what} · stored ${c.stored} · accepted ${c.accepted} · rejected ${c.rejected} · clients ${c.clients} · subscriptions ${c.subscriptions}`);
+    log(`relay: ${what} · stored ${c.stored} (${c.storedBytes} bytes) · accepted ${c.accepted} · rejected ${c.rejected} · clients ${c.clients} · subscriptions ${c.subscriptions}`);
   };
 
   const server = Bun.serve<Client>({
@@ -117,7 +143,7 @@ export function startRelay(options: RelayOptions): RunningRelay {
             name: "aHand stand relay",
             description: "In-memory relay for a local aHand stand. Keeps gift wraps (kind 1059) only.",
             supported_nips: [1, 11, 59],
-            limitation: { max_message_length: MAX_MESSAGE_BYTES, max_subscriptions: MAX_SUBS_PER_CLIENT },
+            limitation: { max_message_length: MAX_MESSAGE_BYTES, max_content_length: maxEventBytes, max_subscriptions: MAX_SUBS_PER_CLIENT },
           },
           { headers: { "access-control-allow-origin": "*" } },
         );
@@ -151,12 +177,16 @@ export function startRelay(options: RelayOptions): RunningRelay {
           const event = eventOf(msg[1]);
           const id = typeof (msg[1] as { id?: unknown })?.id === "string" ? (msg[1] as { id: string }).id : "";
           const answer = (ok: boolean, why: string) => ws.send(JSON.stringify(["OK", id, ok, why]));
+          const bytes = event ? Buffer.byteLength(JSON.stringify(event)) : 0;
           if (!event) {
             rejected++;
             answer(false, "invalid: malformed event");
           } else if (event.kind !== GIFT_WRAP_KIND) {
             rejected++;
             answer(false, "blocked: this relay keeps gift wraps (kind 1059) only");
+          } else if (bytes > maxEventBytes) {
+            rejected++;
+            answer(false, `invalid: event is ${bytes} bytes, the limit is ${maxEventBytes}`);
           } else if (!verifyEvent(event)) {
             rejected++;
             answer(false, "invalid: bad id or signature");
@@ -164,9 +194,14 @@ export function startRelay(options: RelayOptions): RunningRelay {
             answer(true, "duplicate: already have it");
             return;
           } else {
-            events.push(event);
+            events.push({ event, bytes });
             ids.add(event.id);
-            while (events.length > MAX_EVENTS) ids.delete(events.shift()!.id);
+            storedBytes += bytes;
+            while (events.length > maxEvents || storedBytes > maxStoredBytes) {
+              const gone = events.shift()!;
+              ids.delete(gone.event.id);
+              storedBytes -= gone.bytes;
+            }
             accepted++;
             answer(true, "");
             for (const c of clients) {
@@ -196,14 +231,19 @@ export function startRelay(options: RelayOptions): RunningRelay {
             return;
           }
           ws.data.subs.set(subId, filters as Filter[]);
-          const found = new Map<string, NostrEvent>();
+          const found = new Map<string, { event: NostrEvent; bytes: number }>();
           for (const f of filters as Filter[]) {
-            let hits = events.filter((e) => matches(e, f));
-            if (f.limit !== undefined) hits = hits.sort((a, b) => b.created_at - a.created_at).slice(0, Math.max(0, f.limit));
-            for (const e of hits) found.set(e.id, e);
+            let hits = events.filter((s) => matches(s.event, f));
+            if (f.limit !== undefined) hits = hits.sort((a, b) => b.event.created_at - a.event.created_at).slice(0, Math.max(0, f.limit));
+            for (const s of hits) found.set(s.event.id, s);
           }
-          const ordered = [...found.values()].sort((a, b) => b.created_at - a.created_at);
-          for (const e of ordered) ws.send(JSON.stringify(["EVENT", subId, e]));
+          const ordered = [...found.values()].sort((a, b) => b.event.created_at - a.event.created_at);
+          let replied = 0;
+          for (const s of ordered) {
+            replied += s.bytes;
+            if (replied > MAX_REPLY_BYTES) break;
+            ws.send(JSON.stringify(["EVENT", subId, s.event]));
+          }
           ws.send(JSON.stringify(["EOSE", subId]));
           report("subscription open");
           return;

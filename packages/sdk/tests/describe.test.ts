@@ -10,6 +10,7 @@ import {
   describeHand,
   normalizeText,
   readDescription,
+  readDescriptionOf,
   type DescribeMode,
 } from "../src/describe.js";
 import { LinkError, encodeLive, fromText, packAttachments, passOn, toText, type Attachments } from "../src/link.js";
@@ -120,6 +121,9 @@ describe("each mode round-trips: describeHand → encodeLive → toAddress → o
       const opened = await openAddress(address, getHand, ownOptions);
       expect(opened.seen.shape).toBe(described.shape);
       expect(readDescription(opened)).toEqual({ status: "attached", title, content: normalizeText(content), inbox });
+      // The same reader without an opened link: a Hand and what matched its dataHash.
+      expect(readDescriptionOf(opened.hand, opened.ofHand)).toEqual(readDescription(opened));
+      expect(readDescriptionOf({ dataHash: zeroHash }, opened.ofHand)).toEqual({ status: "none" });
     });
 
     it(`${mode}: three passes in the same shape keep the words`, async () => {

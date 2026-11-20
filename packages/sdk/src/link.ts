@@ -626,6 +626,112 @@ export function peekLink(bytes: Uint8Array, options: LinkOptions = {}): LinkHead
   return readHead(new Reader(bytes), options).head;
 }
 
+/* ----------------------------------------------------------------- layout */
+
+/** One part of a link's bytes: where it starts and how long it is, never its value. */
+export interface LinkSegment {
+  kind: "head" | "shake" | "secret" | "last-key" | "pin" | "give" | "attachments";
+  /** Offset of the first byte, from 0. */
+  start: number;
+  length: number;
+  /** For a Shake: its position on the route, from 0. */
+  position?: number;
+}
+
+export interface LinkLayout {
+  total: number;
+  kind: LinkHead["kind"];
+  segments: LinkSegment[];
+}
+
+/**
+ * Where a link's parts lie (for `/check`'s ruler): the head, each Shake, the secret or the last
+ * key, the pin, the Give and the attachments, as offsets and lengths that cover every byte once.
+ * It walks the same layout `unpack` reads, with the same flags, and needs no options: it neither
+ * proves nor refuses what it measures (a non-canonical or invalid link is measured; `openLink`
+ * says what is wrong with it). Throws `LinkError` "unsupported" for another version and
+ * "malformed" for bytes that do not follow the layout. No byte's value leaves it.
+ */
+export function linkLayout(bytes: Uint8Array): LinkLayout {
+  let at = 0;
+  const left = () => bytes.length - at;
+  const skip = (length: number) => {
+    if (length < 0 || length > left()) throw new LinkError("malformed", "the link ends in the middle of a field");
+    at += length;
+  };
+  const byte = () => {
+    if (left() < 1) throw new LinkError("malformed", "the link ends in the middle of a field");
+    return bytes[at++]!;
+  };
+  const varint = () => {
+    let value = 0;
+    for (let shift = 0; shift < 53; shift += 7) {
+      const group = byte();
+      value += (group & 0x7f) * 2 ** shift;
+      if ((group & 0x80) === 0) return value;
+    }
+    throw new LinkError("malformed", "a number too long to measure");
+  };
+  const segments: LinkSegment[] = [];
+  const mark = (kind: LinkSegment["kind"], start: number, position?: number) =>
+    segments.push({ kind, start, length: at - start, ...(position === undefined ? {} : { position }) });
+
+  const first = byte();
+  if (first >> 4 !== LINK_VERSION) throw new LinkError("unsupported", `link version ${first >> 4}`);
+  const flags = first & 0x0f;
+  varint(); // chain
+  if (flags & FLAG_CORE) skip(20);
+  varint(); // Hand number
+  const count = varint();
+  if (count * SHAKE_MIN_BYTES > left()) throw new LinkError("malformed", "more Shakes named than the link holds");
+  mark("head", 0);
+
+  for (let position = 0; position < count; ++position) {
+    const start = at;
+    const shake = byte();
+    if (shake & SHAKE_PAYEE) skip(1 + 20);
+    if (shake & SHAKE_DATA) skip(32);
+    skip(64);
+    mark("shake", start, position);
+  }
+
+  const addressed = (flags & FLAG_ADDRESSED) !== 0;
+  const hasGive = (flags & FLAG_GIVE) !== 0;
+  let start = at;
+  if (!addressed) {
+    skip(SEED_BYTES);
+    mark("secret", start);
+  } else if (count > 0) {
+    skip(20);
+    mark("last-key", start);
+  }
+  if (count === 0 && !hasGive) {
+    start = at;
+    skip(PIN_BYTES);
+    mark("pin", start);
+  }
+
+  if (hasGive) {
+    start = at;
+    const give = byte();
+    skip(20);
+    if (give & GIVE_PAYEE) skip(20);
+    if (give & GIVE_DATA) skip(32);
+    skip(64);
+    if (give & GIVE_KEY) skip(64);
+    else skip(varint());
+    mark("give", start);
+  }
+
+  if (flags & FLAG_DATA) {
+    start = at;
+    skip(left());
+    mark("attachments", start);
+  }
+  if (left() !== 0) throw new LinkError("malformed", "bytes after the end of the link");
+  return { total: bytes.length, kind: hasGive ? "give" : addressed ? "addressed" : "live", segments };
+}
+
 /** Reads a link into its parts and refuses every way of writing them but `pack`'s. Proves nothing yet. */
 function unpack(bytes: Uint8Array, options: LinkOptions): { head: LinkHead; wire: WireLink; inside: Attached[] } {
   const reader = new Reader(bytes);

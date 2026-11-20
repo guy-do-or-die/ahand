@@ -7,10 +7,10 @@ import type { Check, CheckSource } from "../../packages/sdk/src/proof.ts";
 
 import { clean } from "./cli.ts";
 
-export type Verdict = "ok" | "FAIL" | "not checkable";
+export type Verdict = "ok" | "FAIL" | "not checkable" | "recorded";
 
 export function verdictOf(check: Check): Verdict {
-  return check.ok === true ? "ok" : check.ok === false ? "FAIL" : "not checkable";
+  return check.ok === true ? "ok" : check.ok === false ? "FAIL" : check.ok === "recorded" ? "recorded" : "not checkable";
 }
 
 /** The number after the last dot of an id such as `route.2`, as a person counts: pass 3. */
@@ -25,6 +25,7 @@ function payeeOf(check: Check): string {
 
 /** One English sentence per sentence key of proof.ts. A key not listed here prints as itself. */
 export const SENTENCES: Record<string, (check: Check) => string> = {
+  "proof.chain": () => "The file and the chain: every event it carries stands at its block hash and log index, and hands, thanks and pending at its block are the same.",
   "proof.core": () => "This contract: its address is the one derived from the factory, the salt and the code hash, and code is there. Unaudited.",
   "proof.raised": () => "Raised: the terms in the Raised event equal what Core keeps for this Hand.",
   "proof.rewardTime": () => "Reward and time: Raised plus every Funded equals the reward; the last Extended equals the end date.",
@@ -81,17 +82,22 @@ export function passportLines(checks: readonly Check[], options: { details?: boo
       lines.push(`${pad}source    ${sourceLine(check.source)}`);
     } else if (verdict === "not checkable") {
       lines.push(`${pad}why       ${clean(check.actual, 400)}`);
+    } else if (verdict === "recorded") {
+      lines.push(`${pad}why       holds within the file; its events and views were not re-read from the chain`);
     }
   }
   return lines;
 }
 
-export function summaryOf(checks: readonly Check[]): { ok: number; failed: Check[]; notCheckable: number; line: string } {
+export function summaryOf(checks: readonly Check[]): { ok: number; failed: Check[]; notCheckable: number; recorded: number; line: string } {
   const failed = checks.filter((check) => check.ok === false);
   const ok = checks.filter((check) => check.ok === true).length;
-  const notCheckable = checks.length - ok - failed.length;
+  const recorded = checks.filter((check) => check.ok === "recorded").length;
+  const notCheckable = checks.length - ok - failed.length - recorded;
   const line =
-    `${checks.length} checks: ${ok} ok, ${notCheckable} not checkable here, ${failed.length} failed` +
+    `${checks.length} checks: ${ok} ok, ` +
+    (recorded ? `${recorded} recorded in the file (not re-read), ` : "") +
+    `${notCheckable} not checkable here, ${failed.length} failed` +
     (failed.length ? ` (${failed.map((check) => check.id).join(", ")})` : "");
-  return { ok, failed, notCheckable, line };
+  return { ok, failed, notCheckable, recorded, line };
 }

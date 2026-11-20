@@ -55,7 +55,7 @@ describe("on the helper chain", () => {
   let account: Address;
 
   beforeAll(async () => {
-    chain = await startChain({ port: 15052 });
+    chain = await startChain({ port: process.env.SDK_TEST_PORT_BASE ? Number(process.env.SDK_TEST_PORT_BASE) + 1 : 15052 });
     if (!chain.accountFactory) throw new Error("the helper chain has no KeyAccountFactory: build contracts/out");
     factory = chain.accountFactory;
     account = await chain.client.readContract({ address: factory, abi: factoryAbi, functionName: "getAddress", args: [owner.address, SALT] });

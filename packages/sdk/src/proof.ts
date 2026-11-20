@@ -15,7 +15,7 @@ import {
 } from "viem";
 import { z } from "zod";
 
-import { LOG_WINDOW, handLogs, handLogsAt, type HandEventName, type HandLog, type HandView } from "./chain.js";
+import { LOG_WINDOW, handLogs, handLogsAt, handLogsInBlock, type HandEventName, type HandLog, type HandView } from "./chain.js";
 import { readDescription } from "./describe.js";
 import { CoreRefused } from "./errors.js";
 import { digest, domainSeparator, giveHash, routeHash, shakeHash } from "./hash.js";
@@ -101,6 +101,16 @@ export type CheckSource =
   | { view: string; block: bigint }
   | "computed here";
 
+/** What a saved file alone can prove about a check: see `passportOf`'s `basisOf`. */
+export type CheckBasis = "computed" | "recorded";
+
+/**
+ * A check's verdict. `true`/`false`: it holds or fails. "not-checkable": what it needs is not
+ * here. "recorded": it holds within a saved file, but its events or views were not re-read from
+ * the chain (`verifyBundle` with no network); it is never counted as ok.
+ */
+export type CheckVerdict = boolean | "not-checkable" | "recorded";
+
 export interface Check {
   /** Stable id: `core`, `raised`, `reward-time`, `description`, `route.<i>`, `keys.<i>`, … (see `passportOf`). */
   id: string;
@@ -110,9 +120,13 @@ export interface Check {
   inputs: Record<string, string>;
   expected: string;
   actual: string;
-  ok: boolean | "not-checkable";
+  ok: CheckVerdict;
   source: CheckSource;
+  basis: CheckBasis;
 }
+
+/** A check as the passport builds it, before its basis is named. */
+type Row = Omit<Check, "ok" | "basis"> & { ok: boolean | "not-checkable" };
 
 export interface CollectOptions {
   giveLink?: Uint8Array;
@@ -417,9 +431,24 @@ async function signaturesOf(
  * (above zero only) · now.<raiser>. For an open Hand: the first four.
  */
 export async function passportOf(record: HandRecord): Promise<Check[]> {
+  return (await passportRows(record)).map((row) => ({ ...row, basis: basisOf(row) }));
+}
+
+/**
+ * What a record alone can prove about a row. "computed": a signature, a hash or a sum worked out
+ * here from what the row names. "recorded": the row compares events and views the record carries;
+ * read from the chain they are the chain's, but in a saved file they are only what the file says,
+ * and nothing in a file anchors them to the chain (the reward is under no signature). The core row
+ * is "recorded": its derivation is arithmetic, but "code is there" is read from the chain.
+ */
+function basisOf(row: Row): CheckBasis {
+  return row.source === "computed here" && row.id !== "core" ? "computed" : "recorded";
+}
+
+async function passportRows(record: HandRecord): Promise<Row[]> {
   const { view, logs, block } = record;
   const hand = handOf(view);
-  const checks: Check[] = [];
+  const checks: Row[] = [];
   const handsView: CheckSource = { view: "hands(id)", block };
   const raised = find(logs, "Raised");
 
@@ -526,7 +555,7 @@ export async function passportOf(record: HandRecord): Promise<Check[]> {
   return [...checks, ...(await thankChecks(record, hand, thanked))];
 }
 
-async function descriptionCheck(record: HandRecord, hand: Hand, source: CheckSource): Promise<Check> {
+async function descriptionCheck(record: HandRecord, hand: Hand, source: CheckSource): Promise<Row> {
   const base = { id: "description", sentence: "proof.description", inputs: { dataHash: hand.dataHash }, source };
   if (hand.dataHash.toLowerCase() === zeroHash) {
     return { ...base, expected: "none", actual: "none: the Hand has no description", ok: true };
@@ -550,7 +579,7 @@ async function descriptionCheck(record: HandRecord, hand: Hand, source: CheckSou
   }
 }
 
-function payoutCheck(id: string, owed: { payee: Address; amount: bigint; after: HandLog; payout?: HandLog }): Check | undefined {
+function payoutCheck(id: string, owed: { payee: Address; amount: bigint; after: HandLog; payout?: HandLog }): Row | undefined {
   if (owed.amount === 0n && !owed.payout) return undefined; // Core emits none for zero: nothing is expected
   const expected = owed.amount === 0n ? "no payout event" : `Paid or Pending · ${owed.amount} · ${owed.payee}`;
   const actual = owed.payout ? `${owed.payout.eventName} · ${owed.payout.args.amount} · ${text(owed.payout.args.payee)}` : "none";
@@ -571,7 +600,7 @@ function payoutCheck(id: string, owed: { payee: Address; amount: bigint; after: 
   };
 }
 
-function nowChecks(record: HandRecord): Check[] {
+function nowChecks(record: HandRecord): Row[] {
   return record.pending.map(({ token, payee, amount }) => ({
     id: `now.${getAddress(payee)}`,
     sentence: "proof.now",
@@ -584,12 +613,12 @@ function nowChecks(record: HandRecord): Check[] {
   }));
 }
 
-function refundChecks(record: HandRecord, refunded: HandLog): Check[] {
+function refundChecks(record: HandRecord, refunded: HandLog): Row[] {
   const { view } = record;
   const amount = refunded.args.reward as bigint;
   const rows = record.logs.filter((log) => log.transactionHash === refunded.transactionHash && log.logIndex > refunded.logIndex);
   const payout = rows.find((log) => log.eventName === "Paid" || log.eventName === "Pending");
-  const checks: Check[] = [
+  const checks: Row[] = [
     {
       id: "refunded",
       sentence: "proof.refunded",
@@ -606,9 +635,9 @@ function refundChecks(record: HandRecord, refunded: HandLog): Check[] {
   return [...checks, ...nowChecks(record)];
 }
 
-async function thankChecks(record: HandRecord, hand: Hand, thanked: HandLog): Promise<Check[]> {
+async function thankChecks(record: HandRecord, hand: Hand, thanked: HandLog): Promise<Row[]> {
   const { view } = record;
-  const checks: Check[] = [];
+  const checks: Row[] = [];
   const closing = closingOf(record.logs, thanked);
   const reward = thanked.args.reward as bigint;
   const separator = domainSeparator(domain(record.chainId, record.core));
@@ -891,7 +920,115 @@ export function readBundle(json: string): HandRecord {
   return out;
 }
 
-/** Re-runs the passport on a saved bundle, with no network. */
-export function verifyBundle(json: string): Promise<Check[]> {
-  return passportOf(readBundle(json));
+/**
+ * Re-runs the passport on a saved bundle, with no network. What a file alone proves is its
+ * signatures, hashes and sums ("computed" rows keep their verdict). Its events and views are only
+ * what the file says: a "recorded" row that holds within the file reads "recorded", never ok; one
+ * that does not hold even there still fails. `verifyBundleOnChain` re-reads them.
+ */
+export async function verifyBundle(json: string): Promise<Check[]> {
+  return offline(await passportOf(readBundle(json)));
+}
+
+const offline = (checks: Check[]): Check[] =>
+  checks.map((check) => (check.basis === "recorded" && check.ok === true ? { ...check, ok: "recorded" } : check));
+
+/**
+ * Checks a saved bundle against the chain: every log it carries is read again by its block hash
+ * (and the Hand's logs in those blocks must be exactly the file's), and `hands(id)`, `thanks(id)`,
+ * Core's code, each `pending` and the giver's code are read again at the file's block, and the
+ * thank transaction's input by its hash. The first row, `chain`, says whether the file equals the
+ * chain; only then do its "recorded" rows count as ok. The client must be on the bundle's chain.
+ */
+export async function verifyBundleOnChain(client: PublicClient, json: string): Promise<Check[]> {
+  const record = readBundle(json);
+  const differences = await rereadRecord(client, record);
+  const checks = await passportOf(record);
+  const chain: Check = {
+    id: "chain",
+    sentence: "proof.chain",
+    formula: "each log by blockHash and logIndex; hands(id), thanks(id), pending, code at the file's block; the thank's input by its hash",
+    inputs: { block: String(record.block), logs: String(record.logs.length) },
+    expected: "the file equals the chain",
+    actual: differences.length === 0 ? "equal" : differences.join("; "),
+    ok: differences.length === 0,
+    source: { view: "eth_getLogs by blockHash, hands(id), thanks(id), pending, eth_getCode, the thank transaction", block: record.block },
+    basis: "recorded",
+  };
+  return [chain, ...(differences.length === 0 ? checks : offline(checks))];
+}
+
+/** One log as a comparable line: every field, numbers as decimals, addresses and hashes in lower case. */
+function logLine(log: HandLog): string {
+  const args = Object.keys(log.args)
+    .sort()
+    .map((name) => `${name}=${String(log.args[name]).toLowerCase()}`)
+    .join(",");
+  return `${log.eventName}(${args}) block ${log.blockNumber} ${log.blockHash.toLowerCase()} tx ${log.transactionHash.toLowerCase()} log ${log.logIndex}`;
+}
+
+/**
+ * Where a record differs from the chain, as sentences; empty when every log and view it carries
+ * is the chain's. Reads at the record's block, so the node must still serve that state.
+ */
+export async function rereadRecord(client: PublicClient, record: HandRecord): Promise<string[]> {
+  const differences: string[] = [];
+  const chainId = await client.getChainId();
+  if (chainId !== record.chainId) return [`the RPC is chain ${chainId}, the file names chain ${record.chainId}`];
+  const at = { blockNumber: record.block };
+  const { core, handId, view } = record;
+
+  const [hands, thanks, code] = await Promise.all([
+    client.readContract({ address: core, abi: CORE_ABI, functionName: "hands", args: [handId], ...at }),
+    client.readContract({ address: core, abi: CORE_ABI, functionName: "thanks", args: [handId], ...at }),
+    client.getCode({ address: core, ...at }),
+  ]);
+  const [raiser, expiry, openedAt, closedAt, token, payoutGasK, minClaimBps, reward, rootKey, dataHash] = hands;
+  const onChain: Record<string, string> = { raiser, expiry: String(expiry), openedAt: String(openedAt), closedAt: String(closedAt), token, payoutGasK: String(payoutGasK), minClaimBps: String(minClaimBps), reward: String(reward), rootKey, dataHash };
+  for (const [field, value] of Object.entries(onChain)) {
+    const inFile = String(view[field as keyof HandView]);
+    if (inFile.toLowerCase() !== value.toLowerCase()) differences.push(`hands(${handId}).${field} is ${value}, the file says ${inFile}`);
+  }
+  if (view.handId !== handId) differences.push(`the file's view is of Hand ${view.handId}, not ${handId}`);
+  if (thanks[0].toLowerCase() !== record.thank.giveHash.toLowerCase()) differences.push(`thanks(${handId}).giveHash is ${thanks[0]}, the file says ${record.thank.giveHash}`);
+  if (thanks[1].toLowerCase() !== record.thank.dataHash.toLowerCase()) differences.push(`thanks(${handId}).dataHash is ${thanks[1]}, the file says ${record.thank.dataHash}`);
+  const hasCode = code !== undefined && code !== "0x";
+  if (hasCode !== record.coreHasCode) differences.push(`Core's code is ${hasCode ? "there" : "absent"}, the file says ${record.coreHasCode ? "there" : "absent"}`);
+
+  for (const owed of record.pending) {
+    const amount = await client.readContract({ address: core, abi: CORE_ABI, functionName: "pending", args: [owed.token, owed.payee], ...at });
+    if (amount !== owed.amount) differences.push(`pending(${owed.token}, ${owed.payee}) is ${amount}, the file says ${owed.amount}`);
+  }
+
+  const blocks = [...new Set(record.logs.map((log) => log.blockHash.toLowerCase() as Hex))];
+  for (const blockHash of blocks) {
+    let read: HandLog[];
+    try {
+      read = await handLogsInBlock(client, core, handId, blockHash);
+    } catch (error) {
+      differences.push(`block ${blockHash} could not be read: ${(error as Error).message.split("\n")[0]}`);
+      continue;
+    }
+    const chainLines = new Set(read.map(logLine));
+    const fileLines = new Set(record.logs.filter((log) => log.blockHash.toLowerCase() === blockHash).map(logLine));
+    for (const line of fileLines) if (!chainLines.has(line)) differences.push(`not on chain: ${line}`);
+    for (const line of chainLines) if (!fileLines.has(line)) differences.push(`missing from the file: ${line}`);
+  }
+
+  if (record.thankInput !== undefined) {
+    if (!record.closingTx) differences.push("the file carries a thank input but no closing transaction");
+    else {
+      const tx = await client.getTransaction({ hash: record.closingTx });
+      if (tx.input.toLowerCase() !== record.thankInput.toLowerCase()) differences.push(`the input of ${record.closingTx} differs from the file's`);
+    }
+  }
+  if (record.giverHasCode !== undefined) {
+    const given = find(record.logs, "Given");
+    if (given) {
+      const giverCode = await client.getCode({ address: given.args.signer as Address, ...at });
+      const has = giverCode !== undefined && giverCode !== "0x";
+      if (has !== record.giverHasCode) differences.push(`the giver's code is ${has ? "there" : "absent"}, the file says ${record.giverHasCode ? "there" : "absent"}`);
+    }
+  }
+  return differences;
 }

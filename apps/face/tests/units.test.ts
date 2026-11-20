@@ -7,8 +7,11 @@ import { describe, expect, it } from "bun:test";
 import { configFromEnv } from "../src/config.ts";
 import { cspFor, inlineScriptHashes } from "../src/headers.ts";
 import { cardOf, escapeHtml, oneLine, withCard } from "../src/meta.ts";
-import { drawable } from "../src/og.tsx";
-import type { Preview } from "../src/preview.ts";
+import { codingFor, compressible } from "../src/compress.ts";
+import { Lru } from "../src/lru.ts";
+import { cardCache, drawable } from "../src/og.tsx";
+import { previewKey, readerFor, type Preview } from "../src/preview.ts";
+import { renderPool } from "../src/render-pool.ts";
 import { fileIn } from "../src/static.ts";
 import { WORDS, amountText, day, langOf, termsLine } from "../src/words.ts";
 
@@ -167,4 +170,105 @@ describe("configuration", () => {
     expect(() => configFromEnv({ ...env, FACE_RELAYS: "http://x" })).toThrow("WebSocket");
     expect(() => configFromEnv({ ...env, FACE_SITE: undefined })).toThrow("FACE_SITE is not set");
   });
+});
+
+describe("compression and caches", () => {
+  it("reads Accept-Encoding: brotli first, then gzip, never a coding refused with q=0", () => {
+    expect(codingFor("gzip, deflate, br, zstd")).toBe("br");
+    expect(codingFor("gzip")).toBe("gzip");
+    expect(codingFor("br;q=0, gzip;q=0.8")).toBe("gzip");
+    expect(codingFor("BR;Q=0.1")).toBe("br");
+    expect(codingFor("*")).toBe("br");
+    expect(codingFor("*;q=0, gzip")).toBe("gzip");
+    for (const none of [undefined, "", "identity", "deflate", "zstd", "br;q=0, gzip;q=0", "*;q=0"]) expect(codingFor(none)).toBeUndefined();
+    expect(codingFor(["deflate", "gzip"])).toBe("gzip");
+  });
+
+  it("compresses text of a kilobyte or more, never images or fonts", () => {
+    expect(compressible("text/javascript; charset=utf-8", 4_000)).toBe(true);
+    expect(compressible("application/json; charset=utf-8", 4_000)).toBe(true);
+    expect(compressible("image/svg+xml", 4_000)).toBe(true);
+    expect(compressible("text/html; charset=utf-8", 1_000)).toBe(false);
+    expect(compressible("image/png", 40_000)).toBe(false);
+    expect(compressible("font/woff2", 40_000)).toBe(false);
+  });
+
+  it("forgets the least recently used entry first, by count and by weight", () => {
+    const lru = new Lru<string>(3, 100);
+    lru.set("a", "A");
+    lru.set("b", "B");
+    lru.set("c", "C");
+    expect(lru.get("a")).toBe("A");
+    lru.set("d", "D");
+    expect(lru.get("b")).toBeUndefined();
+    expect(lru.get("a")).toBe("A");
+    lru.weigh("c", "C", 60);
+    lru.weigh("d", "D", 60);
+    expect(lru.weight).toBeLessThanOrEqual(100);
+    expect(lru.get("c")).toBeUndefined();
+    expect(lru.get("d")).toBe("D");
+    lru.weigh("d", "other", 1_000);
+    expect(lru.get("d")).toBe("D");
+  });
+
+  it("keys a reading on the path and the query without face's own l and th", () => {
+    expect(previewKey("/31337/7", "d=AQID&l=ru&th=d")).toBe("/31337/7?d=AQID");
+    expect(previewKey("/31337/7", "th=d&d=AQID")).toBe("/31337/7?d=AQID");
+    expect(previewKey("/31337/7", "")).toBe("/31337/7");
+    expect(previewKey("/31337/7", "d=a&d=b")).toBe("/31337/7?d=a&d=b");
+    expect(previewKey("/31337/7", "lang=x")).toBe("/31337/7?lang=x");
+  });
+
+  it("remembers a reading for its time, then reads again", async () => {
+    let now = 1_000;
+    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x65ac707E2AE7392583de5d6192C619F1D8862309"], site: "http://x", relays: [], port: 0, dist: "/" };
+    const reader = readerFor(config as never, undefined, { ttlMs: 5_000, now: () => now });
+    // Nothing listens on port 1: the reading is the generic card, never an error.
+    const first = reader.preview("/31337/7", "d=AQID&l=ru");
+    expect((await first).kind).toBe("generic");
+    expect(reader.preview("/31337/7", "d=AQID&th=d")).toBe(first);
+    expect(reader.preview("/31337/7", "d=AQIE")).not.toBe(first);
+    now += 5_001;
+    expect(reader.preview("/31337/7", "d=AQID")).not.toBe(first);
+  });
+
+  it("shares a card being drawn, keeps drawn ones, and passes on a refusal", async () => {
+    let draws = 0;
+    let refuse = false;
+    const cache = cardCache((model) => {
+      if (refuse) return undefined;
+      draws++;
+      return Promise.resolve(new Uint8Array(model.lang === "ru" ? 20 : 10));
+    });
+    const model = { lang: "en" as const, dark: false, closed: false };
+    const one = cache(model)!;
+    expect(cache({ ...model })).toBe(one);
+    await one;
+    refuse = true;
+    expect(cache(model)).toBe(one);
+    expect(cache({ ...model, lang: "ru" })).toBeUndefined();
+    expect(draws).toBe(1);
+  });
+
+  it("refuses at once when every renderer is busy and the queue is full", async () => {
+    const pool = renderPool({ workers: 1, queue: 1 });
+    try {
+      const model = (title: string) => ({ lang: "en" as const, dark: false, closed: false, title });
+      const first = pool.render(model("one"));
+      const second = pool.render(model("two"));
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+      expect(pool.render(model("three"))).toBeUndefined();
+      expect(pool.pending).toBe(2);
+      const [a, b] = await Promise.all([first!, second!]);
+      expect(Buffer.from(a.subarray(0, 4)).toString("hex")).toBe("89504e47");
+      expect(Buffer.from(a).equals(Buffer.from(b))).toBe(false);
+      expect(pool.pending).toBe(0);
+      const fourth = pool.render(model("four"));
+      expect(fourth).toBeDefined();
+      await fourth;
+    } finally {
+      await pool.close();
+    }
+  }, 30_000);
 });

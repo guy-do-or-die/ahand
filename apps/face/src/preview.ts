@@ -1,8 +1,9 @@
 import { createPublicClient, erc20Abi, http, type Address, type PublicClient } from "viem";
 
-import { chainNow, faceOf, getHandFor, readDescription, readHand, type Hand, type MatchedData, type OpenedLink } from "@ahand/sdk";
+import { chainNow, faceOf, getHandFor, readDescriptionOf, readHand, type Hand, type MatchedData } from "@ahand/sdk";
 
 import type { FaceConfig } from "./config.ts";
+import { Lru } from "./lru.ts";
 import { amountText, type CardState, type Lang, type Terms } from "./words.ts";
 
 /**
@@ -59,7 +60,51 @@ function rawD(rawQuery: string): string | undefined {
     ?.slice(2);
 }
 
-export function readerFor(config: FaceConfig, client?: PublicClient): Reader {
+/**
+ * The part of a query a preview depends on: everything but face's own `l` (language) and `th`
+ * (theme), in the order written. Two requests that differ only in those read the chain once.
+ */
+export function previewKey(pathname: string, rawQuery: string): string {
+  const kept = rawQuery.split("&").filter((part) => part !== "" && !/^(?:l|th)(?:=|$)/.test(part));
+  return kept.length > 0 ? `${pathname}?${kept.join("&")}` : pathname;
+}
+
+export interface ReaderOptions {
+  /**
+   * How long one reading of a Hand answers for the same address, in milliseconds (default 5 000).
+   * A page and its card, and a burst of robots fetching one link, then cost one set of chain
+   * reads instead of three per request. A card already says "max-age=300", so five seconds more
+   * changes nothing a reader can see.
+   */
+  ttlMs?: number;
+  /** How many addresses are remembered at most (default 1 024); least recently used out first. */
+  entries?: number;
+  /** The clock of the memory, for tests. */
+  now?: () => number;
+}
+
+export function readerFor(config: FaceConfig, client?: PublicClient, options: ReaderOptions = {}): Reader {
+  const read = chainReaderFor(config, client);
+  const ttl = options.ttlMs ?? 5_000;
+  if (ttl <= 0) return read;
+  const now = options.now ?? Date.now;
+  const memory = new Lru<{ until: number; preview: Promise<Preview> }>(options.entries ?? 1_024);
+  return {
+    preview(pathname, rawQuery) {
+      if (!HAND_PATH.test(pathname)) return Promise.resolve(GENERIC);
+      const key = previewKey(pathname, rawQuery);
+      const found = memory.get(key);
+      if (found && found.until > now()) return found.preview;
+      // The reader never throws (anything wrong is the generic card), so a reading is kept as is.
+      const entry = { until: now() + ttl, preview: read.preview(pathname, rawQuery) };
+      memory.set(key, entry);
+      return entry.preview;
+    },
+  };
+}
+
+/** The reader with no memory: every call reads the chain. */
+function chainReaderFor(config: FaceConfig, client?: PublicClient): Reader {
   const chainClient =
     client ??
     (createPublicClient({ transport: http(config.rpc, { timeout: 4_000, retryCount: 0 }) }) as PublicClient);
@@ -128,7 +173,7 @@ export function readerFor(config: FaceConfig, client?: PublicClient): Reader {
  * here. Lists a holder hung on a Shake never travel in `d` and are never read.
  */
 function describedBy(hand: Hand, face: MatchedData): { title?: string; content?: string } {
-  const read = readDescription({ hand, ofHand: face } as unknown as OpenedLink);
+  const read = readDescriptionOf(hand, face);
   const out: { title?: string; content?: string } = {};
   if (read.title !== undefined && read.title.trim() !== "") out.title = read.title;
   if (read.content !== undefined && read.content.trim() !== "") out.content = read.content;

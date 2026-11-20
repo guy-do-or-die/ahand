@@ -50,7 +50,7 @@ import { ANVIL_KEYS, startChain, type Chain } from "./helpers/anvil.js";
  * the order (the cases of the `firstWrongThing` tests in contracts/test/Core.t.sol and one per step).
  */
 
-const PORT = 16202;
+const PORT = process.env.SDK_TEST_PORT_BASE ? Number(process.env.SDK_TEST_PORT_BASE) + 3 : 16202;
 const raiserKey = ANVIL_KEYS[1]!;
 const carolKey = ANVIL_KEYS[3]!;
 const bobKey = ANVIL_KEYS[4]!;
