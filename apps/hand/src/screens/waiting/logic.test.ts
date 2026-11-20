@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { CORE_ABI } from "@ahand/sdk";
 import { encodeAbiParameters, encodeEventTopics, getAddress, zeroAddress, type Address, type Hex } from "viem";
 
-import { addressFromSearch, failureOf, knownHands, offerOf, pathFor, payeeOfPage, refusalFailure, withdrawnIn } from "./logic";
+import { addressFromSearch, failureOf, knownHands, offerOf, pathFor, payeeOfPage, refusalFailure, tokenSaid, withdrawnIn } from "./logic";
 
 const CORE = getAddress("0x65ac707E2AE7392583de5d6192C619F1D8862309");
 const TOKEN = getAddress("0x94e144781871a57F03745dA397dFE7a9588e943b");
@@ -35,16 +35,36 @@ describe("whose money the page shows", () => {
 
 describe("who may do what (Core's withdraw rules)", () => {
   test("the payee takes it out; nobody else is offered that", () => {
-    expect(offerOf(PAYEE, { address: PAYEE, canSend: true, balance: 10n })).toEqual({ takeOut: true, deliver: false, cannotPay: false });
-    expect(offerOf(PAYEE, { address: OTHER, canSend: true, balance: 10n })).toEqual({ takeOut: false, deliver: true, cannotPay: false });
+    expect(offerOf(PAYEE, { address: PAYEE, canSend: true, balance: 10n })).toEqual({ takeOut: true, deliver: false, connectFirst: false, cannotPay: false });
+    expect(offerOf(PAYEE, { address: OTHER, canSend: true, balance: 10n })).toEqual({ takeOut: false, deliver: true, connectFirst: false, cannotPay: false });
   });
 
-  test("no account, an account that can't send, or nothing to pay with: the money stays where it is", () => {
-    expect(offerOf(PAYEE, { canSend: false })).toEqual({ takeOut: false, deliver: false, cannotPay: true });
-    expect(offerOf(PAYEE, { address: PAYEE, canSend: false })).toEqual({ takeOut: false, deliver: false, cannotPay: true });
-    expect(offerOf(PAYEE, { address: OTHER, canSend: true, balance: 0n }).cannotPay).toBe(true);
+  test("a visitor is offered Deliver too: anyone may press it, and the press first asks for an account", () => {
+    expect(offerOf(PAYEE, { canSend: false })).toEqual({ takeOut: false, deliver: true, connectFirst: true, cannotPay: true });
+    // An account that can't send (not set up yet) is in the visitor's place, even when it is the payee's own.
+    expect(offerOf(PAYEE, { address: PAYEE, canSend: false })).toEqual({ takeOut: false, deliver: true, connectFirst: true, cannotPay: true });
+    expect(offerOf(PAYEE, { address: OTHER, canSend: false })).toEqual({ takeOut: false, deliver: true, connectFirst: true, cannotPay: true });
+  });
+
+  test("connected with nothing to pay with: the money stays where it is, and no press is offered", () => {
+    expect(offerOf(PAYEE, { address: OTHER, canSend: true, balance: 0n })).toEqual({ takeOut: false, deliver: false, connectFirst: false, cannotPay: true });
+    expect(offerOf(PAYEE, { address: PAYEE, canSend: true, balance: 0n })).toEqual({ takeOut: false, deliver: false, connectFirst: false, cannotPay: true });
     // An unknown balance (not read yet) is not called "nothing to pay with".
-    expect(offerOf(PAYEE, { address: OTHER, canSend: true }).cannotPay).toBe(false);
+    expect(offerOf(PAYEE, { address: OTHER, canSend: true })).toEqual({ takeOut: false, deliver: true, connectFirst: false, cannotPay: false });
+  });
+});
+
+describe("what the token's own answer is, apart from the engine's words around it", () => {
+  test("the reason alone, when the engine's sentence names one", () => {
+    expect(tokenSaid("Execution reverted with reason: BLACKLISTED.")).toBe("BLACKLISTED");
+    expect(tokenSaid("Execution reverted with reason: Blacklistable: account is blacklisted.")).toBe("Blacklistable: account is blacklisted");
+    expect(tokenSaid('The contract function "withdraw" reverted with the following reason:\nBLACKLISTED')).toBe("BLACKLISTED");
+  });
+
+  test("anything else stays as it came; nothing is shown for no text", () => {
+    expect(tokenSaid("Execution reverted for an unknown reason.")).toBe("Execution reverted for an unknown reason.");
+    expect(tokenSaid("  ")).toBeUndefined();
+    expect(tokenSaid(undefined)).toBeUndefined();
   });
 });
 

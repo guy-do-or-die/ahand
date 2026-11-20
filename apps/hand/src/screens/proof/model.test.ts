@@ -25,6 +25,7 @@ const chain = (id: string, extra: Partial<Check> = {}): Check => ({
   actual: "1",
   ok: true,
   source: { event: "Given", block: 9n, tx: "0x01", logIndex: 2 },
+  basis: "recorded",
   ...extra,
 });
 
@@ -108,5 +109,6 @@ describe("proof: the timeline's arrangement", () => {
     const line = verifyLine({ commit: "ab".repeat(20), rpc: "http://127.0.0.1:18585", core: A, handId: 7n });
     expect(line).toBe(`git checkout ${"ab".repeat(20)} && bun install && bun tools/ahand.ts verify --rpc http://127.0.0.1:18585 --core ${A} 7`);
     expect(bundleLine(31337, 7n)).toBe("bun tools/ahand.ts verify --bundle ahand-proof-31337-7.json");
+    expect(bundleLine(31337, 7n, "http://127.0.0.1:8545")).toBe("bun tools/ahand.ts verify --bundle ahand-proof-31337-7.json --rpc http://127.0.0.1:8545");
   });
 });

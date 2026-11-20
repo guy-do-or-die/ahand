@@ -7,6 +7,7 @@ const ru: Record<keyof typeof en, string> = {
   // ── Оболочка (UX-SPEC §6) ─────────────────────────────────────────────
   "common.notBuilt": "Ещё не собрано",
   "common.ribbon": "Локальная тестовая сеть · Тестовые доллары",
+  "common.chain.31337": "Локальная тестовая сеть",
   "common.footer": "Без аудита · Core {core} · Без владельца · Без комиссии",
   "common.footer.limits": "Чего она не обещает",
   "common.footer.withoutUs": "Сделать без нас",

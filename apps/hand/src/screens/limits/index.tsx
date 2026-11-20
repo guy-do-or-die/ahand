@@ -1,6 +1,8 @@
+import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
 import { useLens } from "../../ui";
+import { paidPassesAtWorst } from "../core/facts";
 
 /**
  * "What it can't promise" (UX-SPEC §11, ARCHITECTURE §11): sixteen limits, each one plain
@@ -29,6 +31,9 @@ export const LIMITS: readonly { id: string; source: string }[] = [
   { id: "keys", source: "THIS BUILD · D-19 · KEYS/1 MESSAGE" },
   { id: "unaudited", source: "7 AI REVIEWS · 1 AI SCAN · TESTED: COINBASE SMART WALLET, SAFE 1.4.1" },
 ];
+
+/** This build's own figure for the "length" entry: paid shares at worst with its payout setting. */
+const PAID_PASSES = paidPassesAtWorst(config.defaults.payoutGasK);
 
 const two = (n: number) => String(n).padStart(2, "0");
 
@@ -60,6 +65,11 @@ export default function LimitsScreen() {
                 <span className="ah-meta mr-2 align-[1px]">{t("limits.example")}</span>
                 {t(`limits.${id}.example`)}
               </p>
+              {id === "length" ? (
+                <p className="m-0 text-[length:var(--fs-body-md)] leading-[1.45]" data-testid={TID.about.limitHere} data-value={PAID_PASSES}>
+                  {t("limits.length.here", { n: PAID_PASSES })}
+                </p>
+              ) : null}
               {lens ? <p className="ah-meta m-0">{source}</p> : null}
             </div>
           </li>

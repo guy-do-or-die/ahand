@@ -1,21 +1,15 @@
 import {
   CORE_ABI,
   FORWARDER_ABI,
-  LinkError,
-  UntrustedCore,
   checkGiveOnChain,
-  decodeCoreError,
   getHandFor,
   giveHash,
-  innerGiverSig,
   judgeGive,
-  messageIdOf,
   openAddress,
   peekLink,
   fromText,
   routeKeys,
   seenGiveOf,
-  unwrap6492,
   worstThankGas,
   type AccountSetup,
   type GiveVerdict,
@@ -31,9 +25,10 @@ import {
 import { encodeFunctionData, type Address, type PublicClient } from "viem";
 
 import { config } from "../../config";
-import { CLIENTS } from "../../chain";
+import { CLIENTS, giveOnChain, type GiveOnChain } from "../../chain";
 import { deviceClock, forHand, handKey, put, type InboxRecord } from "../../store/db";
 import type { Intent } from "../../wallet";
+import { failureOf, type CheckFailure } from "./failure";
 import { droppedShares, type DroppedShare } from "./model";
 
 /**
@@ -61,9 +56,7 @@ export interface ThankRecord extends InboxRecord {
   thank?: Intent;
 }
 
-export type CheckFailure =
-  /** The sentence's message id (`link.*`, `core.*`, or this screen's own), and Core's or the link's name for it. */
-  { messageId: string; code?: string; kind: "link" | "core" | "offline" | "not-give" | "no-forwarder" };
+export type { CheckFailure } from "./failure";
 
 export interface Checked {
   /** The give address, exactly as it is kept in the inbox: it holds no secret by its format. */
@@ -107,29 +100,6 @@ export function isGiveFragment(fragment: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Whether an error is the network failing (no answer), not anyone refusing. */
-function isNetwork(error: unknown): boolean {
-  const seen = new Set<unknown>();
-  let node: unknown = error;
-  while (node && typeof node === "object" && !seen.has(node)) {
-    seen.add(node);
-    const name = (node as { name?: unknown }).name;
-    if (name === "HttpRequestError" || name === "TimeoutError" || name === "WebSocketRequestError" || name === "TypeError") return true;
-    node = (node as { cause?: unknown }).cause;
-  }
-  return false;
-}
-
-function failureOf(error: unknown): CheckFailure {
-  if (error instanceof LinkError || error instanceof UntrustedCore) {
-    return { kind: "link", messageId: messageIdOf(error), code: error instanceof LinkError ? error.code : "untrusted" };
-  }
-  const refusal = decodeCoreError(error);
-  if (refusal) return { kind: "core", messageId: `core.${refusal.name}`, code: refusal.name };
-  if (isNetwork(error)) return { kind: "offline", messageId: "common.time.offline" };
-  return { kind: "core", messageId: "thank.error.checkFailed" };
 }
 
 function cachedGetHand(): (head: LinkHead) => Promise<Hand> {
@@ -214,30 +184,15 @@ export async function checkThank(text: string, origin: string, client: PublicCli
   const { hand, signedShakes, signedGive } = opened;
   const core = opened.head.core;
 
-  // 2. Core's checkGive.
-  let setup: AccountSetup | undefined;
-  let wrapped: Checked["wrapped"];
-  let checkedAt: bigint;
-  const coreGive: SignedGive = { ...signedGive, giverSig: innerGiverSig(signedGive.giverSig) };
+  // 2. Core's checkGive, whatever form the giver's signature has.
+  let asked: GiveOnChain;
   try {
-    checkedAt = await client.getBlockNumber();
-    const unwrapped = unwrap6492(signedGive.giverSig);
-    if (unwrapped) {
-      const deployed = await hasCode(client, signedGive.give.signer);
-      wrapped = { factory: unwrapped.factory, factoryData: unwrapped.factoryData, deployed };
-      if (deployed) {
-        await checkGiveOnChain(client, core, hand.handId, signedShakes, coreGive);
-      } else {
-        if (!config.forwarder) return { ok: false, failure: { kind: "no-forwarder", messageId: "thank.error.noForwarder" } };
-        setup = { forwarder: config.forwarder, factory: unwrapped.factory, factoryData: unwrapped.factoryData };
-        await checkGiveOnChain(client, core, hand.handId, signedShakes, signedGive, setup);
-      }
-    } else {
-      await checkGiveOnChain(client, core, hand.handId, signedShakes, signedGive);
-    }
+    asked = await giveOnChain({ client, core, handId: hand.handId, signedShakes, signedGive, forwarder: config.forwarder });
   } catch (error) {
     return { ok: false, failure: failureOf(error) };
   }
+  if (!asked.ok) return { ok: false, failure: { kind: "no-forwarder", messageId: "thank.error.noForwarder" } };
+  const { coreGive, setup, wrapped, block: checkedAt } = asked;
 
   // 3. The inbox, then the verdict.
   const id = giveHash(hand, signedGive.give);

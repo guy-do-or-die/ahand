@@ -175,3 +175,28 @@
   flex-wrap: wrap;
   gap: 10px;
 }
+
+/* How the closing was sent: information beside the checks, so it carries no verdict. */
+.proof-line--info {
+  align-self: stretch;
+  border: var(--bw-emph) dashed var(--ink-a25);
+  border-radius: var(--r-control);
+  padding: 12px;
+}
+.proof-line--info + .proof-line {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* The token's own record of a payout, under its Paid line. */
+.proof-move {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: stretch;
+  border-left: var(--bw-emph) solid var(--ink-a25);
+  padding-left: 10px;
+  font-size: var(--fs-body-sm);
+  line-height: 1.45;
+  color: var(--ink-a70);
+}

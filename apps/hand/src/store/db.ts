@@ -56,6 +56,13 @@ export interface HandRecord {
   hand?: string;
   handId?: string;
   txHash?: Hex;
+  /**
+   * The wallet's id of the EIP-5792 batch that carries the raise, kept from the moment the wallet
+   * hands it over until its hash is known, so a raise in the wallet's hands always has a record
+   * (and, for an account whose confirmations differ, its locked seed) on the device. The store
+   * has no schema beyond its key, so the field needs no migration.
+   */
+  batchId?: string;
   /** For a signer that does not repeat only: the Hand's inbox secret, a chat key (§11). */
   inboxSecret?: Hex;
   /** "sent" while the raise waits for its receipt; "up" once it is in a block; "reverted". */
@@ -97,6 +104,17 @@ interface EscrowRecord {
   intent: string;
   iv: Uint8Array;
   ciphertext: Uint8Array;
+  /** The chain's time (seconds, the latest block) when the raise that made it read the chain. */
+  lockedAt?: number;
+  /** The chain's time when the "up" screen first showed the link. */
+  shownAt?: number;
+}
+
+/** What the sweep needs of a locked copy: never its contents. */
+export interface EscrowStamp {
+  intent: string;
+  lockedAt?: number;
+  shownAt?: number;
 }
 
 /** `chainId:core:handId`, the one spelling of a Hand used as an index here. */
@@ -190,7 +208,6 @@ function result<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 // IDBRequest is invariant in its result; requests whose result is not read are passed as this.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRequest = IDBRequest<any>;
 
 async function single<T>(store: StoreName, mode: IDBTransactionMode, act: (s: IDBObjectStore) => IDBRequest<T> | AnyRequest): Promise<T> {
@@ -379,6 +396,27 @@ export async function openSeed(intent: string): Promise<Hex | undefined> {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Writes a chain time on the locked copy, once: when the raise read the chain (`lockedAt`), and
+ * when the link was first on screen (`shownAt`). A later stamp of the same kind changes nothing.
+ */
+export async function stampSeed(intent: string, field: "lockedAt" | "shownAt", at: number): Promise<void> {
+  const tx = (await openDb()).transaction("escrow", "readwrite");
+  const store = tx.objectStore("escrow");
+  const read = store.get(intent) as IDBRequest<EscrowRecord | undefined>;
+  read.onsuccess = () => {
+    const record = read.result;
+    if (record && record[field] === undefined) store.put({ ...record, [field]: at });
+  };
+  await settled(tx);
+}
+
+/** Every locked copy's intent and chain times, for the sweep. */
+export async function escrowStamps(): Promise<EscrowStamp[]> {
+  const records = await single("escrow", "readonly", (s) => s.getAll() as IDBRequest<EscrowRecord[]>);
+  return records.map(({ intent, lockedAt, shownAt }) => ({ intent, ...(lockedAt !== undefined ? { lockedAt } : {}), ...(shownAt !== undefined ? { shownAt } : {}) }));
 }
 
 /** Deletes the locked copy: when the raiser ticks "I saved the link", or the raise is found reverted. */

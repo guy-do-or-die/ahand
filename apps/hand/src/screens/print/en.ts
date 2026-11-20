@@ -28,7 +28,7 @@ const en = {
   "print.lens.card": "card: 50 mm / ({modules} + 8) = {mm} mm",
 
   "print.receipt.title": "The receipt.",
-  "print.receipt.lead": "Who got what, from the network's own records. The code leads to the hand's passport.",
+  "print.receipt.lead": "Every payout, from the network's own records. The code leads to the hand's passport.",
   "print.receipt.open": "This hand is still open: there is no receipt yet.",
   "print.receipt.scan": "Scan to check it all again.",
   "print.receipt.verify": "Check it without any site, from a copy of the code:",

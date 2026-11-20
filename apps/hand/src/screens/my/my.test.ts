@@ -13,12 +13,16 @@ import {
   type SignedShake,
 } from "@ahand/sdk";
 import { publicKeyOf } from "@ahand/deliver";
-import { zeroAddress, zeroHash, type Address, type Hex } from "viem";
+import { HttpRequestError, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { keysTypedData } from "@ahand/sdk";
 
-import { daysLeft, formatCode, parseCode, parseHandNumber, predictSplit, secondsLeft, wantsCare, DAY } from "./logic";
+import en from "./en";
+import { answersLines, countLine, daysLeft, formatCode, inboxSight, parseCode, parseHandNumber, predictSplit, secondsLeft, wantsCare, DAY, type InboxSight } from "./logic";
+import { readBook } from "./reads";
+import ru from "./ru";
 import { rebuildBare, rebuildWithWords, seedFitsRoot } from "./rebuild";
+import { judgedOf } from "./answers";
 
 const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
 const SITE = "http://127.0.0.1:18351";
@@ -140,5 +144,163 @@ describe("my: a link written again from the device's book", () => {
     const opened = await openAddress(address, async () => hand, OPTIONS);
     expect(opened.hand.handId).toBe(9n);
     expect(readDescription(opened).status).toBe("lost");
+  });
+});
+
+describe("my: what a failed check of an answer says", () => {
+  test("the network not answering is offline, not a refusal", () => {
+    expect(judgedOf(new HttpRequestError({ url: "http://127.0.0.1:1" }))).toEqual({ verdict: "offline" });
+    expect(judgedOf({ name: "CallExecutionError", cause: new TypeError("Failed to fetch") })).toEqual({ verdict: "offline" });
+  });
+
+  test("a plain TypeError is an unknown refusal, never offline", () => {
+    expect(judgedOf(new TypeError("Cannot read properties of undefined"))).toEqual({ verdict: "refused", messageId: "my.refused.unknown", detail: "Cannot read properties of undefined" });
+  });
+});
+
+describe("my: what the screen may say about answers", () => {
+  const at = { relays: 2, unlocked: true, key: true, read: 2, failed: 0, busy: false };
+
+  test("only an unlocked read that every relay answered is 'read'", () => {
+    expect(inboxSight(at)).toBe("read");
+    expect(inboxSight({ ...at, unlocked: false })).toBe("locked");
+    // Locked wins over anything a past visit left behind.
+    expect(inboxSight({ ...at, unlocked: false, key: undefined, read: 0 })).toBe("locked");
+    expect(inboxSight({ ...at, key: false })).toBe("no-key");
+    expect(inboxSight({ ...at, key: undefined })).toBe("reading");
+    expect(inboxSight({ ...at, read: 0 })).toBe("reading");
+    expect(inboxSight({ ...at, read: 1 })).toBe("reading"); // one relay has not said yet
+    expect(inboxSight({ ...at, read: 1, failed: 1 })).toBe("read"); // the one in reach answered
+    expect(inboxSight({ ...at, read: 0, failed: 2 })).toBe("unreachable");
+    expect(inboxSight({ ...at, busy: true })).toBe("reading"); // an answer is still being stored or judged
+  });
+
+  test("a build with no relay has nothing to unlock for answers: they are pasted", () => {
+    expect(inboxSight({ ...at, relays: 0, unlocked: false, read: 0 })).toBe("no-relay");
+    expect(inboxSight({ ...at, relays: 0, read: 0, busy: true })).toBe("reading");
+  });
+
+  const sights: InboxSight[] = ["no-relay", "locked", "no-key", "reading", "unreachable", "read"];
+
+  test("the list says 'No answers yet' only after a read; locked, it says locked", () => {
+    for (const sight of sights) {
+      const line = countLine(sight, 0);
+      expect(line.id === "my.answers.count").toBe(sight === "read");
+      expect(en).toHaveProperty([line.id]);
+    }
+    expect(countLine("locked", 0)).toEqual({ id: "my.answers.locked" });
+    expect(countLine("read", 0)).toEqual({ id: "my.answers.count", values: { n: 0 } });
+    // Answers this device already holds are counted; locked, with the note that more may wait.
+    expect(countLine("locked", 2)).toEqual({ id: "my.answers.lockedCount", values: { n: 2 } });
+    expect(countLine("read", 2)).toEqual({ id: "my.answers.count", values: { n: 2 } });
+    expect(countLine("unreachable", 1)).toEqual({ id: "my.answers.count", values: { n: 1 } });
+  });
+
+  test("the hand's page says 'Nothing has arrived yet.' only after a read, over no card", () => {
+    for (const sight of sights) {
+      for (const cards of [0, 1]) {
+        const ids = answersLines(sight, cards, 1).map((line) => line.id);
+        expect(ids.includes("my.answers.none")).toBe(sight === "read" && cards === 0);
+        for (const id of ids) expect(en).toHaveProperty([id]);
+      }
+    }
+    expect(answersLines("locked", 0, 0)).toEqual([{ id: "my.answers.locked" }]);
+    expect(answersLines("locked", 1, 0)).toEqual([{ id: "my.answers.lockedMore" }]);
+    expect(answersLines("read", 0, 2)).toEqual([{ id: "my.answers.listening", values: { n: 2 } }, { id: "my.answers.none" }]);
+  });
+
+  test("the words: locked is said as locked in both languages, and each language quotes its own way", () => {
+    expect(en["my.answers.locked"]).toBe("Answers are locked — unlock to check.");
+    expect(ru["my.answers.locked"]).toBe("Ответы закрыты — открой доступ, чтобы проверить.");
+    expect(en["my.answer.quoted"]).toBe("“{words}”");
+    expect(ru["my.answer.quoted"]).toBe("«{words}»");
+  });
+});
+
+describe("my: whether a relay has answered a read of an inbox", () => {
+  /** A socket that does nothing by itself: the test plays the relay. */
+  class FakeSocket extends EventTarget {
+    static made: FakeSocket[] = [];
+    sent: string[] = [];
+    constructor(public url: string) {
+      super();
+      FakeSocket.made.push(this);
+    }
+    send(data: string): void {
+      this.sent.push(data);
+    }
+    open(): void {
+      this.dispatchEvent(new Event("open"));
+    }
+    hear(message: unknown): void {
+      this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(message) }));
+    }
+    drop(): void {
+      this.dispatchEvent(new Event("close"));
+    }
+  }
+  const INBOX = `0x${"ab".repeat(32)}`;
+  const OTHER = `0x${"cd".repeat(32)}`;
+  const A = "ws://127.0.0.1:1";
+  const B = "ws://127.0.0.1:2";
+
+  function book() {
+    let changes = 0;
+    const made = readBook(FakeSocket as unknown as typeof WebSocket, () => changes++);
+    const connect = (relay: string) => new made.Socket(relay) as unknown as FakeSocket;
+    const ask = (socket: FakeSocket, sub: string, inbox: string) => (socket as unknown as WebSocket).send(JSON.stringify(["REQ", sub, { kinds: [1059], "#p": [inbox.slice(2)] }]));
+    return { ...made, connect, ask, changes: () => changes };
+  }
+
+  test("a relay has answered once it ends the stored messages of that subscription, not before", () => {
+    const b = book();
+    expect(b.marksOf(INBOX)).toBeUndefined();
+    b.expect(INBOX);
+    expect(b.marksOf(INBOX)).toEqual({ read: 0, failed: 0 });
+
+    const socket = b.connect(A);
+    socket.open();
+    b.ask(socket, "sub-1", INBOX);
+    expect(socket.sent).toHaveLength(1); // the transport's own frame went out untouched
+    expect(JSON.parse(socket.sent[0]!)[0]).toBe("REQ");
+    socket.hear(["EVENT", "sub-1", { id: "x" }]);
+    socket.hear(["EOSE", "another-sub"]);
+    socket.hear("not a frame");
+    expect(b.marksOf(INBOX)).toEqual({ read: 0, failed: 0 });
+    socket.hear(["EOSE", "sub-1"]);
+    expect(b.marksOf(INBOX)).toEqual({ read: 1, failed: 0 });
+    expect(b.changes()).toBe(1);
+
+    // A relay that drops the connection afterwards has still been read.
+    socket.drop();
+    expect(b.marksOf(INBOX)).toEqual({ read: 1, failed: 0 });
+    expect(b.changes()).toBe(1);
+  });
+
+  test("a relay that cannot be reached, or drops before it answered in full, is not read; a later answer is", () => {
+    const b = book();
+    b.expect(INBOX);
+    b.expect(OTHER);
+
+    // Never opened: out of reach for every inbox still unread there.
+    b.connect(A).drop();
+    expect(b.marksOf(INBOX)).toEqual({ read: 0, failed: 1 });
+    expect(b.marksOf(OTHER)).toEqual({ read: 0, failed: 1 });
+
+    // Opened, asked, dropped before the end: only what that socket asked.
+    const cut = b.connect(B);
+    cut.open();
+    b.ask(cut, "sub-2", INBOX);
+    cut.drop();
+    expect(b.marksOf(INBOX)).toEqual({ read: 0, failed: 2 });
+    expect(b.marksOf(OTHER)).toEqual({ read: 0, failed: 1 });
+
+    // The transport connects again, and this time the relay answers.
+    const again = b.connect(A);
+    again.open();
+    b.ask(again, "sub-3", INBOX);
+    again.hear(["EOSE", "sub-3"]);
+    expect(b.marksOf(INBOX)).toEqual({ read: 1, failed: 1 });
+    expect(b.marksOf(OTHER)).toEqual({ read: 0, failed: 1 });
   });
 });

@@ -9,11 +9,11 @@ import { closeDb, configureDb, outboxStore } from "../../src/store/db";
  * The giver's outbox as the app will open it: packages/deliver's openOutbox over the app's own
  * IndexedDB `outbox` store (fake-indexeddb under Bun), sending through the stand's relay run as a
  * real process. The entry survives the outbox being closed and opened again, as after a reload.
- * Port 19060 is this test's (the wave 2 integrator's range).
+ * Port 19060 is this test's (the wave 2 integrator's range); HAND_TEST_PORT_BASE=B moves it to B+4.
  */
 
 const RELAY = `${import.meta.dir}/../../../../infra/relay/relay.ts`;
-const PORT = 19060;
+const PORT = process.env.HAND_TEST_PORT_BASE ? Number(process.env.HAND_TEST_PORT_BASE) + 4 : 19060;
 
 async function startRelay() {
   const proc = Bun.spawn(["bun", RELAY], { env: { ...process.env, PORT: String(PORT) }, stdout: "pipe", stderr: "inherit" });

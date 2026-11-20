@@ -30,7 +30,7 @@ const ru: Record<keyof typeof en, string> = {
   "print.lens.card": "карточка: 50 мм / ({modules} + 8) = {mm} мм",
 
   "print.receipt.title": "Квитанция.",
-  "print.receipt.lead": "Кто сколько получил — по записям самой сети. Код ведёт к паспорту руки.",
+  "print.receipt.lead": "Все выплаты — по записям самой сети. Код ведёт к паспорту руки.",
   "print.receipt.open": "Эта рука ещё открыта: квитанции пока нет.",
   "print.receipt.scan": "Отсканируй, чтобы проверить всё заново.",
   "print.receipt.verify": "Проверить без всякого сайта, из копии кода:",

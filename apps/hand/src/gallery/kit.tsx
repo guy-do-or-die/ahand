@@ -38,9 +38,11 @@ import {
   BLOCK,
   DECIMALS,
   EXPIRY,
+  HAND_NOUN,
   HAND_WORDS,
   HELPER,
   HOLDER_A,
+  HOLDER_B,
   LONG_ROUTE,
   PAYEE_CTX,
   REFUNDED_AT,
@@ -325,8 +327,17 @@ export function Kit() {
         <Case name="no block yet: dates only, nothing claimed" id="no-clock">
           <DealCard {...deal} block={undefined} state={undefined} description={described} reward={dollars(40)} claimBps={7000} />
         </Case>
-        <Case name="the public view: no place on a route, a proved name" id="public">
-          <DealCard {...deal} state="open" description={described} reward={dollars(1234.5)} raiserName={say.identityName} />
+        <Case name="the public view: no place on a route, a proved name, a title that is no question" id="public">
+          <DealCard {...deal} state="open" description={{ status: "attached", title: HAND_NOUN[lang] }} reward={dollars(1234.5)} raiserName={say.identityName} />
+        </Case>
+        <Case name="a reader in Tbilisi (UTC+4): a date opens in their zone, then in UTC" id="zone">
+          <DealCard {...deal} timeZone="Asia/Tbilisi" state="open" description={described} reward={dollars(40)} claimBps={7000} />
+        </Case>
+        <Case name="the asker's own card (/my, /care, /thank): the floor they set, rows about whoever helps" id="asker">
+          <DealCard {...deal} viewer="asker" state="open" description={described} reward={dollars(50)} claimBps={7000} />
+        </Case>
+        <Case name="a preview, before the hand is on the chain: no number, so no source to open" id="preview">
+          <DealCard {...deal} handId={undefined} state="open" description={described} reward={dollars(40)} />
         </Case>
       </Section>
 
@@ -380,6 +391,12 @@ export function Kit() {
         </Case>
         <Case name="a finished route: no viewer, the helper last">
           <ChainRail hands={[...SHORT_ROUTE, { role: "helper", address: HELPER }]} you={false} />
+        </Case>
+        <Case name="a pass that named the asker's own address is flagged on the hand" id="rail-asker">
+          <ChainRail hands={[{ role: "asker", address: ASKER }, { role: "passer", address: ASKER, flag: "asker" }, { role: "helper", address: HELPER }]} you={false} next={false} />
+        </Case>
+        <Case name="a re-signed answer: the holder it left out is crossed out with its share" id="rail-dropped">
+          <ChainRail hands={[{ role: "asker", address: ASKER }, { role: "passer", address: HOLDER_A }, { role: "passer", address: HOLDER_B, dropped: { share: "5%" } }, { role: "helper", address: HELPER }]} you={false} next={false} />
         </Case>
       </Section>
 

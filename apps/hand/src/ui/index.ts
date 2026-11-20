@@ -5,15 +5,16 @@
  */
 export { Ambient, useLang, useLens, type AmbientValue, type Lang } from "./ambient";
 export { WORDS, useWords, wordsOf, type Words } from "./words";
-export { count, day, minute, money, percent, shortAddress, unitsText } from "./format";
+export { count, day, inBothZones, minute, money, percent, second, shortAddress, unitsText } from "./format";
 
 export { AddressInput, type AddressInputProps } from "./AddressInput";
 export { Flip, type FlipProps } from "./Flip";
-export { ChainRail, type ChainRailProps, type RailHand, type RailRoute } from "./ChainRail";
+export { ChainRail, type ChainRailProps, type RailRoute } from "./ChainRail";
+export { railHandsOf, type LeftOut, type RailHand } from "./rail";
 export { ChipRow, type ChipOption, type ChipRowProps } from "./ChipRow";
 export { CopyRow, type CopyRowProps } from "./CopyRow";
 export { CostLine, type CostLineProps } from "./CostLine";
-export { DealCard, type DealCardProps, type DealDescription } from "./DealCard";
+export { DealCard, dealDescriptionOf, type DealCardProps, type DealDescription } from "./DealCard";
 export { Disclose, type DiscloseProps } from "./Disclose";
 export { Emoji } from "./Emoji";
 export { ErrorBand, type ErrorBandProps } from "./ErrorBand";

@@ -30,7 +30,7 @@ const en = {
 
   "core.buildTitle": "This site's own files",
   "core.build.served": "Served by this site",
-  "core.build.body": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare.",
+  "core.build.body": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare. Pages opened by address carry preview tags this server adds; /index.html is the file as built.",
   "core.build.none": "There is no build to hash: this server makes its pages as they are asked for (a development server), so it serves no /build.json.",
   "core.build.reading": "Reading /build.json…",
   "core.build.files": "{n, plural, one {# file} other {# files}}",
@@ -55,6 +55,7 @@ const en = {
   "core.lens.limit.3.body": "`GiverIsRaiser` compares addresses. Collusion looks like a normal deal (R-4, accepted limits).",
   "core.lens.limit.4": "Route length.",
   "core.lens.limit.4.body": "A route over about 369 separately encoded Shakes, or about 70 gas-burning payees with a hooking token, cannot be thanked in one transaction. Only that branch is affected: someone can pad a branch with empty Shakes (R-45, R-46; onedollaraudit M-1).",
+  "core.lens.limit.4.here": "With this site's default of {k} thousand gas per payout: {n, plural, one {# paid pass} other {# paid passes}} at worst.",
   "core.lens.limit.5": "Tokens that change balances by themselves.",
   "core.lens.limit.5.body": "Rebasing, fee-switching and share tokens can leave the last payees short, or keep a payout pending until transfers become exact again. Positive surplus and tokens sent to Core directly stay in Core forever (R-2, R-26, R-102; onedollaraudit M-2, L-8).",
   "core.lens.limit.6": "Blocked payees wait.",

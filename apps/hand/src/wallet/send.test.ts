@@ -43,13 +43,14 @@ import { foundry } from "viem/chains";
 
 import { ANVIL_KEYS, startChain, type Chain } from "../../../../packages/sdk/tests/helpers/anvil";
 import { resume, sendCalls, type Intent, type SendEnv, type SendProgress, type SendResult, type SignedInWallet } from "./send";
+const HAND_PORT_BASE = process.env.HAND_TEST_PORT_BASE ? Number(process.env.HAND_TEST_PORT_BASE) : undefined;
 
 /**
  * The sending engine on a real anvil (automine; `--slots-in-an-epoch 1`, so `safe` and
  * `finalized` are one and two blocks behind), with a test double of a wallet: an EIP-1193 provider
  * that signs with an anvil key and, when told to, answers EIP-5792 with atomic support, landing a
  * batch's calls in one block. Each "look" at the chain (`tick`) mines one block, so the four
- * states arrive in a known order. Port 16111 is this file's.
+ * states arrive in a known order. Port 16111 is this file's; HAND_TEST_PORT_BASE=B moves it to B+1.
  */
 
 const DAY = 86_400;
@@ -217,7 +218,7 @@ async function undeployedGive(raised: { hand: Hand; rootKey: Hex }) {
 }
 
 beforeAll(async () => {
-  chain = await startChain({ port: 16111, slotsInAnEpoch: 1 });
+  chain = await startChain({ port: HAND_PORT_BASE === undefined ? 16111 : HAND_PORT_BASE + 1, slotsInAnEpoch: 1 });
   client = chain.client;
   usd = chain.tokens.find((token) => token.kind === "usd")!.address;
   dom = domain(chain.chainId, chain.core);

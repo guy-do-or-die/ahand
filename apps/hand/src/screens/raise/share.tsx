@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useNow } from "../../chain";
 import { navigate } from "../../router";
+import { stampSeed } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
@@ -35,6 +37,17 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
   const [gone, setGone] = useState(false);
   const [dropFailed, setDropFailed] = useState(false);
   const mustSave = locked && !gone;
+  const now = useNow(chainId);
+
+  // The first time the link is on screen, by the chain's clock: the sweep deletes the locked copy
+  // a day later at the latest, ticked or not (sweep.ts).
+  const stamped = useRef(false);
+  const shownAt = locked && written && now ? now.timestamp : undefined;
+  useEffect(() => {
+    if (shownAt === undefined || stamped.current) return;
+    stamped.current = true;
+    void stampSeed(up.record.intent, "shownAt", shownAt).catch(() => undefined);
+  }, [shownAt, up.record.intent]);
 
   // Leaving before "I saved the link" asks first: the locked copy is the only other way back to it.
   useEffect(() => {
@@ -74,12 +87,12 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
   return (
     <section className="flex flex-col gap-6" aria-labelledby="raise-up-title">
       <div className="flex flex-col gap-3" data-testid={TID.raise.up} data-hand-id={handId} data-data-hash={raised.hand.dataHash} data-root-key={raised.hand.rootKey}>
-        <h2 id="raise-up-title" className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title-m)]">
+        <h1 id="raise-up-title" className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title-m)]">
           <span aria-hidden="true" className="mr-2">
             ✋
           </span>
           {t("raise.up")}
-        </h2>
+        </h1>
         <div data-testid={TID.raise.txRail} data-value={reached}>
           <TxRail reached={reached} local={local} />
         </div>

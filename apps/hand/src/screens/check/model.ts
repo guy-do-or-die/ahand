@@ -2,7 +2,8 @@ import type { StepResult } from "@ahand/sdk";
 
 /**
  * /check's comparison of its two columns (UX-SPEC §10.2): the steps run here and Core's own
- * answer by `eth_call`. Pure.
+ * answer by `eth_call`; and what the Hand itself is at that block, which Core's `checkRoute` and
+ * `checkGive` never look at. Pure.
  */
 
 /** Core's answer: accepted, or refused with its error's name and position. */
@@ -39,4 +40,45 @@ export function answerName(answer: CoreAnswer, accepted: string): string {
 /** The catalogue key of a step's sentence. */
 export function stepKey(step: { of: "shake" | "give"; check: string }): string {
   return `check.step.${step.of}.${step.check}`;
+}
+
+/**
+ * What the Hand is at one block. Core's `checkGive` and `checkRoute` judge a route and its
+ * confirmations only: they do not look at whether the Hand is closed or past its time, so "the
+ * contract accepts this" alone never means "this can still be thanked". This says the rest.
+ */
+export type HandNow =
+  | { state: "open"; expiry: number }
+  /** Still open in the contract, but its time is up by the block's clock: only the way back is left. */
+  | { state: "expired"; expiry: number }
+  /** Thanked, and the pasted answer is the very one the contract kept. */
+  | { state: "thanked-this"; closedAt: number }
+  /** Thanked, and the pasted answer is another one. */
+  | { state: "thanked-other"; closedAt: number }
+  /** Thanked; what was pasted is a route with no answer at its end. */
+  | { state: "thanked"; closedAt: number }
+  | { state: "refunded"; closedAt: number };
+
+const ZERO_HASH = `0x${"0".repeat(64)}`;
+
+/**
+ * The Hand's state from `hands(id)` and `thanks(id)` read at one block, whose timestamp is `now`
+ * (the network's clock, never the device's). `pastedGiveHash` is the hash of the pasted answer,
+ * when an answer was pasted: equal to `thanks(id).giveHash`, it is the answer that was thanked.
+ * A closed Hand with no Give kept was sent back (Core keeps a Give only for a thank).
+ */
+export function handNow(facts: { closedAt: number; expiry: number; thankedGiveHash: string; now: number; pastedGiveHash?: string }): HandNow {
+  const { closedAt, expiry, now } = facts;
+  if (closedAt !== 0) {
+    const kept = facts.thankedGiveHash.toLowerCase();
+    if (kept === ZERO_HASH) return { state: "refunded", closedAt };
+    if (facts.pastedGiveHash === undefined) return { state: "thanked", closedAt };
+    return { state: facts.pastedGiveHash.toLowerCase() === kept ? "thanked-this" : "thanked-other", closedAt };
+  }
+  return now >= expiry ? { state: "expired", expiry } : { state: "open", expiry };
+}
+
+/** Whether anyone can still be thanked on this Hand: only while it is open and in time. */
+export function canStillThank(now: HandNow): boolean {
+  return now.state === "open";
 }

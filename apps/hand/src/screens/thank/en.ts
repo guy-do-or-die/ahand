@@ -45,7 +45,10 @@ const en = {
 
   // Fit
   "thank.tooLong": "This route is too long to thank in one go.",
-  "thank.lens.fit": "Worst case {gas} gas · {bytes} bytes of calldata · limit 16 777 216 gas",
+  // The worst case is never sent as the limit: the send carries no gas of its own (wallet/send.ts),
+  // so the account's app estimates it. The line says so, so the number is not read as the cost.
+  "thank.lens.fit":
+    "Worst case {gas} gas · {bytes} bytes of calldata · limit 16 777 216 gas. The worst case is used only to check that this route fits one transaction; your wallet's own estimate is what is sent.",
 
   // An account not set up yet (R-28, D-62)
   "thank.setup": "The helper's account isn't set up on this network yet. Saying thanks sets it up first.",
@@ -62,7 +65,8 @@ const en = {
   "thank.predicted.keptNothing": "kept nothing",
   "thank.predicted.formula": "how it's counted",
   "thank.predicted.total": "The whole reward",
-  "thank.predicted.waitsIfBlocked": "If a payout can't move, it waits in the contract for its owner to take out.",
+  "thank.predicted.waitsIfBlocked":
+    "If a payout can't move, it waits in the contract until whoever it belongs to takes it out — or anyone delivers it to that address.",
   "thank.noReward": "This hand has no reward, so saying thanks moves no money. It closes the hand and records who helped.",
   "thank.lens.shakeFormula": "{reward} × {bps} ÷ 10 000 = {amount}",
   "thank.lens.giveFormula": "{reward} − {paid} = {amount} · claim {bps} bps",
@@ -80,14 +84,31 @@ const en = {
   "thank.step.waiting": "Waiting for the network…",
 
   // After
-  "thank.done": "Thanked. Here's who got what — straight from the chain.",
-  "thank.done.before": "This hand was thanked for this answer. Here's who got what — straight from the chain.",
+  // Never "who got what": Paid is what left the contract, and a token that takes its own cut
+  // delivers less (brief 02, duty 19). A payout is the word for a Paid and for a Pending alike.
+  "thank.done": "Thanked. Here's every payout — straight from the chain.",
+  "thank.done.before": "This hand was thanked for this answer. Here's every payout — straight from the chain.",
   "thank.left": "{amount} left the contract for {payee}",
   "thank.waiting": "{amount} is waiting for {payee}",
   "thank.waiting.why": "Their payout couldn't move, so it waits in the contract. They can take it out, or anyone can deliver it to them.",
   "thank.noMoney": "No money moved: this hand had no reward.",
   "thank.lens.events": "What the chain recorded",
   "thank.lens.event": "{event} · block {block} · log {index}",
+
+  // What it cost, from the receipt (the contract takes nothing; this went to the network)
+  "thank.spent": "Saying thanks cost about ${usd} · prices of {date}",
+  "thank.spent.steps": "Both steps together cost about ${usd} · prices of {date}",
+  "thank.spent.reading": "Reading what it cost from the network…",
+  "thank.spent.unread": "Couldn't read what it cost from the network just now.",
+  "thank.lens.tx": "The transaction",
+  "thank.lens.tx.hash": "tx {hash}",
+  "thank.lens.tx.from": "from {from}",
+  "thank.lens.tx.block": "block {block} · {time}",
+  "thank.lens.tx.blockOnly": "block {block}",
+  "thank.lens.tx.gas": "gas used {gas} · effective price {gwei} gwei",
+  "thank.lens.tx.l1": "L1 data fee {eth} ETH",
+  "thank.lens.tx.fee": "fee {eth} ETH · ${usd} at ETH ${ethUsd} · prices of {date}",
+  "thank.lens.tx.local": "Local test network: test ETH, at this chain's own price",
   "thank.proof": "See the proof",
   "thank.withoutUs": "Do it without us",
   "thank.withoutUs.lead": "The same call, for a terminal with Foundry's cast. Add how you confirm it: --ledger, --account or --private-key.",

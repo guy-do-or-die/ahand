@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   domain as domainOf,
+  giveTypedData,
+  toCoreSignature,
   encodeLive,
   fromText,
   keyOfSeed,
@@ -12,10 +14,10 @@ import {
   type Hand,
   type OpenedAddress,
 } from "@ahand/sdk";
-import { getAddress, serializeErc6492Signature, zeroAddress, zeroHash, type Address, type Hex, type PublicClient } from "viem";
-import { english, generateMnemonic, mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
+import { getAddress, parseSignature, serializeCompactSignature, serializeErc6492Signature, signatureToCompactSignature, zeroAddress, zeroHash, type Address, type Hex, type PublicClient } from "viem";
+import { english, generateMnemonic, generatePrivateKey, mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 
-import { answerLink, confirmWithAccount, confirmWithKey, isNetworkError, type AnswerStep } from "./answer";
+import { answerLink, confirmWithAccount, confirmWithKey, confirmWithWallet, type AnswerStep, type GiveTyped } from "./answer";
 import { claimAmount, deliveryState, fromInbox, keyFileOf, MAX_WORDS, shareText, signatureKind, wordsOf } from "./flow";
 
 const SITE = "https://ahand.test";
@@ -86,13 +88,6 @@ describe("delivery state", () => {
   });
 });
 
-describe("network errors are told apart from refusals", () => {
-  test("a fetch failure deep in the cause chain is the network", () => {
-    expect(isNetworkError({ name: "ContractFunctionExecutionError", cause: { name: "HttpRequestError" } })).toBe(true);
-    expect(isNetworkError(new TypeError("Failed to fetch"))).toBe(true);
-    expect(isNetworkError(new Error("execution reverted"))).toBe(false);
-  });
-});
 
 describe("answering a live link (offline half; Core's eth_call is the smoke's)", () => {
   test("a one-time key confirms; the Give names the pasted payee, the route's claim and a zero dataHash; the link holds no secret", async () => {
@@ -240,5 +235,46 @@ describe("the optional key file", () => {
     expect(json.privateKey).toBe(key.privateKey);
     expect(json.hand).toEqual({ chainId: 31337, core: CORE, handId: "7" });
     expect(typeof json.note).toBe("string");
+  });
+});
+
+describe("give: the connected wallet's answer goes to Core through the SDK's signGive", () => {
+  const key = privateKeyToAccount(generatePrivateKey());
+  const typed = (): GiveTyped =>
+    giveTypedData(domainOf(31337, CORE), { handId: 7n, raiser: RAISER, token: TOKEN, rootKey: RAISER, payoutGasK: 250, minClaimBps: 7000, dataHash: zeroHash }, {
+      signer: key.address,
+      payee: PAYEE,
+      claimBps: 7000,
+      routeHash: zeroHash,
+      dataHash: zeroHash,
+    });
+  const compact = async () => serializeCompactSignature(signatureToCompactSignature(parseSignature(await key.signTypedData(typed()))));
+
+  test("a key's 64-byte answer is brought to Core's 65-byte form", async () => {
+    const short = await compact();
+    const confirmed = await confirmWithWallet(async () => ({ ok: true, signature: short }), async () => "key")(typed());
+    expect(confirmed).toEqual({ ok: true, signature: toCoreSignature(short) });
+    expect(confirmed.ok && (confirmed.signature.length - 2) / 2).toBe(65);
+  });
+
+  test("a contract's answer, and a wrapper, go as they came", async () => {
+    const short = await compact();
+    expect(await confirmWithWallet(async () => ({ ok: true, signature: short }), async () => "code")(typed())).toEqual({ ok: true, signature: short });
+    const wrapped = serializeErc6492Signature({ address: PAYEE, data: "0xabcd", signature: short });
+    expect(await confirmWithWallet(async () => ({ ok: true, signature: wrapped }), async () => "key")(typed())).toEqual({ ok: true, signature: wrapped });
+  });
+
+  test("a refusal and a failure are said as such", async () => {
+    expect(await confirmWithWallet(async () => ({ ok: false, reason: "rejected" }), async () => "key")(typed())).toEqual({ ok: false, reason: "rejected" });
+    expect(await confirmWithWallet(async () => ({ ok: false, reason: "failed", message: "wallet locked" }), async () => "key")(typed())).toEqual({ ok: false, reason: "failed", message: "wallet locked" });
+  });
+
+  test("the wallet is asked the very typed data the screen was given", async () => {
+    let seen: unknown;
+    await confirmWithWallet(async (asked) => {
+      seen = asked;
+      return { ok: true, signature: await key.signTypedData(asked) };
+    }, async () => "key")(typed());
+    expect(seen).toEqual(typed());
   });
 });

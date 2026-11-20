@@ -53,6 +53,31 @@ export function minute(timestamp: number, lang: Lang, timeZone?: string): string
 }
 
 /**
+ * "20 Dec 2026, 16:00:00 GMT+4" for evidence: one second of the chain's clock with its date, its
+ * time and the zone it is written in; `timestamp` is in seconds.
+ */
+export function second(timestamp: number, lang: Lang, timeZone?: string): string {
+  return new Intl.DateTimeFormat(LOCALE[lang], {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+    timeZoneName: "short",
+  }).format(new Date(timestamp * 1000));
+}
+
+/** The same second in the reader's zone and in UTC; one line where the two read alike. */
+export function inBothZones(timestamp: number, lang: Lang, timeZone?: string): string[] {
+  const here = second(timestamp, lang, timeZone);
+  const utc = second(timestamp, lang, "UTC");
+  return here === utc ? [utc] : [here, utc];
+}
+
+/**
  * A whole number for a mono line (a block, a gas count): digits in threes with a space that
  * does not break, the same in both languages, as the lens writes them: "1 234".
  */

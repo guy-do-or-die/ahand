@@ -1,23 +1,16 @@
 import { handHash, readHand, type Hand, type SignedGive, type SignedShake } from "@ahand/sdk";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Address } from "viem";
 
 import { clsx } from "../lib/clsx";
-import { Flip, useTwistWords } from "./Flip";
+import type { RailHand } from "./rail";
+import { Flip, useReducedMotion, useTwistWords } from "./Flip";
 import { count, money, percent, shortAddress } from "./format";
 import { GiveBack } from "./GiveBack";
 import { coreAnswer, Exact, Fact, ProofBody, ShakeBack, useProof } from "./ShakeBack";
 import { useLang } from "./ambient";
 import { useWords } from "./words";
 import { TID } from "../testids";
-
-/** One hand on the route. Labels are positions and facts, never relationships (UX-SPEC §8.2). */
-export interface RailHand {
-  role: "asker" | "passer" | "helper";
-  /** Shown short and in mono. Leave it out where no address was named: the rail says "someone". */
-  address?: Address;
-  /** A name the caller has proved for the address (an ENS name that resolves both ways). */
-  name?: string;
-}
 
 /**
  * The signed route behind the hands, for the back of each card. When it is given and its
@@ -53,53 +46,119 @@ const GESTURE = { asker: "✋", passer: "🤝", helper: "🙌" } as const;
 /** Whether the route stands behind exactly these hands, so each card can turn to its own part. */
 export function routeFits(hands: readonly RailHand[], route: RailRoute | undefined): route is RailRoute {
   if (!route) return false;
+  const signed = hands.filter((hand) => !hand.dropped);
   const expected = 1 + route.signedShakes.length + (route.signedGive ? 1 : 0);
-  if (hands.length !== expected || hands[0]?.role !== "asker") return false;
-  return hands.every((hand, index) => (index === 0 ? hand.role === "asker" : index <= route.signedShakes.length ? hand.role === "passer" : hand.role === "helper"));
+  if (signed.length !== expected || signed[0]?.role !== "asker") return false;
+  return signed.every((hand, index) => (index === 0 ? hand.role === "asker" : index <= route.signedShakes.length ? hand.role === "passer" : hand.role === "helper"));
+}
+
+/** Each hand's place on the signed route (the asker 0, Shake i at i + 1), or undefined for a dropped one. */
+function placesOf(hands: readonly RailHand[]): (number | undefined)[] {
+  let place = 0;
+  return hands.map((hand) => (hand.dropped ? undefined : place++));
+}
+
+/** Room kept between the viewer's chip and the rail's edge when the rail scrolls to it, in CSS pixels. */
+const EDGE = 8;
+
+/**
+ * Scrolls the rail sideways, and nothing but the rail, until the viewer's chip shows, with the
+ * empty slot after it where both fit.
+ */
+function showYou(list: HTMLElement, smooth: boolean): void {
+  const you = list.querySelector(".ah-rail__you");
+  if (!you) return;
+  const frame = list.getBoundingClientRect();
+  const end = (list.querySelector(".ah-rail__slot") ?? you).getBoundingClientRect();
+  // Far enough to show the end of the rail, but never so far that the chip's own start is cut.
+  const by = Math.min(Math.max(end.right + EDGE - frame.right, 0), you.getBoundingClientRect().left - EDGE - frame.left);
+  if (Math.abs(by) >= 1) list.scrollBy?.({ left: by, behavior: smooth ? "smooth" : "auto" });
 }
 
 /**
  * The route as people: hands joined by 2px lines. The segment that reached the viewer is
  * amber, the viewer is an amber chip, and a dashed slot after it stands for whoever is next.
  * A long route scrolls sideways; the list can be focused so the keyboard can scroll it.
- * Given the signed route, each hand is a flip card: the asker's back holds the Hand's terms,
- * a pass's back its Shake, the helper's back its Give, each checked when it turns.
+ * Given the signed route, each hand turns over: the asker's back holds the Hand's terms, a
+ * pass's back its Shake, the helper's back its Give, each checked when it turns. One hand is
+ * turned at a time, and its back opens under the rail, so the rail itself never moves; when
+ * the hand is turned back, the rail scrolls to the viewer's chip.
  */
+export type { LeftOut, RailHand } from "./rail";
+
 export function ChainRail({ hands, route, you = true, next = you, caption = true, className }: ChainRailProps) {
   const words = useWords();
   const twist = useTwistWords();
-  const soFar = words.rail.count(hands.length);
+  const reduced = useReducedMotion();
+  const soFar = words.rail.count(hands.filter((hand) => !hand.dropped).length);
   const flips = routeFits(hands, route);
+  const places = placesOf(hands);
+  const list = useRef<HTMLOListElement>(null);
+  /** The hand now turned over, by its place on the rail. */
+  const [turned, setTurned] = useState<number | undefined>(undefined);
+  const wasTurned = useRef(false);
+  useEffect(() => {
+    if (turned === undefined && wasTurned.current && list.current) showYou(list.current, !reduced);
+    wasTurned.current = turned !== undefined;
+    // Only a turn runs this.
+  }, [turned]);
+  // The lines between the rail's parts: twist.css lays the rail out as that many joined columns.
+  const links = hands.length - 1 + (you ? 1 : 0) + (next ? 1 : 0);
   return (
-    <div className={clsx("ah-stack", className)} data-flippable={flips ? "true" : undefined}>
-      <ol className={clsx("ah-rail", flips && "ah-rail--flips")} tabIndex={0} aria-label={soFar}>
+    <div className={clsx("ah-stack", flips && "ah-railbox", className)} data-flippable={flips ? "true" : undefined}>
+      <ol
+        ref={list}
+        className={clsx("ah-rail", flips && "ah-rail--flips")}
+        style={flips ? ({ "--ah-rail-links": links } as CSSProperties) : undefined}
+        tabIndex={0}
+        aria-label={soFar}
+      >
         {hands.map((hand, index) => {
+          const named = hand.name ? (
+            <span className="ah-rail__name ah-rail__name--human">{hand.name}</span>
+          ) : hand.address ? (
+            <span className="ah-rail__name ah-exact">{shortAddress(hand.address)}</span>
+          ) : (
+            <span className="ah-rail__name ah-rail__name--human">{words.rail.someone}</span>
+          );
           const face = (
             <span className="ah-rail__hand">
               <span aria-hidden="true" className="ah-rail__gesture">
                 {GESTURE[hand.role]}
               </span>
               <span className="sr-only">{words.rail[hand.role]}: </span>
-              {hand.name ? (
-                <span className="ah-rail__name ah-rail__name--human">{hand.name}</span>
-              ) : hand.address ? (
-                <span className="ah-rail__name ah-exact">{shortAddress(hand.address)}</span>
-              ) : (
-                <span className="ah-rail__name ah-rail__name--human">{words.rail.someone}</span>
-              )}
+              {hand.dropped ? <s className="ah-rail__dropped">{named}</s> : named}
+              {hand.dropped ? (
+                <>
+                  {hand.dropped.share ? <s className="ah-rail__share">{hand.dropped.share}</s> : null}
+                  <span className="sr-only">, {words.rail.dropped}</span>
+                </>
+              ) : null}
+              {hand.flag === "asker" ? (
+                <span className="ah-rail__flag" data-testid={TID.kit.railFlag}>
+                  {words.rail.askerOwn}
+                </span>
+              ) : null}
             </span>
           );
+          const place = places[index];
+          const flag = hand.flag === "asker" ? <p className="ah-back__flag">{words.rail.askerOwnWhy}</p> : null;
           return (
-            <li key={index} className="ah-rail__item" data-role={hand.role}>
-              {index > 0 ? <span aria-hidden="true" className="ah-rail__line" /> : null}
-              {flips ? (
+            <li key={index} className="ah-rail__item" data-role={hand.role} data-dropped={hand.dropped ? "true" : undefined} data-flag={hand.flag}>
+              {index > 0 ? <span aria-hidden="true" className={clsx("ah-rail__line", hand.dropped && "ah-rail__line--dropped")} /> : null}
+              {flips && place !== undefined ? (
                 <Flip
                   variant="rail"
+                  flipped={turned === index}
+                  onTurn={(up) => setTurned(up ? index : undefined)}
                   front={face}
                   backLabel={hand.role === "asker" ? twist.backOfAsker : hand.role === "helper" ? twist.backOfGive : twist.backOfPass}
-                  back={() =>
-                    hand.role === "asker" ? <TermsBack route={route} /> : hand.role === "helper" ? <GiveBack route={route} /> : <ShakeBack route={route} position={index - 1} />
-                  }
+                  back={() => (
+                    <>
+                      {flag}
+                      {hand.role === "asker" ? <TermsBack route={route} /> : hand.role === "helper" ? <GiveBack route={route} /> : <ShakeBack route={route} position={place - 1} />}
+                    </>
+                  )}
                 />
               ) : (
                 face

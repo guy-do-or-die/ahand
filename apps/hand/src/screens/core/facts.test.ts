@@ -5,7 +5,7 @@ import { reproduceCommand } from "../../../../../tools/manifest";
 import example from "../../config/config.example.json";
 import en from "./en";
 import ru from "./ru";
-import { capDays, derive, readServedBuild, reproduceLine } from "./facts";
+import { capDays, derive, paidPassesAtWorst, readServedBuild, reproduceLine } from "./facts";
 import { LIMIT_COUNT } from "./limits";
 
 describe("core: the facts /core shows", () => {
@@ -49,5 +49,18 @@ describe("core: the facts /core shows", () => {
       expect((ru as Record<string, string>)[`core.lens.limit.${n}`]).toBeTruthy();
     }
     expect((en as Record<string, string>)["core.lens.limit.13"]).toBeUndefined();
+  });
+
+  test("the paid passes one thanks can carry at worst: 55 at this build's default, 66 at 200 (ARCHITECTURE §0)", () => {
+    expect(example.defaults.payoutGasK).toBe(250);
+    expect(paidPassesAtWorst(example.defaults.payoutGasK)).toBe(55);
+    expect(paidPassesAtWorst(200)).toBe(66);
+    // The record's "about 70" is the figure of a smaller limit; a larger limit carries fewer.
+    expect(paidPassesAtWorst(500)).toBeLessThan(55);
+    for (const words of [en, ru] as Record<string, string>[]) {
+      expect(words["core.lens.limit.4.body"]).toMatch(/70/); // the record's sentence stays as it is
+      expect(words["core.lens.limit.4.here"]).toContain("{n");
+      expect(words["core.lens.limit.4.here"]).toContain("{k}");
+    }
   });
 });

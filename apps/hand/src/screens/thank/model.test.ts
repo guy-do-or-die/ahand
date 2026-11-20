@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { CORE_ABI, type Give, type HandLog, type SignedShake } from "@ahand/sdk";
 import { encodeAbiParameters, encodeEventTopics, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 
-import { droppedShares, handLogsOf, landedFlags, payeeFindings, payeeRefusedIn, predictPayouts, verifyThanked, type RawLog } from "./model";
+import { droppedShares, handLogsOf, landedFlags, payeeFindings, payeeRefusedIn, predictPayouts, spentOf, totalSpent, usdOfWei, verifyThanked, type RawLog } from "./model";
 
 const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
 const TOKEN: Address = "0x6B867aFa284Ce84eE76424373420E1170da2eE7b";
@@ -146,5 +146,34 @@ describe("droppedShares", () => {
   test("a dropped holder's share comes from the earlier route that holds its key", () => {
     const earlier = [{ keys: [RAISER, KEY1, KEY2], signedShakes: [shake(A, 10_000, 9_500, KEY1), shake(B, 9_500, 9_000, KEY2)] }];
     expect(droppedShares([{ position: 1, key: KEY1, payee: B }], earlier)).toEqual([{ position: 1, key: KEY1, payee: B, bps: 500 }]);
+  });
+});
+
+describe("spentOf: what a transaction cost its sender, from its receipt", () => {
+  const receipt = { transactionHash: TX, from: RAISER, blockNumber: 194n, gasUsed: 178_996n, effectiveGasPrice: 1_000_000_007n };
+
+  test("the fee is the gas used times the price paid, and the sender is the receipt's", () => {
+    expect(spentOf(receipt)).toEqual({ hash: TX, from: RAISER, block: 194n, gasUsed: 178_996n, gasPrice: 1_000_000_007n, fee: 178_996_001_252_972n });
+  });
+
+  test("an OP Stack receipt's L1 data fee is added, whether it came as a number or as the node's hex", () => {
+    expect(spentOf({ ...receipt, l1Fee: 5_000n }).fee).toBe(178_996_001_257_972n);
+    expect(spentOf({ ...receipt, l1Fee: "0x1388" })).toMatchObject({ l1Fee: 5_000n, fee: 178_996_001_257_972n });
+    expect(spentOf({ ...receipt, l1Fee: null }).l1Fee).toBeUndefined();
+    expect(spentOf({ ...receipt, l1Fee: "not a number" }).l1Fee).toBeUndefined();
+  });
+
+  test("two steps add up: gas and fee of both", () => {
+    const setup = spentOf({ ...receipt, gasUsed: 100_000n, effectiveGasPrice: 2n });
+    const thanks = spentOf({ ...receipt, gasUsed: 50_000n, effectiveGasPrice: 4n, l1Fee: 7n });
+    expect(totalSpent([setup, thanks])).toEqual({ gasUsed: 150_000n, fee: 400_007n });
+    expect(totalSpent([])).toEqual({ gasUsed: 0n, fee: 0n });
+  });
+
+  test("dollars at the snapshot's ETH price, written as the cost line writes them", () => {
+    expect(usdOfWei(178_996_001_252_972n, 2400)).toBe("0.43");
+    expect(usdOfWei(1_073_976_000_000n, 2400)).toBe("0.0026");
+    expect(usdOfWei(10n ** 18n, 2400)).toBe("2400.00");
+    expect(usdOfWei(0n, 2400)).toBe("0");
   });
 });

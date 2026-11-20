@@ -3,13 +3,14 @@ import type { Hex, PublicClient } from "viem";
 
 import { startChain, type Chain } from "../../../../packages/sdk/tests/helpers/anvil";
 import { BlockWatcher, latestTip, staleAfterPolls, type Tip } from "./watcher";
+const HAND_PORT_BASE = process.env.HAND_TEST_PORT_BASE ? Number(process.env.HAND_TEST_PORT_BASE) : undefined;
 
 /**
  * The one clock: a block watcher with a scripted reader (no tip before the first block, stale
  * after polls with no news, offline on a failed poll), then the real thing on anvil started 40
  * days ahead of this machine, following a jump made with evm_increaseTime within two blocks (the
  * comparison with the machine's clock is the wallet smoke's: chain/ never reads it).
- * Port 16110 is this file's (app-wallet's range 16100–16149).
+ * Port 16110 is this file's (app-wallet's range 16100–16149); HAND_TEST_PORT_BASE=B moves it to B.
  */
 
 const tip = (number: number, timestamp = 1000 + number): Tip => ({ number: BigInt(number), timestamp, hash: `0x${number.toString(16).padStart(64, "0")}` as Hex });
@@ -73,7 +74,7 @@ describe("BlockWatcher on anvil (block time 1 s, 40 days ahead)", () => {
   let chain: Chain;
   let client: PublicClient;
   beforeAll(async () => {
-    chain = await startChain({ port: 16110, blockTime: 1, slotsInAnEpoch: 1 });
+    chain = await startChain({ port: HAND_PORT_BASE === undefined ? 16110 : HAND_PORT_BASE, blockTime: 1, slotsInAnEpoch: 1 });
     client = chain.client;
   }, 60_000);
   afterAll(async () => {

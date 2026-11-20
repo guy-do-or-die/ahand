@@ -15,6 +15,12 @@ export interface MarkProps {
   kind: MarkKind;
   /** What the mark opens: its source, in mono. With none, the mark is a plain tag. */
   source?: ReactNode;
+  /**
+   * For a mark whose source stands elsewhere, under a sentence it shares with a figure: the
+   * caller holds the source (the element with this `id`) and whether it is open, and the mark is
+   * one more button that opens and shuts it.
+   */
+  opens?: { id: string; open: boolean; toggle: () => void };
   className?: string;
 }
 
@@ -25,7 +31,7 @@ const GLYPH: Record<MarkKind, string> = { checked: "✓", chain: "⛓️", waiti
  * Each carries its words, so the state is never told by shape or colour alone. A mark with a
  * source is a button that opens it underneath; the lens opens every one.
  */
-export function Mark({ kind, source, className }: MarkProps) {
+export function Mark({ kind, source, opens, className }: MarkProps) {
   const words = useWords();
   const lens = useLens();
   const [own, setOwn] = useState(false);
@@ -40,6 +46,22 @@ export function Mark({ kind, source, className }: MarkProps) {
     </>
   );
 
+  if (opens) {
+    return (
+      <button
+        type="button"
+        className={clsx("ah-mark ah-mark--button", `ah-mark--${kind}`, className)}
+        aria-expanded={opens.open}
+        aria-controls={opens.open ? opens.id : undefined}
+        onClick={opens.toggle}
+      >
+        {face}
+        <span aria-hidden="true" className="ah-mark__caret">
+          {opens.open ? "▴" : "▾"}
+        </span>
+      </button>
+    );
+  }
   if (source === undefined || source === null) {
     return <span className={clsx("ah-mark", `ah-mark--${kind}`, className)}>{face}</span>;
   }

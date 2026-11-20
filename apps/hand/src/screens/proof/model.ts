@@ -23,9 +23,15 @@ export type SectionKey =
   | "back"
   | "closing";
 
-/** The part of the timeline a check belongs to. `refunded` changes where a payout and "now" stand. */
+/**
+ * The part of the timeline a check belongs to. `refunded` changes where a payout and "now" stand.
+ * The page's own two lines (sent.ts) stand with what they speak of: the opening time with the
+ * raise, the closing time with the payouts of a thank or with the reward going back.
+ */
 export function sectionOf(id: string, refunded: boolean): SectionKey {
   if (id === "core" || id === "raised" || id === "reward-time" || id === "description" || id === "closing") return id;
+  if (id === "time.opened") return "raised";
+  if (id === "time.closed") return refunded ? "back" : "payouts";
   if (refunded && (id === "refunded" || id.startsWith("payout.") || id.startsWith("now."))) return "back";
   if (id.startsWith("route.") || id.startsWith("keys.")) return "route";
   if (id.startsWith("share.")) return "shares";
@@ -89,7 +95,9 @@ export function markOf(check: Check): MarkKind {
 export type Verdict = "ok" | "fail" | "not-checkable";
 
 export function verdictOf(check: Check): Verdict {
-  return check.ok === "not-checkable" ? "not-checkable" : check.ok ? "ok" : "fail";
+  // "recorded" comes only from a saved file checked with no network (the SDK's verifyBundle); the
+  // page reads the chain itself and never shows it, and it is never counted as ok.
+  return check.ok === "not-checkable" || check.ok === "recorded" ? "not-checkable" : check.ok ? "ok" : "fail";
 }
 
 export interface Tally {
@@ -120,7 +128,28 @@ export function sentenceKeyOf(check: Check): string {
   if (check.sentence === "proof.payout") return check.actual.startsWith("Pending") ? "proof.payout.pending" : "proof.payout.paid";
   if (check.sentence === "proof.description" && check.expected === "none") return "proof.description.none";
   if (check.sentence === "proof.now" && check.actual === "0") return "proof.now.none";
+  if (check.sentence === "proof.time.closed") return check.inputs.event === "Refunded" ? "proof.time.closed.refund" : "proof.time.closed.thank";
+  // A pass that keeps a share names where it lands; one that keeps nothing has the zero address.
+  if ((check.sentence === "proof.share" || check.sentence === "proof.route") && check.inputs.payee && !/^0x0{40}$/i.test(check.inputs.payee)) return `${check.sentence}.to`;
   return check.sentence;
+}
+
+/**
+ * A pass line that names the asker's own address (brief 02 duties 11 and 23, the SDK's
+ * `raiserHops` read from the line's own inputs): on `route.i` the next key or a kept share's payee,
+ * on `share.i` a share above zero paid to it. The catalogue key of the note under the line.
+ */
+export function askerHopKeyOf(check: Check, raiser: string): string | undefined {
+  const at = raiser.toLowerCase();
+  const { payee, nextKey, claimBps, nextClaimBps } = check.inputs;
+  const keeps = claimBps !== undefined && nextClaimBps !== undefined && Number(nextClaimBps) < Number(claimBps);
+  const pays = keeps && payee?.toLowerCase() === at;
+  if (check.id.startsWith("route.")) {
+    const holds = nextKey?.toLowerCase() === at;
+    return pays && holds ? "proof.askerHop.both" : pays ? "proof.askerHop.payee" : holds ? "proof.askerHop.key" : undefined;
+  }
+  if (check.id.startsWith("share.") && pays) return "proof.askerHop.share";
+  return undefined;
 }
 
 /** Why a line could not be checked here, as a catalogue key. */
@@ -128,6 +157,7 @@ export function notCheckableKeyOf(check: Check): string {
   if (check.id === "core") return "proof.nc.core";
   if (check.id === "description") return "proof.nc.description";
   if (check.id === "reward-time") return "proof.nc.between";
+  if (check.id.startsWith("time.")) return "proof.nc.time";
   if (check.id.startsWith("keys.") || check.id === "give-key" || check.id === "giver") return "proof.nc.confirmations";
   return "proof.nc.other";
 }
@@ -168,7 +198,10 @@ export function verifyLine(opts: { commit?: string; rpc?: string; core: string; 
   return `${checkout}bun install && bun tools/ahand.ts verify${rpc} --core ${opts.core} ${opts.handId}`;
 }
 
-/** The line that checks a downloaded bundle with no network. */
-export function bundleLine(chainId: number, handId: bigint): string {
-  return `bun tools/ahand.ts verify --bundle ${bundleName(chainId, handId)}`;
+/**
+ * The line that checks a downloaded bundle. With no RPC it proves the file's signatures, hashes
+ * and sums only; with one it re-reads every event and view in the file from the chain first.
+ */
+export function bundleLine(chainId: number, handId: bigint, rpc?: string): string {
+  return `bun tools/ahand.ts verify --bundle ${bundleName(chainId, handId)}${rpc ? ` --rpc ${rpc}` : ""}`;
 }

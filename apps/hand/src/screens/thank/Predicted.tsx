@@ -76,7 +76,8 @@ export function Predicted({ payouts, decimals, noReward, gas }: { payouts: Payou
         </ol>
       )}
 
-      {noReward ? null : <p className="ah-meta m-0">{t("thank.predicted.waitsIfBlocked")}</p>}
+      {/* A sentence for people, so the human voice: sentence case, never the mono of exact data. */}
+      {noReward ? null : <p className="ah-label m-0">{t("thank.predicted.waitsIfBlocked")}</p>}
       {lens ? <span className="ah-meta ah-meta--dim">{t("thank.lens.fit", { gas: count(gas.gasLimit), bytes: count(gas.calldataBytes) })}</span> : null}
     </section>
   );

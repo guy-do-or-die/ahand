@@ -1,4 +1,4 @@
-import { approveCall, castLine, extendCall, fundCall, getHandFor, readDescription, readLimits, type Call, type HandView } from "@ahand/sdk";
+import { approveCall, castLine, extendCall, fundCall, getHandFor, readLimits, type Call, type HandView } from "@ahand/sdk";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { erc20Abi, isAddressEqual, type Address } from "viem";
 
@@ -6,13 +6,13 @@ import { CLIENTS, clientOf, useBlockRead, useCost, useHand, useNow, type CostRea
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import type { ScreenProps } from "../../routes";
-import { useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { CopyRow, CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
+import { CopyRow, CostLine, DealCard, dealDescriptionOf, Disclose, ErrorBand, MoneyInput, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
 import { ConnectButton, useSend, useWallet, type SendResult } from "../../wallet";
-import { openHeldLink, peekHeld } from "../print/link";
+import { UnlockBar } from "../my/parts";
 import { reminderIcs, reminderName, alarmLead } from "./calendar";
 import { DAY, capDays, extendChoices, inLastMinutes, type ChipKey } from "./extend";
+import { useCareWords, type CareWords } from "./words";
 
 /**
  * /care/<chain>/<hand> (UX-SPEC §7.4): what the asker needs after the raise. Add to the reward,
@@ -56,33 +56,6 @@ function useDecimals(token: Address | undefined): number | undefined {
   return known ?? (read.token === token ? read.decimals : undefined);
 }
 
-/**
- * The Hand's words, when this tab holds a link of this very Hand (arriving from the raise's
- * "Add a reminder", say). Without one the card says only what the network keeps.
- */
-function useWords(chainId: number, handId: bigint): DealDescription {
-  const held = useOpened();
-  const [description, setDescription] = useState<DealDescription>({ status: "none" });
-  const head = held ? peekHeld(held.fragment, LINK_OPTIONS) : undefined;
-  const ours = head !== undefined && head.chainId === chainId && head.handId === handId && isAddressEqual(head.core, CORE);
-  useEffect(() => {
-    if (!held || !ours) return;
-    let live = true;
-    openHeldLink(held, getHand, LINK_OPTIONS)
-      .then((opened) => {
-        const read = readDescription(opened);
-        if (live && read.status === "attached" && read.title !== undefined) {
-          setDescription({ status: "attached", title: read.title, ...(read.content ? { content: read.content } : {}) });
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [held, ours]);
-  return ours ? description : { status: "none" };
-}
-
 /** A send's outcome as one sentence and Core's name for the lens. */
 function sentenceOf(result: SendResult): { what: string; code?: string } {
   if (result.ok) return { what: "" };
@@ -114,7 +87,8 @@ export default function CareScreen({ params }: ScreenProps) {
   const view = read.data?.view;
   const state = read.data?.state;
   const decimals = useDecimals(view?.token);
-  const description = useWords(chainId, handId);
+  const connected = wallet.status === "connected" && wallet.address ? wallet.address : undefined;
+  const words = useCareWords({ chainId, core: CORE, handId, dataHash: view?.dataHash, connected, getHand, options: LINK_OPTIONS });
 
   if (!known) {
     return (
@@ -133,13 +107,16 @@ export default function CareScreen({ params }: ScreenProps) {
     );
   }
 
-  const raiser = wallet.status === "connected" && wallet.address ? wallet.address : undefined;
+  const raiser = connected;
+  const description: DealDescription =
+    words.from === "link" ? words.description : dealDescriptionOf(words.from === "device" && words.check === "attached" ? { status: "attached", title: words.title, ...(words.content !== undefined ? { content: words.content } : {}) } : undefined);
   const isRaiser = raiser !== undefined && isAddressEqual(raiser, view.raiser);
   const closed = state === "missing" ? "core.NotRaised" : state === "thanked" || state === "refunded" ? "core.NotOpen" : state === "expired" ? "core.Expired" : undefined;
 
   return (
     <Frame>
       <Title id={handId} />
+      {words.from === "device" && words.check !== "attached" ? <Kept words={words} connected={connected} /> : null}
       <div data-testid={TID.kit.dealCard}>
         <DealCard
           state={state === "missing" ? undefined : state}
@@ -149,12 +126,19 @@ export default function CareScreen({ params }: ScreenProps) {
           expiry={view.expiry}
           closedAt={view.closedAt}
           claimBps={view.minClaimBps}
+          viewer="asker"
           raiser={view.raiser}
           handId={handId}
           {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}
         />
       </div>
-      {description.status === "none" && view.dataHash !== `0x${"0".repeat(64)}` ? <p className="ah-label ah-label--dim m-0">{t("care.words")}</p> : null}
+      {words.from === "device" && words.check === "attached" ? (
+        <p className="ah-label ah-label--dim m-0" data-testid={TID.care.words} data-value="device">
+          {t("care.words.device")}
+        </p>
+      ) : words.from === "none" && view.dataHash !== `0x${"0".repeat(64)}` ? (
+        <p className="ah-label ah-label--dim m-0">{t("care.words")}</p>
+      ) : null}
 
       {closed ? (
         <Band what={t(closed)} code={closed.slice(5)} />
@@ -179,6 +163,20 @@ export default function CareScreen({ params }: ScreenProps) {
   );
 }
 
+/** The words this device keeps for its own Hand, not yet (or not) found to be the Hand's own. */
+function Kept({ words, connected }: { words: Extract<CareWords, { from: "device" }>; connected: Address | undefined }) {
+  // The check needs the Hand's inbox key: the raiser's account unlocks it here, with /my's own bar.
+  const canUnlock = words.check === "unknown" && (!connected || isAddressEqual(connected, words.raiser));
+  return (
+    <div className="flex flex-col gap-2" data-testid={TID.care.words} data-value={words.check}>
+      <p className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{words.title}</p>
+      {words.content ? <p className="m-0 text-[length:var(--fs-body-lg)]">{words.content}</p> : null}
+      <p className="ah-label ah-label--dim m-0">{t(words.check === "mismatch" ? "care.words.deviceMismatch" : "care.words.deviceUnchecked")}</p>
+      {canUnlock ? <UnlockBar account={connected} /> : null}
+    </div>
+  );
+}
+
 /* ──────────────────────────────────────────────────── add to the reward */
 
 function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: number; raiser: Address | undefined; handId: bigint }) {
@@ -187,6 +185,8 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
   const [reading, setReading] = useState<MoneyReading>({ status: "empty" });
   const [problem, setProblem] = useState<{ what: string; code?: string }>();
   const [done, setDone] = useState(false);
+  // A new box after each confirmed fund: the amount is chosen again, never sent twice by a second swipe.
+  const [round, setRound] = useState(0);
   const amount = reading.status === "ok" && reading.amount > 0n ? reading.amount : undefined;
 
   // What the raiser may already let Core take, and holds: read again on every block.
@@ -203,7 +203,8 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
     if (amount === undefined || !funds.data) return undefined;
     const fund = fundCall(CORE, handId, amount);
     return needsApprove ? [approveCall(view.token, CORE, amount), fund] : [fund];
-  }, [amount, needsApprove, funds.data === undefined, view.token, handId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // `funds.data` is read anew on every block: only whether it arrived, and `needsApprove`, change the calls.
+  }, [amount, needsApprove, funds.data === undefined, view.token, handId]);
   const cost = useCost(calls, raiser);
   const busy = tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed";
 
@@ -212,14 +213,18 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
     setProblem(undefined);
     setDone(false);
     const result = await tx.send(calls);
-    if (result.ok) setDone(true);
-    else setProblem(sentenceOf(result));
+    if (result.ok) {
+      setDone(true);
+      setReading({ status: "empty" });
+      setRound((n) => n + 1);
+    } else setProblem(sentenceOf(result));
   };
 
   return (
     <Section title={t("care.fund.title")} lead={t("care.fund.stays")}>
       <div data-testid={TID.care.fundInput}>
         <MoneyInput
+          key={round}
           label={t("care.fund.amount")}
           decimals={decimals}
           onReading={setReading}
@@ -254,7 +259,8 @@ function Fund({ view, decimals, raiser, handId }: { view: HandView; decimals: nu
 function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now | undefined; cap: number | undefined; raiser: Address | undefined; handId: bigint }) {
   const lang = useLang();
   const tx = useSend();
-  const [chosen, setChosen] = useState<ChipKey>("30");
+  // No chip after a confirmed extension: the next one is chosen again, never sent by a second swipe.
+  const [chosen, setChosen] = useState<ChipKey | undefined>("30");
   const [problem, setProblem] = useState<{ what: string; code?: string }>();
   const [landed, setLanded] = useState<number>();
 
@@ -263,19 +269,10 @@ function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now |
   const usable = choice && choice.moves ? choice : undefined;
   // The price moves with every block for the "today" chip; a minute's step is enough for a price.
   const minute = usable ? Math.floor(usable.target / 60) : undefined;
-  const calls = useMemo<Call[] | undefined>(() => (usable ? [extendCall(CORE, handId, usable.target)] : undefined), [minute, chosen, handId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const calls = useMemo<Call[] | undefined>(() => (usable ? [extendCall(CORE, handId, usable.target)] : undefined), [minute, chosen, handId]);
   const cost = useCost(calls, raiser);
   const busy = tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed";
   const late = now ? inLastMinutes(now.timestamp, view.expiry) : false;
-
-  // If the chosen chip can no longer move the end (after an extension, say), choose the first that can.
-  useEffect(() => {
-    if (!choices || busy) return;
-    if (!choices.find((item) => item.key === chosen)?.moves) {
-      const next = choices.find((item) => item.moves);
-      if (next) setChosen(next.key);
-    }
-  }, [choices?.map((item) => item.moves).join(","), busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = async () => {
     if (!raiser || busy || !now || cap === undefined) return;
@@ -285,8 +282,10 @@ function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now |
     setProblem(undefined);
     setLanded(undefined);
     const result = await tx.send([extendCall(CORE, handId, fresh.target)]);
-    if (result.ok) setLanded(fresh.target);
-    else setProblem(sentenceOf(result));
+    if (result.ok) {
+      setLanded(fresh.target);
+      setChosen(undefined);
+    } else setProblem(sentenceOf(result));
   };
 
   const label = (key: ChipKey) => (key === "max" ? t("care.extend.max", { n: cap !== undefined ? capDays(cap) : 180 }) : t("care.extend.plus", { n: Number(key) }));
@@ -323,7 +322,7 @@ function Extend({ view, now, cap, raiser, handId }: { view: HandView; now: Now |
         <p className="ah-label m-0" data-expiry={usable.target}>
           {t("care.extend.until", { date: day(usable.target, lang) })} {usable.capped ? t("care.extend.capped") : null}
         </p>
-      ) : choices ? (
+      ) : choices && (chosen !== undefined || !choices.some((item) => item.moves)) ? (
         <p className="ah-label m-0">{t("care.extend.off")}</p>
       ) : null}
       {late ? (

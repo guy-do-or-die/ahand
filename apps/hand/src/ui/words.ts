@@ -27,6 +27,9 @@ const EN = {
     passer: "passed it on",
     helper: "helped",
     next: "the next person?",
+    askerOwn: "the asker's own address",
+    askerOwnWhy: "This pass named the asker's own address: its share goes back to the asker, or the link went to the asker's key. The contract allows it.",
+    dropped: "left out of this route",
   },
   marks: {
     checked: "Checked here",
@@ -44,7 +47,11 @@ const EN = {
   },
   disclose: { show: "show", hide: "hide" },
   deal: {
-    intro: "Someone is looking for",
+    /**
+     * The line above the Hand's own title. A whole sentence, so a title of any shape reads after
+     * it: a question, a noun phrase, a plea. It is the bare card's sentence, ending in a colon.
+     */
+    intro: "Someone raised a hand:",
     bare: "Someone raised a hand.",
     lost: "The description didn't arrive with this link. Ask whoever sent it.",
     /** The words around the amount: "[$40] reward". */
@@ -72,9 +79,29 @@ const EN = {
     block: "block",
     networkTime: "Network time",
     floorWhy: "what is left of the reward at your place on this route",
+    /**
+     * The same card read by the asker on their own screens (/my, /care, /thank). Core refuses a
+     * Give from the asker (GiverIsRaiser), so the holder's rows "if you help", "if you pass it
+     * on" can never apply to them; these rows speak about whoever helps, and the floor is called
+     * the floor the asker set, never "what you get".
+     */
+    asker: {
+      intro: "You raised a hand:",
+      bare: "You raised a hand.",
+      ifHelp: "Whoever helps and is thanked",
+      floor: (amount: string, pct: string) => `at least ${amount} (the floor you set: ${pct})`,
+      ifPass: "Whoever passes it on",
+      keepShare: "keeps a share they choose",
+      ifNobody: (date: string) => `If you thank nobody by ${date}`,
+      goesBack: "the whole reward comes back to you",
+      sendBack: "Anyone can send the reward back to you now.",
+      askedBy: "Asked from your address",
+      floorWhy: "the least a helper is left, however long the route grows",
+    },
   },
   receipt: {
-    caption: "Who got what, from the chain's own records",
+    /** What left the contract for whom. Never "got" or "received": Paid is not an arrival. */
+    caption: "What was sent to whom, from the chain's own records",
     passed: "passed it on",
     helped: "helped",
     back: "back to the asker",
@@ -154,6 +181,9 @@ const RU: Words = {
     passer: "передали дальше",
     helper: "помогли",
     next: "следующий?",
+    askerOwn: "адрес самого автора",
+    askerOwnWhy: "Эта передача назвала адрес самого автора: её доля вернётся автору, или ссылка ушла на ключ автора. Контракт это разрешает.",
+    dropped: "не вошёл в этот путь",
   },
   marks: {
     checked: "Проверено здесь",
@@ -171,7 +201,7 @@ const RU: Words = {
   },
   disclose: { show: "показать", hide: "скрыть" },
   deal: {
-    intro: "Кто-то ищет",
+    intro: "Кто-то поднял руку:",
     bare: "Кто-то поднял руку.",
     lost: "Описание не дошло вместе со ссылкой. Спроси у того, кто её прислал.",
     reward: ["Награда ", ""],
@@ -198,9 +228,22 @@ const RU: Words = {
     block: "блок",
     networkTime: "Время сети",
     floorWhy: "что остаётся от награды на твоём месте этого пути",
+    asker: {
+      intro: "Ты поднял руку:",
+      bare: "Ты поднял руку.",
+      ifHelp: "Кто поможет и кого поблагодарят",
+      floor: (amount: string, pct: string) => `минимум ${amount} (нижняя граница, которую ты задал: ${pct})`,
+      ifPass: "Кто передаст дальше",
+      keepShare: "оставит себе долю, сколько решит",
+      ifNobody: (date: string) => `Если никого не поблагодаришь до ${date}`,
+      goesBack: "вся награда вернётся тебе",
+      sendBack: "Теперь кто угодно может вернуть награду тебе.",
+      askedBy: "Твой адрес",
+      floorWhy: "меньше этого помощнику не останется, как бы ни вырос путь",
+    },
   },
   receipt: {
-    caption: "Кто сколько получил — по записям самой сети",
+    caption: "Кому сколько отправлено — по записям самой сети",
     passed: "передали дальше",
     helped: "помогли",
     back: "вернулось автору",
@@ -238,7 +281,7 @@ const RU: Words = {
     oneTime: "Твой ответ подтвердит одноразовый ключ прямо здесь, после этого он выбрасывается.",
     keepKey: "Сохранить ключ этого ответа",
     keepKeyHint: "Небольшой файл. Будущие квитанции принадлежали бы ему.",
-    fresh: "У меня нет — сделать",
+    fresh: "У меня нет — создать адрес",
     freshWarn:
       "Эти 12 слов — единственный ключ к адресу. Запиши их, прежде чем идти дальше: мы их не храним. По ним адрес откроется в любом криптоприложении. Чтобы потом перевести деньги дальше, понадобится немного ETH.",
     freshAddress: "Адрес из этих слов",

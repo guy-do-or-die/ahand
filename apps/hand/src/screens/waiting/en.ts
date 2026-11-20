@@ -29,6 +29,8 @@ const en = {
   "waiting.takeOut.only": "Only this address can send its money somewhere else.",
   "waiting.deliver": "Deliver",
   "waiting.deliver.note": "Whoever presses, it lands only at this address.",
+  // Nobody connected: Deliver is still on the row, and its press opens "Connect a wallet"
+  "waiting.deliver.visitor": "Anyone can deliver it. You'll be asked to Connect a wallet first; whoever presses, the money lands only at this address.",
   "waiting.cost.checking": "Working out what it costs…",
 
   // When nobody here can pay the cost
@@ -38,6 +40,7 @@ const en = {
   // When it doesn't go
   "waiting.stuck": "The token won't move this money to this address right now.",
   "waiting.kept": "The money stays waiting; nothing was lost.",
+  "waiting.stuck.said": "What the token said",
   "waiting.issuer": "Why would a token refuse? Its issuer can freeze an address, and then that money waits.",
   "waiting.failed": "It didn't go through.",
 

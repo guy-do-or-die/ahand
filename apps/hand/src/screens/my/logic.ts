@@ -83,3 +83,81 @@ export function predictSplit(reward: bigint, signedShakes: readonly SignedShake[
   rows.push({ role: "helper", payee: give.payee, amount: rest, bps: give.claimBps });
   return rows;
 }
+
+/**
+ * What this device can say about a Hand's answers right now. Only `read` lets a screen say there
+ * are none: every relay has answered an unlocked read of the inbox (or could not be reached, and
+ * at least one answered), and whatever came is stored and judged.
+ * - `no-relay`: the build names no relay, so answers reach this device only by being pasted;
+ * - `locked`: no keys confirmation this visit (or another account's Hand), so the inbox is unread;
+ * - `no-key`: unlocked, but this device does not hold the Hand's reply key;
+ * - `reading`: the read is under way;
+ * - `unreachable`: no relay could be reached.
+ */
+export type InboxSight = "no-relay" | "locked" | "no-key" | "reading" | "unreachable" | "read";
+
+export function inboxSight(at: {
+  /** Relays the build names. */
+  relays: number;
+  unlocked: boolean;
+  /** Whether the session gave the Hand's reply key; undefined while it is being worked out. */
+  key: boolean | undefined;
+  /** Relays that answered the read in full, and relays that could not be read. */
+  read: number;
+  failed: number;
+  /** An answer is still being stored, read back or judged. */
+  busy: boolean;
+}): InboxSight {
+  if (at.relays === 0) return at.busy ? "reading" : "no-relay";
+  if (!at.unlocked) return "locked";
+  if (at.key === false) return "no-key";
+  if (at.key === undefined) return "reading";
+  if (at.read === 0 && at.failed >= at.relays) return "unreachable";
+  if (at.busy || at.read + at.failed < at.relays) return "reading";
+  return "read";
+}
+
+export interface WordsLine {
+  id: string;
+  values?: Record<string, number>;
+}
+
+/** The list's line where the number of answers goes: `answers` are those Core accepted. */
+export function countLine(sight: InboxSight, answers: number): WordsLine {
+  if (answers > 0) return { id: sight === "locked" ? "my.answers.lockedCount" : "my.answers.count", values: { n: answers } };
+  switch (sight) {
+    case "locked":
+      return { id: "my.answers.locked" };
+    case "no-key":
+      return { id: "my.answers.noKey" };
+    case "no-relay":
+      return { id: "my.answers.nonePasted" };
+    case "reading":
+      return { id: "my.answers.reading" };
+    case "unreachable":
+      return { id: "my.answers.unreachable" };
+    case "read":
+      return { id: "my.answers.count", values: { n: 0 } };
+  }
+}
+
+/**
+ * The lines over a Hand's answers on its page. `cards` is everything shown under them (answers
+ * and refused messages); "Nothing has arrived yet." stands only after a read, over no card.
+ */
+export function answersLines(sight: InboxSight, cards: number, relaysRead: number): WordsLine[] {
+  switch (sight) {
+    case "no-relay":
+      return [{ id: "my.answers.noRelay" }];
+    case "locked":
+      return [{ id: cards > 0 ? "my.answers.lockedMore" : "my.answers.locked" }];
+    case "no-key":
+      return [{ id: "my.answers.noKey" }];
+    case "reading":
+      return [{ id: "my.answers.reading" }];
+    case "unreachable":
+      return [{ id: "my.answers.unreachable" }];
+    case "read":
+      return [{ id: "my.answers.listening", values: { n: relaysRead } }, ...(cards === 0 ? [{ id: "my.answers.none" }] : [])];
+  }
+}

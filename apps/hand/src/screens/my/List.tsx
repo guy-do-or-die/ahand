@@ -8,8 +8,8 @@ import { bookOf, forHand, handKey, put, type HandRecord, type PassedRecord } fro
 import { TID } from "../../testids";
 import { CopyRow, Mark, QuietButton, RewardBar, day, money, useLang, useLens } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
-import { listChanged, useAnswers, useMyHands, usePassed, useSecrets } from "./hooks";
-import { daysLeft, formatCode, parseCode, parseHandNumber, secondsLeft, wantsCare } from "./logic";
+import { listChanged, useAnswers, useInboxSight, useMyHands, usePassed, useSecrets } from "./hooks";
+import { countLine, daysLeft, formatCode, parseCode, parseHandNumber, secondsLeft, wantsCare } from "./logic";
 import { GET_HAND, OPTIONS, SITE, coreOn, decimalsOf, domainOn } from "./place";
 import { rebuildBare } from "./rebuild";
 import { hasBook, unlock, unlockedFor } from "./session";
@@ -96,10 +96,13 @@ function ListItem({ record, account }: { record: HandRecord; account: Address | 
   const core = record.core as Address;
   const handId = record.handId ? BigInt(record.handId) : undefined;
   const read = useHand(handId !== undefined ? core : undefined, handId, record.chainId);
-  useSecrets(record, account); // starts listening on the inbox once unlocked
+  const secrets = useSecrets(record, account); // starts listening on the inbox once unlocked
   const key = record.hand ?? (handId !== undefined ? handKey(record.chainId, core, handId) : undefined);
   const answers = useAnswers(key, handId !== undefined ? { chainId: record.chainId, core, handId } : undefined, read.data?.state);
-  const answered = answers.filter((answer) => answer.judged?.verdict === "answer").length;
+  const answered = answers.reads.filter((answer) => answer.judged?.verdict === "answer").length;
+  // "No answers yet" only after an unlocked read of the inbox; locked, the line says locked.
+  const sight = useInboxSight(record, account, secrets, answers.settled);
+  const count = countLine(sight, answered);
 
   if (handId === undefined || !key) {
     return (
@@ -141,8 +144,8 @@ function ListItem({ record, account }: { record: HandRecord; account: Address | 
       ) : null}
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[length:var(--fs-body-sm)] font-semibold">
         {view ? <StateLine state={state} expiry={view.expiry} closedAt={view.closedAt} funded={view.reward > 0n} /> : null}
-        <span data-testid={TID.my.answerCount} data-value={answered}>
-          {t("my.answers.count", { n: answered })}
+        <span data-testid={TID.my.answerCount} data-value={answered} data-state={sight}>
+          {t(count.id, count.values)}
         </span>
       </div>
       {other ? <Line dim>{t("my.otherAccount")}</Line> : null}

@@ -1,6 +1,6 @@
-import { collect, decodeCoreError, exportBundle, passportOf, readBetween, type BuildFacts, type Check, type HandRecord } from "@ahand/sdk";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getAddress, isAddressEqual, type Address } from "viem";
+import { collect, decodeCoreError, exportBundle, passportOf, readBetween, usdText, type BuildFacts, type Check, type HandRecord } from "@ahand/sdk";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { formatEther, getAddress, isAddressEqual, type Address } from "viem";
 
 import { clientOf } from "../../chain";
 import { config } from "../../config";
@@ -8,9 +8,11 @@ import { t } from "../../i18n";
 import { navigate } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, ErrorBand, Mark, QuietButton, count, money, shortAddress, useLang, type Lang } from "../../ui";
+import { CopyRow, Disclose, ErrorBand, Mark, QuietButton, count, day, money, shortAddress, useLang, type Lang } from "../../ui";
+import { reproduceLine } from "../core/facts";
 import {
   amountOfCheck,
+  askerHopKeyOf,
   bundleLine,
   bundleName,
   markOf,
@@ -24,6 +26,7 @@ import {
   verdictOf,
   verifyLine,
 } from "./model";
+import { bundleExtra, ethShort, feeOf, moveFor, readPageFacts, sentLines, timeChecks, withPageChecks, type PageFacts, type Sent } from "./sent";
 import "./proof.css";
 
 /**
@@ -33,11 +36,17 @@ import "./proof.css";
  * and the evidence (formula, inputs, expected, actual, the event or view with its block). A check
  * that cannot be made here says so in words and is never drawn as failed; a failed one is a
  * finding, in ink and words. Nothing here reads a clock or a link: the record holds no secret.
+ *
+ * Beside the SDK's record the page reads (sent.ts) how the closing was sent, the token's own
+ * `Transfer` for each payout, and the times of the two blocks that carry the raise and the
+ * closing, which give two more lines (`time.opened`, `time.closed`). The first line says that the
+ * numbers it derives Core from come with this site, and its evidence carries the command that
+ * rebuilds the code's hash from a clone.
  */
 
 type Load =
   | { phase: "reading" }
-  | { phase: "ready"; record: HandRecord; checks: Check[] }
+  | { phase: "ready"; record: HandRecord; checks: Check[]; facts: PageFacts | undefined }
   | { phase: "bad"; what: "chain" | "core" | "missing" | "offline" };
 
 const BUILD: BuildFacts | undefined = config.deployment
@@ -92,7 +101,7 @@ function SourceText({ check }: { check: Check }) {
   );
 }
 
-function Evidence({ check }: { check: Check }) {
+function Evidence({ check, children }: { check: Check; children?: ReactNode }) {
   const inputs = Object.entries(check.inputs);
   return (
     <dl className="proof-evidence">
@@ -122,16 +131,90 @@ function Evidence({ check }: { check: Check }) {
       <dd>
         <SourceText check={check} />
       </dd>
+      {children}
     </dl>
+  );
+}
+
+/**
+ * The back of the first line: the command that rebuilds the code's hash from a clone (the same
+ * line /core prints), and the two code hashes read from the chain, as information (D-10: the
+ * runtime hash is recorded, it is not the proof).
+ */
+function CoreEvidence({ facts }: { facts: PageFacts | undefined }) {
+  const command = reproduceLine(config.deployment?.commit || undefined);
+  return (
+    <>
+      <dt>{t("proof.core.reproduce")}</dt>
+      <dd data-testid={TID.proof.coreCommand}>{command}</dd>
+      <dd className="grid w-full grid-cols-[minmax(0,1fr)] pt-1">
+        <CopyRow value={command} />
+      </dd>
+      <dt>{t("proof.core.codeInfo")}</dt>
+      <dd data-testid={TID.proof.codeHashes} data-runtime={facts?.runtimeHash ?? ""} data-factory={facts?.factoryCodeHash ?? ""}>
+        <span className="block break-all">
+          {t("proof.lens.runtimeHash")} = {facts?.runtimeHash ?? t("proof.lens.noCode")}
+        </span>
+        <span className="block break-all">
+          {t("proof.lens.factoryHash")} = {facts?.factoryCodeHash ?? t("proof.lens.noCode")}
+        </span>
+      </dd>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────── how the closing was sent ── */
+
+/**
+ * The closing transaction, as information beside the checks: who sent it, in which block, what
+ * it cost them; its exact fields behind the disclosure. Money is read at the dated price
+ * snapshot of the configuration, and says so.
+ */
+function SentLine({ sent, record, refunded, shown, lang }: { sent: Sent | undefined; record: HandRecord; refunded: boolean; shown: boolean; lang: Lang }) {
+  if (!shown) return null;
+  if (!sent) {
+    return (
+      <li className="proof-line proof-line--info" data-testid={TID.proof.sent} data-state="none">
+        <p className="proof-nc">{t("proof.sent.none")}</p>
+      </li>
+    );
+  }
+  const fee = feeOf(sent);
+  const point = (text: string) => (lang === "ru" ? text.replace(".", ",") : text);
+  const usd = usdText(Number(formatEther(fee)) * config.prices.ethUsd);
+  // The snapshot's date is a calendar day; noon UTC keeps it the same day in every time zone.
+  const date = day(Date.parse(`${config.prices.date}T12:00:00Z`) / 1000, lang, "UTC");
+  return (
+    <li className="proof-line proof-line--info" data-testid={TID.proof.sent} data-state="read" data-from={sent.from} data-gas={String(sent.gasUsed)} data-fee={String(fee)} data-tx={sent.hash}>
+      <p className="proof-line__sentence">
+        {t(refunded ? "proof.sent.refund" : "proof.sent.thank", { who: shortAddress(sent.from), block: count(sent.blockNumber), eth: point(ethShort(fee)), usd: point(usd), date })}
+      </p>
+      <div className="proof-line__marks">
+        <Mark kind="chain" source={`eth_getTransactionReceipt · ${t("proof.lens.block", { block: count(sent.blockNumber) })}`} />
+        <span className="ah-tag">{t("proof.sent.info")}</span>
+      </div>
+      <Disclose label={t("proof.lens.evidence")} summary="tx">
+        <span className="proof-evidence">
+          {sentLines(sent, record).map((line) => (
+            <span key={line} className="block break-all">
+              {line}
+            </span>
+          ))}
+        </span>
+      </Disclose>
+    </li>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────── a line ── */
 
-function Line({ check, record, section, shown, lang }: { check: Check; record: HandRecord; section: number; shown: boolean; lang: Lang }) {
+function Line({ check, record, facts, section, shown, lang }: { check: Check; record: HandRecord; facts: PageFacts | undefined; section: number; shown: boolean; lang: Lang }) {
   const verdict = verdictOf(check);
   const mark = markOf(check);
   const source = sourceLine(check.source);
+  const paid = check.id.startsWith("payout.") && check.actual.startsWith("Paid");
+  const move = paid ? moveFor(check, record, facts?.sent) : undefined;
+  const askerHop = askerHopKeyOf(check, record.view.raiser);
   return (
     <li
       className={`proof-line proof-line--${shown ? verdict : "pending"}`}
@@ -143,6 +226,16 @@ function Line({ check, record, section, shown, lang }: { check: Check; record: H
       aria-busy={!shown}
     >
       <p className="proof-line__sentence">{sentenceOf(check, record, lang)}</p>
+      {askerHop ? (
+        <p className="ah-note m-0" data-testid={TID.proof.askerHop} data-value={check.id}>
+          {t(askerHop)}
+        </p>
+      ) : null}
+      {shown && check.id === "core" && verdict !== "not-checkable" ? (
+        <p className="proof-nc" data-testid={TID.proof.coreCaveat}>
+          {t("proof.core.caveat")}
+        </p>
+      ) : null}
       {shown ? (
         <>
           <div className="proof-line__marks">
@@ -180,8 +273,20 @@ function Line({ check, record, section, shown, lang }: { check: Check; record: H
               <p className="m-0">{t("proof.finding", { expected: check.expected, actual: check.actual })}</p>
             </div>
           ) : null}
+          {paid && facts?.sent ? (
+            <div className="proof-move" data-testid={TID.proof.move} data-found={String(move !== undefined)} data-log={move ? move.logIndex : ""} data-to={move?.to ?? ""} data-amount={move ? String(move.amount) : ""}>
+              {move ? (
+                <>
+                  <p className="m-0">{t("proof.move", { amount: amountText(record, move.amount, lang), who: shortAddress(move.to) })}</p>
+                  <span className="ah-meta ah-meta--exact break-all">{t("proof.lens.move", { token: move.token, to: move.to, amount: String(move.amount), index: move.logIndex })}</span>
+                </>
+              ) : (
+                <p className="m-0">{t("proof.move.none")}</p>
+              )}
+            </div>
+          ) : null}
           <Disclose label={t("proof.lens.evidence")} summary={check.id.replace(/0x[0-9a-fA-F]{40}/, (address) => shortAddress(address))}>
-            <Evidence check={check} />
+            <Evidence check={check}>{check.id === "core" ? <CoreEvidence facts={facts} /> : null}</Evidence>
           </Disclose>
         </>
       ) : (
@@ -226,9 +331,9 @@ export default function ProofScreen({ params }: ScreenProps) {
   }, []);
 
   const prove = useCallback(
-    async (record: HandRecord) => {
-      const checks = await passportOf(record);
-      setLoad({ phase: "ready", record, checks });
+    async (record: HandRecord, facts: PageFacts | undefined) => {
+      const checks = withPageChecks(await passportOf(record), timeChecks(record, facts));
+      setLoad({ phase: "ready", record, checks, facts });
       tick(checks.length);
     },
     [tick],
@@ -239,8 +344,11 @@ export default function ProofScreen({ params }: ScreenProps) {
     if (!core || !trusted) return setLoad({ phase: "bad", what: "core" });
     setRunning(true);
     try {
-      const record = await collect(clientOf(chainId), core, handId, BUILD ? { build: BUILD } : {});
-      await prove(record);
+      const client = clientOf(chainId);
+      const record = await collect(client, core, handId, BUILD ? { build: BUILD } : {});
+      // The page's own reads never fail the passport: what could not be read is said on its line.
+      const facts = await readPageFacts(client, record, BUILD?.factory).catch(() => undefined);
+      await prove(record, facts);
     } catch (error) {
       setLoad({ phase: "bad", what: decodeCoreError(error)?.name === "NotRaised" ? "missing" : "offline" });
     } finally {
@@ -253,13 +361,13 @@ export default function ProofScreen({ params }: ScreenProps) {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one read per Hand address
+    // one read per Hand address
   }, [params.chain, params.core, params.hand]);
 
-  const between = async (record: HandRecord) => {
+  const between = async (record: HandRecord, facts: PageFacts | undefined) => {
     setReadingBetween(true);
     try {
-      await prove(await readBetween(clientOf(chainId), record));
+      await prove(await readBetween(clientOf(chainId), record), facts);
     } catch {
       setLoad({ phase: "bad", what: "offline" });
     } finally {
@@ -267,8 +375,9 @@ export default function ProofScreen({ params }: ScreenProps) {
     }
   };
 
-  const download = (record: HandRecord) => {
-    const blob = new Blob([exportBundle(record)], { type: "application/json" });
+  const download = (record: HandRecord, facts: PageFacts | undefined) => {
+    // The SDK's bundle, with what this page read beside it under `extra` (readBundle ignores it).
+    const blob = new Blob([exportBundle({ ...record, extra: bundleExtra(facts) } as HandRecord)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -335,13 +444,16 @@ function Passport({
   running: boolean;
   readingBetween: boolean;
   onAgain: () => void;
-  onBetween: (record: HandRecord) => Promise<void>;
-  onDownload: (record: HandRecord) => void;
+  onBetween: (record: HandRecord, facts: PageFacts | undefined) => Promise<void>;
+  onDownload: (record: HandRecord, facts: PageFacts | undefined) => void;
   handPath: string;
   core: Address;
 }) {
-  const { record, checks } = load;
+  const { record, checks, facts } = load;
   const sections = sectionsOf(checks);
+  const refunded = checks.some((check) => check.id === "refunded");
+  // The line about how the closing was sent opens the part that holds the payouts.
+  const sentIn = record.closingTx ? (refunded ? "back" : "payouts") : undefined;
   const tally = tallyOf(checks);
   const done = shown >= checks.length;
   const commit = config.deployment?.commit || undefined;
@@ -357,7 +469,7 @@ function Passport({
       {record.between && !record.between.read ? (
         <div className="ah-note flex flex-col items-start gap-3">
           <span>{t("proof.between", { n: record.between.requests })}</span>
-          <QuietButton compact data-testid={TID.proof.longRead} disabled={readingBetween} onClick={() => void onBetween(record)}>
+          <QuietButton compact data-testid={TID.proof.longRead} disabled={readingBetween} onClick={() => void onBetween(record, facts)}>
             {t("proof.between.go")}
           </QuietButton>
         </div>
@@ -371,9 +483,10 @@ function Passport({
             </div>
             <h2 className="proof-section__title">{t(`proof.section.${section.key}`)}</h2>
             <ul className="proof-lines">
+              {section.key === sentIn ? <SentLine sent={facts?.sent} record={record} refunded={refunded} shown={ordinal < shown} lang={lang} /> : null}
               {section.checks.map((check) => {
                 ordinal += 1;
-                return <Line key={check.id} check={check} record={record} section={section.index} shown={ordinal <= shown} lang={lang} />;
+                return <Line key={check.id} check={check} record={record} facts={facts} section={section.index} shown={ordinal <= shown} lang={lang} />;
               })}
             </ul>
           </li>
@@ -384,7 +497,7 @@ function Passport({
         <QuietButton data-testid={TID.proof.again} disabled={running || !done} onClick={onAgain}>
           {running || !done ? t("proof.again.running") : t("proof.again")}
         </QuietButton>
-        <QuietButton data-testid={TID.proof.download} onClick={() => onDownload(record)}>
+        <QuietButton data-testid={TID.proof.download} onClick={() => onDownload(record, facts)}>
           {t("proof.download")}
         </QuietButton>
         <QuietButton data-testid={TID.proof.print} onClick={() => navigate(`/print?receipt=${record.chainId}/${record.handId}`)}>
@@ -407,7 +520,7 @@ function Passport({
             {verifyLine({ ...(commit ? { commit } : {}), ...(rpc ? { rpc } : {}), core, handId: record.handId })}
           </code>
           <span className="ah-label m-0 normal-case">{t("proof.withoutSite.bundle")}</span>
-          <code className="ah-meta ah-meta--exact break-all">{bundleLine(record.chainId, record.handId)}</code>
+          <code className="ah-meta ah-meta--exact break-all">{bundleLine(record.chainId, record.handId, rpc)}</code>
         </Disclose>
       </div>
     </>

@@ -2,29 +2,51 @@ import { i18n } from "@lingui/core";
 import { useSyncExternalStore } from "react";
 
 import { setPref } from "../store/db";
-import { compileCatalogue, deviceLang, LANGS, mergeCatalogue, type CatalogueModules, type Lang } from "./catalogue";
-import commonEn from "./common/en";
-import commonRu from "./common/ru";
+import { compileCatalogue, deviceLang, LANGS, type Catalogue, type Lang } from "./catalogue";
 
 /**
  * The app's words (ARCHITECTURE §7, D-53). Ids are dotted keys (`raise.title`); each screen owns
- * `screens/<name>/en.ts` and `ru.ts`, collected here by glob; `common/` holds the shared words and
- * every error sentence. Messages are compiled at start with `compileMessage`, so a production
- * build renders ICU values (lingui compiles raw strings on the fly only in development). A
- * missing id falls back to the id itself, so nothing renders blank; the key-parity guard keeps
- * that from happening.
+ * `screens/<name>/en.ts` and `ru.ts`, `common/` holds the shared words and every error sentence.
+ * `lang-en.ts` and `lang-ru.ts` merge one language each and are imported on demand, so the entry
+ * chunk carries no catalogue: a reader downloads the language they read at start and the other
+ * one only if they switch (review round 1). Messages are compiled once, when their language
+ * arrives, with `compileMessage`, so a production build renders ICU values (lingui compiles raw
+ * strings on the fly only in development). A missing id falls back to the id itself, so nothing
+ * renders blank; the key-parity guard keeps that from happening.
  *
  * Language: the device's (navigator.language) unless this device chose another, which is kept
- * in the `prefs` store (not a secret).
+ * in the `prefs` store (not a secret). No language is active until `initLang` has loaded one;
+ * boot awaits it before the first render.
  */
 
 export type { Lang } from "./catalogue";
 export { LANGS } from "./catalogue";
 
-const screens = import.meta.glob<{ default: Record<string, string> }>("../screens/*/{en,ru}.ts", { eager: true }) as CatalogueModules;
+const CATALOGUES: Record<Lang, () => Promise<{ default: Catalogue }>> = {
+  en: () => import("./lang-en"),
+  ru: () => import("./lang-ru"),
+};
 
-for (const lang of LANGS) {
-  i18n.load(lang, compileCatalogue(mergeCatalogue(lang, lang === "en" ? commonEn : commonRu, screens)));
+const loading = new Map<Lang, Promise<void>>();
+
+/** Loads and compiles a language's words, once. A load that fails is tried again on the next call. */
+function load(lang: Lang): Promise<void> {
+  let pending = loading.get(lang);
+  if (!pending) {
+    pending = CATALOGUES[lang]().then((module) => {
+      i18n.load(lang, compileCatalogue(module.default));
+    });
+    const mine = pending;
+    mine.catch(() => {
+      if (loading.get(lang) === mine) loading.delete(lang);
+    });
+    loading.set(lang, pending);
+  }
+  return pending;
+}
+
+function device(): Lang {
+  return deviceLang(typeof navigator === "undefined" ? undefined : navigator);
 }
 
 function apply(lang: Lang): void {
@@ -32,17 +54,51 @@ function apply(lang: Lang): void {
   if (typeof document !== "undefined") document.documentElement.lang = lang;
 }
 
-apply(deviceLang(typeof navigator === "undefined" ? undefined : navigator));
-
-/** Starts in the language this device chose before, or the device's own. Called once at boot. */
-export function initLang(saved: Lang | undefined): void {
-  apply(saved && LANGS.includes(saved) ? saved : deviceLang(typeof navigator === "undefined" ? undefined : navigator));
+/**
+ * Starts fetching the device's language at once, so the catalogue arrives while boot is still
+ * reading this device's preferences. `initLang` then uses it, or loads the one chosen before.
+ */
+export function preloadLang(): void {
+  load(device()).catch(() => undefined);
 }
 
-/** Switches the language now and remembers the choice on this device. */
-export function setLang(lang: Lang): void {
+/**
+ * Loads and starts the language this device chose before, or the device's own. Called once at
+ * boot, awaited before the first render. When that language's words cannot be fetched, the other
+ * language is tried; when neither can, the ids show (nothing renders blank).
+ */
+export async function initLang(saved: Lang | undefined): Promise<void> {
+  const wanted = saved && LANGS.includes(saved) ? saved : device();
+  for (const lang of [wanted, ...LANGS.filter((other) => other !== wanted)]) {
+    try {
+      await load(lang);
+      apply(lang);
+      return;
+    } catch {
+      // try the next language
+    }
+  }
+  apply(wanted);
+}
+
+let latest = 0;
+
+/**
+ * Switches the language once its words are here, and remembers the choice on this device.
+ * Resolves true when it switched; false when the words could not be fetched (the page stays in
+ * its language) or a later switch overtook this one.
+ */
+export async function setLang(lang: Lang): Promise<boolean> {
+  const mine = ++latest;
+  try {
+    await load(lang);
+  } catch {
+    return false;
+  }
+  if (mine !== latest) return false;
   apply(lang);
   void setPref("lang", lang).catch(() => undefined); // a private window may refuse storage; the switch still holds for this tab
+  return true;
 }
 
 /** The active language. */

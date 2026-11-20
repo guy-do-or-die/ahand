@@ -41,3 +41,9 @@ test("a wallet's icon is accepted only as a data: image", () => {
   }
   expect(safeIcon(`data:image/png;base64,${"A".repeat(300_000)}`)).toBeUndefined();
 });
+
+test("the connected state's control is not a second 'Connect a wallet'", () => {
+  expect(WALLET_WORDS.en.another).toBe("Use another account");
+  expect(WALLET_WORDS.ru.another).toBe("Сменить аккаунт");
+  for (const lang of ["en", "ru"] as const) expect(WALLET_WORDS[lang].another).not.toBe(WALLET_WORDS[lang].title);
+});

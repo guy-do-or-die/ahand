@@ -1,5 +1,7 @@
 // The chain layer (ARCHITECTURE §7): viem clients per chain, one block watcher, useNow, useHand,
 // usePending, useFinality, useCost. Screens import only from here. The one clock is the chain's.
+export { isNetworkError } from "./errors";
+export { giveOnChain, type GiveOnChain, type GiveOnChainInput } from "./give";
 export { chainOf, clientsOf, publicClientOf, transportOf } from "./clients";
 export { follow, receiptOrNothing, standingOf, type FollowOptions, type Progress, type Reached } from "./finality";
 export {

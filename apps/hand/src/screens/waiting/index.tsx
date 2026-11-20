@@ -1,5 +1,5 @@
 import { castLine, handLogsAt, readHand, readPending, withdrawCall, type HandLog } from "@ahand/sdk";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
 
 import { clientOf, useBlockRead, useChainStatus, useCost } from "../../chain";
@@ -29,7 +29,7 @@ import {
   type AddressReading,
   type Lang,
 } from "../../ui";
-import { ConnectButton, useSend, useWallet, type UseSend } from "../../wallet";
+import { ConnectButton, ConnectSheet, useSend, useWallet, type UseSend } from "../../wallet";
 import {
   addressFromSearch,
   failureOf,
@@ -38,6 +38,7 @@ import {
   pathFor,
   payeeOfPage,
   refusalFailure,
+  tokenSaid,
   withdrawnIn,
   type Failure,
   type Offer,
@@ -47,10 +48,13 @@ import {
 /**
  * /waiting (UX-SPEC §9): what waits in Core for one address, per token (`pending(token, payee)`),
  * and the two ways out of Core's `withdraw`: "Take it out" for the payee (to this address or
- * another) and "Deliver" for anyone (always to the payee's own address). Every send goes through
- * `useSend`, which simulates first; a token that still refuses the payee is said in a sentence
- * before anything is pressed. History comes only from Hands this device knows, read in each
- * Hand's closing block by its number; nothing here scans the chain by payee.
+ * another) and "Deliver" for anyone (always to the payee's own address). Deliver is on the row for
+ * a visitor too: with no account that can send, the press opens "Connect a wallet" and the row
+ * goes on to what it costs. Every send goes through `useSend`, which simulates first; a token that
+ * still refuses the payee is said in a sentence before anything is pressed, and the token's own
+ * answer stands one tap below it, never in the sentence's place. History comes only from Hands
+ * this device knows, read in each Hand's closing block by its number; nothing here scans the
+ * chain by payee.
  */
 
 const CORE: Address = config.cores.canonical ?? config.cores.trusted[0]!.core;
@@ -120,7 +124,12 @@ interface Done {
   events: WithdrawnEvent[];
 }
 
-function FailureBand({ failure, code }: { failure: Failure; code?: string }) {
+/**
+ * A withdraw that did not go, or would not: the plain sentence and what was not lost. Core's own
+ * name for a refusal rides in the band. What a token answered (`said`, the engine's line about the
+ * failed check) is exact data: it waits under "What the token said" and stands open under the lens.
+ */
+function FailureBand({ failure, said }: { failure: Failure; said?: string }) {
   let what: string;
   let kept = t("waiting.kept");
   if (failure.kind === "token") what = t("waiting.stuck");
@@ -130,9 +139,15 @@ function FailureBand({ failure, code }: { failure: Failure; code?: string }) {
     kept = "";
   } else if (failure.kind === "offline") what = t("waiting.offline");
   else what = t("waiting.failed");
+  const exact = failure.kind === "token" ? tokenSaid(said) : undefined;
   return (
     <div className="flex flex-col gap-2" data-testid={TID.waiting.error} data-value={failure.kind === "core" ? failure.refusal.name : failure.kind}>
-      <ErrorBand what={what} {...(kept ? { kept } : {})} {...(code ? { code } : failure.kind === "core" ? { code: failure.refusal.name } : {})} />
+      <ErrorBand what={what} {...(kept ? { kept } : {})} {...(failure.kind === "core" ? { code: failure.refusal.name } : {})} />
+      {exact ? (
+        <Disclose label={t("waiting.stuck.said")}>
+          <code className="ah-meta ah-meta--exact">{exact}</code>
+        </Disclose>
+      ) : null}
       {failure.kind === "token" ? <IssuerLine /> : null}
     </div>
   );
@@ -170,12 +185,27 @@ function WithoutUs({ call }: { call: ReturnType<typeof withdrawCall> }) {
 function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig; payee: Address; offer: Offer; from: Address | undefined; tx: UseSend; onDone: (done: Done) => void }) {
   const [where, setWhere] = useState<"here" | "elsewhere">("here");
   const [reading, setReading] = useState<AddressReading>({ status: "empty" });
-  const [failure, setFailure] = useState<{ failure: Failure; code?: string } | undefined>();
+  const [failure, setFailure] = useState<{ failure: Failure; said?: string } | undefined>();
+  // A visitor pressed Deliver: "Connect a wallet" is open over the row.
+  const [asking, setAsking] = useState(false);
+  const visitor = offer.connectFirst;
+  const group = useRef<HTMLDivElement>(null);
+  const pressed = useRef<HTMLButtonElement | null>(null);
+  // When that sheet goes, the person is put back where they were: on the button they pressed, or,
+  // while it can't be pressed yet (the cost is being worked out, or the token refuses), on the
+  // row's actions, so the next thing a keyboard or a screen reader meets is the cost and the button.
+  useEffect(() => {
+    if (asking || !pressed.current) return;
+    if (pressed.current.isConnected && !pressed.current.disabled) pressed.current.focus();
+    else group.current?.focus();
+    pressed.current = null;
+  }, [asking]);
   const busy = tx.state.phase !== "idle" && tx.state.phase !== "done" && tx.state.phase !== "failed";
 
   const to: Address | undefined = offer.takeOut ? (where === "here" ? payee : payeeOf(reading)) : payee;
   const call = useMemo(() => (to ? withdrawCall(CORE, token.address, payee, to) : undefined), [to, token.address, payee]);
-  const cost = useCost(call && (offer.takeOut || offer.deliver) ? [call] : undefined, from);
+  // Nothing is priced for a visitor: there is no account yet to ask the chain as.
+  const cost = useCost(call && !visitor ? [call] : undefined, from);
   const ahead: Failure | undefined =
     cost.status === "refused" ? refusalFailure(cost.refusal) : cost.status === "failed" ? { kind: "token" } : cost.status === "offline" ? { kind: "offline" } : undefined;
 
@@ -184,13 +214,14 @@ function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig
     setFailure(undefined);
     const result = await tx.send([call]);
     if (result.ok) onDone({ token: token.address, events: withdrawnIn(result.receipt, CORE) });
-    else setFailure({ failure: failureOf(result), ...("message" in result && result.reason === "failed-check" ? { code: result.message } : {}) });
+    else setFailure({ failure: failureOf(result), ...("message" in result && result.reason === "failed-check" ? { said: result.message } : {}) });
   }
 
   if (!offer.takeOut && !offer.deliver) return null;
   const takeOut = offer.takeOut;
+  const action = t(takeOut ? "waiting.takeOut" : "waiting.deliver");
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={group} tabIndex={-1} role="group" aria-label={`${action} · ${tokenName(token)}`} className="flex flex-col gap-3 rounded-[var(--r-control)]">
       {takeOut ? (
         <>
           <span className="ah-meta">{t("waiting.takeOut.where")}</span>
@@ -210,10 +241,10 @@ function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig
           ) : null}
         </>
       ) : (
-        <p className="ah-label m-0">{t("waiting.deliver.note")}</p>
+        <p className="ah-label m-0">{t(visitor ? "waiting.deliver.visitor" : "waiting.deliver.note")}</p>
       )}
-      {ahead ? (
-        <FailureBand failure={ahead} {...(cost.status === "failed" ? { code: cost.message } : {})} />
+      {visitor ? null : ahead ? (
+        <FailureBand failure={ahead} {...(cost.status === "failed" ? { said: cost.message } : {})} />
       ) : cost.status === "ok" ? (
         <div data-testid={TID.kit.costLine}>
           <CostLine cost={cost.cost} prices={config.prices} gas={cost.gas} />
@@ -227,13 +258,19 @@ function Actions({ token, payee, offer, from, tx, onDone }: { token: TokenConfig
         variant={takeOut ? "amber" : "ink"}
         data-testid={takeOut ? TID.waiting.takeOut : TID.waiting.deliver}
         data-token={token.address}
-        disabled={!call || busy || cost.status !== "ok"}
-        onClick={() => void go()}
+        disabled={!visitor && (!call || busy || cost.status !== "ok")}
+        onClick={(event) => {
+          if (!visitor) return void go();
+          pressed.current = event.currentTarget;
+          setAsking(true);
+        }}
       >
-        {t(takeOut ? "waiting.takeOut" : "waiting.deliver")}
+        {action}
       </SwipeButton>
-      {failure ? <FailureBand failure={failure.failure} {...(failure.code ? { code: failure.code } : {})} /> : null}
+      {failure ? <FailureBand failure={failure.failure} {...(failure.said ? { said: failure.said } : {})} /> : null}
       {call ? <WithoutUs call={call} /> : null}
+      {/* Once an account is connected the row prices the same call for it; the press itself sent nothing. */}
+      {asking ? <ConnectSheet onClose={() => setAsking(false)} /> : null}
     </div>
   );
 }
@@ -299,7 +336,7 @@ function useKnownPending(payee: Address | undefined): { hands: number; seen: See
     return () => {
       live = false;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `key` is the payee
+  }, [key]); // `key` is the payee
   return state && state.key === key ? state.value : undefined;
 }
 
@@ -419,8 +456,8 @@ export default function WaitingScreen() {
               <ul className="m-0 flex list-none flex-col gap-4 p-0">
                 {rows.map(({ token, amount }) => (
                   <Row key={token.address} token={token} amount={amount} payee={payee} {...(waiting.atBlock !== undefined ? { atBlock: waiting.atBlock } : {})}>
-                    {offer && !offer.cannotPay ? <Actions token={token} payee={payee} offer={offer} from={connected} tx={tx} onDone={(next) => setDone((before) => [...before, next])} /> : null}
-                    {offer?.takeOut === false && connected && !offer.cannotPay ? <p className="ah-label ah-label--dim m-0">{t("waiting.takeOut.only")}</p> : null}
+                    {offer ? <Actions token={token} payee={payee} offer={offer} from={connected} tx={tx} onDone={(next) => setDone((before) => [...before, next])} /> : null}
+                    {offer?.deliver && !offer.connectFirst ? <p className="ah-label ah-label--dim m-0">{t("waiting.takeOut.only")}</p> : null}
                   </Row>
                 ))}
               </ul>

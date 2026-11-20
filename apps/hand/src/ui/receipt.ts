@@ -72,7 +72,7 @@ export function receiptLines(rows: readonly ReceiptRow[]): ReceiptLines {
         break;
       }
       default:
-        break; // Raised, Funded, Extended: not part of who got what
+        break; // Raised, Funded, Extended: not part of what was sent to whom
     }
   });
 

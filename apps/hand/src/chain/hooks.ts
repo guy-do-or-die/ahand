@@ -199,7 +199,7 @@ export function useCost(calls: readonly Call[] | undefined, from: Address | unde
     return () => {
       live = false;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `key` carries calls, from and chain
+  }, [key]); // `key` carries calls, from and chain
 
   if (!key) return { status: "idle" };
   return state.key === key ? state.read : { status: "checking" };

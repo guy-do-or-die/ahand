@@ -4,24 +4,25 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
-import { initLang } from "./i18n";
+import { initLang, preloadLang } from "./i18n";
 import { startIntake } from "./link-intake";
 import { initLens, listenForLensKey } from "./shell/lens";
 import { applyTheme, watchTheme } from "./shell/theme";
-import { loadPrefs, outboxStore, type Prefs } from "./store/db";
+import { escrowStamps, loadPrefs, outboxStore, type Prefs } from "./store/db";
 
 /**
- * Boot, in this order: take the link out of the address bar first (before anything waits), then
- * read this device's preferences (language, lens, theme; none where storage is refused), then
- * render. React's own error reports are silenced: an error can carry text from a link, and
+ * Boot, in this order: take the link out of the address bar first (before anything waits), start
+ * fetching the device language's words, read this device's preferences (language, lens, theme;
+ * none where storage is refused), load the chosen language's words, then render. React's own error reports are silenced: an error can carry text from a link, and
  * nothing of a link may reach the console (ARCHITECTURE §11).
  */
 async function boot(): Promise<void> {
   startIntake();
+  preloadLang();
   // Storage that never answers (a blocked upgrade, a locked-down profile) must not hold the page.
   const slow = new Promise<Prefs>((resolve) => setTimeout(() => resolve({}), 1500));
   const prefs: Prefs = await Promise.race([loadPrefs().catch((): Prefs => ({})), slow]);
-  initLang(prefs.lang);
+  await initLang(prefs.lang);
   initLens(prefs.lens);
   applyTheme(prefs.theme);
   watchTheme();
@@ -38,6 +39,28 @@ async function boot(): Promise<void> {
     </StrictMode>,
   );
   void resumeOutbox();
+  void sweepCopies();
+}
+
+/**
+ * The raiser's locked copies are swept on every start (screens/raise/sweep.ts): a device that holds none
+ * loads nothing for it. A copy whose Hand cannot be read now is kept for the next start.
+ */
+async function sweepCopies(): Promise<void> {
+  try {
+    if ((await escrowStamps()).length === 0) return;
+    const [{ sweepLockedCopies }, { clientOf }, { chainNow, readHand }, { config }] = await Promise.all([import("./screens/raise/sweep"), import("./chain"), import("@ahand/sdk"), import("./config")]);
+    const client = clientOf();
+    const now = await chainNow(client);
+    await sweepLockedCopies(now.timestamp, async (record) => {
+      const trusted = config.cores.trusted.some((entry) => entry.chainId === record.chainId && entry.core.toLowerCase() === record.core.toLowerCase());
+      if (record.chainId !== config.chain.id || !trusted || record.handId === undefined) return undefined;
+      const { view } = await readHand(client, record.core as `0x${string}`, BigInt(record.handId));
+      return { expiry: view.expiry, closedAt: view.closedAt };
+    });
+  } catch {
+    // Storage refused, the network away, or the code failed to load: the next start tries again.
+  }
 }
 
 /**

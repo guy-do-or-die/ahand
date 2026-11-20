@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { CLIENTS } from "../../chain";
 import { config } from "../../config";
-import { isNetworkError } from "./answer";
+import { isNetworkError } from "../../chain/errors";
 import type { OpenedLink } from "../../store/memory";
 
 /**

@@ -1,6 +1,7 @@
 import { createPublicClient, defineChain, fallback, http, type Chain, type PublicClient, type Transport } from "viem";
 
 import type { ChainConfig } from "../config/schema";
+import { ccipReadIsHere } from "./ccip";
 
 /**
  * One viem chain and one public client per configured chain (ARCHITECTURE §7). Pure: the
@@ -27,9 +28,13 @@ export function transportOf(chain: ChainConfig): Transport {
   return rest.length === 0 ? http(first) : fallback([http(first), ...rest.map((url) => http(url))]);
 }
 
-/** A public client that polls at the chain's block time. */
+/**
+ * A public client that polls at the chain's block time. Its `ccipRead` names viem's CCIP-Read
+ * helper (./ccip.ts), so the helper ships with the chain layer and a failed call on any screen
+ * never asks the site for one more file; with the helper present the setting is viem's default.
+ */
 export function publicClientOf(chain: ChainConfig): PublicClient {
-  return createPublicClient({ chain: chainOf(chain), transport: transportOf(chain), pollingInterval: chain.blockTimeMs }) as PublicClient;
+  return createPublicClient({ chain: chainOf(chain), transport: transportOf(chain), pollingInterval: chain.blockTimeMs, ...(ccipReadIsHere ? {} : { ccipRead: false }) }) as PublicClient;
 }
 
 /** One client per chain id, for the SDK's `getHandFor`. */

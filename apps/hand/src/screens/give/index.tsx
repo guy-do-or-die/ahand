@@ -1,4 +1,4 @@
-import { newKey, readDescription, toCoreSignature, type OpenedAddress } from "@ahand/sdk";
+import { newKey, raiserHops, readDescription, walletKind, type OpenedAddress } from "@ahand/sdk";
 import type { Hex } from "@ahand/deliver";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { isAddressEqual, type Address, type TypedDataDefinition } from "viem";
@@ -12,6 +12,7 @@ import { TID } from "../../testids";
 import {
   CopyRow,
   DealCard,
+  dealDescriptionOf,
   Disclose,
   ErrorBand,
   Identity,
@@ -27,10 +28,11 @@ import {
   type Landing,
 } from "../../ui";
 import { ConnectSheet, switchToAppChain, useTypedSigner, useWallet } from "../../wallet";
-import { answerLink, confirmWithAccount, confirmWithKey, type AnswerOutcome, type AnswerStep, type Confirm } from "./answer";
+import { answerLink, confirmWithAccount, confirmWithKey, confirmWithWallet, type AnswerOutcome, type AnswerStep, type Confirm } from "./answer";
 import { relayCount, retryNow, sendToInbox, useEntry, useReplies, useThreadSent } from "./deliver";
 import { claimAmount, deliveryState, keyFileOf, MAX_WORDS, shareText, signatureKind, wordsOf } from "./flow";
 import { LINK_OPTIONS, useOpening } from "./open";
+import { chainName } from "../../i18n/common/chain";
 
 /**
  * /give (UX-SPEC §8.5): answer the link this tab holds. What you can do (words that travel by
@@ -146,7 +148,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
   const token = config.tokens.find((entry) => isAddressEqual(entry.address, opened.hand.token));
   const decimals = token?.decimals ?? 18;
   const said = useMemo(() => readDescription(opened), [opened]);
-  const description: DealDescription = said.status === "attached" ? { status: "attached", title: said.title ?? "", ...(said.content ? { content: said.content } : {}) } : { status: said.status };
+  const description: DealDescription = dealDescriptionOf(said);
   const inbox = said.inbox as Hex | undefined;
   const claimBps = opened.end.claimBps;
   const reward = view?.reward ?? 0n;
@@ -157,6 +159,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
   const typed = useTypedSigner();
   const [text, setText] = useState("");
   const [landing, setLanding] = useState<Landing>();
+  const [landWaiting, setLandWaiting] = useState<"tick" | undefined>();
   const [picker, setPicker] = useState({ key: 0, initial: "", hideAccount: false });
   const [connecting, setConnecting] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -174,21 +177,14 @@ function Answer({ opened }: { opened: OpenedAddress }) {
     let keyFile = false;
     if (landing.signing.kind === "account") {
       signer = landing.signing.address;
-      confirm = async (typedData) => {
-        if (wallet.chainId !== config.chain.id) await switchToAppChain();
-        const answer = await typed.sign(typedData as unknown as TypedDataDefinition);
-        if (!answer.ok) return answer.reason === "rejected" ? { ok: false, reason: "rejected" } : { ok: false, reason: "failed", ...(answer.message ? { message: answer.message } : {}) };
-        let signature = answer.signature;
-        // A key's answer goes to Core in its one 65-byte form; a wrapper or an account's own format as it came.
-        if (!answer.wrapped && answer.kind !== "code") {
-          try {
-            signature = toCoreSignature(signature);
-          } catch {
-            // 64 or 65 bytes that are not a key's: the account's code judges them.
-          }
-        }
-        return { ok: true, signature };
-      };
+      const account = signer;
+      confirm = confirmWithWallet(
+        async (typedData) => {
+          if (wallet.chainId !== config.chain.id) await switchToAppChain();
+          return typed.sign(typedData as unknown as TypedDataDefinition);
+        },
+        () => walletKind(clientOf(config.chain.id), account),
+      );
     } else if (landing.signing.kind === "one-time") {
       // Made here, used once below, dropped with this function. Its file is offered now, inside the press.
       const key = newKey();
@@ -299,10 +295,19 @@ function Answer({ opened }: { opened: OpenedAddress }) {
     );
   }
 
+  // Duty 23: a pass on the route that paid or handed the link to the asker's own address is said
+  // before the helper answers, as on the Hand view's rail.
+  const askerHops = raiserHops(opened.hand.raiser, opened.signedShakes);
+
   return (
     <Frame>
       <Title />
       {dealCard}
+      {askerHops.length ? (
+        <p className="ah-note m-0" data-testid={TID.give.askerHop} data-value={askerHops.map((hop) => hop.position + 1).join(",")}>
+          {t("give.askerHop", { passes: askerHops.map((hop) => hop.position + 1).join(", "), n: askerHops.length })}
+        </p>
+      ) : null}
 
       <Step title={t("give.step.words")}>
         <label className="ah-field">
@@ -334,6 +339,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
           ctx={ctx}
           initialAddress={picker.initial}
           onChange={setLanding}
+          onWaiting={setLandWaiting}
         />
         {phase.kind === "no-forwarder" ? (
           <div className="ah-note flex flex-col gap-3" data-testid={TID.give.noForwarder} role="status">
@@ -356,7 +362,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
         {landing ? (
           <AgreeCard opened={opened} landing={landing} claim={claim} decimals={decimals} noReward={noReward} lang={lang} />
         ) : (
-          <p className="ah-label ah-label--dim m-0">{t("give.agree.pick")}</p>
+          <p className="ah-label ah-label--dim m-0">{t(landWaiting === "tick" ? "give.agree.tick" : "give.agree.pick")}</p>
         )}
       </Step>
 
@@ -394,7 +400,7 @@ function AgreeCard({ opened, landing, claim, decimals, noReward, lang }: { opene
       <p className="ah-label m-0 py-2">{t("give.agree.intro")}</p>
       <dl className="m-0">
         <Row label={t("give.agree.network")}>
-          {config.chain.name} <span className="ah-meta ah-meta--exact">· {opened.domain.chainId}</span>
+          {chainName(config.chain)} <span className="ah-meta ah-meta--exact">· {opened.domain.chainId}</span>
         </Row>
         <Row label={t("give.agree.contract")}>
           <span className="ah-meta ah-meta--exact" title={core}>

@@ -9,7 +9,7 @@ import { ThemeToggle } from "../ui/ThemeToggle";
 import { toggleLens, useLens } from "./lens";
 
 /**
- * The frame every screen is mounted in (UX-SPEC §6): the local ribbon, the header (lockup,
+ * The frame every screen is mounted in (UX-SPEC §6): the header (the local ribbon, then lockup,
  * EN · RU, the lens), the screen, and the footer (the mono line to /core, the three honest
  * links, the theme switch).
  */
@@ -47,7 +47,7 @@ function LangSwitch() {
             aria-label={`${code.toUpperCase()} — ${t(`common.language.${code}`)}`}
             aria-pressed={lang === code}
             data-testid={code === "en" ? TID.shell.langEn : TID.shell.langRu}
-            onClick={() => setLang(code)}
+            onClick={() => void setLang(code)}
             className={`min-h-11 min-w-11 cursor-pointer border-0 bg-transparent p-0 font-[inherit] uppercase tracking-[inherit] ${
               lang === code ? "font-medium text-ink underline decoration-[1.5px] underline-offset-[5px]" : "text-ink/70"
             }`}
@@ -82,20 +82,27 @@ function LensToggle() {
   );
 }
 
+/**
+ * The banner landmark: the local ribbon (local builds only) above the row of lockup, EN · RU and
+ * the lens. The ribbon stands inside the banner so that no content sits outside a landmark.
+ */
 export function Header() {
   return (
-    <header data-testid={TID.shell.header} className="flex items-center justify-between gap-3 px-4 py-2 sm:px-6 md:px-10">
-      {/* Named by its text, not by aria-label: the lockup's letters sit in separate boxes around the
-          hands, so the drawn word is hidden from assistive technology and the name is given whole. */}
-      <a href="/" data-testid={TID.shell.logo} className="inline-flex min-h-11 items-center text-ink no-underline">
-        <span aria-hidden="true" className="inline-flex">
-          <Logo size={22} />
-        </span>
-        <span className="sr-only">{t("common.home")}</span>
-      </a>
-      <div className="flex items-center gap-1">
-        <LangSwitch />
-        <LensToggle />
+    <header data-testid={TID.shell.header}>
+      <Ribbon />
+      <div className="flex items-center justify-between gap-3 px-4 py-2 sm:px-6 md:px-10">
+        {/* Named by its text, not by aria-label: the lockup's letters sit in separate boxes around the
+            hands, so the drawn word is hidden from assistive technology and the name is given whole. */}
+        <a href="/" data-testid={TID.shell.logo} className="inline-flex min-h-11 items-center text-ink no-underline">
+          <span aria-hidden="true" className="inline-flex">
+            <Logo size={22} />
+          </span>
+          <span className="sr-only">{t("common.home")}</span>
+        </a>
+        <div className="flex items-center gap-1">
+          <LangSwitch />
+          <LensToggle />
+        </div>
       </div>
     </header>
   );
@@ -174,7 +181,7 @@ function Loading() {
   );
 }
 
-/** The page: ribbon, header, the screen inside its error boundary, footer. */
+/** The page: the header (with the ribbon in it), the screen inside its error boundary, footer. */
 export function Shell({ path, children }: { path: string; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
@@ -196,7 +203,6 @@ export function Shell({ path, children }: { path: string; children: ReactNode })
       >
         {t("common.skip")}
       </button>
-      <Ribbon />
       <Header />
       <main ref={main} id="main" tabIndex={-1} data-testid={TID.shell.main} className="flex-1 outline-none">
         <Suspense fallback={<Loading />}>{children}</Suspense>

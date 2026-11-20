@@ -1,3 +1,4 @@
+import { localChainProblem } from "./local";
 import type { Address, AppConfig, Hex } from "./schema";
 
 /** A configuration that does not match the schema. The message names the first wrong field. */
@@ -130,6 +131,8 @@ export function parseConfig(input: unknown): AppConfig {
     },
   };
 
+  const localProblem = localChainProblem(config.chain);
+  if (localProblem) throw new ConfigError(localProblem);
   if (config.chain.rpcUrls.length === 0) throw new ConfigError("chain.rpcUrls must name at least one RPC");
   if (!config.cores.trusted.some((t) => t.chainId === chainId)) throw new ConfigError("cores.trusted must name a Core on chain.id");
   if (config.cores.canonical && !config.cores.trusted.some((t) => t.core.toLowerCase() === config.cores.canonical!.toLowerCase())) {

@@ -1,20 +1,21 @@
-import { faceOf, passesLeft, readDescription, type Hand, type OpenedAddress, type OpenedLink } from "@ahand/sdk";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { faceOf, passesLeft, readDescriptionOf, type Hand, type OpenedAddress } from "@ahand/sdk";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isAddressEqual, type Address } from "viem";
 
-import { useHand, useNow } from "../../chain";
+import { useChainStatus, useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { navigate, unmarkHandView, usePlace } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { addressOf, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { ChainRail, CopyRow, DealCard, Disclose, ErrorBand, Mark, QuietButton, SwipeButton, day, shortAddress, useLens, type DealDescription, type RailHand } from "../../ui";
+import { ChainRail, CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Mark, QuietButton, SwipeButton, day, shortAddress, useLens, type DealDescription, type RailHand } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
 import { Closed } from "./Closed";
 import { arrivalOf, failureOf, holderStatements, routeHands, type Failure, type Held } from "./held";
 import { SendBack } from "./SendBack";
-import { LINK_OPTIONS, cardDescription, getHand, peekHeld, useDecimals, useOpening } from "./useHeld";
+import { Unreachable } from "./Unreachable";
+import { LINK_OPTIONS, cardDescription, getHand, peekHeld, pollNow, useDecimals, useOpening, useReread } from "./useHeld";
 
 /**
  * The Hand view (UX-SPEC §8.1–8.3): the screen most people will ever see. It serves every
@@ -28,6 +29,10 @@ import { LINK_OPTIONS, cardDescription, getHand, peekHeld, useDecimals, useOpeni
  *
  * Open, expiry and reward come from `hands(id)` on every block; the state is `stateAt` at the
  * latest block's time. Before the first block arrives the card shows the dates and claims nothing.
+ *
+ * A network that can't be reached is never a verdict: the link stays in this tab, the screen
+ * says so and reads again on its own (Unreachable.tsx). At phone width the two actions of an
+ * open Hand stand in a bar at the bottom of the screen, within thumb reach (UX-SPEC §14).
  */
 export default function HandViewScreen({ params }: ScreenProps) {
   const place = usePlace();
@@ -92,13 +97,15 @@ function Refused({ failure }: { failure: Failure }) {
 
 function LinkView({ held }: { held: Held }) {
   const opening = useOpening(held);
+  const [again, reread] = useReread();
   if (!opening || opening.status === "checking") return <Checking />;
+  if (opening.status === "unreachable") return <Unreachable retry={opening.retry} held />;
   if (opening.status === "failed") return <Refused failure={opening.failure} />;
   const { opened } = opening;
-  return <HandBody core={opened.head.core} hand={opened.hand} opened={opened} description={cardDescription(opened)} />;
+  return <HandBody key={again} core={opened.head.core} hand={opened.hand} opened={opened} description={cardDescription(opened)} onRetry={reread} />;
 }
 
-type Faced = { status: "checking" } | { status: "failed"; failure: Failure } | { status: "ok"; hand: Hand; description: DealDescription };
+type Faced = { status: "checking" } | { status: "unreachable" } | { status: "failed"; failure: Failure } | { status: "ok"; hand: Hand; description: DealDescription };
 
 /**
  * A numbered or faced address with no link. The Core in the path, or the main contract when none
@@ -107,39 +114,57 @@ type Faced = { status: "checking" } | { status: "failed"; failure: Failure } | {
  */
 function PublicView({ chainId, core, handId, path, search }: { chainId: number; core?: Address; handId: bigint; path: string; search: string }) {
   const [faced, setFaced] = useState<{ key: string; value: Faced }>();
+  const [attempt, setAttempt] = useState(0);
+  const [again, reread] = useReread();
+  const busy = useRef(false);
+  const retry = useCallback(() => {
+    if (!busy.current) setAttempt((n) => n + 1);
+  }, []);
   const key = `${chainId}:${core ?? ""}:${handId}:${search}`;
   useEffect(() => {
     let live = true;
+    busy.current = true;
     (async (): Promise<Faced> => {
       const named = core ?? config.cores.canonical ?? undefined;
       if (!named) return { status: "failed", failure: { id: "link.no-canonical", code: "NO MAIN CONTRACT" } };
       if (!/(^\?|&)d=/.test(search)) return { status: "ok", hand: await getHand({ chainId, core: named, handId }), description: { status: "none" } };
       const { hand, face } = await faceOf(`${window.location.origin}${path}${search}`, (seen) => getHand(seen), LINK_OPTIONS);
       if (!hand) return { status: "failed", failure: { id: "link.malformed", code: "LINK · MALFORMED" } };
-      const read = face ? readDescription({ hand, ofHand: face } as unknown as OpenedLink) : undefined;
-      const description: DealDescription = read?.title !== undefined ? { status: "attached", title: read.title, ...(read.content ? { content: read.content } : {}) } : { status: "none" };
+      const read = face ? readDescriptionOf(hand, face) : undefined;
+      const description: DealDescription = dealDescriptionOf(read);
       return { status: "ok", hand, description };
-    })().then(
-      (value) => live && setFaced({ key, value }),
-      (error: unknown) => live && setFaced({ key, value: { status: "failed", failure: failureOf(error) } }),
-    );
+    })()
+      .catch((error: unknown): Faced => {
+        const failure = failureOf(error);
+        return failure.network ? { status: "unreachable" } : { status: "failed", failure };
+      })
+      .then((value) => {
+        if (!live) return;
+        busy.current = false;
+        setFaced({ key, value });
+      });
     return () => {
       live = false;
+      busy.current = false;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `key` carries the address
+  }, [key, attempt]); // `key` carries the address
   const value = faced?.key === key ? faced.value : { status: "checking" as const };
   if (value.status === "checking") return <Checking />;
+  if (value.status === "unreachable") return <Unreachable retry={retry} held={false} />;
   if (value.status === "failed") return <Refused failure={value.failure} />;
-  return <HandBody core={core ?? config.cores.canonical!} hand={value.hand} description={value.description} />;
+  return <HandBody key={again} core={core ?? config.cores.canonical!} hand={value.hand} description={value.description} onRetry={reread} />;
 }
 
 /**
  * The Hand itself: the Deal card, the route, and what can be done from here at the network's
  * time. `opened` is the proven link; without it this is the public view.
  */
-function HandBody({ core, hand, opened, description }: { core: Address; hand: Hand; opened?: OpenedAddress; description: DealDescription }) {
+function HandBody({ core, hand, opened, description, onRetry }: { core: Address; hand: Hand; opened?: OpenedAddress; description: DealDescription; onRetry: () => void }) {
   const read = useHand(core, hand.handId);
   const now = useNow();
+  const chain = useChainStatus();
+  const narrow = useNarrow();
+  const typing = useTyping();
   const lang = useLang();
   const lens = useLens();
   const wallet = useWallet();
@@ -147,7 +172,11 @@ function HandBody({ core, hand, opened, description }: { core: Address; hand: Ha
   const left = useMemo(() => (opened ? passesLeft(opened.hand, opened.signedShakes) : undefined), [opened]);
 
   if (!read.data || decimals === undefined) {
-    if (read.error && !read.data) return <Refused failure={failureOf(read.error)} />;
+    // The link opened and the Hand's own read did not come: the network's failure keeps the link
+    // and is tried again; anything else is said as it is.
+    const failure = read.error && !read.data ? failureOf(read.error) : undefined;
+    if (failure && !failure.network) return <Refused failure={failure} />;
+    if (failure || (!read.data && chain.offline)) return <Unreachable retry={onRetry} auto={pollNow} held={opened !== undefined} />;
     return <Checking />;
   }
   const { view, state } = read.data;
@@ -161,6 +190,11 @@ function HandBody({ core, hand, opened, description }: { core: Address; hand: Ha
   const claimBps = live ? opened!.end.claimBps : undefined;
   const block = now ? { number: now.number, timestamp: now.timestamp } : undefined;
   const closed = state === "thanked" || state === "refunded";
+  const actions = state === "open" && live;
+  // At phone width the two actions stand in a bar at the bottom of the screen. An on-screen
+  // keyboard would cover the bar or push it over the field being typed in, so while one is open
+  // the buttons stand in the page instead: they are never absent.
+  const bar = actions && narrow && !typing;
 
   const card = (
     <div data-testid={TID.hand.dealCard} data-state={state ?? "unknown"} data-description={description.status} data-reward={view.reward.toString()}>
@@ -180,7 +214,7 @@ function HandBody({ core, hand, opened, description }: { core: Address; hand: Ha
     </div>
   );
 
-  return (
+  const body = (
     <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_380px] md:items-start md:gap-10">
       <div className="flex min-w-0 flex-col gap-6">
         {description.status === "lost" ? <div data-testid={TID.hand.lost}>{card}</div> : card}
@@ -189,9 +223,7 @@ function HandBody({ core, hand, opened, description }: { core: Address; hand: Ha
       </div>
 
       <aside className="flex min-w-0 flex-col gap-5 md:sticky md:top-6">
-        {state === "open" && live ? (
-          <Actions left={left ?? 0} until={until} funded={funded} />
-        ) : null}
+        {actions ? <Actions left={left ?? 0} until={until} funded={funded} inBar={bar} /> : null}
         {state === "open" && !opened ? (
           <p className="ah-note m-0" data-testid={TID.hand.noLink}>
             {t("hand.noLink")}
@@ -209,15 +241,111 @@ function HandBody({ core, hand, opened, description }: { core: Address; hand: Ha
       </aside>
     </div>
   );
+  return (
+    <>
+      {body}
+      {bar ? <ActionBar left={left ?? 0} /> : null}
+    </>
+  );
 }
 
-/** Pass it on, and I can help, with the honest line under the help button. */
-function Actions({ left, until, funded }: { left: number; until: string; funded: boolean }) {
+const NARROW = "(max-width: 767.98px)";
+
+/** Whether the screen is narrower than the two-column layout (Tailwind's `md`, 768 px). */
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      const query = window.matchMedia(NARROW);
+      query.addEventListener("change", listener);
+      return () => query.removeEventListener("change", listener);
+    },
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
+
+/** A field that brings up a keyboard when focused. */
+function takesText(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  if (element.isContentEditable || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) return true;
+  return element instanceof HTMLInputElement && !["button", "checkbox", "color", "file", "image", "radio", "range", "reset", "submit"].includes(element.type);
+}
+
+/** How much of the window an on-screen keyboard takes at least, in CSS pixels. */
+const KEYBOARD_MIN = 150;
+
+/**
+ * Whether an on-screen keyboard is likely open: a text field has the focus, or the visible part
+ * of the window is much shorter than the window (browsers that shrink only the visual viewport).
+ * The visible part is counted at the page's own scale, so zooming in is not taken for a keyboard.
+ */
+function useTyping(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      document.addEventListener("focusin", listener);
+      document.addEventListener("focusout", listener);
+      window.visualViewport?.addEventListener("resize", listener);
+      return () => {
+        document.removeEventListener("focusin", listener);
+        document.removeEventListener("focusout", listener);
+        window.visualViewport?.removeEventListener("resize", listener);
+      };
+    },
+    () => takesText(document.activeElement) || (window.visualViewport ? window.innerHeight - window.visualViewport.height * window.visualViewport.scale > KEYBOARD_MIN : false),
+    () => false,
+  );
+}
+
+/**
+ * The two actions of an open Hand at phone width (UX-SPEC §14: the main action within thumb
+ * reach): a bar that stays at the bottom of the screen while the Hand is read, and rests at the
+ * end of the Hand when the page is scrolled to its foot, so it never covers the footer. It
+ * keeps clear of the home indicator (safe-area inset); both buttons are 56 px tall. The honest
+ * line about thanks stays in the page, where the buttons stand on wider screens.
+ *
+ * While the bar stands, the page keeps its height free when it scrolls something into view, so
+ * a focused control is never left under it (UX-SPEC §13: the focus ring is never covered).
+ */
+function ActionBar({ left }: { left: number }) {
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const before = root.style.scrollPaddingBottom;
+    root.style.scrollPaddingBottom = `${(bar.current?.offsetHeight ?? 0) + 8}px`;
+    return () => {
+      root.style.scrollPaddingBottom = before;
+    };
+  }, []);
   return (
-    <div className="flex flex-col gap-4 pt-6">
-      <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0} onClick={() => navigate("/pass")} className="w-full">
-        {t("common.word.passOn")}
-      </SwipeButton>
+    <div
+      ref={bar}
+      className="sticky bottom-0 z-10 -mx-6 mt-8 border-0 border-t border-solid border-ink/15 bg-paper px-4 pt-5 pb-[max(12px,env(safe-area-inset-bottom))]"
+      data-testid={TID.hand.actionBar}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0} onClick={() => navigate("/pass")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
+          {t("common.word.passOn")}
+        </SwipeButton>
+        <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} onClick={() => navigate("/give")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
+          {t("common.word.canHelp")}
+        </SwipeButton>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Pass it on, and I can help, with the honest line under the help button. With `inBar` the two
+ * buttons stand in the bottom bar instead (ActionBar), and only the lines stay here.
+ */
+function Actions({ left, until, funded, inBar }: { left: number; until: string; funded: boolean; inBar: boolean }) {
+  return (
+    <div className={inBar ? "flex flex-col gap-4" : "flex flex-col gap-4 pt-6"}>
+      {inBar ? null : (
+        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0} onClick={() => navigate("/pass")} className="w-full">
+          {t("common.word.passOn")}
+        </SwipeButton>
+      )}
       {left === 0 ? (
         <p className="ah-label m-0" data-testid={TID.hand.passesLeft} data-value={left}>
           {t("hand.passesNone")}
@@ -227,11 +355,13 @@ function Actions({ left, until, funded }: { left: number; until: string; funded:
           {t("hand.passesLeft", { n: left })}
         </p>
       ) : null}
-      <div className="pt-8">
-        <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} onClick={() => navigate("/give")} className="w-full">
-          {t("common.word.canHelp")}
-        </SwipeButton>
-      </div>
+      {inBar ? null : (
+        <div className="pt-8">
+          <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} onClick={() => navigate("/give")} className="w-full">
+            {t("common.word.canHelp")}
+          </SwipeButton>
+        </div>
+      )}
       <p className="ah-label m-0" data-testid={TID.hand.helpNote}>
         {t(funded ? "hand.helpNote" : "hand.helpNote.noReward", { date: until })}
       </p>
@@ -241,7 +371,7 @@ function Actions({ left, until, funded }: { left: number; until: string; funded:
 
 /** The route as people, with "{n} hands so far." The rail gets the signed route for wave 5's flip. */
 function Route({ opened, reward, decimals, you, next }: { opened: OpenedAddress; reward: bigint; decimals: number; you: boolean; next: boolean }) {
-  const hands: RailHand[] = routeHands(opened).map((hand) => ({ role: hand.role, ...(hand.address ? { address: hand.address } : {}) }));
+  const hands: RailHand[] = routeHands(opened);
   return (
     <div className="flex flex-col gap-2" data-testid={TID.hand.rail} data-value={hands.length}>
       <ChainRail

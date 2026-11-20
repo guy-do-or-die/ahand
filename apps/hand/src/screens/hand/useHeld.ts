@@ -1,11 +1,11 @@
 import { fromText, getHandFor, peekLink, readDescription, type LinkHead, type LinkOptions, type OpenedAddress } from "@ahand/sdk";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { erc20Abi, isAddressEqual, type Address } from "viem";
 
-import { CLIENTS, clientOf } from "../../chain";
+import { CLIENTS, clientOf, watcherOf } from "../../chain";
 import { config } from "../../config";
-import type { DealDescription } from "../../ui";
-import { failureOf, openHeld, type Failure, type Held } from "./held";
+import { dealDescriptionOf, type DealDescription } from "../../ui";
+import { failureOf, openHeld, type Failure, type Held, type Trusts } from "./held";
 
 /**
  * The build's side of opening a link, shared by the Hand view and the pass (both of this
@@ -19,6 +19,9 @@ export const LINK_OPTIONS: LinkOptions = config.cores.canonical ? { canonicalCor
 /** `hands(id)` of a trusted Core only; anything else throws `UntrustedCore`. */
 export const getHand = getHandFor(CLIENTS, config.cores.trusted);
 
+/** Whether this build reads a chain and a Core: its trusted list, and a client for the chain (as `getHandFor` judges). */
+export const trusts: Trusts = (chainId, core) => CLIENTS[chainId] !== undefined && config.cores.trusted.some((entry) => entry.chainId === chainId && isAddressEqual(entry.core, core));
+
 /** What a link names, read from its first bytes with no network; undefined for a link that can't be read. */
 export function peekHeld(fragment: string): LinkHead | undefined {
   try {
@@ -28,30 +31,81 @@ export function peekHeld(fragment: string): LinkHead | undefined {
   }
 }
 
-export type Opening = { status: "checking" } | { status: "open"; opened: OpenedAddress } | { status: "failed"; failure: Failure };
+export type Opening =
+  | { status: "checking" }
+  | { status: "open"; opened: OpenedAddress }
+  /**
+   * The network did not answer. Nothing is judged and nothing is lost: the link stays in this
+   * tab's memory, and `retry` reads again without asking for it. A try already under way is not
+   * started twice.
+   */
+  | { status: "unreachable"; failure: Failure; retry: () => void }
+  | { status: "failed"; failure: Failure };
+
+type Settled = { status: "checking" } | { status: "open"; opened: OpenedAddress } | { status: "unreachable"; failure: Failure } | { status: "failed"; failure: Failure };
 
 /**
  * Opens the held link and proves it against the Hand Core keeps (openAddress, or openLink for a
  * bare link pasted alone). The link's text is only ever a dependency here: it is not logged,
  * stored or sent anywhere but into the SDK in this tab. `held` undefined: nothing to open.
+ *
+ * A failure of the network is not a verdict (UX-SPEC §15): the status is "unreachable", the held
+ * link is untouched, and each `retry` opens it again. While a later try runs, the status stays
+ * "unreachable", so the screen does not flicker between the band and the skeleton.
  */
 export function useOpening(held: Held | undefined): Opening | undefined {
   const key = held ? `${held.before}#${held.fragment}` : undefined;
-  const [state, setState] = useState<{ key?: string; opening: Opening }>({ opening: { status: "checking" } });
+  const [state, setState] = useState<{ key?: string; opening: Settled }>({ opening: { status: "checking" } });
+  const [attempt, setAttempt] = useState(0);
+  const busy = useRef(false);
   useEffect(() => {
     if (!held) return;
     let live = true;
-    setState({ key, opening: { status: "checking" } });
-    openHeld(held, getHand, LINK_OPTIONS).then(
-      (opened) => live && setState({ key, opening: { status: "open", opened } }),
-      (error: unknown) => live && setState({ key, opening: { status: "failed", failure: failureOf(error) } }),
+    busy.current = true;
+    setState((before) => (before.key === key && before.opening.status === "unreachable" ? before : { key, opening: { status: "checking" } }));
+    const settle = (opening: Settled) => {
+      if (!live) return;
+      busy.current = false;
+      setState({ key, opening });
+    };
+    openHeld(held, getHand, LINK_OPTIONS, trusts).then(
+      (opened) => settle({ status: "open", opened }),
+      (error: unknown) => {
+        const failure = failureOf(error);
+        settle(failure.network ? { status: "unreachable", failure } : { status: "failed", failure });
+      },
     );
     return () => {
       live = false;
+      busy.current = false;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `key` carries the held link
+  }, [key, attempt]); // `key` carries the held link
+  const retry = useCallback(() => {
+    if (!busy.current) setAttempt((n) => n + 1);
+  }, []);
   if (!held) return undefined;
-  return state.key === key ? state.opening : { status: "checking" };
+  const opening = state.key === key ? state.opening : { status: "checking" as const };
+  return opening.status === "unreachable" ? { ...opening, retry } : opening;
+}
+
+/** Asks the block watcher for the latest block now, without waiting for its next poll. */
+export function pollNow(): void {
+  void watcherOf().refresh();
+}
+
+/**
+ * Reading a Hand again after the network failed under a link that had already opened. Every new
+ * block reads `hands(id)` again by itself (`useHand`), so on its own the screen only asks for
+ * the latest block (`pollNow`); "Try again" also starts the Hand's read afresh, for a chain
+ * whose blocks have stopped: the number returned is a `key` for the component that reads.
+ */
+export function useReread(): [number, () => void] {
+  const [again, setAgain] = useState(0);
+  const reread = useCallback(() => {
+    pollNow();
+    setAgain((n) => n + 1);
+  }, []);
+  return [again, reread];
 }
 
 /** A token this build knows: its decimals and the label people read. */
@@ -85,9 +139,5 @@ export function useDecimals(token: Address | undefined, chainId: number = config
  * states nothing, and "lost" for one whose words did not all arrive.
  */
 export function cardDescription(opened: OpenedAddress): DealDescription {
-  const description = readDescription(opened);
-  if (description.status === "attached" && description.title !== undefined) {
-    return { status: "attached", title: description.title, ...(description.content ? { content: description.content } : {}) };
-  }
-  return description.status === "none" ? { status: "none" } : { status: "lost" };
+  return dealDescriptionOf(readDescription(opened));
 }

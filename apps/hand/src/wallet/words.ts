@@ -17,6 +17,7 @@ const EN = {
   failed: "Couldn't connect. Nothing was sent.",
   connected: "Connected",
   disconnect: "Disconnect",
+  another: "Use another account",
   otherNetwork: (network: string) => `This account is on another network. Switch it to ${network} to go on.`,
   step: (n: number, of: number) => `Step ${n} of ${of}`,
   dev: {
@@ -42,6 +43,7 @@ const RU: WalletWords = {
   failed: "Не получилось подключиться. Ничего не отправлено.",
   connected: "Подключено",
   disconnect: "Отключить",
+  another: "Сменить аккаунт",
   otherNetwork: (network) => `Этот аккаунт в другой сети. Переключи его на «${network}», чтобы продолжить.`,
   step: (n, of) => `Шаг ${n} из ${of}`,
   dev: {

@@ -75,6 +75,14 @@ export const TID = {
     copyGone: "raise-copy-gone",
     error: "raise-error",
     cost: "raise-cost",
+    title: "raise-title",
+    titleCount: "raise-title-count", // data-value: characters; data-over
+    detailsCount: "raise-details-count", // data-value: characters; data-over
+    tooLong: "raise-too-long", // data-value: what is over its cap
+    previewRaiser: "raise-preview-raiser",
+    keysWhat: "raise-keys-what",
+    pendingConnect: "raise-pending-connect",
+    pendingAnother: "raise-pending-another",
   },
 
   /** My hands `/my`, `/my/<chain>/<hand>` (§7.3). */
@@ -86,6 +94,7 @@ export const TID = {
     unlock: "my-unlock",
     careBand: "my-care-band",
     showLink: "my-show-link",
+    lockedCopy: "my-locked-copy", // the link comes from the raise's locked copy on this device
     linkRow: "my-link-row",
     answers: "my-answers",
     answer: "my-answer",
@@ -124,6 +133,7 @@ export const TID = {
     txRail: "care-tx-rail",
     fundDone: "care-tx-rail-fund-done",
     extendDone: "care-tx-rail-extend-done",
+    words: "care-words", // data-value: device | unknown | mismatch
   },
 
   /** Thank `/thank` (§7.5). */
@@ -157,6 +167,9 @@ export const TID = {
     payout: "thank-payout", // data-kind: paid | waiting; data-payee, data-amount, data-landed
     noMoney: "thank-no-money",
     receiptEvent: "thank-receipt-event", // data-value: the event's name
+    spent: "thank-spent", // data-status: reading | read | unread; once read: data-count, data-gas-used, data-fee
+    spentSentence: "thank-spent-sentence",
+    spentTx: "thank-spent-tx", // data-hash, data-from, data-block, data-gas-used, data-fee
   },
 
   /** Hand view `/#…`, `/<chain>/<hand>` (§8.1–8.3). */
@@ -189,6 +202,9 @@ export const TID = {
     share: "hand-share",
     error: "hand-error",
     networkTime: "hand-network-time",
+    unreachable: "hand-unreachable", // data-held
+    retry: "hand-retry",
+    actionBar: "hand-action-bar",
   },
 
   /** Pass on `/pass` (§8.4). */
@@ -224,6 +240,7 @@ export const TID = {
     replySend: "give-reply-send",
     toWaiting: "give-to-waiting",
     error: "give-error",
+    askerHop: "give-asker-hop", // data-value: the passes (1-based) at the asker's own address
   },
 
   /** Where the money lands, the shared sheet (§8.6). */
@@ -270,6 +287,12 @@ export const TID = {
     tally: "proof-tally",
     givehashMatches: "proof-givehash-matches",
     verifyLine: "proof-verify-line",
+    sent: "proof-sent",
+    move: "proof-move", // data-found, data-log, data-to, data-amount
+    coreCaveat: "proof-core-caveat",
+    coreCommand: "proof-core-command",
+    codeHashes: "proof-code-hashes",
+    askerHop: "proof-asker-hop", // data-value: the line's id (route.i or share.i) that names the asker's own address
   },
 
   /** Check any link `/check` (§10.2). */
@@ -281,6 +304,12 @@ export const TID = {
     coreAnswer: "check-core-answer",
     finding: "check-finding",
     agree: "check-agree",
+    handNow: "check-hand-now",
+    passport: "check-passport",
+    offline: "check-offline", // data-passes, data-left
+    offlineBand: "check-offline-band",
+    offlinePass: "check-offline-pass", // data-index, data-kept, data-next
+    retry: "check-retry",
   },
 
   /** This contract `/core` (§10.3). */
@@ -297,6 +326,7 @@ export const TID = {
     buildLabel: "core-build-label",
     buildValue: "core-build-value",
     unaudited: "core-unaudited",
+    limitHere: "core-limit-here", // data-value: paid passes at worst; data-gas-k
   },
 
   /** `/limits`, `/defaults`, `/without-us` (§11). */
@@ -308,6 +338,7 @@ export const TID = {
     explorer: "without-us-explorer",
     download: "without-us-download",
     core: "without-us-core",
+    limitHere: "limits-length-here", // data-value: paid shares at worst with this build's setting
   },
 
   /** Print `/print` (§11). */
@@ -372,6 +403,7 @@ export const TID = {
     connectOption: "kit-connect-option", // data-value: the connector's id
     dealCard: "kit-deal-card",
     chainRail: "kit-chain-rail",
+    railFlag: "kit-rail-flag", // a hand at the asker's own address (its <li> has data-flag="asker")
     flip: "kit-flip", // data-index: position
     receipt: "kit-receipt",
     receiptRow: "kit-receipt-row", // data-index

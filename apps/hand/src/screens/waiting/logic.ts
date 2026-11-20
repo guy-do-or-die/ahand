@@ -35,21 +35,27 @@ export function payeeOfPage(fromLink: Address | undefined, connected: Address | 
   return fromLink ?? connected;
 }
 
-/** Who may do what with the money waiting for `payee`, as Core's `withdraw` allows it. */
+/** Who may do what with the money waiting for `payee`, as Core's `withdraw` allows it: what the row offers. */
 export interface Offer {
   /** "Take it out": only the payee may send it somewhere else (NotPayee otherwise). */
   takeOut: boolean;
   /** "Deliver": anyone may push it to the payee's own address; the payee uses "Take it out" instead. */
   deliver: boolean;
-  /** Nobody connected, or the account can't pay the cost: the money stays where it is, and the page says so. */
+  /**
+   * No account here can send yet (nobody connected, or one that can't send). Deliver is offered
+   * all the same, because anyone may press it; the press first opens "Connect a wallet".
+   */
+  connectFirst: boolean;
+  /** Nobody connected, or the account has nothing to pay the cost with: the page says the money stays where it is. */
   cannotPay: boolean;
 }
 
 export function offerOf(payee: Address, account: { address?: Address; canSend: boolean; balance?: bigint }): Offer {
   const connected = account.address !== undefined && account.canSend;
   const isPayee = connected && isAddressEqual(account.address!, payee);
-  const cannotPay = !connected || account.balance === 0n;
-  return { takeOut: isPayee, deliver: connected && !isPayee, cannotPay };
+  // A balance not read yet is not "nothing to pay with".
+  const broke = connected && account.balance === 0n;
+  return { takeOut: isPayee && !broke, deliver: !isPayee && !broke, connectFirst: !connected, cannotPay: !connected || broke };
 }
 
 /** A Hand this device knows, from the `hands` (raised here) and `passed` (passed on here) stores. */
@@ -127,6 +133,18 @@ export function failureOf(result: FailedSend): Failure {
     default:
       return { kind: "unknown" };
   }
+}
+
+/**
+ * The token's own answer inside the engine's sentence about a failed check ("Execution reverted
+ * with reason: BLACKLISTED." gives "BLACKLISTED"). A sentence that names no reason stays as it
+ * came. It is exact data for the disclosure under the plain sentence, never the sentence itself.
+ */
+export function tokenSaid(message: string | undefined): string | undefined {
+  const text = message?.trim();
+  if (!text) return undefined;
+  const reason = /^Execution reverted with reason: ([\s\S]*)\.$/.exec(text)?.[1] ?? /reverted with the following reason:\s*([\s\S]*)$/.exec(text)?.[1];
+  return reason?.trim() || text;
 }
 
 /** The same reading for a cost check that came back refused before anything was pressed. */

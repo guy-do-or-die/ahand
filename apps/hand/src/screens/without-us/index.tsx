@@ -1,6 +1,7 @@
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
+import { chainName } from "../../i18n/common/chain";
 
 /**
  * "Do it without us" (UX-SPEC §11): the three exits for thank, send back and take out, said before
@@ -110,7 +111,7 @@ export default function WithoutUsScreen() {
       <footer className="flex flex-col gap-1 border-t-[1.5px] border-[color:var(--ink)] pt-3" data-testid={TID.about.core}>
         <p className="ah-label m-0">{t("without-us.core")}</p>
         <p className="ah-meta ah-meta--ink ah-meta--exact m-0 text-[length:var(--fs-mono-lg)]">{core}</p>
-        <p className="ah-meta m-0">{t("without-us.chain", { chain: config.chain.id, name: config.chain.name })}</p>
+        <p className="ah-meta m-0">{t("without-us.chain", { chain: config.chain.id, name: chainName(config.chain) })}</p>
       </footer>
     </section>
   );

@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from "node:path";
 import { defaultClientConditions, type Plugin } from "vite";
 
 import { appHeaders, cspMetaTag, type CspSources } from "./csp.ts";
+import { localChainProblem } from "./src/config/local.ts";
 
 /**
  * What both Vite builds share (ARCHITECTURE §14):
@@ -36,8 +37,11 @@ export const workspaceAlias = [
  * build turns it into the `__AHAND_LOCAL__` define, so a public build drops the local-only
  * screens (dev wallet, gallery redirect) from its output, not only from its routes.
  */
-export function isLocalChain(): boolean {
-  const parsed = JSON.parse(readFileSync(configFile, "utf8")) as { chain?: { local?: unknown } };
+export function isLocalChain(file: string = configFile): boolean {
+  const parsed = JSON.parse(readFileSync(file, "utf8")) as { chain?: { id?: unknown; local?: unknown } };
+  // A local build ships anvil's public mnemonic: refuse it for any chain but anvil's own.
+  const problem = localChainProblem(parsed.chain);
+  if (problem) throw new Error(`${file}: ${problem}`);
   return parsed.chain?.local === true;
 }
 

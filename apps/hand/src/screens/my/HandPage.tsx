@@ -8,12 +8,12 @@ import { navigate } from "../../router";
 import { handKey, type HandRecord } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
-import { CopyRow, DealCard, Mark, QuietButton, shortAddress, useLens, type DealDescription } from "../../ui";
+import { CopyRow, DealCard, dealDescriptionOf, Mark, QuietButton, shortAddress, useLens, type DealDescription } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
 import { AnswerCard } from "./Answer";
-import { useAnswers, useMyHand, useSecrets } from "./hooks";
-import { RELAYS, isListening, useInboxVersion } from "./inbox";
-import { daysLeft, formatCode, secondsLeft, wantsCare } from "./logic";
+import { useAnswers, useInboxSight, useMyHand, useSecrets } from "./hooks";
+import { readOf } from "./inbox";
+import { answersLines, daysLeft, formatCode, secondsLeft, wantsCare } from "./logic";
 import { GET_HAND, OPTIONS, SITE, coreOn, decimalsOf, domainOn } from "./place";
 import { describeKept, rebuildBare, rebuildWithWords, seedFitsRoot } from "./rebuild";
 import { hasBook, type HandSecrets } from "./session";
@@ -35,11 +35,12 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
   const read = useHand(core, handId, chainId);
   const now = useNow(chainId);
   const secrets = useSecrets(record, account);
-  const answers = useAnswers(record ? key : undefined, core ? { chainId, core, handId } : undefined, read.data?.state);
+  const { reads: answers, settled } = useAnswers(record ? key : undefined, core ? { chainId, core, handId } : undefined, read.data?.state);
+  // "Nothing has arrived yet." only after an unlocked read of the inbox; locked, it says locked.
+  const sight = useInboxSight(record, account, secrets, settled);
   const lens = useLens();
   // The link rebuilt on this page, if any: /print takes it from tab memory, as from /raise.
   const [rebuilt, setRebuilt] = useState<string>();
-  useInboxVersion();
 
   const view = read.data?.view;
   const state = read.data?.state;
@@ -47,7 +48,7 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
   const left = view ? secondsLeft(view.expiry, now?.timestamp) : undefined;
   const words = useCheckedWords(record, secrets, view?.dataHash);
 
-  const description: DealDescription = words === "attached" && record ? { status: "attached", title: record.title, ...(record.content ? { content: record.content } : {}) } : { status: "none" };
+  const description: DealDescription = dealDescriptionOf(words === "attached" && record ? { status: "attached", title: record.title, ...(record.content !== undefined ? { content: record.content } : {}) } : undefined);
 
   return (
     <div className="flex flex-col gap-8">
@@ -75,6 +76,7 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
             expiry={view.expiry}
             closedAt={view.closedAt}
             claimBps={view.minClaimBps}
+            viewer="asker"
             raiser={view.raiser}
             handId={handId}
             heading={words === "attached" ? "h1" : "h2"}
@@ -133,9 +135,12 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
       </div>
 
       {record && core ? (
-        <Section title={t("my.answers.title")} testId={TID.my.answers}>
-          {RELAYS.length === 0 ? <Line>{t("my.answers.noRelay")}</Line> : secrets?.inbox && isListening(key) ? <Line dim>{t("my.answers.listening", { n: RELAYS.length })}</Line> : <Line dim>{t("my.answers.locked")}</Line>}
-          {answers.length === 0 ? <Line>{t("my.answers.none")}</Line> : null}
+        <Section title={t("my.answers.title")} testId={TID.my.answers} state={sight}>
+          {answersLines(sight, answers.length, readOf(key)?.read ?? 0).map((line) => (
+            <Line key={line.id} dim={line.id === "my.answers.listening"}>
+              {t(line.id, line.values)}
+            </Line>
+          ))}
           {answers.map((answer) => (
             <AnswerCard
               key={answer.record.id}
@@ -241,6 +246,11 @@ function ShowLink({
   }
   return (
     <div className="flex flex-col gap-3">
+      {secrets.fromCopy ? (
+        <p className="ah-note m-0" data-testid={TID.my.lockedCopy}>
+          {t("my.link.lockedHere")}
+        </p>
+      ) : null}
       {shown.status !== "ok" ? (
         <QuietButton data-testid={TID.my.showLink} disabled={shown.status === "building"} onClick={() => void show()} className="self-start">
           {t("my.link.show")}

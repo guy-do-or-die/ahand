@@ -18,10 +18,10 @@ import {
   type AddressShape,
   type Hand,
 } from "@ahand/sdk";
-import { HttpRequestError, zeroAddress, type Address } from "viem";
+import { ContractFunctionExecutionError, HttpRequestError, TimeoutError, zeroAddress, type Address } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
-import { arrivalOf, failureOf, holderStatements, keepMax, laterPlan, makePass, openHeld, pathOf, readBackOf, routeHands, shareOf } from "./held";
+import { RETRY_MS, arrivalOf, failureOf, holderStatements, keepMax, laterPlan, makePass, openHeld, pathOf, readBackOf, retryWhileVisible, routeHands, shareOf } from "./held";
 
 /**
  * The Hand view's and the pass's logic, offline: a Hand is made here (its terms, a first link in
@@ -130,6 +130,146 @@ describe("openHeld and failureOf: every way a link fails has its own sentence", 
     expect(failureOf(new LinkError("invalid", "Core would refuse the route: InvalidClaim")).id).toBe("link.invalid");
     expect(failureOf(new HttpRequestError({ url: "http://127.0.0.1:1" })).id).toBe("common.time.offline");
     expect(failureOf(new Error("odd")).id).toBe("common.error.unknown");
+  });
+
+  test("the network's failure is said as NETWORK, never by a library's class name, and only it may be tried again", () => {
+    const refusedConnection = new HttpRequestError({ url: "http://127.0.0.1:1" });
+    // What a stopped chain gives `hands(id)`: viem wraps the transport's error in the call's.
+    const wrapped = new ContractFunctionExecutionError(refusedConnection, { abi: [], functionName: "hands" });
+    for (const error of [refusedConnection, wrapped, new TimeoutError({ body: {}, url: "http://127.0.0.1:1" })]) {
+      expect(failureOf(error)).toEqual({ id: "common.time.offline", code: "NETWORK", network: true });
+    }
+    for (const verdict of [new LinkError("malformed", "cut short"), new UntrustedCore(31337, OTHER), new CoreRefused({ name: "NotRaised" }), new Error("odd")]) {
+      expect(failureOf(verdict).network).toBeUndefined();
+      expect(failureOf(verdict).code).not.toBe("NETWORK");
+    }
+  });
+
+  test("a network failure loses nothing: the same held link opens on the next try", async () => {
+    const hand = await made("unlisted");
+    let calls = 0;
+    const flaky = async () => {
+      if (++calls < 3) throw new ContractFunctionExecutionError(new HttpRequestError({ url: "http://127.0.0.1:1" }), { abi: [], functionName: "hands" });
+      return hand.hand;
+    };
+    const held = split(hand.address);
+    for (let attempt = 0; attempt < 2; ++attempt) {
+      const error = await openHeld(held, flaky, OPTIONS).catch((e: unknown) => e);
+      expect(failureOf(error).network).toBe(true);
+    }
+    expect(readDescription(await openHeld(held, flaky, OPTIONS)).status).toBe("attached");
+  });
+});
+
+describe("openHeld: what stands before # must be the link's own Hand, said before anything else", () => {
+  const trusts = (chainId: number, core: Address) => chainId === 31337 && core === CORE;
+  const never = async (): Promise<Hand> => {
+    throw new Error("the network must not be asked about an address that disagrees with its link");
+  };
+
+  test("a link under another Hand's address, with that Hand's own public part: another hand, not 'part doesn't match'", async () => {
+    const mine = await made("unlisted", 7n);
+    const other = await made("unlisted", 9n);
+    const error = await openHeld({ before: split(other.address).before, fragment: split(mine.address).fragment }, never, OPTIONS, trusts).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(LinkError);
+    expect(failureOf(error)).toEqual({ id: "link.another-hand", code: "LINK · ANOTHER-HAND" });
+  });
+
+  test("another number in a numbered path with no public part: another hand", async () => {
+    const mine = await made("unlisted", 7n);
+    const error = await openHeld({ before: `${SITE}/31337/1`, fragment: split(mine.address).fragment }, never, OPTIONS, trusts).catch((e: unknown) => e);
+    expect(failureOf(error).id).toBe("link.another-hand");
+  });
+
+  test("a chain or a Core in the path that this build does not read: the 'doesn't read' sentence, never 'another hand'", async () => {
+    const mine = await made("unlisted", 7n);
+    const { before, fragment } = split(mine.address);
+    const wrongChain = await openHeld({ before: before.replace("/31337/", "/8453/"), fragment }, never, OPTIONS, trusts).catch((e: unknown) => e);
+    expect(wrongChain).toBeInstanceOf(UntrustedCore);
+    expect(failureOf(wrongChain).id).toBe("link.untrusted");
+    const wrongCore = await openHeld({ before: before.replace("/31337/", `/31337/${OTHER}/`), fragment }, never, OPTIONS, trusts).catch((e: unknown) => e);
+    expect(failureOf(wrongCore).id).toBe("link.untrusted");
+  });
+
+  test("the right Hand with a public part that is not its own stays 'part of this address doesn't match'", async () => {
+    const mine = await made("unlisted", 7n);
+    const { before, fragment } = split(mine.address);
+    const d = packAttachments(describeHand({ mode: "unlisted", title: "Another title altogether" }).outside!);
+    const error = await openHeld({ before: `${before.slice(0, before.indexOf("?d=") + 3)}${toText(d)}`, fragment }, mine.getHand, OPTIONS, trusts).catch((e: unknown) => e);
+    expect(failureOf(error).id).toBe("link.unmatched-data");
+  });
+
+  test("an address that agrees with its link opens as before", async () => {
+    const mine = await made("unlisted", 7n);
+    expect((await openHeld(split(mine.address), mine.getHand, OPTIONS, trusts)).hand.handId).toBe(7n);
+  });
+});
+
+describe("retryWhileVisible: the next try comes on its own, and only while someone is looking", () => {
+  function page(visibilityState: "visible" | "hidden") {
+    const listeners = new Set<() => void>();
+    return {
+      visibilityState,
+      addEventListener: (_: "visibilitychange", listener: () => void) => void listeners.add(listener),
+      removeEventListener: (_: "visibilitychange", listener: () => void) => void listeners.delete(listener),
+      show(state: "visible" | "hidden") {
+        this.visibilityState = state;
+        for (const listener of [...listeners]) listener();
+      },
+      listeners,
+    };
+  }
+  function clock() {
+    let next = 0;
+    const timers = new Map<number, { run: () => void; ms: number }>();
+    return {
+      timers,
+      set: (run: () => void, ms: number) => {
+        timers.set(++next, { run, ms });
+        return next;
+      },
+      clear: (id: number | undefined) => void (id !== undefined && timers.delete(id)),
+      /** Runs the one timer waiting, as if its time came. */
+      fire() {
+        const [[id, timer]] = [...timers];
+        timers.delete(id);
+        timer.run();
+      },
+    };
+  }
+
+  test("every few seconds while the tab is visible, until stopped", () => {
+    const tab = page("visible");
+    const time = clock();
+    let tries = 0;
+    const stop = retryWhileVisible(() => void ++tries, tab, RETRY_MS, time);
+    expect(tries).toBe(0);
+    expect([...time.timers.values()].map((timer) => timer.ms)).toEqual([RETRY_MS]);
+    time.fire();
+    time.fire();
+    expect(tries).toBe(2);
+    stop();
+    expect(time.timers.size).toBe(0);
+    expect(tab.listeners.size).toBe(0);
+  });
+
+  test("a hidden tab asks nothing; coming back tries at once", () => {
+    const tab = page("visible");
+    const time = clock();
+    let tries = 0;
+    const stop = retryWhileVisible(() => void ++tries, tab, RETRY_MS, time);
+    tab.show("hidden");
+    expect(time.timers.size).toBe(0);
+    expect(tries).toBe(0);
+    tab.show("visible");
+    expect(tries).toBe(1);
+    expect(time.timers.size).toBe(1);
+    stop();
+  });
+
+  test("RETRY_MS is a few seconds", () => {
+    expect(RETRY_MS).toBeGreaterThanOrEqual(2_000);
+    expect(RETRY_MS).toBeLessThanOrEqual(10_000);
   });
 });
 

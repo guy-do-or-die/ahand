@@ -1,23 +1,27 @@
 import { castLine, type Call, type Receipt } from "@ahand/sdk";
-import type { Hex } from "viem";
+import type { Hex, TransactionReceipt } from "viem";
 
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
 import { CopyRow, Disclose, Mark, ReceiptTable, count, money, shortAddress } from "../../ui";
+import { ThankSpent } from "./Spent";
 
 /**
  * After the thank: who got what, from this transaction's own logs (`receiptOf`). The table gets
  * one `landed` flag per row, set as a second read of the chain's logs finds each row again; the
  * marker sweep of wave 5 is drawn from them inside the table. Each payout is said as what it is:
  * "left the contract for" (`Paid`: what left Core, not what arrived) or "is waiting for"
- * (`Pending`); never "received".
+ * (`Pending`); never "received". Under the payouts stands what the thanks itself cost
+ * (`ThankSpent`): the transactions in `sent`, from their receipts.
  */
 export function ThankReceipt({
   receipt,
   landed,
   decimals,
   hash,
+  sent,
+  inHand,
   before,
   chainId,
   handId,
@@ -25,7 +29,12 @@ export function ThankReceipt({
   receipt: Receipt;
   landed: boolean[] | undefined;
   decimals: number;
+  /** The transaction that carries the thanks. */
   hash: Hex;
+  /** Every transaction this thanks took, in order: the thanks alone, or the set-up step before it. */
+  sent: readonly Hex[];
+  /** The thanks transaction's receipt, when the send that waited for it is this screen's own. */
+  inHand?: TransactionReceipt;
   before: boolean;
   chainId: number;
   handId: bigint;
@@ -77,6 +86,8 @@ export function ThankReceipt({
           })}
         </ul>
       )}
+
+      <ThankSpent sent={sent} {...(inHand ? { inHand } : {})} chainId={chainId} />
 
       <Disclose label={t("thank.lens.events")} summary={block !== undefined ? `#${count(block)}` : undefined}>
         <ol className="m-0 flex list-none flex-col gap-1 p-0">

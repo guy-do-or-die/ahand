@@ -150,7 +150,7 @@ function SweepReplay({ allAtOnce }: { allAtOnce?: boolean }) {
   useEffect(() => {
     replay();
     return () => clearInterval(timer.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Played once when the kit's page opens.
   }, []);
   return (
     <div className="flex flex-col gap-3" data-landed={landed.map(String).join(",")}>

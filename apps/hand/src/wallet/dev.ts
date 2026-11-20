@@ -1,4 +1,5 @@
 import {
+  ChainDisconnectedError,
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
@@ -20,6 +21,7 @@ import {
 import { mnemonicToAccount, setSignEntropy, type HDAccount } from "viem/accounts";
 import { createConnector, type CreateConnectorFn } from "wagmi";
 
+import { LOCAL_CHAIN_ID } from "../config/local";
 import type { AppConfig } from "../config/schema";
 import { chainOf } from "../chain/clients";
 
@@ -38,6 +40,12 @@ import { chainOf } from "../chain/clients";
  *   `KeyAccountFactory` with `DEV_UNSET_SALT`. While it has no code, its typed-data answers are
  *   account 6's signature wrapped per ERC-6492 (factory, `createAccount` calldata, signature),
  *   and it cannot send. Once something deploys it (a thank's setup call), it answers unwrapped.
+ *
+ * The keys are public, so the wallet works on anvil's chain only, checked twice: `devConnectors`
+ * refuses a configuration that is not local on chain 31337 (the build and `parseConfig` already
+ * refuse one), and every provider asks its RPC for `eth_chainId` before the first connection,
+ * signature or send, and refuses with 4901 unless the RPC answers 31337. The RPC's host is not
+ * checked: a phone on the LAN reaches the stand by the machine's address.
  *
  * The provider answers only what a wallet must: the account, the chain, typed-data signatures,
  * sending (signed here, `eth_sendRawTransaction` to the RPC), EIP-5792 capabilities (no atomic
@@ -191,6 +199,11 @@ export interface DevProviderOptions {
 
 type Listener = (...args: unknown[]) => void;
 
+/** The dev wallet will not act: the chain it was given, or the RPC behind it, is not anvil's. */
+export function devWalletRefused(why: string): ChainDisconnectedError {
+  return new ChainDisconnectedError(new Error(`The test accounts work on the local chain ${LOCAL_CHAIN_ID} only: ${why}.`));
+}
+
 /** One dev account as an EIP-1193 provider that signs in the page. */
 export function devProvider(options: DevProviderOptions): EIP1193Provider & { address(): Promise<Address> } {
   const { who, chain, rpcUrl, accountFactory } = options;
@@ -203,6 +216,19 @@ export function devProvider(options: DevProviderOptions): EIP1193Provider & { ad
   let address: Promise<Address> | undefined;
   const addressOf = () => (address ??= devAddress(who, client, accountFactory));
 
+  // Asked once per provider, before anything that uses a key; a failure (a refusal or no answer) is
+  // asked again next time, so a stand that starts late still works and a wrong chain never does.
+  let onLocal: Promise<void> | undefined;
+  const onLocalChain = (): Promise<void> =>
+    (onLocal ??= (async () => {
+      if (chain.id !== LOCAL_CHAIN_ID) throw devWalletRefused(`this page is built for chain ${chain.id}`);
+      const answered = await client.getChainId();
+      if (answered !== LOCAL_CHAIN_ID) throw devWalletRefused(`the RPC at ${rpcUrl} answers chain ${answered}`);
+    })().catch((error: unknown) => {
+      onLocal = undefined;
+      throw error;
+    }));
+
   const no = (what: string) => new UserRejectedRequestError(new Error(`The test account said no to ${what}.`));
   const cannot = (what: string) => new UnsupportedProviderMethodError(new Error(`The test account does not do ${what}.`));
 
@@ -214,6 +240,7 @@ export function devProvider(options: DevProviderOptions): EIP1193Provider & { ad
       case "eth_accounts":
         return [await addressOf()];
       case "eth_requestAccounts":
+        await onLocalChain();
         if (personSaysNo()) throw no("connecting");
         return [await addressOf()];
       case "wallet_switchEthereumChain": {
@@ -227,6 +254,7 @@ export function devProvider(options: DevProviderOptions): EIP1193Provider & { ad
         const [from, json] = list as [string, string];
         const me = await addressOf();
         if (typeof from !== "string" || from.toLowerCase() !== me.toLowerCase()) throw new UnsupportedProviderMethodError(new Error("That is not this account."));
+        await onLocalChain();
         if (personSaysNo()) throw no("this message");
         const typedData = reviveTypedData(typeof json === "string" ? json : JSON.stringify(json));
         const signature = await signTyped(signer, typedData, role === "entropy");
@@ -238,6 +266,7 @@ export function devProvider(options: DevProviderOptions): EIP1193Provider & { ad
       }
       case "eth_sendTransaction": {
         if (role === "unset") throw cannot("sending: it is not set up yet");
+        await onLocalChain();
         if (personSaysNo()) throw no("sending");
         const [tx] = list as [{ to?: Address; data?: Hex; value?: Hex; gas?: Hex }];
         if (!tx?.to) throw cannot("deploying contracts");
@@ -284,8 +313,14 @@ export function devAccounts(config: Pick<AppConfig, "accountFactory">): DevAccou
   }));
 }
 
-/** A wagmi connector per dev account (`type: "dev"`), for the wallet configuration. */
+/**
+ * A wagmi connector per dev account (`type: "dev"`), for the wallet configuration. Throws for a
+ * configuration that is not local on chain 31337: no build that reaches here should be one.
+ */
 export function devConnectors(config: Pick<AppConfig, "chain" | "accountFactory">): CreateConnectorFn[] {
+  if (config.chain.local !== true || config.chain.id !== LOCAL_CHAIN_ID) {
+    throw devWalletRefused(`this configuration's chain is ${config.chain.id}${config.chain.local ? "" : ", not local"}`);
+  }
   const chain = chainOf(config.chain);
   return devAccounts(config).map((info) =>
     createConnector<EIP1193Provider, { devRole: DevRole; devWho: DevWho }>((wagmi) => {

@@ -93,6 +93,19 @@
   color: var(--ink-a60);
 }
 
+/* This build's own figure under the record's sentence: exact data, so mono. */
+.core-limits__here {
+  display: block;
+  margin-top: 6px;
+  border-left: var(--bw-emph) solid var(--ink);
+  padding-left: 10px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a70);
+}
+
 .core-unaudited {
   margin: 0;
   border: var(--bw-focus) solid var(--ink);

@@ -29,6 +29,11 @@ export interface LandPickerProps {
   initialAddress?: string;
   /** The choice as it stands: a landing once it is complete, undefined until then. */
   onChange: (landing: Landing | undefined) => void;
+  /**
+   * Why nothing is chosen yet, when the reason is not just "no choice": "tick" while new words
+   * are shown and "I wrote them down" is not ticked. Undefined otherwise.
+   */
+  onWaiting?: (what: "tick" | undefined) => void;
 }
 
 /**
@@ -44,7 +49,7 @@ export interface LandPickerProps {
  *
  * A key made in the browser is never the default: with no connected account, nothing is chosen.
  */
-export function LandPicker({ purpose, account, onConnect, ctx, initialAddress = "", onChange }: LandPickerProps) {
+export function LandPicker({ purpose, account, onConnect, ctx, initialAddress = "", onChange, onWaiting }: LandPickerProps) {
   const words = useWords().land;
   const name = useId();
   const [choice, setChoice] = useState<Choice | undefined>(account ? "account" : undefined);
@@ -83,6 +88,12 @@ export function LandPicker({ purpose, account, onConnect, ctx, initialAddress = 
   useEffect(() => {
     report.current(held.current);
   }, [signature]);
+  const waiting = choice === "fresh" && fresh !== undefined && !wrote ? "tick" : undefined;
+  const reportWaiting = useRef(onWaiting);
+  reportWaiting.current = onWaiting;
+  useEffect(() => {
+    reportWaiting.current?.(waiting);
+  }, [waiting]);
 
   const choose = (next: Choice) => {
     setChoice(next);

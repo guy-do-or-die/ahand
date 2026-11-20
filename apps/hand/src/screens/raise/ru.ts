@@ -7,9 +7,13 @@ const ru: Record<keyof typeof en, string> = {
   "raise.what": "Кого или что ищешь?",
   "raise.what.placeholder": "Кто посоветует тихую комнату в Тбилиси на неделю?",
   "raise.what.hint": "Первая строка — заголовок: его увидят первым.",
+  "raise.what.count": "Заголовок: {n} из {max} знаков",
+  "raise.what.tooLong": "Заголовок слишком длинный: {n} из {max} знаков. Перенеси остальное в подробности.",
   "raise.details.add": "Добавить подробности",
   "raise.details.label": "Подробности",
   "raise.details.placeholder": "Даты, бюджет, что для тебя важно.",
+  "raise.details.count": "Подробности: {n} из {max} знаков",
+  "raise.details.tooLong": "Подробности слишком длинные: {n} из {max} знаков.",
 
   "raise.reward.label": "Награда",
   "raise.reward.custom": "Своя сумма",
@@ -24,7 +28,7 @@ const ru: Record<keyof typeof en, string> = {
   "raise.expiry.days": "{n, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
   "raise.expiry.until": "Открыта до {date} — по часам сети.",
   "raise.expiry.how": "Как считается дата",
-  "raise.expiry.nudge": "Долгим рукам нужно напоминание. Добавим в календарь.",
+  "raise.expiry.nudge": "Долгим рукам нужно напоминание. После подъёма появится кнопка — добавить его в календарь.",
   "raise.expiry.lens.formula": "expiry = min(now + {days} d, now + MAX_EXPIRY_PERIOD − 600 s) = {expiry}",
   "raise.expiry.lens.now": "now = блок {block} · {timestamp} · MAX_EXPIRY_PERIOD = {cap} s, прочитано у контракта",
 
@@ -43,6 +47,7 @@ const ru: Record<keyof typeof en, string> = {
   "raise.who.untitled": "Здесь будет твой заголовок",
   "raise.who.money": "Награда {reward} · открыта до {date}",
   "raise.who.moneyNone": "Без награды: только спасибо · открыта до {date}",
+  "raise.who.tooLong": "С этими словами адрес получится слишком длинным: сайты и превью ссылок его не откроют. Сократи текст или выбери «Тёмная» — тогда слова едут внутри ссылки.",
 
   "raise.fine.label": "Тонкая настройка",
   "raise.fine.minClaim": "Помощнику — не меньше {pct}",
@@ -53,6 +58,7 @@ const ru: Record<keyof typeof en, string> = {
   "raise.fine.lens.terms": "minClaimBps = {bps} · payoutGasK = {k}",
 
   "raise.preview.label": "Так её увидит тот, кто получит ссылку",
+  "raise.preview.raiser": "Автор: твой адрес, когда подключишь",
 
   "raise.swipe": "Поднять руку",
   "raise.swipe.needTitle": "Сначала напиши, что ищешь.",
@@ -71,11 +77,14 @@ const ru: Record<keyof typeof en, string> = {
   "raise.keys.twice": "В первый раз на этом устройстве спросим дважды: проверяем, что твой аккаунт оба раза отвечает одинаково.",
   "raise.keys.confirm": "Подтвердить",
   "raise.keys.back": "Не сейчас",
+  "raise.keys.what": "Что именно ты подтверждаешь",
   "raise.keys.lens.message": "Keys(string purpose, address raiser) · домен aHand keys / 1 · как его показывает твой аккаунт",
 
   "raise.up": "Рука поднята.",
   "raise.pending": "Твоя последняя рука ещё в пути.",
   "raise.pending.note": "Повторно ничего не отправится: экран следит за уже отправленной рукой.",
+  "raise.pending.batch": "Твой аккаунт принял эту руку одним пакетом и ещё не назвал её в сети.",
+  "raise.pending.aside": "Пока можешь поднять другую руку. Этот экран ищет ту, что в пути, каждый раз, когда открывается.",
 
   "raise.share.line": "Отправь тем, кто может знать нужного человека. Передать дальше — бесплатно.",
   "raise.share.qr": "Показать QR",
@@ -92,7 +101,7 @@ const ru: Record<keyof typeof en, string> = {
   "raise.show": "Показать ссылку",
   "raise.show.why": "Твой аккаунт соберёт ссылку этой руки после одного подтверждения.",
 
-  "raise.locked.band": "Твой аккаунт не сможет собрать эту ссылку заново. Сохрани её сейчас. Пока не сохранишь, на этом устройстве лежит запертая копия.",
+  "raise.locked.band": "Твой аккаунт не сможет собрать эту ссылку заново. Сохрани её сейчас. Пока не сохранишь, на этом устройстве лежит запертая копия — не дольше суток.",
   "raise.locked.inbox": "Ответы на эту руку можно прочитать только на этом устройстве.",
   "raise.locked.tick": "Ссылка сохранена",
   "raise.locked.leave": "Отметь «Ссылка сохранена», прежде чем уйти.",
@@ -104,6 +113,8 @@ const ru: Record<keyof typeof en, string> = {
   "raise.error.cannotSend": "С этого аккаунта отсюда не отправить. Ничего не отправлено.",
   "raise.error.reverted": "Рука не поднялась. Награда осталась у тебя.",
   "raise.error.lostSight": "Мы потеряли из виду твою руку. Обнови страницу, чтобы найти её снова: дважды ничего не отправится.",
+  "raise.error.connectToLook": "Подключи аккаунт, с которого поднята эта рука, — и экран найдёт её. Повторно ничего не отправится.",
+  "raise.error.otherAccount": "Эту руку поднимали с другого аккаунта. Подключи его, чтобы найти её. Повторно ничего не отправится.",
   "raise.error.copyLost": "Это устройство больше не может открыть запертую копию ссылки. После конца срока награду всё равно можно вернуть тебе.",
   "raise.error.otherTerms": "Контракт записал не те условия, что отправил этот экран. Не рассылай эту руку: после конца срока её можно вернуть тебе.",
   "raise.error.facts": "Сейчас не прочитать ограничения контракта или токен. Ничего не отправлено.",

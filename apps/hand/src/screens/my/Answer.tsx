@@ -1,12 +1,12 @@
 import type { HandRef } from "@ahand/deliver";
 import { useState } from "react";
-import { zeroAddress, type Hex } from "viem";
+import type { Hex } from "viem";
 
 import { navigate } from "../../router";
 import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
 import { t } from "../../i18n";
-import { ChainRail, Mark, QuietButton, SwipeButton, count, minute, money, percent, shortAddress, useLang, useLens, type RailHand } from "../../ui";
+import { ChainRail, Mark, QuietButton, SwipeButton, count, minute, money, percent, railHandsOf, shortAddress, useLang, useLens, type RailHand } from "../../ui";
 import type { AnswerRead } from "./hooks";
 import { reply, threadOf, useInboxVersion } from "./inbox";
 import { predictSplit } from "./logic";
@@ -34,10 +34,12 @@ export function AnswerCard(props: {
   const judged = read.judged;
   const firstSeen = minute(Math.floor(read.record.firstSeen / 1000), lang);
 
-  if (!judged) {
+  if (!judged || judged.verdict === "offline") {
+    // Not judged yet: still asking Core, or the network did not answer (asked again when it does).
     return (
-      <article className="ah-card flex flex-col gap-2 p-4" aria-busy="true">
+      <article className="ah-card flex flex-col gap-2 p-4" aria-busy={judged ? undefined : "true"}>
         <Line>{t("my.answers.checking")}</Line>
+        {judged ? <Line dim>{t("common.time.offline")}</Line> : null}
       </article>
     );
   }
@@ -49,7 +51,7 @@ export function AnswerCard(props: {
         <p className="m-0 font-semibold">{t(judged.messageId)}</p>
         {read.record.words ? (
           <p className="ah-label ah-label--dim m-0">
-            {t("my.answer.words")}: “{read.record.words}”
+            {t("my.answer.words")}: {t("my.answer.quoted", { words: read.record.words })}
           </p>
         ) : null}
         <p className="ah-meta ah-meta--dim m-0">{t("my.lens.firstSeen", { time: firstSeen })}</p>
@@ -60,11 +62,7 @@ export function AnswerCard(props: {
   const { opened } = judged;
   const give = opened.signedGive!.give;
   const rows = predictSplit(reward, opened.signedShakes, give);
-  const hands: RailHand[] = [
-    { role: "asker", address: opened.hand.raiser },
-    ...opened.signedShakes.map(({ shake }): RailHand => (shake.payee === zeroAddress ? { role: "passer" } : { role: "passer", address: shake.payee })),
-    { role: "helper", address: give.signer },
-  ];
+  const hands: RailHand[] = railHandsOf(opened, { helper: "signer" });
   const thank = () => {
     rememberText(read.record.giveLink, "handover");
     navigate("/thank");
@@ -74,7 +72,7 @@ export function AnswerCard(props: {
     <article className="ah-card flex flex-col gap-4 p-4 md:p-5" data-testid={TID.my.answer} data-value={judged.giveHash}>
       <div className="flex flex-col gap-1">
         <p className="ah-meta m-0">{t("my.answer.words")}</p>
-        {read.record.words ? <p className="m-0 text-[length:var(--fs-body-lg)] font-semibold leading-snug">“{read.record.words}”</p> : <Line dim>{t("my.answer.noWords")}</Line>}
+        {read.record.words ? <p className="m-0 text-[length:var(--fs-body-lg)] font-semibold leading-snug">{t("my.answer.quoted", { words: read.record.words })}</p> : <Line dim>{t("my.answer.noWords")}</Line>}
       </div>
 
       <ChainRail hands={hands} you={false} next={false} route={{ chainId: opened.head.chainId, core: opened.head.core, hand: opened.hand, signedShakes: opened.signedShakes, signedGive: opened.signedGive, reward, decimals }} />

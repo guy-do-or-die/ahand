@@ -5,7 +5,7 @@ import { encodeAbiParameters, encodeEventTopics, keccak256, stringToBytes, zeroH
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 
 import { CORE_ABI } from "@ahand/sdk";
-import { assertNewRoot, expiryFor, inboxKeyOf, passesAt, raisedIn, writeLinks } from "./link";
+import { assertNewRoot, expiryFor, inboxKeyOf, lengthOf, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, raisedIn, weigh, writeLinks } from "./link";
 
 const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
 const RAISER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
@@ -18,8 +18,8 @@ function handOf(seed: Hex, dataHash: Hex, handId = 7n): Hand {
   return { handId, raiser: RAISER, token: TOKEN, rootKey: privateKeyToAddress(keyOfSeed(seed)), payoutGasK: 250, minClaimBps: 7000, dataHash };
 }
 
-function raisedLog(handId: bigint, rootKey: Address, dataHash: Hex, address: Address = CORE) {
-  const topics = encodeEventTopics({ abi: CORE_ABI, eventName: "Raised", args: { handId, raiser: RAISER, token: TOKEN } });
+function raisedLog(handId: bigint, rootKey: Address, dataHash: Hex, address: Address = CORE, raiser: Address = RAISER) {
+  const topics = encodeEventTopics({ abi: CORE_ABI, eventName: "Raised", args: { handId, raiser, token: TOKEN } });
   const data = encodeAbiParameters(
     [{ type: "uint256" }, { type: "uint40" }, { type: "address" }, { type: "uint16" }, { type: "uint16" }, { type: "bytes32" }],
     [50_000_000n, 1_800_000_000, rootKey, 250, 7000, dataHash],
@@ -44,6 +44,97 @@ describe("raise: the Raised log of this transaction", () => {
   test("ignores a log of another contract and throws when Core's is missing", () => {
     const receipt = { logs: [raisedLog(3n, RAISER, zeroHash, TOKEN)] } as TransactionReceipt;
     expect(() => raisedIn(receipt, CORE)).toThrow();
+  });
+});
+
+describe("raise: a receipt shared with other accounts' calls (a wallet's batch, a bundle)", () => {
+  const OTHER = "0x90F79bf6EB2c4f870365E785982E1f101E93b906" as Address;
+  const mine = privateKeyToAddress(keyOfSeed(newSeed()));
+  const mineToo = privateKeyToAddress(keyOfSeed(newSeed()));
+  const theirs = privateKeyToAddress(keyOfSeed(newSeed()));
+  const receipt = {
+    logs: [raisedLog(40n, theirs, zeroHash, CORE, OTHER), raisedLog(41n, mine, zeroHash), raisedLog(42n, mineToo, zeroHash)],
+  } as TransactionReceipt;
+
+  test("the hand is this raiser's own, not the first in the receipt", () => {
+    expect(raisedIn(receipt, CORE).hand.handId).toBe(40n);
+    expect(raisedIn(receipt, CORE, { raiser: RAISER }).hand.handId).toBe(41n);
+    expect(raisedIn(receipt, CORE, { raiser: RAISER.toLowerCase() as Address }).hand.raiser).toBe(RAISER);
+  });
+
+  test("among the raiser's own, the one with the root key that was sent", () => {
+    expect(raisedIn(receipt, CORE, { raiser: RAISER, rootKey: mineToo }).hand.handId).toBe(42n);
+    // A root key that is nowhere in the receipt still gives the raiser's hand: the caller compares the terms.
+    expect(raisedIn(receipt, CORE, { raiser: RAISER, rootKey: theirs }).hand.handId).toBe(41n);
+  });
+
+  test("a receipt with only other accounts' hands holds none of this raiser's", () => {
+    expect(() => raisedIn({ logs: [raisedLog(40n, theirs, zeroHash, CORE, OTHER)] } as TransactionReceipt, CORE, { raiser: RAISER })).toThrow(/by this account/);
+  });
+});
+
+describe("raise: how much a hand's words may weigh", () => {
+  const where = { site: SITE, chainId: 31337, core: CORE, options: { canonicalCore: CORE } };
+  const inbox = publicKeyOf(generatePrivateKey());
+
+  test("characters are counted as a reader counts them, after normalising", () => {
+    expect(lengthOf("room")).toBe(4);
+    expect(lengthOf("комната")).toBe(7);
+    expect(lengthOf("🙌🙏")).toBe(2); // two characters, four UTF-16 units
+    expect(lengthOf("e\u0301")).toBe(1); // NFC joins the letter and its accent
+    expect(lengthOf("a\r\nb")).toBe(3);
+  });
+
+  test("the title's cap is 160 and the details' cap is 1000, each to the character", () => {
+    expect(MAX_TITLE).toBe(160);
+    expect(MAX_DETAILS).toBe(1000);
+    expect(weigh({ title: "т".repeat(160), content: "д".repeat(1000), mode: "public" }, where).over).toBeUndefined();
+    expect(weigh({ title: "т".repeat(161), content: "", mode: "dark" }, where)).toMatchObject({ title: 161, over: "title" });
+    expect(weigh({ title: "A title", content: "д".repeat(1001), mode: "dark" }, where)).toMatchObject({ details: 1001, over: "details" });
+    // Spaces around the details are not theirs.
+    expect(weigh({ title: "A title", content: `  ${"д".repeat(1000)}\n`, mode: "unlisted" }, where).over).toBeUndefined();
+  });
+
+  for (const mode of ["public", "unlisted"] as const) {
+    test(`${mode}: the count before # is the real address's, give or take the hand's number`, async () => {
+      const title = "A quiet room in Tbilisi for a week, somewhere near the old town";
+      const content = "С 3 по 10 июня, до $40 за ночь. ".repeat(20).trim();
+      const weighed = weigh({ title, content, mode }, where);
+      const seed = newSeed();
+      const described = describeHand({ mode, title, content, inbox });
+      const written = await writeLinks({ site: SITE, chainId: 31337, core: CORE, hand: handOf(seed, described.dataHash, 7n), seed, described, options: where.options });
+      const real = written.address.indexOf("#");
+      expect(weighed.beforeHash).toBe(real + 19); // "7" is one digit of the twenty counted
+      expect(weighed.over).toBeUndefined();
+    });
+  }
+
+  test("a site that names the contract in the address counts its 42 characters too", () => {
+    const title = "A title";
+    const short = weigh({ title, content: "", mode: "unlisted" }, where).beforeHash;
+    const long = weigh({ title, content: "", mode: "unlisted" }, { ...where, options: {} }).beforeHash;
+    expect(long - short).toBe(43);
+  });
+
+  test("dark shows nothing before #, whatever the words weigh", () => {
+    expect(weigh({ title: "т".repeat(160), content: "д".repeat(1000), mode: "dark" }, where).beforeHash).toBe(SITE.length + 1);
+  });
+
+  test("words at their caps always fit before #: the heaviest characters stay under 8 KB", () => {
+    const heaviest = weigh({ title: "🙌".repeat(MAX_TITLE), content: "🙏".repeat(MAX_DETAILS), mode: "public" }, where);
+    expect(heaviest.over).toBeUndefined();
+    expect(heaviest.beforeHash).toBeGreaterThan(6000);
+    expect(heaviest.beforeHash).toBeLessThanOrEqual(MAX_BEFORE_HASH);
+  });
+
+  test("an address that would not fit is refused for the public shape and offered the dark one", () => {
+    // Reached only if the caps are ever raised; a long site address stands in for that here.
+    const far = { ...where, site: `https://${"a".repeat(2000)}.example` };
+    const words = { title: "🙌".repeat(MAX_TITLE), content: "🙏".repeat(MAX_DETAILS) };
+    expect(weigh({ ...words, mode: "public" }, far)).toMatchObject({ over: "address" });
+    expect(weigh({ ...words, mode: "public" }, far).beforeHash).toBeGreaterThan(MAX_BEFORE_HASH);
+    expect(weigh({ ...words, mode: "unlisted" }, far).over).toBeUndefined(); // only the title shows
+    expect(weigh({ ...words, mode: "dark" }, far).over).toBeUndefined();
   });
 });
 

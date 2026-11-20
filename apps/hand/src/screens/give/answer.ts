@@ -9,18 +9,23 @@ import {
   isErc6492,
   messageIdOf,
   Refusal,
+  signGive,
   signGiveWithKey,
   toAddress,
   toCoreSignature,
   unwrap6492,
   type AccountSetup,
   type Give,
+  type GiveSigner,
+  type WalletKind,
   type LinkOptions,
   type OpenedAddress,
   type SignedGive,
 } from "@ahand/sdk";
 import { zeroHash, type Address, type Hex, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+
+import { isNetworkError } from "../../chain/errors";
 
 /**
  * Answering a live link (ARCHITECTURE §6 step 7, §11 Signing), in this order and no other:
@@ -77,20 +82,6 @@ export type AnswerOutcome =
     }
   | { ok: false; reason: "rejected" | "refused" | "offline" | "no-forwarder" | "failed"; messageId?: string; message?: string };
 
-/** A network that did not answer, anywhere in the cause chain: said as such, never as a bad answer. */
-export function isNetworkError(error: unknown): boolean {
-  let node: unknown = error;
-  const seen = new Set<unknown>();
-  while (node && typeof node === "object" && !seen.has(node)) {
-    seen.add(node);
-    const { name, message } = node as { name?: unknown; message?: unknown };
-    if (typeof name === "string" && /^(HttpRequestError|TimeoutError|WebSocketRequestError|SocketClosedError)$/.test(name)) return true;
-    if (typeof message === "string" && /failed to fetch|fetch failed|networkerror|network request failed|ECONNREFUSED/i.test(message)) return true;
-    node = (node as { cause?: unknown }).cause;
-  }
-  return false;
-}
-
 function failureOf(error: unknown): AnswerOutcome {
   if (error instanceof Refusal || error instanceof CoreRefused) return { ok: false, reason: "refused", messageId: messageIdOf(error) };
   if (isNetworkError(error)) return { ok: false, reason: "offline" };
@@ -105,6 +96,36 @@ export function confirmWithKey(privateKey: Hex): Confirm {
 /** A local account confirms: the address made from twelve words. */
 export function confirmWithAccount(account: { signTypedData: (typed: GiveTyped) => Promise<Hex> }): Confirm {
   return async (typed) => ({ ok: true, signature: toCoreSignature(await account.signTypedData(typed)) });
+}
+
+/** What the connected wallet answered: its signature, or why there is none. */
+export type WalletAnswer = { ok: true; signature: Hex } | { ok: false; reason: "rejected" | "no-wallet" | "failed"; message?: string };
+
+/**
+ * The connected wallet confirms. Its answer is brought to the form Core takes by the SDK's own
+ * `signGive` (one rule for every app: a key's or a delegated account's answer in its 65-byte form,
+ * a wrapper or a contract's own signature as it came), with the account's kind read first.
+ */
+export function confirmWithWallet(ask: (typed: GiveTyped) => Promise<WalletAnswer>, kindOf: () => Promise<WalletKind>): Confirm {
+  return async (typed) => {
+    const kind = await kindOf();
+    let declined: Confirmed | undefined;
+    const wallet: GiveSigner = {
+      async signTypedData(asked) {
+        const answer = await ask(asked);
+        if (answer.ok) return answer.signature;
+        declined = answer.reason === "rejected" ? { ok: false, reason: "rejected" } : { ok: false, reason: "failed", ...(answer.message ? { message: answer.message } : {}) };
+        throw new Error("the wallet gave no signature");
+      },
+    };
+    const { hand, ...give } = typed.message;
+    try {
+      return { ok: true, signature: await signGive(wallet, kind, typed.domain, hand, give) };
+    } catch (error) {
+      if (declined) return declined;
+      throw error;
+    }
+  };
 }
 
 export async function answerLink(input: AnswerInput): Promise<AnswerOutcome> {

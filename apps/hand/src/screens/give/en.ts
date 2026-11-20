@@ -30,11 +30,14 @@ const en = {
   "give.agree.lands": "Where it lands",
   "give.agree.confirms": "Who confirms it",
   "give.agree.byAccount": "This account, on its own screen, with the same numbers",
-  "give.agree.byOneTime": "A one-time key, here; then it is thrown away",
-  "give.agree.byWords": "The address made from your twelve words, here",
+  "give.agree.byOneTime": "A one-time key, on this page; then it is thrown away",
+  "give.agree.byWords": "The address made from your 12 words, on this page",
   "give.agree.flagged.raiser": "This is the asker's own address. The money would go back to them.",
   "give.agree.flagged.token": "This is the token's own address. Money sent there is usually lost.",
+  "give.askerHop": "{n, plural, one {Pass {passes} on this route named} other {Passes {passes} on this route named}} the asker's own address: that share goes back to the asker, or the link went through the asker's key. The contract allows it; your part is unchanged.",
   "give.agree.pick": "Choose where the money lands first.",
+  // The new address is made and only "I wrote them down" is unticked (LandPicker knows which).
+  "give.agree.tick": "Tick that the 12 words are written down.",
 
   "give.swipe": "Send my help",
   "give.swipe.busy": "Checking…",

@@ -1,7 +1,7 @@
 import { passesLeft, type OpenedAddress } from "@ahand/sdk";
 import { useMemo, useState, type CSSProperties } from "react";
 
-import { useHand, useNow } from "../../chain";
+import { useChainStatus, useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { navigate } from "../../router";
@@ -10,7 +10,8 @@ import { TID } from "../../testids";
 import { CopyRow, DealCard, ErrorBand, Identity, LandSheet, Mark, Qr, QuietButton, SwipeButton, money, percent, shortAddress, type Landing } from "../../ui";
 import { ConnectSheet, useWallet } from "../../wallet";
 import { failureOf, keepMax, makePass, pathOf, shareOf, KEEP_STEP, type Failure, type Held, type Made } from "../hand/held";
-import { LINK_OPTIONS, cardDescription, useDecimals, useOpening } from "../hand/useHeld";
+import { Unreachable } from "../hand/Unreachable";
+import { LINK_OPTIONS, cardDescription, pollNow, useDecimals, useOpening, useReread } from "../hand/useHeld";
 
 /**
  * Pass it on (UX-SPEC §8.4). The link this tab holds is opened again and passed on in this page:
@@ -19,6 +20,9 @@ import { LINK_OPTIONS, cardDescription, useDecimals, useOpening } from "../hand/
  * Above 0%, "Where should your share land?" (the kit's LandSheet; the address is all a pass
  * needs). The address keeps the shape it came in, or goes darker on request, never lighter. What
  * the screen then says about the new link is read back from the written link itself.
+ *
+ * A network that can't be reached is not a verdict on the link: the screen keeps it, says so and
+ * reads again on its own (the Hand view's Unreachable).
  */
 export default function PassScreen() {
   const opened = useOpened();
@@ -27,6 +31,7 @@ export default function PassScreen() {
   // the new link, and the screen must not start over on it.
   const [source] = useState<Held | undefined>(() => (opened ? { before: opened.before, fragment: opened.fragment } : undefined));
   const opening = useOpening(source);
+  const [again, reread] = useReread();
 
   let body;
   if (!source) body = <NoLink />;
@@ -36,8 +41,9 @@ export default function PassScreen() {
         {t("common.state.checking")}
       </p>
     );
-  } else if (opening.status === "failed") body = <Failed failure={opening.failure} />;
-  else body = <Pass opened={opening.opened} />;
+  } else if (opening.status === "unreachable") body = <Unreachable retry={opening.retry} held heading={t("pass.title")} />;
+  else if (opening.status === "failed") body = <Failed failure={opening.failure} />;
+  else body = <Pass key={again} opened={opening.opened} onRetry={reread} />;
 
   return (
     <section className="mx-auto w-full max-w-[1040px] px-6 pb-14 pt-8 md:px-10 md:pt-12" data-screen="pass">
@@ -67,9 +73,10 @@ function Failed({ failure }: { failure: Failure }) {
   );
 }
 
-function Pass({ opened }: { opened: OpenedAddress }) {
+function Pass({ opened, onRetry }: { opened: OpenedAddress; onRetry: () => void }) {
   const read = useHand(opened.head.core, opened.hand.handId);
   const now = useNow();
+  const chain = useChainStatus();
   const lang = useLang();
   const wallet = useWallet();
   const decimals = useDecimals(read.data?.view.token);
@@ -84,7 +91,9 @@ function Pass({ opened }: { opened: OpenedAddress }) {
   const [failure, setFailure] = useState<Failure>();
 
   if (!read.data || decimals === undefined) {
-    if (read.error && !read.data) return <Failed failure={failureOf(read.error)} />;
+    const failure = read.error && !read.data ? failureOf(read.error) : undefined;
+    if (failure && !failure.network) return <Failed failure={failure} />;
+    if (failure || (!read.data && chain.offline)) return <Unreachable retry={onRetry} auto={pollNow} held heading={t("pass.title")} />;
     return (
       <p className="ah-meta m-0" role="status">
         {t("common.state.checking")}
@@ -171,7 +180,8 @@ function Pass({ opened }: { opened: OpenedAddress }) {
               data-max={max}
               onChange={(event) => setKeep(Number(event.target.value))}
             />
-            <p className="m-0 text-[length:var(--fs-body-lg)] font-bold tabular-nums" data-testid={TID.pass.shareMoney} data-value={keep} aria-live="polite">
+            {/* A running sentence, not a table: tabular figures would make "." and "," digit-wide in this face ("$2 . 50"). */}
+            <p className="m-0 text-[length:var(--fs-body-lg)] font-bold" data-testid={TID.pass.shareMoney} data-value={keep} aria-live="polite">
               {keep === 0 ? t("pass.shareNone") : t("pass.share", { pct: percent(keep, lang), amount: money(shareOf(view.reward, keep), decimals, lang) })}
             </p>
             <p className="ah-label m-0">{t("pass.shareMax", { pct: percent(max, lang) })}</p>

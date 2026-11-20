@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
-import { clientOf } from "../../chain";
+import { clientOf, useChainStatus } from "../../chain";
 import { config } from "../../config";
 import { all, forHand, type HandRecord, type InboxRecord, type PassedRecord } from "../../store/db";
 import { judgeGive, type HandPlace, type Judged } from "./answers";
-import { listenOn, useInboxVersion } from "./inbox";
+import { RELAYS, listenOn, readOf, useInboxVersion, useStoredVersion } from "./inbox";
+import { inboxSight, type InboxSight } from "./logic";
 import { GET_HAND, OPTIONS } from "./place";
 import { secretsOf, unlockedFor, useSessionVersion, type HandSecrets } from "./session";
 
@@ -44,7 +45,7 @@ function useStore<T>(read: () => Promise<T>, deps: unknown[]): Loaded<T> {
     return () => {
       live = false;
     };
-  }, [version, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [version, ...deps]); // `read` is a new closure every render; the caller's `deps` say when it reads something else
   return state;
 }
 
@@ -95,7 +96,7 @@ export function useSecrets(record: HandRecord | undefined, connected: Address | 
     return () => {
       live = false;
     };
-  }, [record?.intent, record?.book, record?.n, unlocked, session]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [record?.intent, record?.book, record?.n, unlocked, session]); // the record by its identity: a new object each read names the same Hand
   return secrets;
 }
 
@@ -105,17 +106,36 @@ export interface AnswerRead {
   judged?: Judged;
 }
 
+export interface Answers {
+  reads: AnswerRead[];
+  /** Everything the store holds for this Hand now has been read back and judged by Core. */
+  settled: boolean;
+}
+
 /**
  * The give links this device holds for a Hand, each judged by Core's `checkGive` on the chain's
  * current state. Judged again when a new one arrives and when the Hand's state changes (an answer
  * stops being one once the Hand is closed).
  */
-export function useAnswers(key: string | undefined, place: HandPlace | undefined, state: string | undefined): AnswerRead[] {
-  const inbox = useInboxVersion();
+export function useAnswers(key: string | undefined, place: HandPlace | undefined, state: string | undefined): Answers {
+  // Changes when an answer was written to the store, not on every relay's word or thread line.
+  const inbox = useStoredVersion();
+  // Answers the network could not check are checked again each time the chain answers again.
+  const { offline } = useChainStatus(place?.chainId);
+  const wasOffline = useRef(offline);
+  const [backOnline, setBackOnline] = useState(0);
+  useEffect(() => {
+    if (wasOffline.current && !offline) setBackOnline((n) => n + 1);
+    wasOffline.current = offline;
+  }, [offline]);
   const [reads, setReads] = useState<AnswerRead[]>([]);
+  // What the last finished pass was asked: it is the current one only if nothing changed since.
+  const asked = key && place ? `${key}|${state}|${inbox}|${backOnline}` : "";
+  const [done, setDone] = useState("");
   useEffect(() => {
     if (!key || !place) {
       setReads([]);
+      setDone("");
       return;
     }
     let live = true;
@@ -134,20 +154,43 @@ export function useAnswers(key: string | undefined, place: HandPlace | undefined
           judgeGive({ giveLink: record.giveLink, place, client: clientOf(place.chainId), getHand: GET_HAND, options: OPTIONS, forwarder: config.forwarder }),
         ),
       );
-      if (live) setReads(records.map((record, index) => ({ record, judged: judged[index] })));
+      if (!live) return;
+      setReads(records.map((record, index) => ({ record, judged: judged[index] })));
+      setDone(asked);
     })();
     return () => {
       live = false;
     };
-  }, [key, place?.chainId, place?.core, place?.handId, state, inbox]); // eslint-disable-line react-hooks/exhaustive-deps
-  return dedupe(reads);
+  }, [key, place?.chainId, place?.core, place?.handId, state, inbox, backOnline]); // `place` by its parts: a new object each render names the same Hand
+  return { reads: dedupe(reads), settled: done === asked && reads.every((read) => read.judged && read.judged.verdict !== "offline") };
+}
+
+/**
+ * What the screen may say about a Hand's answers (logic.ts `inboxSight`): locked until the
+ * connected account, the one that raised it, has confirmed its keys this visit; then by what the
+ * relays answered. `settled` is `useAnswers`'s.
+ */
+export function useInboxSight(record: HandRecord | undefined, connected: Address | undefined, secrets: HandSecrets | undefined, settled: boolean): InboxSight {
+  useSessionVersion();
+  useInboxVersion();
+  const mine = record && connected && record.raiser.toLowerCase() === connected.toLowerCase();
+  const read = record?.hand ? readOf(record.hand) : undefined;
+  return inboxSight({
+    relays: RELAYS.length,
+    unlocked: Boolean(mine && unlockedFor(record.chainId, record.core, record.raiser)),
+    key: secrets && Boolean(secrets.inbox),
+    read: read?.read ?? 0,
+    failed: read?.failed ?? 0,
+    busy: !settled || Boolean(read?.storing),
+  });
 }
 
 /** One card per Give: the same answer delivered twice, or also pasted, is shown once. */
 function dedupe(reads: AnswerRead[]): AnswerRead[] {
   const seen = new Set<string>();
-  // Answers first (in the order they arrived), then whatever is still being checked or was refused.
-  const rank = (read: AnswerRead) => (read.judged?.verdict === "answer" ? 0 : read.judged ? 2 : 1);
+  // Answers first (in the order they arrived), then whatever is still being checked (or waits for
+  // the network), then what was refused.
+  const rank = (read: AnswerRead) => (read.judged?.verdict === "answer" ? 0 : read.judged && read.judged.verdict !== "offline" ? 2 : 1);
   return [...reads].sort((a, b) => rank(a) - rank(b)).filter((read) => {
     if (read.judged?.verdict !== "answer") return true;
     if (seen.has(read.judged.giveHash)) return false;

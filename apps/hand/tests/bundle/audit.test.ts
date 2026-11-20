@@ -26,7 +26,6 @@ describe("bundle audit", () => {
   test("a clean build: configured addresses, library text and the CSP meta only", () => {
     const folder = folderWith({
       "index.html": `<head>${meta}</head>`,
-      "gallery.html": `<head>${meta}</head>`,
       "assets/a.js": 'fetch("https://rpc.example.org/key");new WebSocket("wss://relay.example.org");"https://viem.sh/docs";"http://www.w3.org/2000/svg"',
     });
     try {
@@ -58,6 +57,20 @@ describe("bundle audit", () => {
   test("a local build may carry the dev wallet's mnemonic", () => {
     const folder = folderWith({ "index.html": `<head>${meta}</head>`, "assets/dev.js": `"${ANVIL_MNEMONIC}"` });
     try {
+      expect(audit(folder, { ...publicConfig, chain: { ...publicConfig.chain, local: true } }).findings).toEqual([]);
+    } finally {
+      rmSync(folder, { recursive: true });
+    }
+  });
+
+  test("a public build with the gallery or the dev wallet's chunk is found; a local one may carry them", () => {
+    const folder = folderWith({ "index.html": `<head>${meta}</head>`, "gallery.html": `<head>${meta}</head>`, "assets/gallery-x1.js": "1", "assets/dev-x2.js": "2", "assets/index-x3.js": "3" });
+    try {
+      expect(audit(folder, publicConfig).findings.sort((a, b) => a.file.localeCompare(b.file))).toEqual([
+        { file: "assets/dev-x2.js", what: "a local-only file in a build that is not local" },
+        { file: "assets/gallery-x1.js", what: "a local-only file in a build that is not local" },
+        { file: "gallery.html", what: "a local-only file in a build that is not local" },
+      ]);
       expect(audit(folder, { ...publicConfig, chain: { ...publicConfig.chain, local: true } }).findings).toEqual([]);
     } finally {
       rmSync(folder, { recursive: true });

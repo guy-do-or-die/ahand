@@ -10,8 +10,13 @@ import { TID } from "../testids";
  * The twist (UX-SPEC §3, D-54): every hand turns over. `Flip` is a two-sided card. Its front is
  * whatever it wraps, inside a real button with `aria-expanded`; its back follows that button in
  * the document, so a screen reader reads the proof as the next paragraph. A tap, Enter or Space
- * turns it: 360 ms of `rotateY`, both faces with `backface-visibility: hidden`. Under
- * `prefers-reduced-motion` the sides swap with no motion. Tapping the back turns it again.
+ * turns it in 360 ms of `rotateY`; under `prefers-reduced-motion` the sides swap with no motion.
+ * Tapping the back turns it again.
+ *
+ * A receipt row ("row") turns as one card: the back takes the front's place. A hand on the rail
+ * ("rail") turns where it stands and stays up, filled with ink, while its back opens as a sheet
+ * under the whole rail, as wide as the rail, so no hand, the viewer's chip or the empty slot is
+ * pushed off the screen (twist.css lays it out; the document order stays button, then back).
  *
  * The back is rendered only while it is shown (or turning), so what it checks is checked when
  * someone looks: "the checks this browser just ran".
@@ -27,10 +32,15 @@ export interface FlipProps {
   back: () => ReactNode;
   /** What the back is, for a screen reader: "what was checked". */
   backLabel: string;
-  /** "rail" sizes the back as a card on the ChainRail; "row" spans a receipt row. */
+  /** "rail": a hand on the ChainRail, its back a sheet under the rail; "row": a receipt row, turning as one card. */
   variant: "rail" | "row";
   className?: string;
-  /** Called after each turn with the side now up. */
+  /**
+   * Which side is up, when the caller holds it (the rail turns one hand at a time). Left out, the
+   * card holds it itself.
+   */
+  flipped?: boolean;
+  /** Called at each turn with the side that should now be up. */
   onTurn?: (flipped: boolean) => void;
 }
 
@@ -52,33 +62,80 @@ export function useReducedMotion(): boolean {
   );
 }
 
-export function Flip({ front, back, backLabel, variant, className, onTurn }: FlipProps) {
+/** Room kept between a turned card and the edge of the screen, in CSS pixels. */
+const REVEAL_MARGIN = 12;
+
+/** What a reader does to move the page themselves; after any of these the page is theirs. */
+const READER_INPUTS = ["pointerdown", "wheel", "touchmove", "keydown"] as const;
+
+/**
+ * Brings a card that has just turned into view: all of its back when the front and the back fit
+ * on the screen together; otherwise the front at the top, so the reader sees which hand the back
+ * belongs to and reads on from its first line. `scrollIntoView` keeps clear of whatever the page
+ * declares as covered (`scroll-padding` on the root), and the fit is judged by the same measure.
+ */
+function reveal(front: HTMLElement, back: HTMLElement, smooth: boolean): void {
+  const behavior = smooth ? "smooth" : "auto";
+  const root = getComputedStyle(document.documentElement);
+  const covered = (parseFloat(root.scrollPaddingTop) || 0) + (parseFloat(root.scrollPaddingBottom) || 0);
+  const span = back.getBoundingClientRect().bottom - front.getBoundingClientRect().top;
+  if (span <= window.innerHeight - covered - 2 * REVEAL_MARGIN) back.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior });
+  else front.scrollIntoView?.({ block: "start", inline: "nearest", behavior });
+}
+
+export function Flip({ front, back, backLabel, variant, className, flipped: held, onTurn }: FlipProps) {
   const words = useTwistWords();
   const reduced = useReducedMotion();
   const id = useId();
-  const [flipped, setFlipped] = useState(false);
+  const [own, setOwn] = useState(false);
+  const flipped = held ?? own;
   // The back stays in the document while it turns away, and leaves once it faces away.
-  const [mounted, setMounted] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const root = useRef<HTMLDivElement>(null);
+  const [lingers, setLingers] = useState(false);
+  const mounted = flipped || lingers;
+  const frontRef = useRef<HTMLButtonElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
+  // A card that arrives already turned stays where the page put it; only a turn moves the page.
+  const arrived = useRef(false);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    const turned = arrived.current;
+    arrived.current = true;
+    if (flipped) {
+      setLingers(true);
+      const face = frontRef.current;
+      const sheet = backRef.current;
+      if (!turned || !face || !sheet) return;
+      reveal(face, sheet, !reduced);
+      // The back grows as its checks come in. Until the reader touches the page again, the
+      // page keeps the grown back in view.
+      if (typeof ResizeObserver === "undefined") return;
+      let height = sheet.offsetHeight;
+      const watch = new ResizeObserver(() => {
+        if (sheet.offsetHeight > height) reveal(face, sheet, !reduced);
+        height = sheet.offsetHeight;
+      });
+      watch.observe(sheet);
+      const stop = () => watch.disconnect();
+      for (const input of READER_INPUTS) window.addEventListener(input, stop, { capture: true, once: true, passive: true });
+      return () => {
+        stop();
+        for (const input of READER_INPUTS) window.removeEventListener(input, stop, { capture: true });
+      };
+    }
+    if (reduced) {
+      setLingers(false);
+      return;
+    }
+    const timer = setTimeout(() => setLingers(false), FLIP_MS);
+    return () => clearTimeout(timer);
+    // Only a turn runs this: a change of the motion setting moves nothing by itself.
+  }, [flipped]);
 
   const turn = useCallback(() => {
-    clearTimeout(timer.current);
     const next = !flipped;
-    setFlipped(next);
-    if (next) {
-      setMounted(true);
-      // A card on a sideways rail brings itself into view; with less motion, without a glide.
-      requestAnimationFrame(() => root.current?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: reduced ? "auto" : "smooth" }));
-    } else if (reduced) {
-      setMounted(false);
-    } else {
-      timer.current = setTimeout(() => setMounted(false), FLIP_MS);
-    }
+    if (held === undefined) setOwn(next);
     onTurn?.(next);
-  }, [flipped, reduced, onTurn]);
+  }, [flipped, held, onTurn]);
 
   // A tap anywhere on the back turns it again, unless it lands on something of its own to press.
   const onBack = (event: MouseEvent<HTMLDivElement>) => {
@@ -88,13 +145,13 @@ export function Flip({ front, back, backLabel, variant, className, onTurn }: Fli
 
   return (
     <div
-      ref={root}
       className={clsx("ah-flip", `ah-flip--${variant}`, flipped && "ah-flip--flipped", className)}
       data-testid={TID.twist.flip}
       data-flipped={String(flipped)}
     >
       <div className="ah-flip__card">
         <button
+          ref={frontRef}
           type="button"
           className="ah-flip__face ah-flip__front"
           aria-expanded={flipped}
@@ -106,6 +163,7 @@ export function Flip({ front, back, backLabel, variant, className, onTurn }: Fli
           <span className="sr-only"> · {flipped ? words.turnBack : words.turnOver}</span>
         </button>
         <div
+          ref={backRef}
           id={id}
           role="group"
           aria-label={backLabel}

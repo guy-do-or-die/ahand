@@ -41,7 +41,8 @@ const ru: Record<keyof typeof en, string> = {
   "thank.payee.token": "Одна доля на этом пути придёт на адрес самого токена, а он обычно оставляет полученное себе.",
 
   "thank.tooLong": "Этот путь слишком длинный, чтобы поблагодарить за один раз.",
-  "thank.lens.fit": "В худшем случае {gas} gas · {bytes} байт calldata · предел 16 777 216 gas",
+  "thank.lens.fit":
+    "В худшем случае {gas} gas · {bytes} байт calldata · предел 16 777 216 gas. Худший случай нужен только для проверки, что этот путь помещается в одну транзакцию; отправляется оценка твоего кошелька.",
 
   "thank.setup": "Аккаунт помощника в этой сети ещё не настроен. Твоё спасибо сначала настроит его.",
   "thank.twoSteps":
@@ -56,7 +57,8 @@ const ru: Record<keyof typeof en, string> = {
   "thank.predicted.keptNothing": "не оставили себе ничего",
   "thank.predicted.formula": "как считается",
   "thank.predicted.total": "Вся награда",
-  "thank.predicted.waitsIfBlocked": "Если выплата не сможет пройти, она подождёт в контракте, пока владелец её не заберёт.",
+  "thank.predicted.waitsIfBlocked":
+    "Если выплата не сможет пройти, она подождёт в контракте, пока её не заберёт тот, кому она причитается, — или кто угодно не доставит её на этот адрес.",
   "thank.noReward": "У этой руки нет награды, так что спасибо не переводит денег. Оно закрывает руку и записывает, кто помог.",
   "thank.lens.shakeFormula": "{reward} × {bps} ÷ 10 000 = {amount}",
   "thank.lens.giveFormula": "{reward} − {paid} = {amount} · claim {bps} bps",
@@ -72,14 +74,29 @@ const ru: Record<keyof typeof en, string> = {
   "thank.step.thanks": "Отправляем спасибо",
   "thank.step.waiting": "Ждём сеть…",
 
-  "thank.done": "Спасибо сказано. Кто сколько получил — прямо из сети.",
-  "thank.done.before": "За эту руку уже поблагодарили — за этот ответ. Кто сколько получил — прямо из сети.",
+  "thank.done": "Спасибо сказано. Все выплаты — прямо из сети.",
+  "thank.done.before": "За эту руку уже поблагодарили — за этот ответ. Все выплаты — прямо из сети.",
   "thank.left": "{amount} ушло из контракта на {payee}",
   "thank.waiting": "{amount} ждёт {payee}",
-  "thank.waiting.why": "Выплата не смогла пройти, поэтому она ждёт в контракте. Владелец может её забрать, или кто угодно может её доставить.",
+  "thank.waiting.why":
+    "Выплата не смогла пройти, поэтому она ждёт в контракте. Тот, кому она причитается, может её забрать, или кто угодно может её доставить.",
   "thank.noMoney": "Денег не двигалось: у этой руки не было награды.",
   "thank.lens.events": "Что записала сеть",
   "thank.lens.event": "{event} · блок {block} · лог {index}",
+
+  "thank.spent": "Спасибо стоило около ${usd} · цены на {date}",
+  "thank.spent.steps": "Оба шага вместе стоили около ${usd} · цены на {date}",
+  "thank.spent.reading": "Читаем из сети, сколько это стоило…",
+  "thank.spent.unread": "Сейчас не удалось прочитать из сети, сколько это стоило.",
+  "thank.lens.tx": "Транзакция",
+  "thank.lens.tx.hash": "tx {hash}",
+  "thank.lens.tx.from": "от {from}",
+  "thank.lens.tx.block": "блок {block} · {time}",
+  "thank.lens.tx.blockOnly": "блок {block}",
+  "thank.lens.tx.gas": "потрачено gas {gas} · фактическая цена {gwei} gwei",
+  "thank.lens.tx.l1": "плата L1 за данные {eth} ETH",
+  "thank.lens.tx.fee": "плата {eth} ETH · ${usd} при ETH ${ethUsd} · цены на {date}",
+  "thank.lens.tx.local": "Локальная тестовая сеть: тестовый ETH по собственной цене этой сети",
   "thank.proof": "Посмотреть доказательство",
   "thank.withoutUs": "Сделать без нас",
   "thank.withoutUs.lead": "Тот же вызов — для терминала с cast из Foundry. Добавь, чем подтверждаешь: --ledger, --account или --private-key.",

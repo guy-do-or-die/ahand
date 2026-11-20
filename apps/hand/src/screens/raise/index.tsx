@@ -5,12 +5,12 @@ import { erc20Abi, keccak256, stringToBytes, type Address } from "viem";
 import { config } from "../../config";
 import { clientOf, useCost, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
-import type { HandRecord, Mode } from "../../store/db";
+import type { Mode } from "../../store/db";
 import { TID } from "../../testids";
 import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, Sheet, SwipeButton, TxRail, day, money, percent, type MoneyReading, type TxReached } from "../../ui";
 import { ConnectSheet, useSend, useTypedSigner, useWallet } from "../../wallet";
-import { raise, rebuild, resumeRaise, unfinished, type Draft, type Outcome, type Problem, type RaiseContext, type Step, type Up } from "./flow";
-import { expiryFor, passesAt } from "./link";
+import { problemOfWeight, raise, rebuild, resumeRaise, unfinished, type Draft, type Outcome, type Problem, type RaiseContext, type RaiseRecord, type Step, type Up } from "./flow";
+import { expiryFor, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
 import { Chips, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
 
@@ -25,6 +25,11 @@ const DAYS = [7, 30, 90, 180] as const;
 const MIN_CLAIMS = [5000, 7000, 9000, 10000] as const;
 const ROOMS = [200, 250, 300] as const;
 const NUDGE_DAYS = 60;
+/**
+ * The poster field's hard stop: a whole title, a line break and a whole details text. The caps
+ * themselves are counted per part (link.ts `weigh`); this only keeps a runaway paste out of the page.
+ */
+const POSTER_STOP = MAX_TITLE + 1 + MAX_DETAILS;
 /** A stand-in root key and description hash, only to price and try the call before the real ones exist. */
 const PREVIEW_ROOT: Address = "0x000000000000000000000000000000000000dEaD";
 const PREVIEW_HASH = keccak256(stringToBytes("aHand.raise.preview"));
@@ -36,7 +41,7 @@ type Phase =
   | { kind: "looking" }
   | { kind: "compose" }
   | { kind: "working"; step: Step | "connect"; of: number }
-  | { kind: "pending"; record: HandRecord }
+  | { kind: "pending"; record: RaiseRecord }
   | { kind: "up"; up: Up };
 
 interface Facts {
@@ -108,6 +113,11 @@ export default function RaiseScreen() {
   );
 
   const { title, content } = splitPoster(poster, details);
+  const weighed = useMemo(
+    () => weigh({ title, content, mode }, { site: ctx.site, chainId: ctx.chainId, core: ctx.core, options: ctx.options }),
+    [title, content, mode, ctx],
+  );
+  const tooLong = problemOfWeight(weighed);
   const decimals = facts?.decimals ?? TOKEN.decimals;
   const reward: bigint | undefined =
     rewardKey === "custom" ? (custom.status === "ok" ? custom.amount : undefined) : BigInt(rewardKey) * 10n ** BigInt(decimals);
@@ -124,23 +134,50 @@ export default function RaiseScreen() {
     }
   }, []);
 
+  /**
+   * Looks for a raise this device kept: follows its stored hash, or asks the connected account for
+   * the batch that carries it. Nothing is sent. One look at a time.
+   */
+  const mounted = useRef(true);
+  const looking = useRef(false);
+  const lookedWith = useRef<Address | undefined>(undefined);
+  const look = async (record: RaiseRecord, account: Address | undefined) => {
+    if (looking.current) return;
+    looking.current = true;
+    lookedWith.current = account;
+    setProblem(undefined);
+    try {
+      const outcome = await resumeRaise(record, ctx, (intent, options) => tx.resume(intent, options), account);
+      if (mounted.current) finish(outcome);
+    } catch {
+      if (mounted.current) finish({ ok: false, problem: { id: "raise.error.lostSight", pending: true } });
+    } finally {
+      looking.current = false;
+    }
+  };
+
   useEffect(() => {
-    let live = true;
+    mounted.current = true;
     unfinished(ctx)
-      .then(async (record) => {
-        if (!live) return;
+      .then((record) => {
+        if (!mounted.current) return;
         if (!record) return setPhase({ kind: "compose" });
         setPhase({ kind: "pending", record });
-        const outcome = await resumeRaise(record, ctx, (intent) => tx.resume(intent));
-        if (live) finish(outcome);
+        void look(record, wallet.address);
       })
-      .catch(() => live && setPhase({ kind: "compose" }));
+      .catch(() => mounted.current && setPhase({ kind: "compose" }));
     return () => {
-      live = false;
+      mounted.current = false;
     };
     // Looked for once, when the screen opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A batch is found through the account that sent it: once one is connected, look again.
+  useEffect(() => {
+    if (phase.kind !== "pending" || !problem?.connect || !wallet.address || lookedWith.current === wallet.address) return;
+    void look(phase.record, wallet.address);
+    // `look` is a new closure every render; it runs once per account connected while pending.
+  }, [wallet.address, phase, problem]);
 
   /* ── the ports flow.ts asks through ── */
   const confirmKeys = (twice: boolean) => new Promise<boolean>((answer) => setKeysAsk({ twice, answer }));
@@ -151,7 +188,7 @@ export default function RaiseScreen() {
   };
 
   const swipe = async () => {
-    if (busy.current || reward === undefined || !facts || !title) return;
+    if (busy.current || reward === undefined || !facts || !title || tooLong) return;
     busy.current = true;
     setProblem(undefined);
     setRaiseSent(false);
@@ -197,7 +234,7 @@ export default function RaiseScreen() {
   const priced = usePriced(reward, expiry, minClaimBps, payoutGasK, wallet.address);
 
   const reached: TxReached = (tx.state.reached ?? "sent") as TxReached;
-  const sentence = (p: Problem) => t(p.id, { ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
+  const sentence = (p: Problem) => t(p.id, { ...p.values, ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
 
   /* ── the share step ── */
   if (phase.kind === "up") {
@@ -227,24 +264,65 @@ export default function RaiseScreen() {
   }
 
   if (phase.kind === "pending") {
+    const { record } = phase;
     return (
       <Frame>
-        <section className="flex flex-col gap-4" data-testid={TID.raise.pending} data-hash={phase.record.txHash}>
+        <section className="flex flex-col gap-4" data-testid={TID.raise.pending} data-hash={record.txHash} data-batch={record.batchId}>
           <h1 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{t("raise.pending")}</h1>
           <div data-testid={TID.raise.txRail} data-value={reached}>
             <TxRail reached={reached} local={!config.chain.hasL1} />
           </div>
           <p className="ah-label m-0">{t("raise.pending.note")}</p>
-          <span className="ah-meta ah-meta--exact break-all">tx {phase.record.txHash}</span>
-          {problem ? <Band problem={problem} sentence={sentence(problem)} /> : null}
+          {record.txHash ? (
+            <span className="ah-meta ah-meta--exact">tx {record.txHash}</span>
+          ) : (
+            <>
+              <p className="ah-label m-0">{t("raise.pending.batch")}</p>
+              <span className="ah-meta ah-meta--exact">batch {record.batchId}</span>
+            </>
+          )}
+          {problem ? (
+            <Band
+              problem={problem}
+              sentence={sentence(problem)}
+              {...(problem.connect
+                ? {
+                    action: (
+                      <QuietButton compact data-testid={TID.raise.pendingConnect} onClick={() => setConnectAsk({ answer: () => undefined })}>
+                        {t("raise.steps.connect")}
+                      </QuietButton>
+                    ),
+                  }
+                : {})}
+            />
+          ) : null}
+          {problem?.pending ? (
+            <div className="flex flex-col items-start gap-2">
+              <p className="ah-label m-0">{t("raise.pending.aside")}</p>
+              <QuietButton
+                compact
+                data-testid={TID.raise.pendingAnother}
+                onClick={() => {
+                  tx.reset();
+                  setProblem(undefined);
+                  setPhase({ kind: "compose" });
+                }}
+              >
+                {t("raise.share.again")}
+              </QuietButton>
+            </div>
+          ) : null}
         </section>
+        {connectAsk ? <Connect ask={connectAsk} onDone={() => setConnectAsk(undefined)} /> : null}
       </Frame>
     );
   }
 
   const working = phase.kind === "working";
   const noTitle = title === "";
-  const canSwipe = phase.kind === "compose" && !noTitle && reward !== undefined && expiry !== undefined && !failed;
+  const canSwipe = phase.kind === "compose" && !noTitle && !tooLong && reward !== undefined && expiry !== undefined && !failed;
+  const titleOver = weighed.over === "title";
+  const detailsOver = weighed.over === "details";
   const untilDate = expiry !== undefined ? day(expiry, lang) : undefined;
   const moneyLine =
     untilDate === undefined
@@ -259,9 +337,9 @@ export default function RaiseScreen() {
         {/* 1. What are you looking for? */}
         <section className="flex flex-col gap-3">
           <span className="ah-meta">✋ {t("raise.kicker")}</span>
-          <label htmlFor="raise-what" className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title-m)]">
-            {t("raise.what")}
-          </label>
+          <h1 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title-m)]">
+            <label htmlFor="raise-what">{t("raise.what")}</label>
+          </h1>
           <textarea
             id="raise-what"
             data-testid={TID.raise.what}
@@ -269,13 +347,19 @@ export default function RaiseScreen() {
             rows={3}
             value={poster}
             disabled={working}
+            maxLength={POSTER_STOP}
             placeholder={t("raise.what.placeholder")}
-            aria-describedby="raise-what-hint"
+            aria-describedby="raise-what-hint raise-what-count"
+            aria-invalid={titleOver || undefined}
             onChange={(event) => setPoster(event.target.value)}
           />
-          <p id="raise-what-hint" className="ah-label m-0">
-            {t("raise.what.hint")}
+          <p className="ah-label m-0 flex flex-wrap justify-between gap-x-4 gap-y-1">
+            <span id="raise-what-hint">{t("raise.what.hint")}</span>
+            <span id="raise-what-count" className="ah-meta" data-testid={TID.raise.titleCount} data-value={weighed.title} data-over={titleOver}>
+              {t("raise.what.count", { n: weighed.title, max: MAX_TITLE })}
+            </span>
           </p>
+          {titleOver && tooLong ? <TooLong sentence={sentence(tooLong)} what="title" /> : null}
           {showDetails ? (
             <div className="ah-field">
               <label htmlFor="raise-details" className="ah-field__label">
@@ -288,7 +372,10 @@ export default function RaiseScreen() {
                 rows={4}
                 value={details}
                 disabled={working}
+                maxLength={MAX_DETAILS}
                 placeholder={t("raise.details.placeholder")}
+                aria-describedby="raise-details-count"
+                aria-invalid={detailsOver || undefined}
                 onChange={(event) => setDetails(event.target.value)}
               />
             </div>
@@ -297,6 +384,14 @@ export default function RaiseScreen() {
               + {t("raise.details.add")}
             </QuietButton>
           )}
+          {showDetails || weighed.details > 0 ? (
+            <p className="ah-label m-0 flex justify-end">
+              <span id="raise-details-count" className="ah-meta" data-testid={TID.raise.detailsCount} data-value={weighed.details} data-over={detailsOver}>
+                {t("raise.details.count", { n: weighed.details, max: MAX_DETAILS })}
+              </span>
+            </p>
+          ) : null}
+          {detailsOver && tooLong ? <TooLong sentence={sentence(tooLong)} what="details" /> : null}
         </section>
 
         {/* 2. Reward */}
@@ -371,6 +466,7 @@ export default function RaiseScreen() {
             <span className="ah-label">{t("raise.who.halvesBody")}</span>
           </Disclose>
           <Unfurl mode={mode} host={config.site.replace(/^https?:\/\//, "")} title={title} content={content} money={moneyLine} />
+          {weighed.over === "address" && tooLong ? <TooLong sentence={sentence(tooLong)} what="address" /> : null}
         </Part>
 
         {/* 5. Fine-tune */}
@@ -412,10 +508,19 @@ export default function RaiseScreen() {
                 decimals={decimals}
                 expiry={expiry}
                 claimBps={10_000}
-                raiser={wallet.address ?? "0x0000000000000000000000000000000000000000"}
                 heading="h2"
-                {...(wallet.address ? {} : { className: "[&_.ah-deal__foot]:hidden" })}
                 {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}
+                {...(wallet.address
+                  ? { raiser: wallet.address }
+                  : {
+                      // No account yet, so there is no address to show: the card draws no "Asked by"
+                      // row without one, and the row is said in words instead.
+                      children: (
+                        <p className="ah-label m-0" data-testid={TID.raise.previewRaiser}>
+                          {t("raise.preview.raiser")}
+                        </p>
+                      ),
+                    })}
               />
             ) : (
               <p className="ah-note m-0">{t("common.time.offline")}</p>
@@ -438,7 +543,7 @@ export default function RaiseScreen() {
             {t("raise.swipe")}
           </SwipeButton>
           <p id="raise-swipe-note" className="ah-label m-0">
-            {noTitle ? t("raise.swipe.needTitle") : !now ? t("raise.swipe.noClock") : t("raise.steps.tried")}
+            {noTitle ? t("raise.swipe.needTitle") : tooLong ? sentence(tooLong) : !now ? t("raise.swipe.noClock") : t("raise.steps.tried")}
           </p>
           {priced.status === "ok" ? (
             <div data-testid={TID.raise.cost}>
@@ -462,7 +567,6 @@ function usePriced(reward: bigint | undefined, expiry: number | undefined, minCl
     list.push(raiseCallOf({ reward, expiry, minClaimBps, payoutGasK }));
     return list;
     // The expiry moves with every block; a minute's step is enough for a price.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reward, expiry === undefined ? undefined : Math.floor(expiry / 60), minClaimBps, payoutGasK, from]);
   return useCost(calls, from);
 }
@@ -483,11 +587,25 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 
-function Band({ problem, sentence }: { problem: Problem; sentence: string }) {
+function Band({ problem, sentence, action }: { problem: Problem; sentence: string; action?: ReactNode }) {
   return (
     <div data-testid={TID.raise.error} data-value={problem.id}>
-      <ErrorBand what={sentence} {...(problem.code ? { code: problem.code } : {})} />
+      <ErrorBand
+        what={sentence}
+        {...(problem.nothingSent ? { kept: t("common.error.nothingSent") } : {})}
+        {...(problem.code ? { code: problem.code } : {})}
+        {...(action ? { action } : {})}
+      />
     </div>
+  );
+}
+
+/** Words that do not fit, said where they are typed; the swipe waits until they do. */
+function TooLong({ sentence, what }: { sentence: string; what: "title" | "details" | "address" }) {
+  return (
+    <p className="ah-note m-0" role="status" data-testid={TID.raise.tooLong} data-value={what}>
+      {sentence}
+    </p>
   );
 }
 
@@ -528,7 +646,10 @@ function KeysCard({ ask, onDone, raiser }: { ask: { twice: boolean; answer: (yes
       <div className="flex flex-col gap-4" data-testid={TID.raise.keysCard} data-twice={ask.twice}>
         <p className="m-0 text-[length:var(--fs-body-lg)] leading-[1.5]">{t("raise.keys.body")}</p>
         {ask.twice ? <p className="ah-note m-0">{t("raise.keys.twice")}</p> : null}
-        <Disclose label={t("raise.keys.lens.message")}>
+        <Disclose label={t("raise.keys.what")}>
+          <span className="ah-meta ah-meta--exact" data-testid={TID.raise.keysWhat}>
+            {t("raise.keys.lens.message")}
+          </span>
           <span className="ah-meta ah-meta--exact normal-case">purpose: {KEYS_PURPOSE}</span>
           {raiser ? <span className="ah-meta ah-meta--exact break-all">raiser: {raiser}</span> : null}
           <span className="ah-meta ah-meta--exact">chainId: {config.chain.id} · verifyingContract: {CORE}</span>

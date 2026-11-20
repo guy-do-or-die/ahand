@@ -4,6 +4,8 @@
 // Families:
 //   common.*        the shell, the vocabulary, the marks, states, time and the shared error lines
 //   common.lens.*   the specialist layer (mono, Core's own names allowed; exempt from the banned words)
+//   common.chain.<id>  a network this catalogue has a name for (chain.ts; any other chain shows the
+//                   name its configuration gives)
 //   link.<code>     a link that cannot be opened: the SDK's LinkError codes, plus link.untrusted and
 //                   link.no-canonical (messageIdOf in packages/sdk/src/errors.ts)
 //   core.<Error>    each of Core's refusals, and the three OpenZeppelin errors that can reach a caller
@@ -15,6 +17,7 @@ const en = {
   // ── The shell (UX-SPEC §6) ────────────────────────────────────────────
   "common.notBuilt": "Not built yet",
   "common.ribbon": "Local test network · Test dollars",
+  "common.chain.31337": "Local test network",
   "common.footer": "Unaudited · Core {core} · No owner · No fee",
   "common.footer.limits": "What it can't promise",
   "common.footer.withoutUs": "Do it without us",

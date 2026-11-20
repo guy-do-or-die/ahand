@@ -7,9 +7,13 @@ const en = {
   "raise.what": "What are you looking for?",
   "raise.what.placeholder": "Who can recommend a quiet room in Tbilisi for a week?",
   "raise.what.hint": "The first line is the title: people see it first.",
+  "raise.what.count": "Title: {n} of {max} characters",
+  "raise.what.tooLong": "The title is too long: {n} of {max} characters. Move the rest to the details.",
   "raise.details.add": "Add details",
   "raise.details.label": "Details",
   "raise.details.placeholder": "Dates, budget, what matters to you.",
+  "raise.details.count": "Details: {n} of {max} characters",
+  "raise.details.tooLong": "The details are too long: {n} of {max} characters.",
 
   // 2. Reward
   "raise.reward.label": "Reward",
@@ -26,7 +30,7 @@ const en = {
   "raise.expiry.days": "{n} days",
   "raise.expiry.until": "Open until {date}, by the network's clock.",
   "raise.expiry.how": "How the date is counted",
-  "raise.expiry.nudge": "Long hands need a nudge. You'll get a calendar reminder.",
+  "raise.expiry.nudge": "Long hands need a nudge. After you raise it, you'll get a button to add a calendar reminder.",
   "raise.expiry.lens.formula": "expiry = min(now + {days} d, now + MAX_EXPIRY_PERIOD − 600 s) = {expiry}",
   "raise.expiry.lens.now": "now = block {block} · {timestamp} · MAX_EXPIRY_PERIOD = {cap} s, read from the contract",
 
@@ -46,6 +50,7 @@ const en = {
   "raise.who.untitled": "Your title goes here",
   "raise.who.money": "{reward} reward · open until {date}",
   "raise.who.moneyNone": "No reward: a thank-you only · open until {date}",
+  "raise.who.tooLong": "With these words the address would be too long for sites and link previews to open. Shorten them, or choose “Dark”: then the words travel inside the link.",
 
   // 5. Fine-tune
   "raise.fine.label": "Fine-tune",
@@ -58,6 +63,7 @@ const en = {
 
   // 6. Preview
   "raise.preview.label": "How it will look to whoever gets the link",
+  "raise.preview.raiser": "Asked by: your address, once connected",
 
   // 7. The swipe and its steps
   "raise.swipe": "Raise your hand",
@@ -78,12 +84,15 @@ const en = {
   "raise.keys.twice": "The first time on this device it asks twice. Checking that your account answers the same way twice.",
   "raise.keys.confirm": "Confirm",
   "raise.keys.back": "Not now",
+  "raise.keys.what": "What exactly you are confirming",
   "raise.keys.lens.message": "Keys(string purpose, address raiser) · domain aHand keys / 1 · as your account shows it",
 
   // 8. States
   "raise.up": "Your hand is up.",
   "raise.pending": "Your last raise is still on its way.",
   "raise.pending.note": "Nothing is sent again: this screen follows the one already sent.",
+  "raise.pending.batch": "Your account took this raise as one batch and has not named it on the network yet.",
+  "raise.pending.aside": "You can raise another hand meanwhile. This screen looks for the one on its way each time it opens.",
 
   // 9. Share
   "raise.share.line": "Send it to people who might know someone. Passing it on is free for them.",
@@ -102,7 +111,7 @@ const en = {
   "raise.show.why": "Your account rebuilds this hand's link after one confirmation.",
 
   // An account whose confirmations differ (D-18, D-63)
-  "raise.locked.band": "Your account can't rebuild this link later. Save it now. Until you do, this device keeps a locked copy.",
+  "raise.locked.band": "Your account can't rebuild this link later. Save it now. Until you do, this device keeps a locked copy, for one day at most.",
   "raise.locked.inbox": "Replies to this hand can be read on this device only.",
   "raise.locked.tick": "I saved the link",
   "raise.locked.leave": "Tick “I saved the link” before you leave.",
@@ -115,6 +124,8 @@ const en = {
   "raise.error.cannotSend": "This account can't send from here. Nothing was sent.",
   "raise.error.reverted": "The raise didn't go through. The reward stayed with you.",
   "raise.error.lostSight": "We lost sight of your raise. Reload this page to look for it again: nothing is sent twice.",
+  "raise.error.connectToLook": "Connect the account that sent this raise, and this screen will look for it. Nothing is sent again.",
+  "raise.error.otherAccount": "This raise was sent from another account. Connect that one to look for it. Nothing is sent again.",
   "raise.error.copyLost": "This device can no longer open its locked copy of the link. After the hand's end, the reward can still be sent back to you.",
   "raise.error.otherTerms": "The contract recorded other terms than this screen sent. Don't share this hand; after its end, it can be sent back to you.",
   "raise.error.facts": "Can't read the contract's limits or the token right now. Nothing was sent.",

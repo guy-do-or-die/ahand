@@ -4,6 +4,8 @@
  *    or one of the library texts listed below (strings that are never fetched);
  *  - a source map, or a `sourceMappingURL` comment, that would ship;
  *  - anvil's public test mnemonic or any of its ten keys, when the configuration is not local;
+ *  - the gallery (gallery.html, assets/gallery-*) or the dev wallet's chunk (assets/dev-*), when
+ *    the configuration is not local (ARCHITECTURE §7: local builds only);
  *  - an HTML page of the main build without the CSP `<meta>` tag.
  *
  *   bun apps/hand/tests/bundle/audit.ts <dist folder> <config.json>
@@ -72,6 +74,8 @@ function filesOf(folder: string): string[] {
   return out;
 }
 
+/** The local builds' own files: the kit's page and chunk, and the dev wallet's chunk. */
+const LOCAL_ONLY = /^(gallery\.html|assets\/(gallery|dev)-[^/]*)$/;
 const TEXT = /\.(html|js|mjs|css|json|svg|txt|webmanifest)$/;
 const ADDRESS = /\b(?:https?|wss?):\/\/[A-Za-z0-9.-]+(?::\d+)?/g;
 
@@ -82,6 +86,7 @@ export function audit(folder: string, config: AuditConfig): { findings: Finding[
   const seen = new Map<string, Set<string>>();
   for (const path of filesOf(folder)) {
     const file = relative(folder, path);
+    if (!config.chain.local && LOCAL_ONLY.test(file)) findings.push({ file, what: "a local-only file in a build that is not local" });
     if (file.endsWith(".map")) {
       findings.push({ file, what: "a source map would ship" });
       continue;

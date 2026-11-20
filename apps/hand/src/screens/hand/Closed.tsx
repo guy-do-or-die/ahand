@@ -37,7 +37,7 @@ function useReceipt(core: Address, handId: bigint, closedAt: number): ReceiptRea
     return () => {
       live = false;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `key` carries core, hand and time
+  }, [key]); // `key` carries core, hand and time
   return read?.key === key ? read.value : { status: "reading" };
 }
 

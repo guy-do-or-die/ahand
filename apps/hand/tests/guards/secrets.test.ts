@@ -65,7 +65,8 @@ describe("secrets: the fragment and the link's text have nowhere to go", () => {
   });
 
   test("no request but a same-site file: fetch takes a literal path starting with /", () => {
-    const fetches = scan(/\bfetch\s*\(/);
+    // A method named fetch (a test server's `async fetch(request) {` handler) defines, not requests.
+    const fetches = scan(/\bfetch\s*\(/).filter((line) => !/(?:^|[\s,{])(?:async\s+)?fetch\s*\([\w\s,:<>]*\)\s*(?::[^{]+)?\{/.test(line.split(": ").slice(1).join(": ")));
     const offSite = fetches.filter((line) => !/\bfetch\s*\(\s*(["'`])\/(?!\/)[^"'`$]*\1/.test(line));
     expect(offSite).toEqual([]);
   });

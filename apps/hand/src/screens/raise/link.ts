@@ -2,20 +2,23 @@ import {
   CORE_ABI,
   carryFor,
   domain,
+  describeHand,
   encodeLive,
   expiryAfter,
+  normalizeText,
   openAddress,
   packAttachments,
   passesLeft,
   readDescription,
   toAddress,
+  toText,
   type AddressShape,
   type Described,
   type Hand,
   type LinkOptions,
   type ReadDescription,
 } from "@ahand/sdk";
-import { decodeEventLog, isAddressEqual, slice, zeroAddress, zeroHash, type Address, type Hex, type TransactionReceipt } from "viem";
+import { decodeEventLog, isAddressEqual, pad, slice, zeroAddress, zeroHash, type Address, type Hex, type TransactionReceipt } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 /**
@@ -35,6 +38,59 @@ export function expiryFor(chainTime: number, days: number, maxExpiryPeriod: numb
 export function passesAt(payoutGasK: number): number {
   const hand: Hand = { handId: 1n, raiser: zeroAddress, token: zeroAddress, rootKey: zeroAddress, payoutGasK, minClaimBps: 7000, dataHash: zeroHash };
   return passesLeft(hand, []);
+}
+
+/* ───────────────────────────── how much a hand's words may weigh ── */
+
+/** The title's cap, in characters (code points of the normalised text). */
+export const MAX_TITLE = 160;
+/** The details' cap, in characters: the same as an answer's words on /give. */
+export const MAX_DETAILS = 1000;
+/**
+ * The most that may stand before `#` in an address. A public Hand carries its words there (`?d=`),
+ * where servers and link-preview robots read them, and servers refuse a request line much beyond
+ * 8 KB (the stand's own front answered 431 to a 23 499-character address in review round 1).
+ * What stands after `#` is never sent, so the dark shape has no such limit.
+ */
+export const MAX_BEFORE_HASH = 8000;
+/** A Hand's number is a counter; twenty digits hold any 64-bit one. Counted before the number is known. */
+const HAND_DIGITS = 20;
+
+/** A text's length as its reader counts it: characters of the normalised text, not UTF-16 units. */
+export function lengthOf(text: string): number {
+  return Array.from(normalizeText(text)).length;
+}
+
+export interface Weighed {
+  title: number;
+  details: number;
+  /** Characters before `#` in the address this draft would get, at most. */
+  beforeHash: number;
+  /** What does not fit, the first that applies; undefined when everything does. */
+  over?: "title" | "details" | "address";
+}
+
+/**
+ * Weighs a draft before anything is asked of the person: the title and the details against their
+ * caps, and what the address would show before `#` in this mode against `MAX_BEFORE_HASH`. The
+ * shown part is packed exactly as the real address packs it (the same statements with a stand-in
+ * inbox key and salt of the same sizes), so the count differs from the real one only by the
+ * Hand's number, which is counted at its longest.
+ */
+export function weigh(draft: { title: string; content: string; mode: "public" | "unlisted" | "dark" }, where: { site: string; chainId: number; core: Address; options: LinkOptions }): Weighed {
+  const title = lengthOf(draft.title);
+  const details = lengthOf(draft.content.trim());
+  let beforeHash = where.site.length + 1;
+  if (draft.mode !== "dark" && title > 0) {
+    const content = draft.content.trim();
+    const described = describeHand({ mode: draft.mode, title: draft.title, ...(content ? { content } : {}), inbox: pad("0x01", { size: 32 }) });
+    const canonical = where.options.canonicalCore !== undefined && isAddressEqual(where.options.canonicalCore, where.core);
+    const path = canonical ? `${where.chainId}/` : `${where.chainId}/${where.core}/`;
+    const shown = described.outside ? toText(packAttachments(described.outside)).length : 0;
+    beforeHash += path.length + HAND_DIGITS + (shown > 0 ? "?d=".length + shown : 0);
+  }
+  const over = title > MAX_TITLE ? "title" : details > MAX_DETAILS ? "details" : beforeHash > MAX_BEFORE_HASH ? "address" : undefined;
+  return { title, details, beforeHash, ...(over ? { over } : {}) };
 }
 
 /** The derived root key must be new on this device (ARCHITECTURE §5): equal to none it already used. */
@@ -57,20 +113,28 @@ export interface Raised {
   expiry: number;
 }
 
-/** The Hand this receipt raised: the `Raised` log Core wrote in this very transaction. */
-export function raisedIn(receipt: Pick<TransactionReceipt, "logs">, core: Address): Raised {
+/**
+ * The Hand this receipt raised: a `Raised` log Core wrote in this very transaction. With `by`, the
+ * one this raiser raised (a wallet's batch can share its transaction with other accounts' calls),
+ * and among those the one with this root key when there is one.
+ */
+export function raisedIn(receipt: Pick<TransactionReceipt, "logs">, core: Address, by: { raiser?: Address; rootKey?: Address } = {}): Raised {
+  const found: Raised[] = [];
   for (const log of receipt.logs) {
     if (!isAddressEqual(log.address, core)) continue;
     try {
       const event = decodeEventLog({ abi: CORE_ABI, data: log.data, topics: log.topics });
       if (event.eventName !== "Raised") continue;
       const { handId, raiser, token, reward, expiry, rootKey, payoutGasK, minClaimBps, dataHash } = event.args;
-      return { hand: { handId, raiser, token, rootKey, payoutGasK, minClaimBps, dataHash }, reward, expiry };
+      if (by.raiser && !isAddressEqual(raiser, by.raiser)) continue;
+      found.push({ hand: { handId, raiser, token, rootKey, payoutGasK, minClaimBps, dataHash }, reward, expiry });
     } catch {
       // another event of Core's: keep looking
     }
   }
-  throw new Error("this receipt holds no Raised event of this contract");
+  const raised = (by.rootKey && found.find((each) => isAddressEqual(each.hand.rootKey, by.rootKey!))) || found[0];
+  if (!raised) throw new Error("this receipt holds no Raised event of this contract" + (by.raiser ? " by this account" : ""));
+  return raised;
 }
 
 export interface WriteInput {

@@ -168,7 +168,8 @@ function DevOption({ option, busy, onPick }: { option: WalletOption; busy: boole
 
 /**
  * The connect control a screen puts where a wallet is needed: "Connect a wallet", or the connected
- * address with a way to disconnect. It opens the sheet itself.
+ * address with "Disconnect" and "Use another account" (the same sheet, never a second "Connect a
+ * wallet" beside a connected one). It opens the sheet itself; both states keep the `connect-wallet` id.
  */
 export function ConnectButton({ className, onConnected }: { className?: string; onConnected?: (address: Address) => void }) {
   const words = useWalletWords();
@@ -185,7 +186,7 @@ export function ConnectButton({ className, onConnected }: { className?: string; 
             {words.disconnect}
           </QuietButton>
           <QuietButton compact variant="text" data-testid={CONNECT_TID} onClick={() => setOpen(true)}>
-            {words.title}
+            {words.another}
           </QuietButton>
         </>
       ) : (

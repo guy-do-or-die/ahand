@@ -7,9 +7,10 @@ import { config } from "../../config";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
 import { CopyRow, ErrorBand, Mark, count, useLang } from "../../ui";
-import { capDays, derive, readServedBuild, reproduceLine, type ServedBuild } from "./facts";
+import { capDays, derive, paidPassesAtWorst, readServedBuild, reproduceLine, type ServedBuild } from "./facts";
 import { LIMIT_NUMBERS } from "./limits";
 import "./core.css";
+import { chainName } from "../../i18n/common/chain";
 
 /**
  * /core, "This contract" (UX-SPEC §10.3; ARCHITECTURE §3 trust anchor; D-10). What is read from
@@ -19,6 +20,9 @@ import "./core.css";
  * by this site" (a development server has none and says so). Then the command that rebuilds the
  * code hash from a clone, the twelve accepted limits word for word, and the unaudited sentence.
  */
+
+/** The accepted limit that speaks of a route's length (brief 02 §2, the fourth). */
+const ROUTE_LENGTH_LIMIT = 4;
 
 const CORE: Address | undefined = config.cores.canonical ?? config.cores.trusted.find((c) => c.chainId === config.chain.id)?.core;
 
@@ -94,6 +98,7 @@ export default function CoreScreen() {
   const commit = deployment?.commit || undefined;
   const reproduce = reproduceLine(commit);
   const onChain = chain.state === "done" ? chain.value : undefined;
+  const paidPasses = paidPassesAtWorst(config.defaults.payoutGasK);
   const blockSource = onChain ? `BLOCK ${count(onChain.block)}` : undefined;
 
   return (
@@ -109,7 +114,7 @@ export default function CoreScreen() {
         </code>
         <Row name={t("core.chain")}>
           <span className="ah-meta ah-meta--exact">
-            {config.chain.name} · CHAIN ID {config.chain.id}
+            {chainName(config.chain)} · CHAIN ID {config.chain.id}
           </span>
         </Row>
         {chain.state === "reading" ? <p className="ah-meta m-0">{t("core.reading")}</p> : null}
@@ -226,6 +231,12 @@ export default function CoreScreen() {
                 <strong>{t(`core.lens.limit.${n}`)}</strong>
                 {body.startsWith(":") ? "" : " "}
                 {body}
+                {n === ROUTE_LENGTH_LIMIT ? (
+                  // The record's sentence stays word for word; this build's own figure stands under it, computed now.
+                  <span className="core-limits__here" data-testid={TID.core.limitHere} data-value={paidPasses} data-gas-k={config.defaults.payoutGasK}>
+                    {t("core.lens.limit.4.here", { k: config.defaults.payoutGasK, n: paidPasses })}
+                  </span>
+                ) : null}
               </li>
             );
           })}

@@ -168,7 +168,6 @@ export function useProof(key: string, run: (client: PublicClient) => Promise<Pro
       live = false;
     };
     // `run` is rebuilt every render; `key` names what it checks.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, chainId]);
   return state;
 }

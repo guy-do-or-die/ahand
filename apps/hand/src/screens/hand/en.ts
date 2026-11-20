@@ -14,6 +14,10 @@ const en = {
   "hand.toStart": "To the start",
   "hand.addressed": "This link shows a route that ends at an address. It can't be passed on or answered from here.",
 
+  "hand.offline.kept": "Your link is still here.",
+  "hand.offline.retry": "Try again",
+  "hand.offline.auto": "Trying again on its own every few seconds.",
+
   "hand.closed": "This hand is closed.",
   "hand.receipt.reading": "Reading how it ended from the chain's own records…",
   "hand.receipt.failed": "Can't read how it ended right now. The hand is closed all the same.",

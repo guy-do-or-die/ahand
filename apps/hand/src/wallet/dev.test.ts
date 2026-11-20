@@ -1,23 +1,25 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { isErc6492, unwrap6492 } from "@ahand/sdk";
 import { createWalletClient, custom, parseErc6492Signature, recoverTypedDataAddress, type PublicClient, type TypedDataDefinition } from "viem";
-import { foundry } from "viem/chains";
+import { base, foundry } from "viem/chains";
 
 import { ANVIL_KEYS, startChain, type Chain } from "../../../../packages/sdk/tests/helpers/anvil";
-import { devAccounts, devAddress, devProvider, devUnsetSetup, reviveTypedData, sayNoNext, type DevWho } from "./dev";
+import { devAccounts, devAddress, devConnectors, devProvider, devUnsetSetup, reviveTypedData, sayNoNext, type DevWho } from "./dev";
 import { signTypedWith } from "./typed";
 import { privateKeyToAccount } from "viem/accounts";
+const HAND_PORT_BASE = process.env.HAND_TEST_PORT_BASE ? Number(process.env.HAND_TEST_PORT_BASE) : undefined;
+const BASE_RPC_PORT = HAND_PORT_BASE === undefined ? 25051 : HAND_PORT_BASE + 3;
 
 /**
  * The dev wallet's provider on a real anvil: what the wallet smoke checks in the browser, here
- * without one. Port 16112 is this file's.
+ * without one. Port 16112 is this file's; HAND_TEST_PORT_BASE=B moves it to B+2 (and the fake Base RPC below to B+3).
  */
 
 let chain: Chain;
 let client: PublicClient;
 
 beforeAll(async () => {
-  chain = await startChain({ port: 16112 });
+  chain = await startChain({ port: HAND_PORT_BASE === undefined ? 16112 : HAND_PORT_BASE + 2 });
   client = chain.client;
 }, 60_000);
 afterAll(async () => {
@@ -107,5 +109,56 @@ describe("the dev wallet", () => {
     expect(revived.domain.chainId).toBe(31337);
     expect(revived.message).toEqual({ a: 5n, b: { c: [-1n, 2n] } });
     expect(Object.keys(revived.types)).toEqual(["M", "N"]);
+  });
+});
+
+/**
+ * The keys are public: the wallet must never act on a chain that is not anvil's, whatever the
+ * configuration says. A real HTTP server on port 25051 answers `eth_chainId` as Base (8453) would.
+ */
+describe("the dev wallet refuses any chain but 31337", () => {
+  let base8453: ReturnType<typeof Bun.serve> | undefined;
+  beforeAll(() => {
+    base8453 = Bun.serve({
+      port: BASE_RPC_PORT,
+      hostname: "127.0.0.1",
+      async fetch(request) {
+        const { id, method } = (await request.json()) as { id: number; method: string };
+        const result = method === "eth_chainId" ? "0x2105" : method === "eth_blockNumber" ? "0x1" : null;
+        return Response.json({ jsonrpc: "2.0", id, result });
+      },
+    });
+  });
+  afterAll(() => {
+    base8453?.stop(true);
+  });
+
+  const json = (value: unknown) => JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v));
+  const chainConfig = (id: number, local: boolean) => ({ id, name: "x", rpcUrls: [`http://127.0.0.1:${BASE_RPC_PORT}`], blockTimeMs: 1000, local, hasL1: false });
+
+  test("devConnectors refuses a configuration on chain 8453, or one that is not local", () => {
+    expect(() => devConnectors({ chain: chainConfig(8453, true), accountFactory: null })).toThrow(/local chain 31337 only/);
+    expect(() => devConnectors({ chain: chainConfig(31337, false), accountFactory: null })).toThrow(/not local/);
+    expect(devConnectors({ chain: chainConfig(31337, true), accountFactory: null })).toHaveLength(5);
+  });
+
+  test("a provider built for chain 8453 refuses to connect, sign or send (4901)", async () => {
+    const provider = devProvider({ who: 1, chain: base, rpcUrl: chain.rpc, accountFactory: null });
+    const address = await provider.address();
+    await expect(provider.request({ method: "eth_requestAccounts" })).rejects.toMatchObject({ code: 4901 });
+    await expect(provider.request({ method: "eth_signTypedData_v4", params: [address, json(typed(1n))] } as never)).rejects.toMatchObject({ code: 4901 });
+    await expect(provider.request({ method: "eth_sendTransaction", params: [{ from: address, to: chain.core, data: "0x" }] } as never)).rejects.toMatchObject({ code: 4901 });
+  });
+
+  test("a provider for 31337 whose RPC answers 8453 refuses too, and never signs", async () => {
+    const provider = devProvider({ who: 2, chain: foundry, rpcUrl: `http://127.0.0.1:${BASE_RPC_PORT}`, accountFactory: null });
+    const address = await provider.address();
+    await expect(provider.request({ method: "eth_requestAccounts" })).rejects.toThrow(/answers chain 8453/);
+    await expect(provider.request({ method: "eth_signTypedData_v4", params: [address, json(typed(2n))] } as never)).rejects.toMatchObject({ code: 4901 });
+  });
+
+  test("the same provider on anvil's own RPC connects", async () => {
+    const provider = devProvider({ who: 2, chain: foundry, rpcUrl: chain.rpc, accountFactory: null });
+    expect(await provider.request({ method: "eth_requestAccounts" })).toEqual([await provider.address()]);
   });
 });

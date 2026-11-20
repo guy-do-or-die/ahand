@@ -20,6 +20,7 @@ const en = {
 
   "limits.length.say":
     "A very long route can't be thanked. More than about 369 passes, or about 70 paid shares in a token that runs the payee's own code on every payment, don't fit into one thanks. Only that branch is stuck, and anyone holding the link can pad a branch with empty passes.",
+  "limits.length.here": "With this site's setting, that is {n, plural, one {# paid share} other {# paid shares}}.",
   "limits.length.example": "Someone passes the link to themselves 400 times before it reaches a helper. That branch can no longer be thanked; a helper reached by another branch still can.",
 
   "limits.balances.say":

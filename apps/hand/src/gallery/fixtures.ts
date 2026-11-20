@@ -31,16 +31,25 @@ export const BLOCK = { number: 1234n, timestamp: utc(2026, 11, 20, 14, 2) };
 
 export const dollars = (amount: number) => BigInt(Math.round(amount * 100)) * 10n ** BigInt(DECIMALS - 2);
 
-/** The Hand's own words are the asker's, so the sample has them in each language. */
+/**
+ * The Hand's own words are the asker's, so the sample has them in each language. The title is a
+ * question, as the raise screen's own placeholder is: that is what people type.
+ */
 export const HAND_WORDS: Record<Lang, { title: string; content: string }> = {
   en: {
-    title: "a sublet in Yerevan, June.",
+    title: "Who knows of a sublet in Yerevan for June?",
     content: "One room is enough, near Cascade if possible. From 1 June for four weeks.",
   },
   ru: {
-    title: "квартиру в Ереване на июнь.",
+    title: "Кто знает, где снять квартиру в Ереване на июнь?",
     content: "Хватит одной комнаты, лучше рядом с Каскадом. С 1 июня на четыре недели.",
   },
+};
+
+/** The same ask as a title that is no question (UX-SPEC §4's sample): the card must read with both. */
+export const HAND_NOUN: Record<Lang, string> = {
+  en: "A sublet in Yerevan, June.",
+  ru: "Квартира в Ереване на июнь.",
 };
 
 export const SHORT_ROUTE: RailHand[] = [{ role: "asker", address: ASKER }, { role: "passer", address: HOLDER_A }, { role: "passer" }];

@@ -1,12 +1,12 @@
 import { handLogs, handLogsAt, raiserHops, readDescription, readThank, setupCall, thankCall, type Call, type Receipt } from "@ahand/sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isAddressEqual, parseAbi, type Address, type Hex } from "viem";
+import { isAddressEqual, parseAbi, type Address, type Hex, type TransactionReceipt } from "viem";
 
 import { config } from "../../config";
 import { clientOf, useCost, useHand, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { ChainRail, CostLine, DealCard, ErrorBand, Mark, QuietButton, SwipeButton, TxRail, minute, percent, shortAddress, type RailHand } from "../../ui";
+import { ChainRail, CostLine, DealCard, dealDescriptionOf, ErrorBand, Mark, QuietButton, SwipeButton, TxRail, minute, percent, railHandsOf, shortAddress, type RailHand } from "../../ui";
 import { canBatch, ConnectButton, connectedWallet, useSend, useWallet, type SendResult } from "../../wallet";
 import { keepIntent, recheck, type Checked } from "./check";
 import { handLogsOf, landedFlags, payeeFindings, payeeRefusedIn, predictPayouts, verifyThanked, type Payout } from "./model";
@@ -15,7 +15,17 @@ import { ThankReceipt, WithoutUs } from "./Receipt";
 
 /** What the screen shows after the swipe. */
 type Outcome =
-  | { kind: "done"; receipt: Receipt; payouts: Payout[]; hash: Hex; before?: boolean }
+  | {
+      kind: "done";
+      receipt: Receipt;
+      payouts: Payout[];
+      hash: Hex;
+      /** Every transaction the thanks took, in order; the last one carries the thanks. */
+      sent: Hex[];
+      /** The last transaction's receipt, when this screen's own send waited for it. */
+      inHand?: TransactionReceipt;
+      before?: boolean;
+    }
   | { kind: "unconfirmed"; hash: Hex; why: string }
   | { kind: "failed"; what: string; kept: string; code?: string };
 
@@ -163,7 +173,7 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
         setOutcome({ kind: "unconfirmed", hash: result.receipt.transactionHash, why: verdict.why });
         return;
       }
-      setOutcome({ kind: "done", receipt: verdict.receipt, payouts: verdict.payouts, hash: result.receipt.transactionHash });
+      setOutcome({ kind: "done", receipt: verdict.receipt, payouts: verdict.payouts, hash: result.receipt.transactionHash, sent: result.hashes, inHand: result.receipt });
       void flagLanded(verdict.receipt, result.receipt.blockNumber);
     },
     [calls.length, checked.record, core, hand.handId, signedShakes, signedGive, flagLanded],
@@ -175,7 +185,7 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
     if (!intent || busy.current) return;
     busy.current = true;
     void send.resume(intent).then(settle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Once, when the screen opens: the stored intent is the one this check found.
   }, []);
 
   // A Hand already thanked for this very Give (and no send of ours in flight): its receipt, from the chain.
@@ -190,7 +200,7 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
       const verdict = verifyThanked(logs, { signedShakes, give: signedGive.give });
       if (!live || !verdict.ok) return;
       const hash = verdict.receipt.rows[0]!.log.transactionHash;
-      setOutcome({ kind: "done", receipt: verdict.receipt, payouts: verdict.payouts, hash, before: true });
+      setOutcome({ kind: "done", receipt: verdict.receipt, payouts: verdict.payouts, hash, sent: [hash], before: true });
       setLanded(landedFlags(verdict.receipt, logs));
     })().catch(() => undefined);
     return () => {
@@ -212,11 +222,11 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
 
   const sending = send.state.phase !== "idle" && send.state.phase !== "done" && send.state.phase !== "failed";
   const description = readDescription(opened);
-  const rail: RailHand[] = [
-    { role: "asker", address: hand.raiser },
-    ...signedShakes.map(({ shake }) => ({ role: "passer" as const, ...(shake.claimBps > shake.nextClaimBps ? { address: shake.payee } : {}) })),
-    { role: "helper", address: signedGive.give.payee },
-  ];
+  // The holders a re-signed route left out stand crossed out at their places (UX-SPEC §7.5.2).
+  const rail: RailHand[] = railHandsOf(
+    { hand, signedShakes, signedGive },
+    { leftOut: resigned ? checked.dropped.map((holder) => ({ ...holder, ...(holder.bps > 0 ? { share: percent(holder.bps, lang) } : {}) })) : [] },
+  );
   const noReward = view !== undefined && view.reward === 0n;
   const allTicked = ticked.every(Boolean);
   const done = outcome?.kind === "done";
@@ -226,11 +236,13 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
       {view && decimals !== undefined ? (
         <DealCard
           state={state === "missing" ? undefined : state}
-          description={description.status === "attached" ? { status: "attached", title: description.title ?? "", ...(description.content ? { content: description.content } : {}) } : { status: description.status }}
+          description={dealDescriptionOf(description)}
           reward={view.reward}
           decimals={decimals}
           expiry={view.expiry}
           {...(view.closedAt ? { closedAt: view.closedAt } : {})}
+          claimBps={view.minClaimBps}
+          viewer="asker"
           raiser={view.raiser}
           handId={hand.handId}
           {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}
@@ -350,7 +362,17 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
       ) : null}
 
       {outcome?.kind === "done" && decimals !== undefined ? (
-        <ThankReceipt receipt={outcome.receipt} landed={landed} decimals={decimals} hash={outcome.hash} before={outcome.before === true} chainId={chainId} handId={hand.handId} />
+        <ThankReceipt
+          receipt={outcome.receipt}
+          landed={landed}
+          decimals={decimals}
+          hash={outcome.hash}
+          sent={outcome.sent}
+          {...(outcome.inHand ? { inHand: outcome.inHand } : {})}
+          before={outcome.before === true}
+          chainId={chainId}
+          handId={hand.handId}
+        />
       ) : null}
 
       {outcome?.kind === "unconfirmed" ? (

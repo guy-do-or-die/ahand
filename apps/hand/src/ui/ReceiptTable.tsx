@@ -22,7 +22,7 @@ export interface ReceiptTableProps {
   landed?: boolean[];
   /** The token's decimals. */
   decimals: number;
-  /** The table's caption for a screen reader; by default "Who got what…". */
+  /** The table's caption for a screen reader; by default "What was sent to whom…". */
   caption?: string;
   className?: string;
 }
@@ -35,7 +35,7 @@ function label(line: ReceiptLine, words: Words): string {
 }
 
 /**
- * Who got what. It opens with a 1.5px ink rule; labels are mono, amounts are right-aligned
+ * What was sent to whom. It opens with a 1.5px ink rule; labels are mono, amounts are right-aligned
  * tabular figures; the helper's row carries an amber chip; the total follows a second rule.
  * Every amount is one that a Paid or Pending event carries. Money that waits in the contract
  * wears the waiting mark, so "waiting" never looks like "paid". A row with no payout says so

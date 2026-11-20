@@ -32,10 +32,12 @@ describe("the app's CSP (ARCHITECTURE §11)", () => {
     expect(csp).toContain("connect-src 'self' https://rpc.example;");
   });
 
-  test("vite preview sends the CSP, Referrer-Policy no-referrer and nosniff", () => {
+  test("vite preview sends the CSP, Referrer-Policy no-referrer, nosniff, COOP and Permissions-Policy, as face does", () => {
     const headers = appHeaders(sources);
     expect(headers["Referrer-Policy"]).toBe("no-referrer");
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
+    expect(headers["Cross-Origin-Opener-Policy"]).toBe("same-origin");
+    expect(headers["Permissions-Policy"]).toBe("camera=(), microphone=(), geolocation=()");
     expect(headers["Content-Security-Policy"]).toContain("frame-ancestors 'none'");
   });
 

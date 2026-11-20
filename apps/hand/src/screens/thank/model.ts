@@ -3,6 +3,7 @@ import {
   CORE_ABI,
   payeeProblem,
   receiptOf,
+  usdText,
   type Give,
   type HandEventName,
   type HandLog,
@@ -10,7 +11,7 @@ import {
   type Receipt,
   type SignedShake,
 } from "@ahand/sdk";
-import { decodeEventLog, isAddressEqual, zeroAddress, type Address, type Hex } from "viem";
+import { decodeEventLog, getAddress, isAddressEqual, zeroAddress, type Address, type Hex } from "viem";
 
 /**
  * The thank screen's arithmetic and judgements, without React and without the network, so each
@@ -191,4 +192,62 @@ export function droppedShares(
 /** Whether the zero address: a Shake that names no one. */
 export function namesNoOne(address: Address): boolean {
   return isAddressEqual(address, zeroAddress);
+}
+
+/**
+ * What one transaction cost its sender, read from its receipt. Core takes nothing for itself, so
+ * this is all the thanks costs beyond the reward: the network's price for the gas it used.
+ */
+export interface Spent {
+  hash: Hex;
+  /** The account that sent it and paid for it. */
+  from: Address;
+  block: bigint;
+  gasUsed: bigint;
+  /** Wei per gas actually paid (the receipt's `effectiveGasPrice`). */
+  gasPrice: bigint;
+  /** The L1 data fee of an OP Stack chain, when the receipt carries one. */
+  l1Fee?: bigint;
+  /** `gasUsed × gasPrice`, plus the L1 data fee where there is one, in wei. */
+  fee: bigint;
+}
+
+/** The fields of a transaction receipt this reads; `l1Fee` is there on OP Stack chains only. */
+export interface ReceiptFacts {
+  transactionHash: Hex;
+  from: Address;
+  blockNumber: bigint;
+  gasUsed: bigint;
+  effectiveGasPrice: bigint;
+  l1Fee?: unknown;
+}
+
+/** A receipt's extra quantity as wei: a client that knows the chain gives a bigint, another the node's hex. */
+function quantity(value: unknown): bigint | undefined {
+  if (typeof value === "bigint") return value >= 0n ? value : undefined;
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]+$/.test(value)) return undefined;
+  return BigInt(value);
+}
+
+export function spentOf(receipt: ReceiptFacts): Spent {
+  const l1Fee = quantity(receipt.l1Fee);
+  return {
+    hash: receipt.transactionHash,
+    from: getAddress(receipt.from),
+    block: receipt.blockNumber,
+    gasUsed: receipt.gasUsed,
+    gasPrice: receipt.effectiveGasPrice,
+    ...(l1Fee !== undefined ? { l1Fee } : {}),
+    fee: receipt.gasUsed * receipt.effectiveGasPrice + (l1Fee ?? 0n),
+  };
+}
+
+/** The gas and the fee of every step together. */
+export function totalSpent(rows: readonly Spent[]): { gasUsed: bigint; fee: bigint } {
+  return rows.reduce((sum, row) => ({ gasUsed: sum.gasUsed + row.gasUsed, fee: sum.fee + row.fee }), { gasUsed: 0n, fee: 0n });
+}
+
+/** Wei as dollars at a price snapshot's ETH price, written as the SDK's cost line writes them. */
+export function usdOfWei(wei: bigint, ethUsd: number): string {
+  return usdText((Number(wei) / 1e18) * ethUsd);
 }

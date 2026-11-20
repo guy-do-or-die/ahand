@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { publicKeyOf } from "@ahand/deliver";
+import { describeHand } from "@ahand/sdk";
 
 import { alarmLead, fold, icsText, icsTime, reminderIcs, reminderName } from "./calendar";
 import { DAY, LAST_MINUTES, capDays, extendChoices, inLastMinutes } from "./extend";
+import { checkKept } from "./kept";
 
 const CAP = 180 * DAY;
 const MARGIN = 600;
@@ -99,5 +102,31 @@ describe("the reminder file", () => {
     for (const part of folded.split("\r\n")) expect(new TextEncoder().encode(part).length).toBeLessThanOrEqual(75);
     expect(folded.replace(/\r\n /g, "")).toBe(long);
     expect(reminderName(12n, Date.UTC(2026, 11, 20) / 1000)).toBe("ahand-12-20261220.ics");
+  });
+});
+
+describe("the words kept on this device, checked against Core's dataHash (checkKept)", () => {
+  const inbox = publicKeyOf(`0x${"11".repeat(32)}`);
+  const title = "Who can fix a bicycle wheel today?";
+  const content = "Near the station, before six.";
+  const withInbox = describeHand({ mode: "unlisted", title, content, inbox });
+  const record = { mode: "unlisted" as const, title, content, salt: withInbox.salt! };
+
+  test("the right words and the Hand's inbox key give its dataHash: attached", () => {
+    expect(checkKept(record, inbox, true, withInbox.dataHash)).toBe("attached");
+  });
+
+  test("before the inbox key is known a Hand described with one cannot be checked: unknown, never mismatch", () => {
+    expect(checkKept(record, undefined, false, withInbox.dataHash)).toBe("unknown");
+  });
+
+  test("other words with the key known: mismatch", () => {
+    expect(checkKept({ ...record, title: "Who can fix a car wheel today?" }, inbox, true, withInbox.dataHash)).toBe("mismatch");
+    expect(checkKept({ ...record, salt: `0x${"22".repeat(32)}` }, inbox, true, withInbox.dataHash)).toBe("mismatch");
+  });
+
+  test("a Hand described without an inbox key is checked without one: attached before any unlock", () => {
+    const bare = describeHand({ mode: "dark", title, content });
+    expect(checkKept({ mode: "dark", title, content, salt: bare.salt! }, undefined, false, bare.dataHash)).toBe("attached");
   });
 });

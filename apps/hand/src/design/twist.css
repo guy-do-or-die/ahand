@@ -66,13 +66,81 @@
   color: var(--ink-quiet);
 }
 
-/* On the rail: the hand is a 44px target; its back is a card on the rail itself. */
+/* ── On the rail: the hand turns where it stands; its back opens under the rail ──
+   A back is far wider than a hand. Inside the rail it would push every later hand, the
+   viewer's chip and the empty slot off a phone's screen. So the rail is a grid: its first row
+   is the route (hand, line, hand, …), and the back of the turned hand is the second row, as
+   wide as the rail's box and pinned to it while the route scrolls sideways under it. In the
+   document the back still follows its button: the list item, the card and its inner box only
+   stop making boxes of their own (`display: contents`). */
+.ah-railbox {
+  /* the rail's box is the measure of the sheet: 100cqi below */
+  container-type: inline-size;
+  /* a measured box no longer takes its width from what it holds: it takes its parent's */
+  width: 100%;
+}
+.ah-rail--flips {
+  display: grid;
+  /* --ah-rail-links: the lines between the rail's parts (ChainRail sets it). A hand keeps its
+     whole name (max-content); the lines share what is left, and a route too long for the box
+     scrolls sideways. */
+  grid-template-columns: max-content repeat(var(--ah-rail-links), minmax(24px, 1fr) max-content);
+  grid-auto-columns: max-content;
+  align-items: start;
+  row-gap: 10px;
+  /* No padding at the sides, so the box has one left edge for the sheet to be pinned to
+     (with 4px of padding, Chromium put a sheet pinned at 4px at 8px once the route was longer
+     than the box). The end hands keep room for their focus ring themselves (below). */
+  padding-inline: 0;
+  scroll-padding: 0 8px;
+}
+.ah-rail--flips .ah-rail__item,
+.ah-flip--rail,
+.ah-flip--rail > .ah-flip__card {
+  display: contents;
+}
+.ah-rail--flips .ah-rail__line,
+.ah-rail--flips .ah-rail__you,
+.ah-rail--flips .ah-rail__slot,
 .ah-flip--rail .ah-flip__front {
+  grid-area: auto;
+  grid-row: 1;
+}
+/* The route hangs from the top of its row, joined at the height of the names. */
+.ah-rail--flips .ah-rail__line {
+  margin: 34px 5px 0;
+}
+.ah-rail--flips .ah-rail__you {
+  margin-top: 27px;
+}
+.ah-rail--flips .ah-rail__slot {
+  margin-top: 22px;
+}
+
+/* The hand: a 44px target that stays up, and tappable, while its back is open. */
+.ah-flip--rail .ah-flip__front {
+  position: relative;
+  align-self: stretch;
   min-width: 44px;
   min-height: 44px;
   padding: 0 4px;
   border-radius: var(--r-chip-lg);
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  pointer-events: auto;
+  scroll-margin-block: 12px;
   transition: background-color var(--dur-hover);
+}
+.ah-flip--rail .ah-flip__front:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+/* Room for that ring (2px at 2px) where a hand stands at an end of the rail. */
+.ah-rail--flips > .ah-rail__item:first-child .ah-flip__front {
+  margin-left: 4px;
+}
+.ah-rail--flips > .ah-rail__item:last-child .ah-flip__front {
+  margin-right: 4px;
 }
 .ah-flip--rail .ah-flip__front .ah-rail__hand {
   justify-content: flex-end;
@@ -86,30 +154,126 @@
   text-decoration: underline dashed var(--ink-a30);
   text-underline-offset: 3px;
 }
+/* Turned over, the hand shows its other side: ink, with a stem down to its back. It turns in
+   360ms of rotateY, edge-on at the half, where the sides swap. */
+.ah-flip--rail.ah-flip--flipped .ah-flip__front {
+  background: var(--ink);
+  color: var(--paper);
+  animation: ah-hand-over 360ms linear;
+}
+.ah-flip--rail.ah-flip--flipped .ah-flip__front::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1px);
+  top: 100%;
+  width: 2px;
+  height: 10px; /* the rail's row-gap */
+  background: var(--ink);
+}
+.ah-flip--rail.ah-flip--flipped .ah-rail__name,
+.ah-flip--rail .ah-flip__front:has(+ .ah-flip__back:not([hidden])) .ah-rail__name {
+  color: inherit;
+  text-decoration-color: transparent;
+}
+/* Turning back: while its back is still leaving. */
+.ah-flip--rail:not(.ah-flip--flipped) .ah-flip__front:has(+ .ah-flip__back:not([hidden])) {
+  animation: ah-hand-back 360ms linear;
+}
+@keyframes ah-hand-over {
+  0% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: transparent;
+    color: var(--ink);
+    animation-timing-function: ease-in;
+  }
+  49.99% {
+    transform: perspective(600px) rotateY(90deg);
+    background-color: transparent;
+    color: var(--ink);
+  }
+  50% {
+    transform: perspective(600px) rotateY(-90deg);
+    background-color: var(--ink);
+    color: var(--paper);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+}
+@keyframes ah-hand-back {
+  0% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: var(--ink);
+    color: var(--paper);
+    animation-timing-function: ease-in;
+  }
+  49.99% {
+    transform: perspective(600px) rotateY(-90deg);
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+  50% {
+    transform: perspective(600px) rotateY(90deg);
+    background-color: transparent;
+    color: var(--ink);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: transparent;
+    color: var(--ink);
+  }
+}
+
+/* The back: one sheet under the whole rail. */
 .ah-flip--rail .ah-flip__back {
-  width: min(320px, calc(100vw - 64px));
+  grid-area: auto;
+  grid-row: 2;
+  grid-column: 1 / -1;
+  position: sticky;
+  left: 0;
+  justify-self: start;
+  box-sizing: border-box;
+  /* the whole route's width where the rail's box cannot be measured, else the box's */
+  width: 100%;
+  width: 100cqi;
+  transform: none;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  scroll-margin-block: 12px;
   border: var(--bw-emph) solid var(--ink);
   border-radius: var(--r-card-sm);
   padding: 14px;
   background: var(--card);
+  /* It unrolls from the rail downwards. A clip moves no box, so the page can measure the sheet
+     and scroll to it while it opens. */
+  animation: ah-sheet-open 360ms cubic-bezier(0.3, 0.7, 0.3, 1) backwards;
 }
-/* With cards that turn, the rail hangs from the top: a turned card grows downwards and the
-   other hands stay where they were, joined at the height of the gestures. */
-.ah-rail--flips {
-  align-items: flex-start;
-  scroll-padding: 0 8px;
+.ah-flip--rail:not(.ah-flip--flipped) .ah-flip__back {
+  animation: ah-sheet-close 360ms cubic-bezier(0.3, 0.7, 0.3, 1) forwards;
 }
-.ah-rail--flips .ah-rail__item {
-  align-items: flex-start;
+/* One sheet at a time: when another hand turns, the sheet of the last one leaves at once. */
+.ah-rail--flips:has(.ah-flip--flipped) .ah-flip--rail:not(.ah-flip--flipped) .ah-flip__back {
+  display: none;
 }
-.ah-rail--flips .ah-rail__line {
-  margin: 34px 5px 0;
+@keyframes ah-sheet-open {
+  0% {
+    clip-path: inset(0 0 100% 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
 }
-.ah-rail--flips .ah-rail__you {
-  margin-top: 27px;
-}
-.ah-rail--flips .ah-rail__slot {
-  margin-top: 22px;
+@keyframes ah-sheet-close {
+  0% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 100% 0);
+  }
 }
 
 /* In a receipt: one row turns; its back spans the table's width. */
@@ -133,6 +297,7 @@
   .ah-flip--rail .ah-flip__front {
     transition: none;
   }
+  /* The hand's turn and the sheet's unrolling are animations: tokens.css stops every animation. */
 }
 
 /* ── The back: machine truth, in mono ───────────────────────────────── */

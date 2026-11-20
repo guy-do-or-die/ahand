@@ -1,4 +1,5 @@
-import { getContractAddress, isAddressEqual, type Address, type Hex } from "viem";
+import { passesLeft } from "@ahand/sdk";
+import { getContractAddress, isAddressEqual, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 
 /**
  * The facts `/core` shows (UX-SPEC §10.3, ARCHITECTURE §3 trust anchor), as pure functions.
@@ -59,4 +60,15 @@ export function readServedBuild(contentType: string | null, body: string): Serve
 /** Core's cap in whole days and the seconds it is made of. */
 export function capDays(seconds: number): number {
   return seconds / 86_400;
+}
+
+/**
+ * How many paid passes a route can take at worst and still be thanked in one transaction, when
+ * each payout may use `payoutGasK` thousand gas: the SDK's `passesLeft` from an empty route (every
+ * pass keeps a share and its payee burns the whole limit; the helper's own payout is counted too).
+ * The record's limit says "about 70"; that was for a smaller limit per payout. This is the figure
+ * for the setting this build raises Hands with.
+ */
+export function paidPassesAtWorst(payoutGasK: number): number {
+  return passesLeft({ handId: 0n, raiser: zeroAddress, token: zeroAddress, rootKey: zeroAddress, payoutGasK, minClaimBps: 0, dataHash: zeroHash }, []);
 }

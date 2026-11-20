@@ -46,11 +46,18 @@ export function cspMetaTag(sources: CspSources): string {
   return `<meta http-equiv="Content-Security-Policy" content="${value}" />`;
 }
 
-/** The headers `vite preview` sends, the same as face's. */
+/**
+ * The headers `vite preview` sends, the same as face's base headers (apps/face/src/headers.ts):
+ * the CSP, no-referrer, nosniff, COOP same-origin (an opener keeps no handle on our tab) and a
+ * Permissions-Policy that turns off what the app never uses. HSTS is face's alone: it depends on
+ * the site being https.
+ */
 export function appHeaders(sources: CspSources): Record<string, string> {
   return {
     "Content-Security-Policy": appCsp(sources, "header"),
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   };
 }

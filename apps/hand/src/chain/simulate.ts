@@ -1,6 +1,8 @@
 import { refusalOfData, simulate, type Call, type CoreRefusal } from "@ahand/sdk";
 import { MethodNotFoundRpcError, MethodNotSupportedRpcError, type Address, type Hex, type PublicClient } from "viem";
 
+import { isNetworkError } from "./errors";
+
 /**
  * Asks the chain what a list of calls would do if `from` sent them now, one after another, before
  * anything is sent (ARCHITECTURE §6 step 3, D-61). A refusal comes back as data, never as a failed
@@ -56,13 +58,13 @@ export async function simulateOne(client: PublicClient, call: Call, from: Addres
 
 /** Whether an error is the chain refusing the call (it reverted), not the network failing. */
 function isRevert(error: unknown): boolean {
+  if (isNetworkError(error)) return false;
   let node: unknown = error;
   const seen = new Set<unknown>();
   let reverted = false;
   while (node && typeof node === "object" && !seen.has(node)) {
     seen.add(node);
     const { name, code } = node as { name?: unknown; code?: unknown };
-    if (name === "HttpRequestError" || name === "TimeoutError" || name === "WebSocketRequestError") return false;
     if (name === "ExecutionRevertedError" || name === "ContractFunctionRevertedError" || code === 3) reverted = true;
     node = (node as { cause?: unknown }).cause;
   }

@@ -12,6 +12,8 @@ import {
   openLink,
   packAttachments,
   passOn,
+  peekLink,
+  seenIn,
   toAddress,
   type AddressShape,
   type Hand,
@@ -21,6 +23,8 @@ import {
   type Statement,
 } from "@ahand/sdk";
 import { BaseError, isAddressEqual, zeroAddress, type Address } from "viem";
+
+import { railHandsOf, type RailHand } from "../../ui/rail";
 
 /**
  * The logic of the Hand view and the pass, kept free of React, of the configuration and of the
@@ -89,15 +93,39 @@ export function arrivalOf(place: PlaceOf, held: Held | undefined, peek?: (fragme
   return { kind: "nothing" };
 }
 
+/** Whether this build reads a chain and a Core (its trusted list, and a client for the chain). */
+export type Trusts = (chainId: number, core: Address) => boolean;
+
 /**
  * Opens a held link against the Hand it names: as a whole address when it came with one (what
  * stands before `#` must agree with the link), as a bare link otherwise. `getHand` is the SDK's
  * `getHandFor`, which fails closed on any chain or Core outside the build's list.
+ *
+ * Whether the address and its link name one Hand is judged first, from their first bytes alone,
+ * before the public part is weighed and before the network is asked. The SDK's `openAddress`
+ * weighs the public part first, so a link under another Hand's address used to read "part of this
+ * address doesn't match", and a path naming a chain this build does not read used to read
+ * "another hand". Here:
+ *
+ * - a path (or a link) naming a chain or a Core this build does not read is said as that
+ *   (`UntrustedCore`, the "doesn't read" sentence), when `trusts` is given;
+ * - a path naming another Hand than the link (another number, or another Core this build reads)
+ *   is `another-hand`;
+ * - the right Hand with a public part that is not its own stays `unmatched-data`, from the SDK.
  */
-export async function openHeld(held: Held, getHand: (head: LinkHead) => Promise<Hand>, options: LinkOptions): Promise<OpenedAddress> {
+export async function openHeld(held: Held, getHand: (head: LinkHead) => Promise<Hand>, options: LinkOptions, trusts?: Trusts): Promise<OpenedAddress> {
   if (held.before === "") {
     const opened = await openLink(fromText(held.fragment), getHand, options);
     return { ...opened, seen: { shape: "bare" } };
+  }
+  const seen = seenIn(held.before, options);
+  if (seen.shape !== "bare") {
+    const head = peekLink(fromText(held.fragment), options);
+    if (trusts && !trusts(seen.chainId!, seen.core!)) throw new UntrustedCore(seen.chainId!, seen.core!);
+    if (trusts && !trusts(head.chainId, head.core)) throw new UntrustedCore(head.chainId, head.core);
+    if (seen.chainId !== head.chainId || seen.handId !== head.handId || !isAddressEqual(seen.core!, head.core)) {
+      throw new LinkError("another-hand", "the address shows one Hand and the link is for another");
+    }
   }
   return openAddress(`${held.before}#${held.fragment}`, getHand, options);
 }
@@ -106,14 +134,21 @@ export async function openHeld(held: Held, getHand: (head: LinkHead) => Promise<
 export interface Failure {
   id: string;
   code: string;
+  /**
+   * The network could not be reached, or did not answer: no verdict on the link. The screen
+   * keeps the link, says so, and tries again (never set for anything the link itself got wrong).
+   */
+  network?: true;
 }
 
 /**
  * The sentence for anything that stopped a link from opening or a call from going through.
  * "names a contract this site doesn't read", "made by a newer app" and "doesn't know a main
  * contract" are three ids (the SDK's messageIdOf). A route that leaves the helper less than the
- * asker's minimum has its own sentence, Core's `BelowMinClaim`. A transport failure is the
- * network's; anything else is said as unknown, never as a verdict on the link.
+ * asker's minimum has its own sentence, Core's `BelowMinClaim`. A failure of the transport or of
+ * the RPC (any viem error that is none of the above) is the network's, under the plain code
+ * NETWORK: a library's class name is not exact data anyone can check. Anything else is said as
+ * unknown, never as a verdict on the link.
  */
 export function failureOf(error: unknown): Failure {
   if (error instanceof UntrustedCore) return { id: messageIdOf(error), code: `UNTRUSTED · CHAIN ${error.chainId} · CORE ${error.core}` };
@@ -122,28 +157,74 @@ export function failureOf(error: unknown): Failure {
     return { id: messageIdOf(error), code: `LINK · ${error.code.toUpperCase()}` };
   }
   if (isCoreRefusal(error)) return { id: messageIdOf(error), code: `CORE · ${error.name}` };
-  if (error instanceof BaseError) return { id: "common.time.offline", code: error.name };
+  if (error instanceof BaseError) return { id: "common.time.offline", code: "NETWORK", network: true };
   return { id: "common.error.unknown", code: error instanceof Error ? error.name : "ERROR" };
 }
 
-/** One hand on the rail (ui/ChainRail's RailHand, kept structural so this module needs no UI). */
-export interface RouteHand {
-  role: "asker" | "passer" | "helper";
-  address?: Address;
+/** How long the screen waits before it asks the network again on its own. */
+export const RETRY_MS = 4_000;
+
+/** As much of `document` as the retry needs. */
+export interface VisiblePage {
+  visibilityState: string;
+  addEventListener(type: "visibilitychange", listener: () => void): void;
+  removeEventListener(type: "visibilitychange", listener: () => void): void;
 }
 
+/** Timers, replaceable in a test. */
+export interface RetryClock {
+  set(run: () => void, ms: number): number;
+  clear(id: number | undefined): void;
+}
+
+const TIMEOUTS: RetryClock = {
+  set: (run, ms) => setTimeout(run, ms) as unknown as number,
+  clear: (id) => clearTimeout(id),
+};
+
 /**
- * The route as people: the asker, each pass, and the helper of a give link. A pass that named
- * where its share lands shows that address; one that kept nothing is "someone". Positions and
- * facts, never relationships.
+ * Calls `retry` every `ms` while the page is visible, and at once when it becomes visible again;
+ * a hidden tab asks nothing. Returns the stop. The interval is a wait, not a time shown or
+ * compared with anything: the one clock of the screens stays the chain's.
+ */
+export function retryWhileVisible(retry: () => void, page: VisiblePage, ms: number = RETRY_MS, clock: RetryClock = TIMEOUTS): () => void {
+  let timer: number | undefined;
+  const visible = () => page.visibilityState === "visible";
+  const arm = () => {
+    timer = clock.set(() => {
+      timer = undefined;
+      if (!visible()) return;
+      retry();
+      arm();
+    }, ms);
+  };
+  const changed = () => {
+    clock.clear(timer);
+    timer = undefined;
+    if (!visible()) return;
+    retry();
+    arm();
+  };
+  if (visible()) arm();
+  page.addEventListener("visibilitychange", changed);
+  return () => {
+    clock.clear(timer);
+    timer = undefined;
+    page.removeEventListener("visibilitychange", changed);
+  };
+}
+
+/** One hand on the rail: ui/rail.ts's RailHand (that module has no UI). */
+export type RouteHand = RailHand;
+
+/**
+ * The route as people: the asker, each pass, and the helper of a give link, from the kit's
+ * `railHandsOf`. A pass that named where its share lands shows that address; one that kept
+ * nothing is "someone"; one that named the asker's own address carries the "asker" flag.
+ * Positions and facts, never relationships.
  */
 export function routeHands(opened: Pick<OpenedAddress, "hand" | "signedShakes" | "signedGive">): RouteHand[] {
-  const hands: RouteHand[] = [{ role: "asker", address: opened.hand.raiser }];
-  for (const { shake } of opened.signedShakes) {
-    hands.push(isAddressEqual(shake.payee, zeroAddress) ? { role: "passer" } : { role: "passer", address: shake.payee });
-  }
-  if (opened.signedGive) hands.push({ role: "helper", address: opened.signedGive.give.payee });
-  return hands;
+  return railHandsOf(opened);
 }
 
 /** One list of statements a holder hung on its own pass (or a giver on its Give), for the lens only. */

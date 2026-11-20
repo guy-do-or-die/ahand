@@ -270,6 +270,44 @@
   font-weight: var(--fw-medium);
   text-transform: none;
 }
+/* a pass that named the asker's own address: a small amber tag under the hand (duty 11) */
+.ah-rail__flag {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  line-height: 14px;
+  padding: 1px 5px;
+  border: 1.5px solid var(--amber);
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* a holder a re-signed route left out: crossed out with the share it had kept (UX-SPEC §7.5.2) */
+.ah-rail__dropped,
+.ah-rail__share {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+.ah-rail__share {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-2xs);
+  line-height: 14px;
+  color: var(--ink-quiet);
+}
+.ah-rail__item[data-dropped="true"] .ah-rail__gesture {
+  opacity: 0.45;
+}
+.ah-rail__line--dropped {
+  background: none;
+  border-top: 2px dashed var(--ink-a15);
+  height: 0;
+}
+.ah-back__flag {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--amber);
+  font-size: var(--fs-body-md);
+  line-height: 1.4;
+  text-transform: none;
+}
 .ah-rail__line {
   flex: 1;
   min-width: 14px;

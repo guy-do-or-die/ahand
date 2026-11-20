@@ -168,3 +168,39 @@
   font-weight: var(--fw-heavy);
   overflow-wrap: anywhere;
 }
+
+/* What the Hand itself is, beside Core's answer: closed or out of time is said in a 2px frame. */
+.check-now {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+  border: var(--bw-emph) solid var(--ink-a25);
+  border-radius: var(--r-btn);
+  padding: 12px 14px;
+}
+.check-now--over {
+  border: var(--bw-focus) solid var(--ink);
+}
+
+/* With no network: nothing is ticked, every mark is a dashed question. */
+.check-step--unchecked .check-step__mark {
+  border-style: dashed;
+  border-color: var(--ink-a40);
+}
+.check-unchecked {
+  border: var(--bw-emph) dashed var(--ink-a30);
+  border-radius: var(--r-btn);
+  padding: 10px 14px;
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.45;
+}
+.check-words {
+  border-left: var(--bw-emph) solid var(--ink-a25);
+  padding-left: 10px;
+  font-size: var(--fs-body-sm);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

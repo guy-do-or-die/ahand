@@ -8,7 +8,7 @@ import { t } from "../../i18n";
 import { usePlace } from "../../router";
 import { rememberText, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { CopyRow, DealCard, Disclose, ErrorBand, Qr, QuietButton, ReceiptTable, SwipeButton, qrOf, type QrCode } from "../../ui";
+import { CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Qr, QuietButton, ReceiptTable, SwipeButton, qrOf, type QrCode } from "../../ui";
 import { CODE_MM, DPI_FOR_THREE_DOTS, MIN_MODULE_MM, moduleMm, offered, type Format } from "./fit";
 import { NotPrintable, openHeldLink, passportAddress, printableOf, receiptOfSearch, type Printable } from "./link";
 
@@ -82,7 +82,7 @@ function LinkPrint() {
     return () => {
       live = false;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `key` carries the held link
+  }, [key]); // `key` carries the held link
 
   return (
     <Frame>
@@ -176,7 +176,7 @@ function Sheets({ ready }: { ready: Extract<Prepared, { status: "ready" }> }) {
             {view && decimals !== undefined ? (
               <DealCard
                 state={now && read.data?.state !== "missing" ? read.data?.state : undefined}
-                description={printable.description.status === "attached" && printable.description.title !== undefined ? { status: "attached", title: printable.description.title, ...(printable.description.content ? { content: printable.description.content } : {}) } : { status: printable.description.status === "lost" ? "lost" : "none" }}
+                description={dealDescriptionOf(printable.description)}
                 reward={view.reward}
                 decimals={decimals}
                 expiry={view.expiry}
