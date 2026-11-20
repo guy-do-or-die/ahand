@@ -42,10 +42,18 @@ What a card says:
 - **Bare path, a mismatched `d`, an untrusted chain or Core, a Hand never raised, a refused
   address, an unreachable RPC**: the generic card ("Someone raised a hand. Open to see." /
   «Кто-то поднял руку. Открой и посмотри.»), status 200.
-- Terms: `$40 reward · open until 29 Jan`; at a reward of zero
-  `No reward: a thank-you only · open until 29 Jan` and no amount anywhere; `time's up on …` when
+- Terms, said as the chain's (early review E-8): `$40 reward on chain · open until 29 Jan`; at a
+  reward of zero `No reward on chain: a thank-you only · open until 29 Jan` and no amount anywhere; `time's up on …` when
   the latest block's timestamp is at or past the expiry; `Thanked on …`; `The $40 reward went back
   on …`. Russian forms in `words.ts`. Closed Hands get the band "this hand is closed" and no pill.
+- The asker's words are set apart from the terms. og:description, twitter:description and
+  description are the terms, then `. The asker wrote: “…”` / `. Слова автора: «…»`. On the card a
+  small "in the asker's words" / «словами автора» line sits over the title, which is in quotes and
+  cut to 110 characters; the title is still the largest type.
+- The asker's title goes inside FSI…PDI in `<title>`, og:title, twitter:title and the image alt, and
+  the details inside the description, so a direction control in them cannot reverse ` · aHand`
+  (H-2). On the card every format, line or paragraph separator character is drawn as a token
+  (`‹RLO›`, `‹ZWSP›`, `‹U+XXXX›`; names in `bidi.ts`, the same as the app's).
 - The card's top right carries `HAND 12 · CHAIN 31337` in mono: exact, checkable data for the
   initiated, nothing for anyone else to decode.
 
@@ -55,7 +63,7 @@ What a card says:
 |---|---|
 | `cd apps/face && bun test` | 24 pass, 0 fail (two files; the live file starts its own anvil with `startChain()` and stops it) |
 | `bunx tsc --noEmit -p apps/face` | 0 errors (the TS18003 "no sources" of waves 1–2 is gone) |
-| Unlisted Hand, $40: faced address | og:title and twitter:title = the title; og:description `$40 reward · open until …`; the hidden details absent; og:image = `/og/31337/<n>.png?d=…`; `<title>` = title · aHand; the app's script tag kept |
+| Unlisted Hand, $40: faced address | og:title and twitter:title = the title; og:description `$40 reward on chain · open until …` (before the early-review fix round: `$40 reward · open until …`); the hidden details absent; og:image = `/og/31337/<n>.png?d=…`; `<title>` = FSI title PDI · aHand; the app's script tag kept |
 | Last byte of `d` flipped; one base64 character changed | generic title, no title text, no `$40` |
 | `/`, `/raise`, `/31337/999999`, `/31337/0x1111…/1` (untrusted Core), `/1/1` (untrusted chain), `/31337/1?d=AAAA`, `d` given twice, a dark Hand's bare `/` | 200, generic title and description, generic image |
 | Clock | Hand with a one-hour expiry: "open until"; `evm_increaseTime 7200` + mine (the machine's clock is 40 days behind the chain and did not move): "time's up on"; after `refund`: "The $3 reward went back on …" |

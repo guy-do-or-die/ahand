@@ -1,7 +1,8 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from "react";
+import type { ComponentType, LazyExoticComponent } from "react";
 
 import { config } from "./config";
 import { matchPath, type Params, type Place } from "./router";
+import { lazyScreen } from "./shell/lazyScreen";
 
 /**
  * The one route table (ARCHITECTURE §7). Each screen is a lazy import of
@@ -32,7 +33,8 @@ const CORE = /^0x[0-9a-fA-F]{40}$/;
 const HAND_RULES = { chain: CHAIN, hand: HAND };
 const CORE_RULES = { chain: CHAIN, core: CORE, hand: HAND };
 
-const screen = (load: () => Promise<{ default: Screen }>) => lazy(load);
+/** Each screen loads lazily; a chunk that cannot arrive draws the offline band, not a crash (U-1). */
+const screen = (load: () => Promise<{ default: Screen }>) => lazyScreen(load);
 
 const landing = screen(() => import("./screens/landing/index.tsx"));
 const hand = screen(() => import("./screens/hand/index.tsx"));

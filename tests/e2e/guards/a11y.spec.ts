@@ -228,8 +228,8 @@ test.describe("keyboard only", () => {
     await expect(page.getByRole("radio", { name: "An address I have" })).toBeChecked();
     await tabTo(page, (el) => el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement ? (el.getAttribute("placeholder") ?? "").startsWith("0x") : false, "the address field");
     await page.keyboard.type(account(7).address);
-    await tabTo(page, byTestId("give-swipe"), "the swipe 'Send my help'");
-    await expectRing(page, "Send my help");
+    await tabTo(page, byTestId("give-swipe"), "the swipe 'Send my answer'");
+    await expectRing(page, "Send my answer");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("give-copy")).toBeVisible({ timeout: 30_000 });
   });

@@ -69,7 +69,8 @@ for (const [direction, shift] of [
 
       await visit(page, fixtureOf(run, "expired").address);
       await expect(page.getByTestId("hand-deal-card")).toHaveAttribute("data-state", "expired", { timeout: 20_000 });
-      await expect(page.getByTestId("hand-times-up")).toContainText("Time's up.");
+      await expect(page.getByTestId("hand-deal-card")).toContainText("Time's up.");
+      await expect(page.getByTestId("hand-times-up")).toContainText("Send the reward back");
       await expect(page.getByTestId("hand-pass")).toHaveCount(0);
     });
 
