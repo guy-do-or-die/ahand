@@ -336,7 +336,7 @@ test("the whole life: raise, pass at 0% and 10%, help, reply, thank, waiting mon
     await expect(page.getByTestId("thank-predicted")).toBeVisible({ timeout: 30_000 });
     const predicted = await predictedRows(page);
     const hash = await thankHere(page);
-    await expect(page.getByTestId("thank-done")).toContainText("Thanked. Here's who got what — straight from the chain.");
+    await expect(page.getByTestId("thank-done")).toContainText("Thanked. Here's every payout — straight from the chain.");
     await expect(page.getByTestId("thank-receipt")).not.toHaveAttribute("data-landed", /false|^$/, { timeout: 15_000 });
     const shown = await payoutRows(page);
 

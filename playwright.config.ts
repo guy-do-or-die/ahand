@@ -4,6 +4,9 @@
  *   STAND_SLOT=3 bunx playwright test tests/e2e/…          # the site in infra/stand/.run/3/stand.json
  *   STAND_BASE_URL=http://127.0.0.1:18311 bunx playwright test tests/e2e/…
  *
+ * The site comes from the slot's stand.json, so a stand brought up with STAND_PORT_BASE (moved
+ * ports, infra/stand/ports.ts) needs nothing more here.
+ *
  * Results go to tests/e2e/test-results/slot-<slot or x>, so runs of different slots never wipe
  * each other's. Chromium only. Projects: `phone` (390×844, touch), the default, and `desk`
  * (1280×800), which runs only when asked for (`--project desk`).

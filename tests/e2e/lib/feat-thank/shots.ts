@@ -1,10 +1,11 @@
 /**
  * Screenshots of /thank for the build's own review (not a test): each state in English and in
- * Russian at phone width (390 px), and the receipt at desk width.
+ * Russian at phone width (390 px), then the done state at desk width with the lens on.
  *
  *   STAND_SLOT=4 bun tests/e2e/lib/feat-thank/shots.ts <out-dir>
+ *   STAND_FILE=<stand.json with a site> bun tests/e2e/lib/feat-thank/shots.ts <out-dir>
  *
- * It seeds its own fixtures on the slot's chain and thanks two of them, like the smoke does.
+ * It seeds its own fixtures on the stand's chain and thanks four of them, like the smoke does.
  */
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -43,6 +44,14 @@ async function paste(page: Page, lang: "en" | "ru", address: string): Promise<vo
   await page.getByTestId("thank-open").click();
 }
 
+/** Waits until the done state has read what the thanks cost, then opens the transaction behind the sentence. */
+async function openTransaction(page: Page, lang: "en" | "ru"): Promise<void> {
+  const block = page.locator('[data-testid="thank-spent"][data-status="read"]');
+  await block.waitFor({ timeout: 15_000 });
+  await block.getByRole("button", { name: lang === "ru" ? /Транзакция/ : /The transaction/ }).click();
+  await block.getByTestId("thank-spent-tx").first().waitFor();
+}
+
 async function shot(page: Page, name: string): Promise<void> {
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(out, `${name}.png`), fullPage: true });
@@ -69,13 +78,21 @@ try {
     await page.getByTestId("thank-swipe").click();
     await page.getByTestId("thank-done").waitFor({ timeout: 45_000 });
     await page.waitForTimeout(1_500);
+    await page.locator('[data-testid="thank-spent"][data-status="read"]').waitFor({ timeout: 15_000 });
     await shot(page, `${lang}-03-thanked`);
+    await openTransaction(page, lang);
+    await shot(page, `${lang}-03b-thanked-transaction`);
 
     await paste(page, lang, run.fixtures.undeployed.giveAddress);
     await page.getByTestId("thank-setup-band").waitFor({ timeout: 20_000 });
     await connect(page, 1);
     await page.getByTestId("thank-cost").waitFor({ timeout: 20_000 });
+    await page.getByTestId("thank-cost").getByText(/costs about|стоит около/).waitFor({ timeout: 20_000 });
     await shot(page, `${lang}-04-setup`);
+    await page.getByTestId("thank-swipe").click();
+    await page.getByTestId("thank-done").waitFor({ timeout: 45_000 });
+    await openTransaction(page, lang);
+    await shot(page, `${lang}-04b-setup-thanked-two-steps`);
 
     await paste(page, lang, run.fixtures.resigned.firstGiveAddress);
     await page.getByTestId("thank-predicted").waitFor({ timeout: 20_000 });
@@ -106,6 +123,25 @@ try {
 
     await context.close();
   }
+
+  // The done state at desk width, with the lens on: every disclosure stands open in place.
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await desk.newPage();
+  const fresh = passedAndGiven({ reward: "40", title: "Who can lend a ladder in Batumi this weekend?" });
+  await paste(page, "en", fresh.given.address);
+  await page.getByTestId("thank-predicted").waitFor({ timeout: 20_000 });
+  await connect(page, 1);
+  await page.getByTestId("thank-cost").getByText(/costs about/).waitFor({ timeout: 20_000 });
+  await shot(page, "en-09-predicted-desk");
+  await page.getByTestId("thank-swipe").click();
+  await page.getByTestId("thank-done").waitFor({ timeout: 45_000 });
+  await page.locator('[data-testid="thank-spent"][data-status="read"]').waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+  await shot(page, "en-10-thanked-desk");
+  await page.getByTestId("shell-lens").click();
+  await page.getByTestId("thank-spent-tx").first().waitFor();
+  await shot(page, "en-11-thanked-desk-lens");
+  await desk.close();
 } finally {
   await browser.close();
 }

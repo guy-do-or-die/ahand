@@ -1,8 +1,9 @@
 /**
  * The wallet layer in a real browser against a real local chain (PLAN wave 3, app-wallet):
  * /dev/wallet connects the dev wallet's accounts, asks each for the same typed message twice,
- * shows the network's time beside the browser's, follows a time jump, and sends a test approve
- * through the four states, after which the allowance is read from the chain itself.
+ * shows the network's time beside the browser's, follows a time jump, names the connect control
+ * "Use another account" once connected, and sends a test approve through the four states, after
+ * which the allowance is read from the chain itself.
  *
  *   STAND_BASE_URL=http://127.0.0.1:18331 bunx playwright test tests/e2e/smoke/wallet.spec.ts
  *   STAND_SLOT=0 bunx playwright test tests/e2e/smoke/wallet.spec.ts
@@ -101,6 +102,24 @@ test("account 1 gives the same answer twice; account 5 two different ones", asyn
   expect(five.first).not.toBe(five.second);
   for (const signature of [five.first, five.second]) expect(await chain.client.verifyTypedData({ ...(await sample(page, fifth)), address: fifth, signature })).toBe(true);
   expect(five.verdict).toBe("different");
+});
+
+test("once connected, the control says 'Use another account', never 'Connect a wallet' beside 'Disconnect'", async ({ page }) => {
+  await open(page);
+  const connect = page.getByTestId("connect-wallet");
+  await expect(connect).toHaveText("Connect a wallet");
+  const first = await connectAs(page, 1);
+  await expect(page.getByTestId("wallet-connected")).toHaveAttribute("data-value", first);
+  await expect(page.getByRole("button", { name: "Disconnect" })).toBeVisible();
+  await expect(connect).toHaveText("Use another account");
+  await expect(page.getByRole("button", { name: "Connect a wallet" })).toHaveCount(0);
+  // The same control still opens the sheet: switching to account 2 goes through it.
+  await connect.click();
+  await page.getByTestId("dev-account-2").click();
+  await expect(page.getByTestId("dev-wallet-account")).toHaveAttribute("data-value", account(2).address);
+  await expect(connect).toHaveText("Use another account");
+  await page.getByRole("button", { name: "Disconnect" }).click();
+  await expect(connect).toHaveText("Connect a wallet");
 });
 
 test("the account that is not set up yet answers wrapped per ERC-6492", async ({ page }) => {

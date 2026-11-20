@@ -32,7 +32,7 @@ let fixtures: Record<string, Fixture>;
 
 test.beforeAll(() => {
   chain = rpc(stand.rpc);
-  fixtures = seed<{ fixtures: Record<string, Fixture> }>(undefined, ["twoPasses", "thanked"]).fixtures;
+  fixtures = seed<{ fixtures: Record<string, Fixture> }>(undefined, ["twoPasses", "thanked", "unlisted"]).fixtures;
 });
 
 test.beforeEach(async ({ context }) => {
@@ -61,12 +61,61 @@ async function answered(card: Locator): Promise<Locator> {
   return back;
 }
 
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+interface RailMap {
+  /** The page: how wide it is, and how wide what it holds is. */
+  page: { width: number; content: number };
+  /** The rail's own visible box: what of the route a reader sees without scrolling it. */
+  list: Box;
+  hands: Box[];
+  you: Box | null;
+  slot: Box | null;
+  /** The backs now shown. */
+  backs: Box[];
+}
+
+/** Where the rail's parts are on the screen, in CSS pixels. */
+function railMap(rail: Locator): Promise<RailMap> {
+  return rail.evaluate((element) => {
+    const box = (found: Element): Box => {
+      const rect = found.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+    };
+    const one = (selector: string) => {
+      const found = element.querySelector(selector);
+      return found ? box(found) : null;
+    };
+    const all = (selector: string) => Array.from(element.querySelectorAll(selector)).map(box);
+    return {
+      page: { width: document.documentElement.clientWidth, content: document.documentElement.scrollWidth },
+      list: box(element.querySelector("ol.ah-rail")!),
+      hands: all('[data-testid="twist-flip-front"]'),
+      you: one(".ah-rail__you"),
+      slot: one(".ah-rail__slot"),
+      backs: all('[data-testid="twist-back"]:not([hidden])'),
+    };
+  });
+}
+
+/** Whether a part lies inside the rail's visible box from side to side (half a pixel of rounding allowed). */
+const shown = (part: Box | null, list: Box): boolean => !!part && part.left >= list.left - 0.5 && part.right <= list.right + 0.5;
+
 test("gallery: a pass turns over to its share, payee and key, three checks tick in Core's order, then Core's answer at a block", async ({ page }) => {
   const flip = await gallery(page);
   const card = flip.locator('[data-case="twist-route"] [data-testid="twist-flip"]').nth(1);
   const before = await chain.client.getBlockNumber({ cacheTime: 0 });
   await card.getByTestId("twist-flip-front").click();
   await expect(card).toHaveAttribute("data-flipped", "true");
+  // The hand turns where it stands (rotateY) while its back unrolls under the rail.
+  expect(
+    await card.evaluate((element) => ["twist-flip-front", "twist-back"].map((id) => getComputedStyle(element.querySelector(`[data-testid="${id}"]`)!).animationName)),
+  ).toEqual(["ah-hand-over", "ah-sheet-open"]);
   const back = await answered(card);
   const after = await chain.client.getBlockNumber({ cacheTime: 0 });
 
@@ -171,22 +220,35 @@ test("reduced motion: the flip and the sweep reach their end state with no anima
   const card = flip.locator('[data-case="twist-route"] [data-testid="twist-flip"]').nth(1);
   await card.getByTestId("twist-flip-front").click();
   const state = await card.evaluate((element) => {
-    const inner = element.querySelector(".ah-flip__card")!;
-    const style = getComputedStyle(inner);
+    const front = element.querySelector('[data-testid="twist-flip-front"]')!;
+    const back = element.querySelector('[data-testid="twist-back"]')!;
     return {
-      duration: style.transitionDuration,
-      transform: style.transform,
+      animations: [front, back].map((side) => getComputedStyle(side).animationName),
       running: element.getAnimations({ subtree: true }).filter((animation) => animation.playState === "running").length,
-      back: getComputedStyle(element.querySelector('[data-testid="twist-back"]')!).display,
+      back: getComputedStyle(back).display,
+      // The hand already shows its other side: filled, not clear.
+      filled: getComputedStyle(front).backgroundColor !== "rgba(0, 0, 0, 0)",
     };
   });
-  expect(state.duration).toBe("0s");
-  expect(state.transform).toMatch(/^matrix3d\(-1, 0, 0?/); // rotateY(180deg), already there
+  expect(state.animations).toEqual(["none", "none"]);
   expect(state.running).toBe(0);
   expect(state.back).not.toBe("none");
+  expect(state.filled).toBe(true);
   // The checks are shown at once, with no ticking.
   await expect(card.getByTestId("twist-core")).toBeVisible({ timeout: 15_000 });
   expect(await card.locator('[data-testid="twist-step"][data-shown="false"]').count()).toBe(0);
+
+  // A receipt row turns as one card: under less motion it is already turned, with no transition.
+  const row = page.locator('[data-kit="Sweep"]').first().locator('[data-case="twist-receipt"]').getByTestId("twist-flip").first();
+  await row.getByTestId("twist-flip-front").click();
+  const turned = await row.evaluate((element) => {
+    const style = getComputedStyle(element.querySelector(".ah-flip__card")!);
+    return { duration: style.transitionDuration, transform: style.transform, running: element.getAnimations({ subtree: true }).length };
+  });
+  expect(turned.duration).toBe("0s");
+  expect(turned.transform).toMatch(/^matrix3d\(-1, 0, 0?/); // rotateY(180deg), already there
+  expect(turned.running).toBe(0);
+  await expect(row.getByTestId("twist-formula")).toBeVisible();
 
   const box = page.locator('[data-kit="Sweep"]').first().locator('[data-case="twist-sweep-all"]');
   await box.getByTestId("twist-replay").click();
@@ -218,10 +280,13 @@ test("keyboard only: Tab reaches each hand, Enter and Space turn it, and aria-ex
   await page.keyboard.press("Enter");
   await expect(pass).toHaveAttribute("aria-expanded", "true");
   await expect(route.getByTestId("twist-back").nth(1)).toBeVisible();
-  // The focus stays on the button; its ring is drawn on the card, which does not turn.
+  // The focus stays on the hand, which stays up; its ring is drawn around it, clear of its ink.
   await expect(pass).toBeFocused();
-  const ring = await route.getByTestId("twist-flip").nth(1).evaluate((element) => getComputedStyle(element).outlineStyle);
-  expect(ring).toBe("solid");
+  const ring = await pass.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.outlineStyle, style.outlineWidth, style.outlineOffset];
+  });
+  expect(ring).toEqual(["solid", "2px", "2px"]);
   await page.keyboard.press("Space");
   await expect(pass).toHaveAttribute("aria-expanded", "false");
 });
@@ -285,6 +350,71 @@ test("Hand view: a seeded two-pass link turns over; Core answers checkRoute ok a
   const terms = await answered(cards.nth(0));
   await expect(terms.getByTestId("twist-hand")).toHaveAttribute("data-value", two.handId);
   await expect(terms.getByTestId("twist-match")).toHaveAttribute("data-status", "match");
+});
+
+test("Hand view: turning a hand leaves the rail where it was, YOU and the next slot in view, and its back opens under the rail at the rail's width", async ({ page }) => {
+  await page.goto(fixture("unlisted").address);
+  const rail = page.getByTestId("hand-rail");
+  await expect(rail.locator("[data-flippable]")).toHaveAttribute("data-flippable", "true", { timeout: 15_000 });
+  const before = await railMap(rail);
+  expect(shown(before.you, before.list)).toBe(true);
+  expect(shown(before.slot, before.list)).toBe(true);
+
+  const card = rail.getByTestId("twist-flip").first();
+  await card.getByTestId("twist-flip-front").click();
+  await answered(card);
+  // Once the turn has ended: nothing on the rail has moved sideways.
+  await expect.poll(async () => (await card.evaluate((element) => element.getAnimations({ subtree: true }).length)) === 0).toBe(true);
+  const turned = await railMap(rail);
+  expect(shown(turned.you, turned.list)).toBe(true);
+  expect(shown(turned.slot, turned.list)).toBe(true);
+  expect([turned.you!.left, turned.slot!.left, turned.hands[0]!.left].map(Math.round)).toEqual([before.you!.left, before.slot!.left, before.hands[0]!.left].map(Math.round));
+
+  // The back: one panel under every hand of the rail, as wide as the rail, inside the page.
+  expect(turned.backs).toHaveLength(1);
+  const back = turned.backs[0]!;
+  expect(back.top).toBeGreaterThanOrEqual(Math.max(turned.hands[0]!.bottom, turned.you!.bottom, turned.slot!.bottom));
+  expect(back.left).toBeGreaterThanOrEqual(turned.list.left);
+  expect(back.right).toBeLessThanOrEqual(turned.list.right);
+  expect(back.right - back.left).toBeGreaterThanOrEqual(turned.list.right - turned.list.left - 10);
+  expect(turned.page.content).toBeLessThanOrEqual(turned.page.width);
+
+  // It is still the next thing in the document after the button that turned it (UX-SPEC §13).
+  expect(await card.evaluate((element) => element.querySelector('[data-testid="twist-flip-front"]')!.nextElementSibling?.getAttribute("data-testid"))).toBe("twist-back");
+});
+
+test("Hand view, a 320 px phone and a route longer than the screen: one hand is turned at a time, and turning it back brings YOU into view", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto(fixture("twoPasses").address);
+  const rail = page.getByTestId("hand-rail");
+  await expect(rail.locator("[data-flippable]")).toHaveAttribute("data-flippable", "true", { timeout: 15_000 });
+  const cards = rail.getByTestId("twist-flip");
+  await expect(cards).toHaveCount(3);
+
+  // The reader scrolled the rail back to the asker: YOU is off its right edge.
+  await rail.locator("ol.ah-rail").evaluate((list) => list.scrollTo({ left: 0, behavior: "instant" }));
+  const start = await railMap(rail);
+  expect(shown(start.you, start.list)).toBe(false);
+
+  await cards.nth(0).getByTestId("twist-flip-front").click();
+  await answered(cards.nth(0));
+  await cards.nth(1).getByTestId("twist-flip-front").click();
+  await answered(cards.nth(1));
+  await expect(cards.nth(0)).toHaveAttribute("data-flipped", "false");
+  await expect(cards.nth(0).getByTestId("twist-flip-front")).toHaveAttribute("aria-expanded", "false");
+  await expect(rail.locator('[data-testid="twist-back"]:not([hidden])')).toHaveCount(1);
+  // The panel stays as wide as the screen's rail however long the route is.
+  const open = await railMap(rail);
+  expect(shown(open.backs[0]!, open.list)).toBe(true);
+  expect(open.page.content).toBeLessThanOrEqual(open.page.width);
+
+  await rail.locator("ol.ah-rail").evaluate((list) => list.scrollTo({ left: 0, behavior: "instant" }));
+  await cards.nth(1).getByTestId("twist-back").click({ position: { x: 10, y: 10 } });
+  await expect(cards.nth(1)).toHaveAttribute("data-flipped", "false");
+  await expect.poll(async () => {
+    const closed = await railMap(rail);
+    return shown(closed.you, closed.list);
+  }).toBe(true);
 });
 
 test("Hand view: a thanked Hand's helper turns over to GIVEHASH MATCHES CORE, and its receipt rows to their events on chain", async ({ page }) => {

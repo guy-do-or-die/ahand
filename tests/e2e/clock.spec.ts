@@ -14,10 +14,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { account } from "./lib/accounts";
-import { DAY, MARGIN, capOf, connectAs, phone } from "./lib/care-print/care";
+import { DAY, MARGIN, capOf, connectAs, phone, standArgs } from "./lib/care-print/care";
 import { compose, swipe } from "./lib/feat-raise/raise";
 import { chainNow, hands, rpc, type Rpc } from "./lib/rpc";
-import { readStand, runProgram, seed, standSlot, type StandInfo } from "./lib/stand";
+import { readStand, runProgram, seed, type StandInfo } from "./lib/stand";
 
 test.describe.configure({ mode: "serial" });
 
@@ -35,7 +35,7 @@ test.beforeAll(async () => {
   const ahead = (await chainNow(chain)).timestamp;
   // The seeded Hand has 30 days; the jump takes the chain 40 days further.
   expect(before.expiry - ahead).toBeGreaterThan(29 * DAY);
-  runProgram("infra/stand/time.ts", ["--slot", String(standSlot()), String(40 * DAY), "--json"]);
+  runProgram("infra/stand/time.ts", [...standArgs(), String(40 * DAY), "--json"]);
   expect((await chainNow(chain)).timestamp).toBeGreaterThan(before.expiry);
 });
 

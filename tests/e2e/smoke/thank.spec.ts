@@ -8,10 +8,12 @@
  * with the craft tool (tests/e2e/lib/feat-thank/fixtures.ts): a Hand in the BlacklistToken whose
  * holder is blocked before the thank, a fresh Give for the not-the-raiser test, and a Give whose
  * giver signature was altered. Every amount the screen shows after a thank is compared with what
- * the chain says: token balances before and after, Core's `pending`, `hands` and `thanks`, code.
+ * the chain says: token balances before and after, Core's `pending`, `hands` and `thanks`, code;
+ * what the thanks cost is compared with the transaction's own receipt and with the ETH that left
+ * the asker's account.
  */
 import { expect, test, type Page } from "@playwright/test";
-import { getAddress, isAddressEqual, zeroHash, type Address } from "viem";
+import { formatEther, getAddress, isAddressEqual, zeroHash, type Address, type Hex } from "viem";
 
 import { account, pickDevAccount } from "../lib/accounts";
 import { craft, passedAndGiven, setBlocked } from "../lib/feat-thank/fixtures";
@@ -83,6 +85,82 @@ async function payouts(page: Page) {
   );
 }
 
+const FINE_PRINT = {
+  en: "If a payout can't move, it waits in the contract until whoever it belongs to takes it out — or anyone delivers it to that address.",
+  ru: "Если выплата не сможет пройти, она подождёт в контракте, пока её не заберёт тот, кому она причитается, — или кто угодно не доставит её на этот адрес.",
+};
+
+/** The fine print under "who gets what": the human voice (sentence case, not mono), and no owner in it. */
+async function expectFinePrint(page: Page, lang: "en" | "ru"): Promise<void> {
+  const line = page.getByTestId("thank-predicted").getByText(FINE_PRINT[lang], { exact: true });
+  await expect(line).toBeVisible();
+  await expect(line).toHaveClass(/(^|\s)ah-label(\s|$)/);
+  const style = await line.evaluate((node) => {
+    const computed = getComputedStyle(node);
+    return { transform: computed.textTransform, family: computed.fontFamily };
+  });
+  expect(style.transform).toBe("none");
+  expect(style.family).not.toMatch(/mono/i);
+  await expect(page.getByTestId("thank-predicted")).not.toContainText(/owner|владел/i);
+}
+
+interface SpentRow {
+  hash: Hex;
+  from: Address;
+  block: bigint;
+  gasUsed: bigint;
+  fee: bigint;
+  text: string;
+}
+
+/** What the done state says the thanks cost: the block's totals, and each transaction's line read with its disclosure open. */
+async function spent(page: Page): Promise<{ count: number; gasUsed: bigint; fee: bigint; sentence: string; rows: SpentRow[] }> {
+  const block = page.getByTestId("thank-spent");
+  await expect(block).toHaveAttribute("data-status", "read", { timeout: 15_000 });
+  const toggle = block.getByRole("button", { name: /The transaction/ });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  const rows = await block.getByTestId("thank-spent-tx").evaluateAll((items) =>
+    items.map((item) => ({
+      hash: item.getAttribute("data-hash")!,
+      from: item.getAttribute("data-from")!,
+      block: item.getAttribute("data-block")!,
+      gasUsed: item.getAttribute("data-gas-used")!,
+      fee: item.getAttribute("data-fee")!,
+      text: item.textContent ?? "",
+    })),
+  );
+  return {
+    count: Number(await block.getAttribute("data-count")),
+    gasUsed: BigInt((await block.getAttribute("data-gas-used"))!),
+    fee: BigInt((await block.getAttribute("data-fee"))!),
+    sentence: (await block.getByTestId("thank-spent-sentence").textContent()) ?? "",
+    rows: rows.map((row) => ({ hash: row.hash as Hex, from: row.from as Address, block: BigInt(row.block), gasUsed: BigInt(row.gasUsed), fee: BigInt(row.fee), text: row.text })),
+  };
+}
+
+/** Digits in threes with a no-break space, as the lens writes whole numbers. */
+const grouped = (value: bigint) => value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+
+/** Each transaction line against its own receipt on the chain: the sender, the block, the gas used and the fee. */
+async function expectRowsMatchReceipts(rows: SpentRow[]): Promise<bigint> {
+  let total = 0n;
+  for (const row of rows) {
+    const receipt = await chain.client.getTransactionReceipt({ hash: row.hash });
+    const fee = receipt.gasUsed * receipt.effectiveGasPrice;
+    expect(isAddressEqual(row.from, receipt.from)).toBe(true);
+    expect(row.block).toBe(receipt.blockNumber);
+    expect(row.gasUsed).toBe(receipt.gasUsed);
+    expect(row.fee).toBe(fee);
+    expect(row.text).toContain(row.hash);
+    expect(row.text).toContain(getAddress(receipt.from));
+    expect(row.text).toContain(`gas used ${grouped(receipt.gasUsed)}`);
+    expect(row.text).toContain(`fee ${formatEther(fee)} ETH`);
+    expect(row.text).toContain(`block ${grouped(receipt.blockNumber)}`);
+    total += fee;
+  }
+  return total;
+}
+
 test("the give fixture: Core's check, the predicted table, the thanks, and a receipt equal to the balances", async ({ page }) => {
   const { give } = run.fixtures;
   const handId = BigInt(give.handId);
@@ -92,6 +170,8 @@ test("the give fixture: Core's check, the predicted table, the thanks, and a rec
   await paste(page, give.giveAddress);
   await expect(page.getByTestId("thank-checking")).toBeHidden({ timeout: 20_000 });
   await readyToThank(page);
+  await expectFinePrint(page, "en");
+  const ethBefore = await chain.client.getBalance({ address: account(1).address });
 
   const predicted = await page.getByTestId("thank-predicted-row").evaluateAll((rows) => rows.map((row) => [row.getAttribute("data-kind"), row.getAttribute("data-payee"), row.getAttribute("data-amount")]));
   expect(predicted).toEqual([
@@ -104,7 +184,7 @@ test("the give fixture: Core's check, the predicted table, the thanks, and a rec
   await expect(page.getByTestId("thank-predicted-row").first()).toContainText("30000000 × 500 ÷ 10 000 = 1500000");
 
   await thankAndWait(page);
-  await expect(page.getByTestId("thank-done")).toContainText("Thanked. Here's who got what — straight from the chain.");
+  await expect(page.getByTestId("thank-done")).toContainText("Thanked. Here's every payout — straight from the chain.");
 
   const rows = await payouts(page);
   expect(rows).toHaveLength(2);
@@ -119,6 +199,36 @@ test("the give fixture: Core's check, the predicted table, the thanks, and a rec
   const closed = await hands(chain, stand.core, handId);
   expect(closed.closedAt).toBeGreaterThan(0);
   expect((await thanks(chain, stand.core, handId)).giveHash).not.toBe(zeroHash);
+
+  // What it cost: one transaction, its line equal to its receipt, and the fee equal to the ETH that left the asker.
+  const cost = await spent(page);
+  expect(cost.count).toBe(1);
+  expect(cost.rows).toHaveLength(1);
+  expect(cost.rows[0]!.hash).toBe((await page.getByTestId("thank-done").getAttribute("data-hash")) as Hex);
+  expect(isAddressEqual(cost.rows[0]!.from, account(1).address)).toBe(true);
+  expect(await expectRowsMatchReceipts(cost.rows)).toBe(cost.fee);
+  expect(cost.gasUsed).toBe(cost.rows[0]!.gasUsed);
+  expect(ethBefore - (await chain.client.getBalance({ address: account(1).address }))).toBe(cost.fee);
+  expect(cost.sentence).toMatch(/^Saying thanks cost about \$\d[\d.]* · prices of \d+ \w+$/);
+  // The estimate shown before sending is gone; what stands now is what was used.
+  await expect(page.getByTestId("thank-cost")).toHaveCount(0);
+});
+
+test("the same answer opened again after the thanks: the receipt and what it cost are read back from the chain", async ({ page }) => {
+  // The give fixture was thanked by the test above; this page sent nothing and holds no receipt.
+  const { give } = run.fixtures;
+  await paste(page, give.giveAddress);
+  const done = page.getByTestId("thank-done");
+  await expect(done).toContainText("This hand was thanked for this answer.", { timeout: 20_000 });
+  await expect(page.getByTestId("thank-swipe")).toHaveCount(0);
+
+  const cost = await spent(page);
+  expect(cost.count).toBe(1);
+  expect(cost.rows[0]!.hash).toBe((await done.getAttribute("data-hash")) as Hex);
+  expect(isAddressEqual(cost.rows[0]!.from, account(1).address)).toBe(true);
+  expect(await expectRowsMatchReceipts(cost.rows)).toBe(cost.fee);
+  // The block's time is the chain's: the line names the block the receipt names, with a time after it.
+  expect(cost.rows[0]!.text).toMatch(new RegExp(`block ${grouped(cost.rows[0]!.block)} · \\d+ \\w+ \\d\\d:\\d\\d`));
 });
 
 test("the undeployed account: the set-up band, two steps, then code, a thanked hand and the helper's money", async ({ page }) => {
@@ -133,6 +243,7 @@ test("the undeployed account: the set-up band, two steps, then code, a thanked h
   await expect(page.getByTestId("thank-two-steps")).toHaveText(
     "Two steps: the first sets up the helper's account, the second says thanks. If you stop after the first, only its cost is spent.",
   );
+  const ethBefore = await chain.client.getBalance({ address: account(1).address });
 
   await thankAndWait(page);
   const rows = await payouts(page);
@@ -143,6 +254,18 @@ test("the undeployed account: the set-up band, two steps, then code, a thanked h
   expect(closed.closedAt).toBeGreaterThan(0);
   expect((await thanks(chain, stand.core, handId)).giveHash).not.toBe(zeroHash);
   expect((await balanceOf(chain, usd, undeployed.account)) - before).toBe(helper!.amount);
+
+  // What it cost: both steps, each line equal to its own receipt, together the ETH that left the asker.
+  const cost = await spent(page);
+  expect(cost.count).toBe(2);
+  expect(cost.rows).toHaveLength(2);
+  expect(cost.rows[1]!.hash).toBe((await page.getByTestId("thank-done").getAttribute("data-hash")) as Hex);
+  expect(cost.rows[0]!.text).toContain("Setting up the helper's account");
+  expect(cost.rows[1]!.text).toContain("Saying thanks");
+  expect(await expectRowsMatchReceipts(cost.rows)).toBe(cost.fee);
+  expect(cost.gasUsed).toBe(cost.rows[0]!.gasUsed + cost.rows[1]!.gasUsed);
+  expect(ethBefore - (await chain.client.getBalance({ address: account(1).address }))).toBe(cost.fee);
+  expect(cost.sentence).toMatch(/^Both steps together cost about \$\d[\d.]* · prices of \d+ \w+$/);
 });
 
 test("a hand with no reward: Thanked and Given land, no money row is paid, and no $0 anywhere", async ({ page }) => {
@@ -159,7 +282,9 @@ test("a hand with no reward: Thanked and Given land, no money row is paid, and n
   expect(events).toEqual(["Thanked", "Given"]);
   expect(await page.getByTestId("thank-payout").count()).toBe(0);
   await expect(page.getByTestId("thank-no-money")).toBeVisible();
-  await expect(page.getByTestId("shell-main")).not.toContainText("$0");
+  // No amount of nothing anywhere ("$0", "$0.00"); what the thanks cost ("$0.43") is not one.
+  await expect(page.getByTestId("shell-main")).not.toContainText(/\$0(?:[.,]0+)?(?![.,]?\d)/);
+  expect((await spent(page)).count).toBe(1);
   expect((await hands(chain, stand.core, BigInt(noReward.handId))).closedAt).toBeGreaterThan(0);
 });
 
@@ -181,6 +306,12 @@ test("the re-signed pair: the second shows the dropped holder and its share, and
   await expect(row).toHaveAttribute("data-payee", dropped.payee!);
   await expect(row.locator("s")).toContainText(dropped.payee!);
   await expect(row.locator("s")).toContainText("kept 5%");
+  // The rail puts the dropped holder back at its place, crossed out with its share (UX-SPEC §7.5.2).
+  const left = page.locator('.ah-rail [data-dropped="true"]');
+  await expect(left).toHaveCount(1);
+  await expect(left.locator("s").first()).toContainText(`${dropped.payee!.slice(0, 6)}`);
+  await expect(left).toContainText("5%");
+  await expect(left).toContainText("left out of this route");
   await expect(page.getByTestId("thank-first-seen")).toContainText("First seen on this device");
 
   await pickDevAccount(page, 1);
@@ -238,4 +369,28 @@ test("a second account connected, not the raiser: stopped before sending with th
   await expect(error).toContainText("Only the account that raised this hand can do that.");
   await expect(page.getByTestId("thank-swipe")).toBeDisabled();
   expect((await hands(chain, stand.core, fresh.handId)).closedAt).toBe(0);
+});
+
+test("in Russian: the fine print names no owner in the human voice, and the done state says what was spent", async ({ page }) => {
+  const fresh = passedAndGiven({ reward: "15" });
+  await page.goto("/thank");
+  await page.getByTestId("shell-lang-ru").click();
+  await page.getByTestId("thank-input").fill(fresh.given.address);
+  await page.getByTestId("thank-open").click();
+  await expect(page.getByTestId("thank-predicted")).toBeVisible({ timeout: 20_000 });
+  await expectFinePrint(page, "ru");
+
+  await pickDevAccount(page, 1);
+  await expect(page.getByTestId("thank-cost")).toContainText(/стоит около/, { timeout: 20_000 });
+  await thankAndWait(page);
+
+  const block = page.getByTestId("thank-spent");
+  await expect(block).toHaveAttribute("data-status", "read", { timeout: 15_000 });
+  await expect(block.getByTestId("thank-spent-sentence")).toHaveText(/^Спасибо стоило около \$\d[\d,]* · цены на \d+ \S+$/);
+  await block.getByRole("button", { name: /Транзакция/ }).click();
+  const receipt = await chain.client.getTransactionReceipt({ hash: (await page.getByTestId("thank-done").getAttribute("data-hash")) as Hex });
+  await expect(block.getByTestId("thank-spent-tx")).toContainText(`потрачено gas ${grouped(receipt.gasUsed)}`);
+  await expect(block.getByTestId("thank-spent-tx")).toContainText(`от ${getAddress(receipt.from)}`);
+  await expect(block.getByTestId("thank-spent-tx")).toContainText(`плата ${formatEther(receipt.gasUsed * receipt.effectiveGasPrice)} ETH`);
+  await expect(page.getByTestId("thank-done")).not.toContainText(/владел/i);
 });

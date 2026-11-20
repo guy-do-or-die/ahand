@@ -109,7 +109,7 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   const holder = await person(browser);
   await visit(holder, raised);
   await expect(holder.getByTestId("hand-deal-card")).toContainText("Кто одолжит палатку на выходные?");
-  await expect(holder.getByTestId("hand-deal-card")).toContainText("Кто-то ищет");
+  await expect(holder.getByTestId("hand-deal-card")).toContainText("Кто-то поднял руку:");
   await expect(holder.getByTestId("hand-pass")).toContainText("Передать дальше");
   await expect(holder.getByTestId("hand-help")).toContainText("Могу помочь");
   await expect(holder.getByTestId("hand-help-note")).toContainText("Благодарить или нет — решает автор.");
@@ -154,7 +154,7 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   await expect(asker.getByTestId("thank-swipe")).toBeEnabled({ timeout: 20_000 });
   await noEnglish(asker, "/thank");
   await asker.getByTestId("thank-swipe").click();
-  await expect(asker.getByTestId("thank-done")).toContainText("Спасибо сказано. Кто сколько получил — прямо из сети.", { timeout: 45_000 });
+  await expect(asker.getByTestId("thank-done")).toContainText("Спасибо сказано. Все выплаты — прямо из сети.", { timeout: 45_000 });
   await noEnglish(asker, "/thank, thanked");
   expect((await hands(chain, stand.core, handId)).closedAt).toBeGreaterThan(0);
 

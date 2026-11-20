@@ -4,6 +4,8 @@
  * the BlacklistToken, which is one plain transaction from anvil's public account 0 (the token
  * lets anyone block; the seed does the same).
  */
+import { resolve } from "node:path";
+
 import { createWalletClient, http, parseAbi, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
@@ -12,9 +14,13 @@ import { account } from "../accounts";
 import type { Rpc } from "../rpc";
 import { runProgram, standSlot } from "../stand";
 
-/** Runs `bun tests/e2e/lib/craft.ts <args> --slot N` and returns its JSON. */
+/**
+ * Runs `bun tests/e2e/lib/craft.ts <args>` on this run's chain and returns its JSON: the stand
+ * file in STAND_FILE when one is named (as `readStand` and `seed` take it), else the slot's.
+ */
 export function craft<T = Record<string, unknown>>(...args: string[]): T {
-  const { stdout } = runProgram("tests/e2e/lib/craft.ts", [...args, "--slot", String(standSlot())]);
+  const chain = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
+  const { stdout } = runProgram("tests/e2e/lib/craft.ts", [...args, ...chain]);
   return JSON.parse(stdout) as T;
 }
 

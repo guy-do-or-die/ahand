@@ -3,9 +3,10 @@
  * answer the connect sheet and the keys card, read the device's IndexedDB as plain text, and run
  * the craft tool for opening an address and listing a link's secret forms.
  */
+import { resolve } from "node:path";
+
 import { expect, type Page } from "@playwright/test";
 
-import { pickDevAccount } from "../accounts";
 import { runProgram, standSlot } from "../stand";
 
 export interface Compose {
@@ -47,13 +48,17 @@ export async function swipe(page: Page, account: number): Promise<void> {
 export async function answerPrompts(page: Page, account: number): Promise<void> {
   const entry = page.getByTestId(`dev-account-${account}`);
   const keys = page.getByTestId("raise-keys-confirm");
-  for (let round = 0; round < 2; round++) {
+  for (let round = 0; round < 3; round++) {
     const which = await Promise.race([
-      entry.waitFor({ timeout: 8_000 }).then(() => "connect" as const),
-      keys.waitFor({ timeout: 8_000 }).then(() => "keys" as const),
+      entry.waitFor({ timeout: 15_000 }).then(() => "connect" as const),
+      keys.waitFor({ timeout: 15_000 }).then(() => "keys" as const),
     ]).catch(() => undefined);
-    if (which === "connect") await pickDevAccount(page, account);
-    else if (which === "keys") return keys.click();
+    // The keys card wins when both show: the connect sheet may still be closing after the pick.
+    if (which === "keys" || (await keys.isVisible())) return keys.click();
+    // The entry was just seen in the open sheet: press it there. Reopening the sheet through
+    // pickDevAccount raced the sheet's own closing (review round 1 gate: an entry seen while the
+    // sheet closed sent the helper looking for "Connect a wallet" behind the keys card).
+    if (which === "connect") await entry.click({ timeout: 10_000 }).catch(() => undefined);
     else return;
   }
 }
@@ -89,10 +94,27 @@ export async function escrowKeys(page: Page): Promise<string[]> {
   return JSON.parse(await dumpDb(page)).escrow.map((record: { intent: string }) => record.intent);
 }
 
-/** The craft tool (tests/e2e/lib/craft.ts) on this slot's stand, its JSON parsed. */
+/** The craft tool (tests/e2e/lib/craft.ts) on this run's stand (STAND_FILE, else the slot's), its JSON parsed. */
 export function craft<T = Record<string, unknown>>(...args: string[]): T {
-  const run = runProgram("tests/e2e/lib/craft.ts", [...args, "--slot", String(standSlot())], { timeoutMs: 120_000 });
+  const stand = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
+  const run = runProgram("tests/e2e/lib/craft.ts", [...args, ...stand], { timeoutMs: 120_000 });
   return JSON.parse(run.stdout) as T;
+}
+
+/**
+ * Presses the swipe and answers with a wallet the browser announced (EIP-6963), by its name in
+ * the connect sheet; then confirms the keys card. With `connected`, the wallet is connected already.
+ */
+export async function swipeWith(page: Page, walletName: string, opts: { connected?: boolean } = {}): Promise<void> {
+  await expect(page.getByTestId("raise-swipe")).toBeEnabled({ timeout: 15_000 });
+  await page.getByTestId("raise-swipe").click();
+  if (!opts.connected) await page.getByTestId("kit-connect-option").filter({ hasText: walletName }).click();
+  await page.getByTestId("raise-keys-confirm").click();
+}
+
+/** The `hands` records the device keeps, as plain objects. */
+export async function keptHands(page: Page): Promise<Record<string, unknown>[]> {
+  return JSON.parse(await dumpDb(page)).hands;
 }
 
 /** The copy row's value through the clipboard, as a person gets it. */

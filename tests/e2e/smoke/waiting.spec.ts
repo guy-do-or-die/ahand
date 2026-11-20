@@ -2,6 +2,7 @@
  * /waiting in a real browser against the stand's chain (PLAN wave 4, feat-waiting; UX-SPEC §9).
  *
  *   STAND_SLOT=6 bunx playwright test tests/e2e/smoke/waiting.spec.ts
+ *   STAND_FILE=<a helper chain's --write-stand file> STAND_BASE_URL=http://127.0.0.1:<port> bunx playwright test …
  *
  * Fixtures, made in beforeAll and used by this file only:
  *  - the seed's `blocked` Hand: its holder (account 7) is blocked by the BlacklistToken, so the
@@ -13,7 +14,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { expect, test, type Page, type Request } from "@playwright/test";
 import { getAddress, type Address, type Hex } from "viem";
@@ -50,7 +51,9 @@ test.beforeAll(() => {
   stand = readStand();
   chain = rpc(stand.rpc);
   blocked = seed<SeedRun>(standSlot(), ["blocked"]).fixtures.blocked;
-  const made = runProgram("tests/e2e/lib/feat-waiting/pending.ts", ["--payee-account", "2", "--slot", String(standSlot())]);
+  // The same chain the seed used: a helper chain's stand file when STAND_FILE names one, else the slot's.
+  const where = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
+  const made = runProgram("tests/e2e/lib/feat-waiting/pending.ts", ["--payee-account", "2", ...where]);
   own = JSON.parse(made.stdout) as OwnPending;
 });
 
@@ -97,6 +100,27 @@ function row(page: Page, token: Address) {
   return page.getByTestId("waiting-row").and(page.locator(`[data-value="${token}"]`));
 }
 
+/**
+ * With nobody connected, presses the row's Deliver: it sends nothing and opens "Connect a wallet";
+ * picks dev account `which` there. The sheet closes, the focus is back in the row, and the page
+ * goes on with that account.
+ */
+async function deliverAsVisitor(page: Page, token: Address, which: number): Promise<void> {
+  await expect(page.getByTestId("wallet-connected")).toHaveCount(0);
+  const deliver = row(page, token).getByTestId("waiting-deliver");
+  await expect(deliver).toBeEnabled();
+  await deliver.click();
+  const sheet = page.getByTestId("kit-connect-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.getByTestId(`dev-account-${which}`).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByTestId("wallet-connected")).toHaveAttribute("data-value", account(which).address);
+  // The person is put back on the row they pressed in (its button, or its actions while the button is off).
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="waiting-row"]')?.getAttribute("data-value") ?? null))
+    .toBe(token);
+}
+
 /** Runs a `cast send …` line the seed printed, with Foundry's cast (bare `cast` may be another program). */
 function runCast(line: string): void {
   const words = line.trim().split(/\s+/);
@@ -122,9 +146,21 @@ test("a pasted address shows what waits for it, read only, with the sentence for
 
   await expect(row(page, token)).toHaveAttribute("data-amount", onChain.toString());
   await expect(row(page, token)).toContainText("$");
-  // Nobody connected: no action, the money-is-safe sentence and a link that opens this page for the payee.
-  await expect(page.getByTestId("waiting-deliver")).toHaveCount(0);
+  // Nobody connected: the Deliver the page talks about is on the row and can be pressed, the line
+  // beside it says what pressing asks for, and the same call stands ready for a terminal.
+  await expect(row(page, token).getByTestId("waiting-deliver")).toBeEnabled();
+  await expect(row(page, token)).toContainText("You'll be asked to Connect a wallet first");
+  await expect(row(page, token).getByTestId("kit-without-us")).toBeVisible();
   await expect(page.getByTestId("waiting-take-out")).toHaveCount(0);
+  // Pressed and then left with Escape: nothing is connected, nothing was sent, and the focus is back on Deliver.
+  await row(page, token).getByTestId("waiting-deliver").click();
+  await expect(page.getByTestId("kit-connect-sheet")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("kit-connect-sheet")).toHaveCount(0);
+  await expect(page.getByTestId("wallet-connected")).toHaveCount(0);
+  await expect(row(page, token).getByTestId("waiting-deliver")).toBeFocused();
+  expect(await pending(chain, stand.core, token, payee)).toBe(onChain);
+  // The money-is-safe sentence and a link that opens this page for the payee.
   await expect(page.getByTestId("waiting-safe")).toContainText("Your money is safe where it is.");
   const friend = await page.getByTestId("waiting-friend-link").getAttribute("data-value");
   expect(friend).toBe(`${new URL(page.url()).origin}/waiting?for=${payee}`);
@@ -141,8 +177,8 @@ test("another account may Deliver but not take it out; while the payee is blocke
   const before = await pending(chain, stand.core, token, payee);
 
   await page.goto(`/waiting?for=${payee}`);
-  await pickDevAccount(page, 5);
-  await expect(page.getByTestId("wallet-connected")).toHaveAttribute("data-value", account(5).address);
+  // A visitor's press on Deliver sends nothing: it asks for an account and goes on from there.
+  await deliverAsVisitor(page, token, 5);
 
   const deliver = page.getByTestId("waiting-deliver");
   await expect(deliver).toBeVisible();
@@ -154,6 +190,18 @@ test("another account may Deliver but not take it out; while the payee is blocke
   await expect(error).toContainText("The money stays waiting; nothing was lost.");
   await expect(row(page, token).getByTestId("waiting-issuer")).toHaveAttribute("href", "/limits");
   await expect(deliver).toBeDisabled();
+  // The token's own answer is exact data: not on the human layer, one tap away, and open under the lens.
+  await expect(error).not.toContainText(/BLACKLISTED|reverted/i);
+  const said = error.getByRole("button", { name: "What the token said" });
+  await expect(said).toHaveAttribute("aria-expanded", "false");
+  await said.click();
+  await expect(said).toHaveAttribute("aria-expanded", "true");
+  await expect(error).toContainText("BLACKLISTED");
+  await said.click();
+  await expect(error).not.toContainText("BLACKLISTED");
+  await page.locator("h1").click();
+  await page.keyboard.press("?");
+  await expect(error).toContainText("BLACKLISTED");
   expect(await pending(chain, stand.core, token, payee)).toBe(before);
 });
 
@@ -166,10 +214,12 @@ test("after the unblock command, account 5 presses Deliver and the money lands a
   expect(amount).toBeGreaterThan(0n);
 
   await page.goto(`/waiting?for=${payee}`);
-  await pickDevAccount(page, 5);
-  await expect(page.getByTestId("wallet-connected")).toHaveAttribute("data-value", account(5).address);
+  // A visitor again: the first press asks for an account and stops at the cost, with nothing sent.
+  await deliverAsVisitor(page, token, 5);
   await expect(row(page, token).getByTestId("kit-cost-line")).toContainText("costs about");
   await expect(row(page, token).getByTestId("kit-without-us")).toBeVisible();
+  await expect(row(page, token).getByTestId("waiting-error")).toHaveCount(0);
+  expect(await pending(chain, stand.core, token, payee)).toBe(amount);
   const deliver = page.getByTestId("waiting-deliver");
   await expect(deliver).toBeEnabled();
   await deliver.click();
@@ -181,6 +231,20 @@ test("after the unblock command, account 5 presses Deliver and the money lands a
   await expect(page.getByTestId("waiting-nothing")).toBeVisible();
   expect(await pending(chain, stand.core, token, payee)).toBe(0n);
   expect(await balanceOf(chain, token, payee)).toBe(balance + amount);
+});
+
+test("a visitor who turns out to be the payee is offered Take it out after connecting", async ({ page }) => {
+  watchLogs(page);
+  const { token, payee } = own;
+  const amount = await pending(chain, stand.core, token, payee);
+  expect(amount).toBeGreaterThan(0n);
+
+  await page.goto(`/waiting?for=${payee}`);
+  await deliverAsVisitor(page, token, 2);
+  await expect(row(page, token).getByTestId("waiting-take-out")).toBeEnabled();
+  await expect(page.getByTestId("waiting-deliver")).toHaveCount(0);
+  await expect(row(page, token).getByTestId("kit-cost-line")).toContainText("costs about");
+  expect(await pending(chain, stand.core, token, payee)).toBe(amount);
 });
 
 test("the payee connected takes it out to another address; the money lands there", async ({ page }) => {

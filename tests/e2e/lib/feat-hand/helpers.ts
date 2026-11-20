@@ -4,6 +4,8 @@
  * log that says where every request of a browser context went and which JSON-RPC methods it
  * carried.
  */
+import { resolve } from "node:path";
+
 import type { BrowserContext, Page, Request } from "@playwright/test";
 import type { Address } from "viem";
 
@@ -30,9 +32,13 @@ export interface SeedRun {
   fixtures: Record<string, Fixture>;
 }
 
-/** Runs `bun tests/e2e/lib/craft.ts <args> --slot N` and returns its JSON. */
+/**
+ * Runs `bun tests/e2e/lib/craft.ts <args>` against the stand this run reads and returns its JSON:
+ * the file in STAND_FILE when one is named (a chain outside the slots), else the slot's.
+ */
 export function craft<T = Record<string, unknown>>(args: string[]): T {
-  const { stdout } = runProgram("tests/e2e/lib/craft.ts", [...args, "--slot", String(standSlot())]);
+  const where = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
+  const { stdout } = runProgram("tests/e2e/lib/craft.ts", [...args, ...where]);
   return JSON.parse(stdout) as T;
 }
 

@@ -6,6 +6,8 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 import type { Address, Hex } from "viem";
 
+import { resolve } from "node:path";
+
 import { runProgram, seed, standSlot } from "../../lib/stand";
 
 /** One fixture as infra/stand/seed.ts prints it; only the fields the guards read. */
@@ -45,7 +47,9 @@ export function fixtureOf(run: SeedRun, name: string): Fixture {
 }
 
 function tool<T>(script: string, args: string[]): T {
-  const { stdout, stderr, code } = runProgram(script, [...args, "--slot", String(standSlot())], { allowFailure: true, timeoutMs: 120_000 });
+  // A helper chain outside the slots is named by STAND_FILE; a slot's stand by its number.
+  const where = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
+  const { stdout, stderr, code } = runProgram(script, [...args, ...where], { allowFailure: true, timeoutMs: 120_000 });
   try {
     return JSON.parse(stdout) as T;
   } catch {

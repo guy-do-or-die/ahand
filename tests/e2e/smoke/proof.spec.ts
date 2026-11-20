@@ -3,20 +3,26 @@
  * proof-pages; UX-SPEC §10):
  *
  *   STAND_SLOT=4 bunx playwright test tests/e2e/smoke/proof.spec.ts
+ *   STAND_FILE=<a helper chain's stand.json> STAND_BASE_URL=<its site> bunx playwright test tests/e2e/smoke/proof.spec.ts
  *
- * Fixtures, made in beforeAll and used by this file only: the seed's `thanked` and `refunded`
- * Hands and its `twoPasses` live address. The passport's verdicts are compared with the SDK's own
- * `verifyBundle` run in a child process over the bundle the page downloaded; /core's derived
- * address with the Core in stand.json; /check's DOM is searched for the live link's seed in three
- * forms (craft.ts `secrets`).
+ * Fixtures, made in beforeAll and used by this file only: the seed's `thanked`, `refunded` and
+ * `expired` Hands, its `twoPasses` live address and its open `give`. The passport's verdicts are
+ * compared with the SDK's own `verifyBundle` run in a child process over the bundle the page
+ * downloaded, and its transaction line and token moves with the receipt read here by viem;
+ * /core's derived address with the Core in stand.json; /check's DOM is searched for the live
+ * link's seed in three forms (craft.ts `secrets`), its sentence about the Hand's state is read on
+ * every kind of Hand, and its page is run with the browser offline and with only the RPC cut.
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { expect, test, type Page } from "@playwright/test";
-import { getAddress } from "viem";
+import { readFileSync } from "node:fs";
 
+import { expect, test, type Page } from "@playwright/test";
+import { erc20Abi, getAddress, isAddressEqual, keccak256, parseEventLogs, type Hex } from "viem";
+
+import { chainNow, code, hands, rpc, thanks } from "../lib/rpc";
 import { readStand, runProgram, seed, standSlot, type StandInfo } from "../lib/stand";
 
 test.describe.configure({ mode: "serial" });
@@ -26,7 +32,13 @@ interface HandFixture {
   address: string;
 }
 interface SeedRun {
-  fixtures: { thanked: HandFixture; refunded: HandFixture; twoPasses: HandFixture; give: HandFixture & { giveAddress: string } };
+  fixtures: {
+    thanked: HandFixture & { giveAddress: string; passedAddress: string; thankTx: Hex; giveHash: Hex };
+    refunded: HandFixture & { refundTx: Hex };
+    expired: HandFixture;
+    twoPasses: HandFixture;
+    give: HandFixture & { giveAddress: string };
+  };
 }
 interface Line {
   id: string;
@@ -37,10 +49,21 @@ interface Line {
 let stand: StandInfo;
 let fixtures: SeedRun["fixtures"];
 
+/** How craft.ts is told which chain: the slot, or the helper chain's file when STAND_FILE names one. */
+const standArgs = (): string[] => (process.env.STAND_FILE ? ["--stand", process.env.STAND_FILE] : ["--slot", String(standSlot())]);
+const craft = <T>(args: string[]): T => JSON.parse(runProgram("tests/e2e/lib/craft.ts", [...args, ...standArgs()]).stdout) as T;
+
 test.beforeAll(() => {
   stand = readStand();
-  fixtures = seed<SeedRun>(standSlot(), ["refunded", "thanked", "twoPasses", "give"]).fixtures;
+  fixtures = seed<SeedRun>(standSlot(), ["refunded", "expired", "thanked", "twoPasses", "give"]).fixtures;
 });
+
+/** Pastes a link into /check and waits for the contract's column to settle. */
+async function checkLink(page: Page, text: string, state = "done"): Promise<void> {
+  await page.getByTestId("check-input").fill(text);
+  await page.getByTestId("check-run").click();
+  await expect(page.getByTestId("check-core-answer")).toHaveAttribute("data-state", state, { timeout: 30_000 });
+}
 
 /** Opens a passport and waits until every line has ticked in. */
 async function openPassport(page: Page, handId: string): Promise<Line[]> {
@@ -75,8 +98,13 @@ test("the thanked Hand's passport: every line carries a mark, none failed, the g
     await expect(page.locator(`[data-value="${line.id}"] .proof-nc`)).toBeVisible();
   }
   const ids = lines.map((line) => line.id);
-  expect(ids.slice(0, 4)).toEqual(["core", "raised", "reward-time", "description"]);
+  // The SDK's first four, with the page's own line about the raise's block after `raised`.
+  expect(ids.slice(0, 5)).toEqual(["core", "raised", "time.opened", "reward-time", "description"]);
   expect(ids).toContain("give-hash");
+  // The contract's two times are the times of the blocks that carry the raise and the thanks.
+  expect(lines.find((line) => line.id === "time.opened")!.verdict).toBe("ok");
+  expect(lines.find((line) => line.id === "time.closed")!.verdict).toBe("ok");
+  expect(ids.indexOf("time.closed")).toBeLessThan(ids.findIndex((id) => id.startsWith("payout.")));
   expect(lines.find((line) => line.id === "core")!.verdict).toBe("ok"); // the stand's deployment facts derive its Core
   await expect(page.getByTestId("proof-givehash-matches")).toBeVisible();
   await expect(page.getByTestId("proof-givehash-matches")).toHaveText(/giveHash matches Core/i);
@@ -99,6 +127,49 @@ test("the thanked Hand's passport: every line carries a mark, none failed, the g
   expect(verify).not.toMatch(/\bnpx\b|\bbunx\b|npm i/);
 });
 
+test("the passport shows how the thanks was sent, the token's own Transfer under each Paid line, and says where its first line's numbers come from", async ({ page }) => {
+  const chain = rpc(stand.rpc);
+  const receipt = await chain.client.getTransactionReceipt({ hash: fixtures.thanked.thankTx });
+  const hand = await hands(chain, stand.core, BigInt(fixtures.thanked.handId));
+  await openPassport(page, fixtures.thanked.handId);
+
+  // The transaction line: the receipt's own sender, gas and price, read again here by viem.
+  const sent = page.getByTestId("proof-sent");
+  await expect(sent).toHaveAttribute("data-state", "read");
+  await expect(sent).toHaveAttribute("data-tx", fixtures.thanked.thankTx);
+  expect(getAddress((await sent.getAttribute("data-from"))!)).toBe(getAddress(receipt.from));
+  await expect(sent).toHaveAttribute("data-gas", String(receipt.gasUsed));
+  await expect(sent).toHaveAttribute("data-fee", String(receipt.gasUsed * receipt.effectiveGasPrice));
+  await expect(sent).toContainText(/The thanks was sent by 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4} in block [\d\s\u00a0]+\. Sending it cost them [\d.]+ ETH, about \$[\d.]+ at the ETH price of \d+ \w+\./);
+  await expect(sent.locator('[data-verdict-tag="ok"]')).toHaveCount(0); // information, not a verdict
+  await sent.getByRole("button", { name: /evidence/i }).click();
+  await expect(sent).toContainText(`gasUsed ${receipt.gasUsed}`);
+  await expect(sent).toContainText(`from ${getAddress(receipt.from)}`);
+
+  // Each Paid line carries the token's Transfer from Core: the same payee, amount and log index as the receipt holds.
+  const transfers = parseEventLogs({ abi: erc20Abi, eventName: "Transfer", logs: receipt.logs }).filter(
+    (log) => isAddressEqual(log.address, hand.token) && isAddressEqual(log.args.from, stand.core),
+  );
+  expect(transfers.length).toBeGreaterThanOrEqual(2); // the holder's share and the helper's amount
+  const moves = await page.getByTestId("proof-move").evaluateAll((nodes) =>
+    nodes.map((node) => ({ found: node.getAttribute("data-found"), log: node.getAttribute("data-log"), to: node.getAttribute("data-to"), amount: node.getAttribute("data-amount") })),
+  );
+  expect(moves).toEqual(transfers.map((log) => ({ found: "true", log: String(log.logIndex), to: log.args.to, amount: String(log.args.value) })));
+  await expect(page.getByTestId("proof-move").first()).toContainText("The token recorded the same move itself");
+
+  // The first line says its inputs come with the site, and its back side carries the command and the two code hashes.
+  const core = page.locator('[data-testid="proof-check"][data-value="core"]');
+  await expect(page.getByTestId("proof-core-caveat")).toContainText("come with this site");
+  await core.getByRole("button", { name: /evidence/i }).click();
+  await expect(page.getByTestId("proof-core-command")).toContainText('cast" keccak');
+  await expect(page.getByTestId("proof-core-command")).toContainText(/git checkout [0-9a-f]{40} /);
+  const hashes = page.getByTestId("proof-code-hashes");
+  await expect(hashes).toHaveAttribute("data-runtime", keccak256(await code(chain, stand.core)));
+  const factory = (stand as StandInfo & { deployment?: { factory?: Hex } }).deployment?.factory ?? "0x4e59b44847b379578588920cA78FbF26c0B4956C";
+  await expect(hashes).toHaveAttribute("data-factory", keccak256(await code(chain, factory)));
+  await expect(core).toContainText("recorded, not the proof");
+});
+
 test("the downloaded bundle, checked by the SDK in a child process, gives the page's ids and verdicts", async ({ page }) => {
   const lines = await openPassport(page, fixtures.thanked.handId);
   const download = page.waitForEvent("download");
@@ -106,19 +177,53 @@ test("the downloaded bundle, checked by the SDK in a child process, gives the pa
   const file = join(mkdtempSync(join(tmpdir(), "ahand-proof-")), (await download).suggestedFilename());
   expect(file).toMatch(new RegExp(`ahand-proof-${stand.chainId}-${fixtures.thanked.handId}\\.json$`));
   await (await download).saveAs(file);
+  type Row = { id: string; verdict: string; basis: string };
   const { stdout } = runProgram("tests/e2e/lib/proof-pages/verify-bundle.ts", [file]);
-  const fromBundle = (JSON.parse(stdout) as { checks: { id: string; verdict: string }[] }).checks;
-  expect(fromBundle).toEqual(lines.map(({ id, verdict }) => ({ id, verdict })));
+  const fromBundle = (JSON.parse(stdout) as { checks: Row[] }).checks;
+  // The SDK checks every line but the page's own two (the blocks' times), which it does not know yet.
+  const pageOnly = ["time.opened", "time.closed"];
+  const pageLines = lines.filter((line) => !pageOnly.includes(line.id)).map(({ id, verdict }) => ({ id, verdict }));
+  // With no network a file proves its signatures, hashes and sums; its events and views are only
+  // what it records: those lines read "recorded", never ok (review round 1).
+  expect(fromBundle.map(({ id }) => id)).toEqual(pageLines.map(({ id }) => id));
+  for (const [index, row] of fromBundle.entries()) {
+    const shown = pageLines[index]!;
+    expect(row.verdict, row.id).toBe(row.basis === "recorded" && shown.verdict === "ok" ? "recorded" : shown.verdict);
+  }
+  expect(fromBundle.some((row) => row.verdict === "recorded")).toBe(true);
+  // Against the chain, the same file gives one first line, chain, and then the page's verdicts.
+  const reread = runProgram("tests/e2e/lib/proof-pages/verify-bundle.ts", [file, "--rpc", stand.rpc]);
+  const onChain = (JSON.parse(reread.stdout) as { checks: Row[] }).checks.map(({ id, verdict }) => ({ id, verdict }));
+  expect(onChain).toEqual([{ id: "chain", verdict: "ok" }, ...pageLines]);
+  expect(lines.filter((line) => pageOnly.includes(line.id)).map((line) => line.verdict)).toEqual(["ok", "ok"]);
+  // What the page read beside the record is in the file too: the sending and the two blocks' times.
+  const chain = rpc(stand.rpc);
+  const receipt = await chain.client.getTransactionReceipt({ hash: fixtures.thanked.thankTx });
+  const hand = await hands(chain, stand.core, BigInt(fixtures.thanked.handId));
+  const extra = (JSON.parse(readFileSync(file, "utf8")) as { extra: { format: string; sent: { from: string; gasUsed: string; moves: unknown[] }; opened: { timestamp: number }; closed: { timestamp: number; block: string } } }).extra;
+  expect(extra.format).toBe("aHand.proof-page/1");
+  expect(getAddress(extra.sent.from)).toBe(getAddress(receipt.from));
+  expect(extra.sent.gasUsed).toBe(String(receipt.gasUsed));
+  expect(extra.sent.moves.length).toBeGreaterThanOrEqual(2);
+  expect(extra.opened.timestamp).toBe(hand.openedAt);
+  expect(extra.closed.timestamp).toBe(hand.closedAt);
+  expect(extra.closed.block).toBe(String(receipt.blockNumber));
 });
 
 test("the refunded Hand's passport is the short list, ending in the refund", async ({ page }) => {
   const lines = await openPassport(page, fixtures.refunded.handId);
   const sections = await page.locator(".proof-section").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-section")));
   expect(sections).toEqual(["core", "raised", "reward-time", "description", "back"]);
-  expect(lines.slice(0, 4).map((line) => line.id)).toEqual(["core", "raised", "reward-time", "description"]);
-  expect(lines[4]!.id).toBe("refunded");
+  expect(lines.slice(0, 7).map((line) => line.id)).toEqual(["core", "raised", "time.opened", "reward-time", "description", "refunded", "time.closed"]);
   expect(lines.some((line) => line.id.startsWith("route.") || line.id === "give-hash")).toBe(false);
   for (const line of lines) expect(line.verdict).not.toBe("fail");
+  expect(lines.find((line) => line.id === "time.closed")!.verdict).toBe("ok");
+  // The return's own sending and the token's Transfer back to the asker.
+  const receipt = await rpc(stand.rpc).client.getTransactionReceipt({ hash: fixtures.refunded.refundTx });
+  await expect(page.getByTestId("proof-sent")).toHaveAttribute("data-gas", String(receipt.gasUsed));
+  await expect(page.getByTestId("proof-sent")).toContainText("The return was sent by");
+  await expect(page.getByTestId("proof-move")).toHaveCount(1);
+  await expect(page.getByTestId("proof-move")).toHaveAttribute("data-found", "true");
   await expect(page.locator('.proof-section[data-section="back"] .proof-section__title')).toHaveText(/The reward went back/);
   // "Print the receipt" leads to /print's receipt of this Hand.
   await page.getByTestId("proof-print").click();
@@ -127,11 +232,7 @@ test("the refunded Hand's passport is the short list, ending in the refund", asy
 });
 
 test("/check ticks every step of a live address, agrees with Core, and never holds the seed", async ({ page }) => {
-  const secrets = JSON.parse(runProgram("tests/e2e/lib/craft.ts", ["secrets", fixtures.twoPasses.address, "--slot", String(standSlot())]).stdout) as {
-    hex: string;
-    base64url: string;
-    digits: string;
-  };
+  const secrets = craft<{ hex: string; base64url: string; digits: string }>(["secrets", fixtures.twoPasses.address]);
   await page.goto("/check");
   await page.getByTestId("check-input").fill(fixtures.twoPasses.address);
   await page.getByTestId("check-run").click();
@@ -158,8 +259,7 @@ test("/check ticks every step of a live address, agrees with Core, and never hol
 });
 
 test("/check: an answer whose helper confirmation was altered fails at the same step here and in Core", async ({ page }) => {
-  const tampered = (JSON.parse(runProgram("tests/e2e/lib/craft.ts", ["tamper", fixtures.give.giveAddress, "--how", "giver-sig", "--slot", String(standSlot())]).stdout) as { address: string })
-    .address;
+  const tampered = craft<{ address: string }>(["tamper", fixtures.give.giveAddress, "--how", "giver-sig"]).address;
   await page.goto("/check");
   await page.getByTestId("check-input").fill(tampered);
   await page.getByTestId("check-run").click();
@@ -168,6 +268,130 @@ test("/check: an answer whose helper confirmation was altered fails at the same 
   const steps = await page.getByTestId("check-step").evaluateAll((nodes) => nodes.map((node) => [node.getAttribute("data-check"), node.getAttribute("data-status")]));
   expect(steps.at(-1)).toEqual(["InvalidGiverSig", "fail"]);
   expect(steps.slice(0, -1).every(([, status]) => status === "pass")).toBe(true);
+});
+
+test("/check says what the Hand itself is: Core accepting an answer never reads as \"can be thanked\" on a closed or ended Hand", async ({ page }) => {
+  await page.goto("/check");
+  const now = page.getByTestId("check-hand-now");
+  const core = page.getByTestId("check-core-answer");
+
+  // The very answer the asker thanked: Core still accepts it (checkGive does not look at closedAt).
+  await checkLink(page, fixtures.thanked.giveAddress);
+  await expect(core).toHaveAttribute("data-value", "accepted");
+  await expect(now).toHaveAttribute("data-state", "thanked-this");
+  await expect(now).toContainText("This is the answer that was thanked");
+  await expect(core).not.toContainText(/can thank|asker thanks/i);
+  await expect(page.getByTestId("check-passport")).toHaveAttribute("href", `/${stand.chainId}/${fixtures.thanked.handId}/proof`);
+  // The state is read at the block Core answered at, and the chain agrees: closed, with this Give kept.
+  const chain = rpc(stand.rpc);
+  const block = BigInt((await now.getAttribute("data-block")) ?? "0");
+  expect(block).toBeGreaterThan(0n);
+  expect((await hands(chain, stand.core, BigInt(fixtures.thanked.handId))).closedAt).not.toBe(0);
+  expect((await thanks(chain, stand.core, BigInt(fixtures.thanked.handId))).giveHash).toBe(fixtures.thanked.giveHash);
+
+  // Another answer to the same, already thanked Hand: accepted by Core, and plainly too late.
+  const other = craft<{ address: string }>(["give", fixtures.thanked.passedAddress, "--giver", "5"]).address;
+  await checkLink(page, other);
+  await expect(core).toHaveAttribute("data-value", "accepted");
+  await expect(now).toHaveAttribute("data-state", "thanked-other");
+  await expect(now).toContainText("thanked another answer");
+  await expect(core).not.toContainText(/can thank|asker thanks/i);
+
+  // A route of the thanked Hand with no answer at its end.
+  await checkLink(page, fixtures.thanked.passedAddress);
+  await expect(now).toHaveAttribute("data-state", "thanked");
+  await expect(core).not.toContainText(/asker thanks whoever/i);
+
+  // A Hand whose reward went back.
+  await checkLink(page, fixtures.refunded.address);
+  await expect(now).toHaveAttribute("data-state", "refunded");
+  await expect(now).toContainText("the reward went back to the asker");
+  await expect(page.getByTestId("check-passport")).toHaveAttribute("href", `/${stand.chainId}/${fixtures.refunded.handId}/proof`);
+
+  // Past its time by the network's clock, still open in the contract.
+  await checkLink(page, fixtures.expired.address);
+  await expect(core).toHaveAttribute("data-value", "accepted");
+  await expect(now).toHaveAttribute("data-state", "expired");
+  await expect(now).toContainText("Time's up for this hand");
+  await expect(core).not.toContainText(/asker thanks whoever/i);
+  await expect(page.getByTestId("check-passport")).toHaveCount(0);
+  const expired = await hands(chain, stand.core, BigInt(fixtures.expired.handId));
+  expect(expired.closedAt).toBe(0);
+  expect((await chainNow(chain)).timestamp).toBeGreaterThanOrEqual(expired.expiry);
+
+  // An open Hand's answer: only here does the page say it can be thanked.
+  await checkLink(page, fixtures.give.giveAddress);
+  await expect(now).toHaveAttribute("data-state", "open");
+  await expect(now).toContainText("The asker can thank this answer.");
+  // And an open route keeps its promise of a share, with the date it holds until.
+  await checkLink(page, fixtures.twoPasses.address);
+  await expect(now).toHaveAttribute("data-state", "open");
+  await expect(now).toContainText(/If the asker thanks whoever answers this route, they get 95% of the reward\./);
+});
+
+test("/check with the browser offline: the contract's column says it was not asked, the bytes are read, nothing hangs", async ({ page, context }) => {
+  const secrets = craft<{ hex: string; base64url: string; digits: string }>(["secrets", fixtures.twoPasses.address]);
+  await page.goto("/check");
+  await expect(page.getByTestId("check-input")).toBeVisible();
+  const failed: string[] = [];
+  page.on("requestfailed", (request) => failed.push(request.url()));
+  await context.setOffline(true);
+
+  await checkLink(page, fixtures.twoPasses.address, "offline");
+  const core = page.getByTestId("check-core-answer");
+  await expect(core).toContainText("Not asked");
+  await expect(core).not.toContainText(/asking the contract/i);
+  // The ruler needs no network.
+  await expect(page.getByTestId("check-ruler")).toBeVisible();
+  await expect(page.locator('.check-ruler__seg[data-kind="secret"]')).toHaveCount(1);
+  // The network's sentence stands once, with no raw id anywhere.
+  const text = await page.locator('[data-screen="check"]').innerText();
+  expect(text.match(/Nothing was sent\./g) ?? []).toHaveLength(1);
+  expect(text.match(/Can't reach the network right now\./g) ?? []).toHaveLength(1);
+  expect(text).not.toMatch(/common\.error|link\.[a-z-]+\b(?!\S)/);
+  // What the bytes alone say: each pass's share and payee, nothing called checked.
+  const passes = await page.getByTestId("check-offline-pass").evaluateAll((nodes) => nodes.map((node) => [node.getAttribute("data-kept"), node.getAttribute("data-next")]));
+  expect(passes).toEqual([
+    ["500", "9500"],
+    ["0", "9500"],
+  ]);
+  await expect(page.getByTestId("check-offline")).toContainText("What the route leaves for whoever helps: 95%.");
+  await expect(page.getByTestId("check-offline")).toContainText("Not checked: whether each pass was made with the key that held the link");
+  await expect(page.getByTestId("check-offline")).toContainText("Not compared with the chain");
+  await expect(page.getByTestId("check-step")).toHaveCount(0);
+  await expect(page.getByTestId("check-agree")).toHaveCount(0);
+  await expect(page.locator('.ah-mark')).toHaveCount(0); // no mark claims a check that was not made
+  // Offline, the page asked for no file of its own (viem's lazy helper included); only RPC polls fail.
+  expect(failed.filter((url) => !url.startsWith(stand.rpc))).toEqual([]);
+  // Nor is the seed anywhere, though the link is kept in memory for the retry.
+  const dom = (await page.content()).toLowerCase();
+  expect(dom.includes(secrets.hex.replace(/^0x/, "").toLowerCase())).toBe(false);
+  expect(dom.includes(secrets.base64url.toLowerCase())).toBe(false);
+  expect(dom.includes(secrets.digits)).toBe(false);
+
+  // Back online, "Try again" checks the same link without pasting it again.
+  await context.setOffline(false);
+  await page.getByTestId("check-retry").click();
+  await expect(core).toHaveAttribute("data-state", "done", { timeout: 30_000 });
+  await expect(page.getByTestId("check-agree")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("check-offline")).toHaveCount(0);
+});
+
+test("/check when only the RPC is cut: the same offline state, and viem's lazy helper is not fetched", async ({ page }) => {
+  await page.goto("/check");
+  await expect(page.getByTestId("check-input")).toBeVisible();
+  const origin = new URL(stand.rpc).origin;
+  const lazy: string[] = [];
+  page.on("request", (request) => {
+    if (/ccip/i.test(request.url())) lazy.push(request.url());
+  });
+  await page.route((url) => url.origin === origin, (route) => route.abort());
+  await checkLink(page, fixtures.give.giveAddress, "offline");
+  await expect(page.getByTestId("check-offline-band")).toHaveAttribute("data-ccip", "true");
+  await expect(page.getByTestId("check-offline")).toContainText("The answer names the helper");
+  await expect(page.getByTestId("check-offline")).toContainText("The helper confirmed it with a key.");
+  expect((await page.locator('[data-screen="check"]').innerText()).match(/Nothing was sent\./g) ?? []).toHaveLength(1);
+  expect(lazy).toEqual([]);
 });
 
 test("/core derives the Core in use, lists the twelve limits, and labels the served build", async ({ page, request }) => {
@@ -182,6 +406,11 @@ test("/core derives the Core in use, lists the twelve limits, and labels the ser
   await expect(page.getByTestId("core-limits").locator("li")).toHaveCount(12);
   await expect(page.getByTestId("core-limits")).toContainText("Thanking is voluntary.");
   await expect(page.getByTestId("core-limits")).toContainText("Gas-heavy refund");
+  // The record's "about 70" keeps its words; this build's own figure, computed from its default, stands under it.
+  await expect(page.getByTestId("core-limits")).toContainText("about 70 gas-burning payees");
+  await expect(page.getByTestId("core-limit-here")).toHaveAttribute("data-gas-k", "250");
+  await expect(page.getByTestId("core-limit-here")).toHaveAttribute("data-value", "55");
+  await expect(page.getByTestId("core-limit-here")).toHaveText(/With this site's default of 250 thousand gas per payout: 55 paid passes at worst\./i);
   await expect(page.getByTestId("core-command")).toContainText("cast\" keccak");
   await expect(page.getByTestId("core-unaudited")).toHaveText(
     "Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.",

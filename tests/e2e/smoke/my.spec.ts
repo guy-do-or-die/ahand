@@ -3,6 +3,8 @@
  * relay:
  *
  *   STAND_SLOT=5 bunx playwright test tests/e2e/smoke/my.spec.ts
+ *   STAND_FILE=<folder>/stand.json STAND_BASE_URL=http://127.0.0.1:<port> bunx playwright test tests/e2e/smoke/my.spec.ts
+ *     (a stand on other ports: tests/e2e/lib/feat-my/own-stand.ts)
  *
  * - a Hand raised as a device raises it (tests/e2e/lib/feat-my/raise.ts: its own random book,
  *   n = 0) is written into the device's store through the app's own store functions; after a
@@ -14,8 +16,14 @@
  * - the seed's test book typed into "Rebuild a link from another device's code" rebuilds a seeded
  *   Hand's link, which opens with its words not arrived;
  * - "Add a hand by its number" refuses a Hand raised by another account;
+ * - while the session is locked the list and the Hand's page say the answers are locked, in both
+ *   languages, and never that there are none; "No answers yet" comes only after every relay has
+ *   answered an unlocked read; with no relay in reach the screen says that instead;
+ * - the helper's words are quoted “…” in English and «…» in Russian;
  * - no eth_getLogs without a handId topic is sent by these screens (every RPC request is read).
  */
+import { resolve } from "node:path";
+
 import { expect, test, type Page } from "@playwright/test";
 
 import { account, pickDevAccount } from "../lib/accounts";
@@ -25,7 +33,7 @@ import { readStand, runProgram, seed, standSlot } from "../lib/stand";
 test.describe.configure({ mode: "serial" });
 
 const stand = readStand();
-const SLOT = String(standSlot());
+const STAND = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
 
 interface MyRaise {
   handId: string;
@@ -47,7 +55,7 @@ interface MyRaise {
 }
 
 function json<T>(script: string, args: string[], allowFailure = false): T {
-  const { stdout } = runProgram(script, [...args, "--slot", SLOT], { allowFailure });
+  const { stdout } = runProgram(script, [...args, ...STAND], { allowFailure });
   return JSON.parse(stdout) as T;
 }
 const craft = <T = Record<string, unknown>>(...args: string[]) => json<T>("tests/e2e/lib/craft.ts", args, true);
@@ -179,7 +187,8 @@ test("a give in the inbox is an answer only after Core's checkGive; a broken one
   const words = "Café Lumen, two minutes from the station: sockets everywhere, opens at eight.";
   const sent = craft<{ ok: boolean; acks: number; chatSecret: string; replyTo: string }>("deliver-send", give.address, "--text", words);
   expect(sent).toMatchObject({ ok: true, acks: 1 });
-  const sentBroken = craft<{ ok: boolean }>("deliver-send", broken.address, "--text", "The same, with a confirmation that does not check out.");
+  const brokenWords = "The same, with a confirmation that does not check out.";
+  const sentBroken = craft<{ ok: boolean }>("deliver-send", broken.address, "--text", brokenWords);
   expect(sentBroken.ok).toBe(true);
 
   await openMine(page, mine);
@@ -196,6 +205,16 @@ test("a give in the inbox is an answer only after Core's checkGive; a broken one
   await expect(refused).toBeVisible();
   await expect(refused).toContainText("The helper's confirmation doesn't check out.");
   await expect(page.getByTestId("my-answer")).toHaveCount(1);
+
+  // The helper's words are quoted as each language quotes: “…” in English, «…» in Russian.
+  await expect(answer).toContainText(`“${words}”`);
+  await expect(refused).toContainText(`“${brokenWords}”`);
+  await page.getByTestId("shell-lang-ru").click();
+  await expect(answer).toContainText(`«${words}»`);
+  await expect(refused).toContainText(`«${brokenWords}»`);
+  await expect(page.getByTestId("my-answers")).not.toContainText(/[“”]/);
+  await page.getByTestId("shell-lang-en").click();
+  await expect(answer).toContainText(`“${words}”`);
 
   const reply = "Thank you! Is it quiet in the mornings?";
   await answer.getByTestId("my-reply-input").fill(reply);
@@ -218,6 +237,114 @@ test("a give in the inbox is an answer only after Core's checkGive; a broken one
   await expect(page.getByTestId("thank-predicted")).toBeVisible({ timeout: 20_000 });
 
   expect(logs.unbounded).toEqual([]);
+});
+
+const countOf = (page: Page, r: MyRaise) => page.locator(`[data-testid="my-item"][data-value="${keyOf(r)}"] [data-testid="my-answer-count"]`);
+
+test("locked, the screen says the answers are locked and never that there are none; 'No answers yet' comes only after an unlocked read of the inbox", async ({ page }) => {
+  const logs = watchLogs(page);
+  const answered = myRaise("--title", "Who can lend a ladder on Saturday?");
+  const quiet = myRaise("--title", "Who knows a good piano tuner?");
+  const words = "I have one, three metres. Come by after ten.";
+  const give = craft<{ ok: boolean; address: string; giveHash: string }>("give", answered.address, "--giver", "4");
+  expect(give.ok).toBe(true);
+  // The answer is on the relay before the asker opens the page: delivered, and not yet readable here.
+  expect(craft<{ ok: boolean; acks: number }>("deliver-send", give.address, "--to", answered.inbox, "--text", words)).toMatchObject({ ok: true, acks: 1 });
+
+  await page.goto("/my");
+  await keepOnDevice(page, answered);
+  await keepOnDevice(page, quiet);
+  await page.reload();
+  await pickDevAccount(page, 1);
+
+  // The list, locked: neither hand claims to have no answers, in either language.
+  for (const hand of [answered, quiet]) {
+    await expect(countOf(page, hand)).toHaveAttribute("data-state", "locked");
+    await expect(countOf(page, hand)).toHaveText("Answers are locked — unlock to check.");
+  }
+  await expect(page.getByTestId("my-list")).not.toContainText("No answers yet");
+  await page.getByTestId("shell-lang-ru").click();
+  await expect(countOf(page, answered)).toHaveText("Ответы закрыты — открой доступ, чтобы проверить.");
+  await expect(page.getByTestId("my-list")).not.toContainText("Ответов пока нет");
+  await page.getByTestId("shell-lang-en").click();
+
+  // Unlocking on the list: the line goes from locked to the answer that was waiting, and at no
+  // moment in between does it say there are none (every text it shows is kept and read).
+  await countOf(page, answered).evaluate((line) => {
+    const seen = [line.textContent ?? ""];
+    new MutationObserver(() => seen.push(line.textContent ?? "")).observe(line, { childList: true, characterData: true, subtree: true });
+    (window as unknown as { seenCounts: string[] }).seenCounts = seen;
+  });
+  await unlock(page);
+  await expect(countOf(page, answered)).toHaveAttribute("data-value", "1", { timeout: 20_000 });
+  await expect(countOf(page, answered)).toHaveAttribute("data-state", "read");
+  await expect(countOf(page, answered)).toHaveText("1 answer");
+  const seen = await page.evaluate(() => (window as unknown as { seenCounts: string[] }).seenCounts);
+  expect(seen[0]).toBe("Answers are locked — unlock to check.");
+  expect(seen).not.toContain("No answers yet");
+  // The hand nobody answered says so only now, after the relay answered an unlocked read.
+  await expect(countOf(page, quiet)).toHaveAttribute("data-state", "read");
+  await expect(countOf(page, quiet)).toHaveText("No answers yet");
+
+  // The quiet hand's page, locked again by the reload: the same sentence, and not "Nothing has arrived yet."
+  await page.goto(`/my/${quiet.chainId}/${quiet.handId}`);
+  await pickDevAccount(page, 1);
+  const section = page.getByTestId("my-answers");
+  await expect(section).toHaveAttribute("data-state", "locked");
+  await expect(section).toContainText("Answers are locked — unlock to check.");
+  await expect(section).not.toContainText("Nothing has arrived yet.");
+  await page.getByTestId("shell-lang-ru").click();
+  await expect(section).toContainText("Ответы закрыты — открой доступ, чтобы проверить.");
+  await expect(section).not.toContainText("Пока ничего не пришло.");
+  await page.getByTestId("shell-lang-en").click();
+  await unlock(page);
+  await expect(section).toHaveAttribute("data-state", "read");
+  await expect(section).toContainText("Nothing has arrived yet.");
+
+  // The answered hand's page, locked: the answer this device already holds is shown, with the
+  // note that more may wait; unlocked, the relay is read again.
+  await page.goto(`/my/${answered.chainId}/${answered.handId}`);
+  await pickDevAccount(page, 1);
+  await expect(section).toHaveAttribute("data-state", "locked");
+  await expect(page.locator(`[data-testid="my-answer"][data-value="${give.giveHash}"]`)).toContainText(words, { timeout: 20_000 });
+  await expect(section).toContainText("Unlock to check for new answers.");
+  await expect(section).not.toContainText("Nothing has arrived yet.");
+  await unlock(page);
+  await expect(section).toHaveAttribute("data-state", "read");
+  await expect(section).not.toContainText("Nothing has arrived yet.");
+
+  // The list after a reload (locked again): what is held is counted, and more may wait.
+  await page.goto("/my");
+  await pickDevAccount(page, 1);
+  await expect(countOf(page, answered)).toHaveAttribute("data-value", "1");
+  await expect(countOf(page, answered)).toHaveText("1 answer here — unlock to check for more.");
+  await expect(countOf(page, quiet)).toHaveText("Answers are locked — unlock to check.");
+
+  expect(logs.unbounded).toEqual([]);
+});
+
+test("with no relay in reach the screen says it can't check, not that there are no answers", async ({ page }) => {
+  const quiet = myRaise("--title", "Who has a spare bicycle pump?");
+  // Every connection to the stand's relay is closed as it is made: the relay is out of reach from this browser.
+  await page.routeWebSocket(stand.relay!, (socket) => void socket.close());
+
+  await page.goto("/my");
+  await keepOnDevice(page, quiet);
+  await page.reload();
+  await pickDevAccount(page, 1);
+  await expect(countOf(page, quiet)).toHaveAttribute("data-state", "locked");
+  await unlock(page);
+  await expect(countOf(page, quiet)).toHaveAttribute("data-state", "unreachable");
+  await expect(countOf(page, quiet)).toHaveText("No relay can be reached right now, so answers can't be checked.");
+  await expect(page.getByTestId("my-list")).not.toContainText("No answers yet");
+
+  await page.goto(`/my/${quiet.chainId}/${quiet.handId}`);
+  await pickDevAccount(page, 1);
+  await unlock(page);
+  const section = page.getByTestId("my-answers");
+  await expect(section).toHaveAttribute("data-state", "unreachable");
+  await expect(section).toContainText("No relay can be reached right now, so answers can't be checked.");
+  await expect(section).not.toContainText("Nothing has arrived yet.");
 });
 
 test("the seed's test book rebuilds a seeded hand's link on this device; it opens, its words not arrived", async ({ page }) => {
@@ -272,7 +399,13 @@ test("Add a hand by its number refuses another account's hand and keeps one of i
 
   await page.getByTestId("my-add-by-number-input").fill(own);
   await page.getByTestId("my-add-by-number-submit").click();
-  await expect(page.locator(`[data-testid="my-item"][data-value="${stand.chainId}:${stand.core.toLowerCase()}:${own}"]`)).toBeVisible();
+  const added = page.locator(`[data-testid="my-item"][data-value="${stand.chainId}:${stand.core.toLowerCase()}:${own}"]`);
+  await expect(added).toBeVisible();
+  // Added by its number alone, this device has no reply key for it: unlocked, it says so, not "No answers yet".
+  await expect(added.getByTestId("my-answer-count")).toHaveAttribute("data-state", "locked");
+  await unlock(page);
+  await expect(added.getByTestId("my-answer-count")).toHaveAttribute("data-state", "no-key");
+  await expect(added.getByTestId("my-answer-count")).toHaveText("This device doesn't hold this hand's reply key, so it can't read its answers.");
 
   await expect(page.locator(`[data-testid="my-passed-item"][data-value="${keyOf(mine)}"]`)).toHaveAttribute("data-state", "open");
 

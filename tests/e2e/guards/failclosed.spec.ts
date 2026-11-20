@@ -20,7 +20,7 @@ const chain = rpc(stand.rpc);
 let run: SeedRun;
 
 test.beforeAll(() => {
-  run = seedFixtures(["unlisted", "dark", "give", "resigned", "expired"]);
+  run = seedFixtures(["unlisted", "dark", "give", "resigned", "expired", "twoPasses"]);
 });
 
 test.beforeEach(async ({ context }) => {
@@ -75,6 +75,23 @@ test("2. a faced address cut off from its d: the part before # no longer matches
 test("3. the address names another hand's number than its link", async ({ page }) => {
   await visit(page, tampered(fixtureOf(run, "unlisted").address, "other-number"));
   await refused(page, "link.another-hand", SENTENCE.anotherHand);
+});
+
+test("3b. the part before # is another Hand's own, or names a chain this site does not read", async ({ page }) => {
+  const unlisted = fixtureOf(run, "unlisted");
+  const twoPasses = fixtureOf(run, "twoPasses");
+  expect(twoPasses.handId).not.toBe(unlisted.handId);
+  const [before, link] = unlisted.address.split("#") as [string, string];
+  const numbered = before.slice(0, before.indexOf("?d="));
+  // Another Hand's address with that Hand's own ?d=, carrying this link.
+  await visit(page, `${twoPasses.address.split("#")[0]}#${link}`);
+  await refused(page, "link.another-hand", SENTENCE.anotherHand);
+  // A numbered path with another number and no ?d=.
+  await visit(page, `${numbered.slice(0, numbered.lastIndexOf("/"))}/${twoPasses.handId}#${link}`);
+  await refused(page, "link.another-hand", SENTENCE.anotherHand);
+  // The path's chain replaced by Base (8453), which this build does not read.
+  await visit(page, `${before.replace(`/${run.chainId}/`, "/8453/")}#${link}`);
+  await refused(page, "link.untrusted", SENTENCE.untrusted);
 });
 
 test("4 and 5. another Core reads 'doesn't read'; a newer version reads 'newer app'; the two sentences differ", async ({ page }) => {

@@ -6,6 +6,7 @@
  *
  * What is asserted on the chain is read from the chain (lib/rpc.ts), not from the page.
  */
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { erc20Abi, type Address } from "viem";
 
@@ -34,6 +35,12 @@ const fixture = (name: string) => {
   if (!found) throw new Error(`the seed made no ${name} fixture`);
   return found;
 };
+
+/** axe's findings at WCAG 2.2 AA for the page as it stands, as short lines. */
+async function axe(page: Page): Promise<string[]> {
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"]).analyze();
+  return result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`);
+}
 
 /** The text of the new address in the pass screen's copy row (the row shows it whole). */
 async function newAddress(page: Page): Promise<string> {
@@ -99,6 +106,11 @@ test("a 10% share lands at a pasted address, read back from the new link; Core's
   await slider.fill("1000");
   await expect(page.getByTestId("pass-share-money")).toHaveAttribute("data-value", "1000");
   await expect(page.getByTestId("pass-share-money")).toContainText("10% — about $5 if this route is thanked");
+  // A running sentence: with tabular figures this face sets "." and "," as wide as a digit ("$2 . 50").
+  await slider.fill("500");
+  await expect(page.getByTestId("pass-share-money")).toContainText("5% — about $2.50 if this route is thanked");
+  expect(await page.getByTestId("pass-share-money").evaluate((el) => getComputedStyle(el).fontVariantNumeric)).not.toContain("tabular-nums");
+  await slider.fill("1000");
   await expect(page.getByTestId("pass-swipe")).toBeDisabled();
 
   await page.getByRole("button", { name: "Choose where it lands" }).click();
@@ -161,6 +173,35 @@ test("a lost description still passes; a damaged link, another Core and a newer 
     if (how === "other-core") await expect(error).not.toContainText("newer app");
     if (how === "version") await expect(error).not.toContainText("doesn't read");
   }
+
+  // An address whose part before # is not its link's own Hand (review round 1). Each is said as
+  // what it is, before the public part is weighed: another Hand's address with that Hand's own
+  // public part, another number with no public part, and a chain this site does not read.
+  const [before, link] = unlisted.address.split("#") as [string, string];
+  const twoPasses = fixture("twoPasses");
+  expect(twoPasses.handId).not.toBe(unlisted.handId);
+  const numbered = before.slice(0, before.indexOf("?d="));
+  expect(numbered.endsWith(`/${run.chainId}/${unlisted.handId}`)).toBe(true);
+  const misplaced: [string, string, string, string][] = [
+    ["another Hand's address", `${twoPasses.address.split("#")[0]}#${link}`, "link.another-hand", "The address shows one hand and the link is for another."],
+    ["another number", `${numbered.slice(0, numbered.lastIndexOf("/"))}/${twoPasses.handId}#${link}`, "link.another-hand", "The address shows one hand and the link is for another."],
+    ["another chain", `${before.replace(`/${run.chainId}/`, "/8453/")}#${link}`, "link.untrusted", "This link names a contract this site doesn't read. Nothing was opened."],
+  ];
+  for (const [what, address, id, sentence] of misplaced) {
+    await page.goto("about:blank");
+    await page.goto(address);
+    const error = page.getByTestId("hand-error");
+    await expect(error, what).toHaveAttribute("data-value", id);
+    await expect(error, what).toContainText(sentence);
+    await expect(error, what).not.toContainText("Part of this address doesn't match its link");
+    await expect(page.getByTestId("hand-deal-card"), what).toHaveCount(0);
+    await expect(page.getByTestId("hand-pass"), what).toHaveCount(0);
+  }
+  // The right Hand with a public part that is not its own keeps its own sentence.
+  const otherD = (twoPasses.address.split("#")[0] as string).split("?d=")[1];
+  await page.goto("about:blank");
+  await page.goto(`${numbered}?d=${otherD}#${link}`);
+  await expect(page.getByTestId("hand-error")).toHaveAttribute("data-value", "link.unmatched-data");
 });
 
 test("past its end by the network's clock (the browser's two years behind) it reads Time's up, and account 3 sends it back", async ({ page }) => {
@@ -259,4 +300,179 @@ test("a hand with no reward says so and never shows $0; the address bar keeps no
   await expect(page.getByTestId("pass-no-reward")).toBeVisible();
   await expect(page.getByTestId("pass-slider")).toHaveCount(0);
   expect(await page.locator("body").innerText()).not.toMatch(/\$0(?![.,]?\d*[1-9])/);
+});
+
+/** Every request to the stand's RPC fails, as it does while the network can't be reached; returns the way back and how many failed. */
+async function cutNetwork(page: Page, only?: (methods: string[]) => boolean): Promise<{ restore: () => Promise<void>; failed: () => number }> {
+  const origin = new URL(stand.rpc).origin;
+  let failed = 0;
+  const matcher = (url: URL) => url.origin === origin;
+  const handler = async (route: import("@playwright/test").Route) => {
+    if (only) {
+      let methods: string[] = [];
+      try {
+        const body = route.request().postDataJSON() as unknown;
+        methods = (Array.isArray(body) ? body : [body]).map((item) => String((item as { method?: unknown })?.method ?? ""));
+      } catch {
+        // not JSON: let it through
+      }
+      if (!only(methods)) return route.continue();
+    }
+    ++failed;
+    return route.abort("connectionrefused");
+  };
+  await page.route(matcher, handler);
+  return { restore: () => page.unroute(matcher, handler), failed: () => failed };
+}
+
+test("the network fails as a dark link opens: the link is kept and said so, the code is NETWORK, and the Hand appears without a reload when the network answers", async ({ page }) => {
+  const dark = fixture("dark");
+  const cut = await cutNetwork(page);
+  await page.goto(dark.address);
+  const band = page.getByTestId("hand-unreachable");
+  await expect(band).toBeVisible();
+  await expect(band).toHaveAttribute("data-held", "true");
+  await expect(band).toContainText("Can't reach the network right now.");
+  await expect(band).toContainText("Your link is still here.");
+  await expect(band).toContainText("NETWORK");
+  await expect(band).toContainText("This link lives in this tab only.");
+  await expect(page.locator("body")).not.toContainText(/ContractFunction|HttpRequest|Error\b/);
+  // Not a verdict: no refusal, and nothing that sends the person away from their link.
+  await expect(page.getByTestId("hand-error")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "To the start" })).toHaveCount(0);
+  expect(page.url()).not.toContain("#");
+
+  // It asks again on its own: more requests fail while the page is only looked at.
+  const before = cut.failed();
+  await expect.poll(() => cut.failed(), { timeout: 15_000 }).toBeGreaterThan(before);
+  await expect(band).toBeVisible();
+  // "Try again" asks at once, and a try that fails leaves the band and the link where they were.
+  await page.getByTestId("hand-retry").click();
+  await expect(band).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+
+  // The network is back. The same document (a mark set now survives) shows the Hand: no reload, no link asked for again.
+  await page.evaluate(() => {
+    (window as unknown as { stillHere?: boolean }).stillHere = true;
+  });
+  await cut.restore();
+  const card = page.getByTestId("hand-deal-card");
+  await expect(card).toContainText(dark.title, { timeout: 20_000 });
+  await expect(card).toHaveAttribute("data-state", "open");
+  await expect(band).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { stillHere?: boolean }).stillHere)).toBe(true);
+  // The link is the one that came: it still passes on.
+  await page.getByTestId("hand-pass").click();
+  await page.getByTestId("pass-swipe").click();
+  await expect(page.getByTestId("pass-read-back")).toHaveAttribute("data-shakes", "1");
+});
+
+test("the link opens and then the network's clock can't be read: the same band, and the Hand comes when blocks do", async ({ page }) => {
+  const unlisted = fixture("unlisted");
+  // `hands(id)` answers (the link is proven), the latest block does not: no state can be claimed.
+  const cut = await cutNetwork(page, (methods) => methods.some((method) => method === "eth_getBlockByNumber"));
+  await page.goto(unlisted.address);
+  const band = page.getByTestId("hand-unreachable");
+  await expect(band).toBeVisible();
+  await expect(band).toContainText("Your link is still here.");
+  await expect(page.getByTestId("hand-error")).toHaveCount(0);
+  await expect(page.getByTestId("hand-pass")).toHaveCount(0);
+  expect(cut.failed()).toBeGreaterThan(0);
+  await cut.restore();
+  await expect(page.getByTestId("hand-deal-card")).toContainText(unlisted.title, { timeout: 20_000 });
+  await expect(page.getByTestId("hand-deal-card")).toHaveAttribute("data-state", "open");
+});
+
+test("on a phone both actions of an open hand are on the first screen, in English and Russian, for a three-line title; the bar steps aside for a keyboard and a closed hand has none", async ({ page }) => {
+  const hands = [
+    { lang: "en", title: "Who can lend me a tent for one weekend?", content: "For two people, back on Monday." },
+    { lang: "ru", title: "Кто одолжит палатку на одни выходные?", content: "На двоих, верну в понедельник." },
+  ];
+  for (const { lang, title, content } of hands) {
+    const made = craft<{ ok: boolean; address: string }>(["make", "--title", title, "--content", content, "--reward", "40"]);
+    expect(made.ok).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("about:blank");
+    await page.goto(made.address);
+    await page.getByTestId(`shell-lang-${lang}`).click();
+    const heading = page.getByTestId("hand-deal-card").getByRole("heading", { level: 1 });
+    await expect(heading).toHaveText(title);
+    const lines = await heading.evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+    expect(lines, `${lang}: the title's lines`).toBe(3);
+
+    // Before any scroll, both buttons lie whole inside the 844 px screen, each a full target.
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    for (const id of ["hand-pass", "hand-help"]) {
+      const button = page.getByTestId(id);
+      await expect(button).toHaveCount(1);
+      await expect(button).toBeInViewport({ ratio: 1 });
+      const box = (await button.boundingBox())!;
+      expect(box.y, `${lang} ${id} top`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${lang} ${id} bottom`).toBeLessThanOrEqual(844);
+      expect(box.height, `${lang} ${id} height`).toBeGreaterThanOrEqual(44);
+      expect(box.width, `${lang} ${id} width`).toBeGreaterThanOrEqual(44);
+      // Its words are whole and readable: inside the button, and on the solid part of its fill
+      // (the fill fades out from 58% of the width, where the gesture stands).
+      const label = await button.evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el.firstChild!);
+        const text = range.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        return { inside: text.top >= box.top && text.bottom <= box.bottom && text.left >= box.left, ends: (text.right - box.left) / box.width };
+      });
+      expect(label.inside, `${lang} ${id} label inside`).toBe(true);
+      expect(label.ends, `${lang} ${id} label ends on the solid fill`).toBeLessThanOrEqual(0.58);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${lang}: no sideways scroll`).toBe(true);
+    // The honest line about thanks is still on the page.
+    await expect(page.getByTestId("hand-help-note")).toBeVisible();
+    expect(await axe(page), `${lang}: axe with the bar`).toEqual([]);
+
+    // A keyboard: while a text field has the focus the bar steps aside and the two buttons stand
+    // in the page (never absent); the bar comes back after.
+    await page.evaluate(() => {
+      const field = document.createElement("input");
+      field.id = "probe-field";
+      field.setAttribute("aria-label", "probe");
+      document.querySelector('[data-screen="hand"]')!.prepend(field);
+      field.focus();
+    });
+    await expect(page.getByTestId("hand-action-bar")).toHaveCount(0);
+    await expect(page.getByTestId("hand-pass")).toHaveCount(1);
+    await expect(page.getByTestId("hand-help")).toHaveCount(1);
+    await page.evaluate(() => document.getElementById("probe-field")!.remove());
+    await expect(page.getByTestId("hand-action-bar")).toBeVisible();
+
+    // A control focused by keyboard under the bar's place is scrolled clear of it.
+    // (On a shorter screen, where that control starts out below the bar's top edge.)
+    await page.setViewportSize({ width: 390, height: 640 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const proof = page.getByRole("button", { name: lang === "en" ? "What this link proves" : "Что доказывает эта ссылка" });
+    expect((await proof.boundingBox())!.y, `${lang}: the control starts below the bar's top`).toBeGreaterThan((await page.getByTestId("hand-action-bar").boundingBox())!.y);
+    await proof.focus();
+    const focused = (await proof.boundingBox())!;
+    const over = (await page.getByTestId("hand-action-bar").boundingBox())!;
+    expect(focused.y + focused.height, `${lang}: the focused control ends above the bar`).toBeLessThanOrEqual(over.y);
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    // At the foot of the page the bar rests above the footer and covers none of it.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const bar = (await page.getByTestId("hand-action-bar").boundingBox())!;
+    const footer = (await page.getByTestId("shell-footer").boundingBox())!;
+    expect(bar.y + bar.height).toBeLessThanOrEqual(footer.y);
+
+    // Wider than a phone: no bar, the two buttons stand in the page as before.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.getByTestId("hand-action-bar")).toHaveCount(0);
+    await expect(page.getByTestId("hand-pass")).toHaveCount(1);
+    await expect(page.getByTestId("hand-help")).toBeVisible();
+    await page.getByTestId("shell-lang-en").click();
+  }
+
+  // A hand that is not open has no bar.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("about:blank");
+  await page.goto(fixture("refunded").address);
+  await expect(page.getByTestId("hand-closed")).toBeVisible();
+  await expect(page.getByTestId("hand-action-bar")).toHaveCount(0);
 });

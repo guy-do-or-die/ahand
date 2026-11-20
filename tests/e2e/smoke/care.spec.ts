@@ -12,7 +12,7 @@
 import { expect, test } from "@playwright/test";
 
 import { account } from "../lib/accounts";
-import { DAY, MARGIN, USD, capOf, connectAs, craft, downloaded, icsSeconds, make, parseIcs, passTimes, phone, printAddress, shot } from "../lib/care-print/care";
+import { DAY, MARGIN, USD, capOf, connectAs, craft, downloaded, icsSeconds, keepOnDevice, make, myRaise, parseIcs, passTimes, phone, printAddress, shot } from "../lib/care-print/care";
 import { chainNow, hands, rpc, type Rpc } from "../lib/rpc";
 import { readStand, seed, type StandInfo } from "../lib/stand";
 
@@ -51,6 +51,15 @@ test("add 10 test dollars: the reward grows by exactly that, and a link made bef
   expect(after.reward - before.reward).toBe(10n * USD);
   expect(after.expiry).toBe(before.expiry);
 
+  // Under the success line nothing stays armed: the box is empty and the swipe waits for a new amount.
+  await expect(page.getByTestId("care-fund-input").locator("input")).toHaveValue("");
+  await expect(page.getByTestId("care-fund-swipe")).toBeDisabled();
+  await expect(page.getByTestId("care-fund-swipe")).toHaveText(/^Add to the reward/);
+  await shot(page, "care-fund-done-390-en");
+  await page.getByTestId("care-fund-swipe").click({ force: true });
+  await page.waitForTimeout(2_000);
+  expect((await hands(chain, stand.core, id)).reward).toBe(after.reward);
+
   // The link made before the fund: it opens (in the SDK and in another browser) and can be passed.
   const opened = craft<{ ok: boolean; state: string; view: { reward: string } }>("open", made.address);
   expect(opened.ok).toBe(true);
@@ -84,6 +93,15 @@ test("keep it open: +30 days from the end exactly, then 'up to 180 days from tod
   await expect(page.getByTestId("care-tx-rail-extend-done")).toBeVisible({ timeout: 30_000 });
   const plus30 = await hands(chain, stand.core, id);
   expect(plus30.expiry).toBe(before.expiry + 30 * DAY);
+
+  // Under the success line no chip is chosen and the swipe waits: one more swipe moves nothing.
+  await expect(page.locator('[data-testid="care-extend-chip"][aria-checked="true"]')).toHaveCount(0);
+  await expect(page.getByTestId("care-extend-swipe")).toBeDisabled();
+  await expect(page.getByTestId("care-extend-swipe")).toHaveText(/^Keep it open longer/);
+  await shot(page, "care-extend-done-390-en");
+  await page.getByTestId("care-extend-swipe").click({ force: true });
+  await page.waitForTimeout(2_000);
+  expect((await hands(chain, stand.core, id)).expiry).toBe(plus30.expiry);
 
   // The new end reaches the screen with the next block; then "today" is chosen.
   await expect(page.locator('[data-testid="care-extend-chip"][data-value="30"]')).toHaveAttribute("data-target", String(plus30.expiry + 30 * DAY), { timeout: 15_000 });
@@ -141,6 +159,42 @@ test("a second account sees the NotRaiser sentence and no send button", async ({
   await expect(page.getByTestId("care-fund-swipe")).toHaveCount(0);
   await expect(page.getByTestId("care-extend-swipe")).toHaveCount(0);
   await shot(page, "care-not-raiser-390-en");
+  await context.close();
+});
+
+test("the raiser's own device: /care shows the kept words framed as this device's, then as the hand's once unlocked", async ({ browser }) => {
+  const title = "Who can lend a ladder this weekend?";
+  const content = "Three metres is enough; I can pick it up.";
+  const raised = myRaise("--mode", "unlisted", "--reward", "5", "--title", title, "--content", content);
+  const { context, page } = await phone(browser);
+  await page.goto("/my");
+  await keepOnDevice(page, raised);
+  await page.goto(`/care/${stand.chainId}/${raised.handId}`);
+  await connectAs(page, 1, ASKER.address);
+
+  // Locked: the words are this device's, said so, and the card claims nothing.
+  const words = page.getByTestId("care-words");
+  await expect(words).toHaveAttribute("data-value", "unknown", { timeout: 20_000 });
+  await expect(words).toContainText(title);
+  await expect(words).toContainText("Your words, as this device keeps them. They are checked against the contract once you unlock.");
+  await expect(page.getByTestId("kit-deal-card")).not.toContainText(title);
+  await shot(page, "care-words-locked-390-en");
+
+  // Unlocked here: the kept words give the dataHash Core keeps, and the card is the hand's own.
+  await page.getByTestId("my-unlock").click();
+  await expect(words).toHaveAttribute("data-value", "device", { timeout: 15_000 });
+  await expect(words).toHaveText("Your words, as this device keeps them. They match what the contract keeps.");
+  await expect(page.getByTestId("kit-deal-card")).toContainText(title);
+  await expect(page.getByTestId("kit-deal-card")).not.toContainText("Someone raised a hand.");
+  await shot(page, "care-words-device-390-en");
+
+  // Words that are not the hand's own are never shown as its own.
+  await keepOnDevice(page, { ...raised, title: "Who can lend a car this weekend?" });
+  await page.reload();
+  await connectAs(page, 1, ASKER.address);
+  await page.getByTestId("my-unlock").click();
+  await expect(words).toHaveAttribute("data-value", "mismatch", { timeout: 15_000 });
+  await expect(page.getByTestId("kit-deal-card")).not.toContainText("Who can lend a car");
   await context.close();
 });
 

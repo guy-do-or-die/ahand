@@ -101,7 +101,12 @@ test("the Deal card shows each state in words, and a hand with no reward never s
   await open(page);
   for (const theme of THEMES) {
     const card = (id: string) => panel(page, theme).locator(`[data-case="${id}"] .ah-deal`);
-    await expect(card("open")).toContainText("Someone is looking for");
+    // The lead-in is a whole sentence, so a question reads after it as well as a noun phrase.
+    await expect(card("open").locator(".ah-deal__intro")).toHaveText("Someone raised a hand:");
+    await expect(card("open").locator(".ah-deal__title")).toHaveText("Who knows of a sublet in Yerevan for June?");
+    await expect(card("public").locator(".ah-deal__intro")).toHaveText("Someone raised a hand:");
+    await expect(card("public").locator(".ah-deal__title")).toHaveText("A sublet in Yerevan, June.");
+    await expect(card("open")).not.toContainText("is looking for");
     await expect(card("open")).toContainText("$40 reward · open until 20 Dec");
     await expect(card("open")).toContainText("If you help and they thank you");
     await expect(card("open")).toContainText("at least $28");
@@ -110,9 +115,13 @@ test("the Deal card shows each state in words, and a hand with no reward never s
     await expect(card("expired")).not.toContainText("If you help");
     await expect(card("thanked")).toContainText("Thanked on 3 Dec.");
     await expect(card("thanked").locator("table")).toContainText("$38.00");
+    // The receipt says what left the contract, never what somebody got.
+    await expect(card("thanked").locator("table caption")).toHaveText("What was sent to whom, from the chain's own records");
     await expect(card("refunded")).toContainText("The reward went back on 21 Dec.");
     await expect(card("lost")).toContainText("The description didn't arrive with this link. Ask whoever sent it.");
     await expect(card("lost")).not.toContainText("sublet");
+    await expect(card("lost").locator(".ah-deal__title")).toHaveText("Someone raised a hand.");
+    await expect(card("lost").locator(".ah-deal__intro")).toHaveCount(0);
     await expect(card("no-clock")).toContainText("Can't reach the network right now.");
     await expect(card("no-clock")).not.toContainText("open until");
 
@@ -131,7 +140,49 @@ test("the Deal card shows each state in words, and a hand with no reward never s
   await expect(bareRu).toContainText("бесплатно; доли здесь нет");
   await expect(bareRu).toContainText("рука закроется");
   await expect(bareRu).not.toContainText("$0");
-  await expect(panel(page, "light").locator('[data-case="open"] .ah-deal')).toContainText("минимум $28");
+  const openRu = panel(page, "light").locator('[data-case="open"] .ah-deal');
+  await expect(openRu).toContainText("минимум $28");
+  await expect(openRu.locator(".ah-deal__intro")).toHaveText("Кто-то поднял руку:");
+  await expect(openRu.locator(".ah-deal__title")).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
+  await expect(openRu).not.toContainText("Кто-то ищет");
+  await expect(panel(page, "light").locator('[data-case="public"] .ah-deal__title')).toHaveText("Квартира в Ереване на июнь.");
+  await expect(panel(page, "light").locator('[data-case="thanked"] table caption')).toHaveText("Кому сколько отправлено — по записям самой сети");
+});
+
+test("the asker's own card speaks about whoever helps and calls the 70% the floor they set (review round 1)", async ({ page }) => {
+  await open(page);
+  const card = panel(page, "light").locator('[data-case="asker"] .ah-deal');
+  await expect(card).toHaveAttribute("data-viewer", "asker");
+  await expect(card.locator(".ah-deal__intro")).toHaveText("You raised a hand:");
+  await expect(card).toContainText("Whoever helps and is thanked");
+  await expect(card).toContainText("at least $35 (the floor you set: 70%)");
+  await expect(card).toContainText("Whoever passes it on");
+  await expect(card).toContainText("If you thank nobody by 20 Dec");
+  await expect(card).toContainText("the whole reward comes back to you");
+  await expect(card).not.toContainText("If you help");
+  await expect(card).not.toContainText("If you pass it on");
+  await expect(card).not.toContainText("Someone raised a hand");
+  await open(page, "?lang=ru");
+  const ru = panel(page, "light").locator('[data-case="asker"] .ah-deal');
+  await expect(ru.locator(".ah-deal__intro")).toHaveText("Ты поднял руку:");
+  await expect(ru).toContainText("минимум $35 (нижняя граница, которую ты задал: 70%)");
+  await expect(ru).not.toContainText("Поможешь");
+  await expect(ru).not.toContainText("Передашь дальше");
+});
+
+test("the rail flags a pass at the asker's own address and crosses out a holder a re-signed answer left out", async ({ page }) => {
+  await open(page);
+  const flagged = panel(page, "light").locator('[data-case="rail-asker"]');
+  await expect(flagged.locator('[data-flag="asker"]')).toHaveCount(1);
+  await expect(flagged.getByTestId("kit-rail-flag")).toHaveText("the asker's own address");
+  const dropped = panel(page, "light").locator('[data-case="rail-dropped"]');
+  const out = dropped.locator('[data-dropped="true"]');
+  await expect(out).toHaveCount(1);
+  await expect(out.locator("s")).toHaveCount(2);
+  await expect(out).toContainText("5%");
+  await expect(out).toContainText("left out of this route");
+  // The left-out holder is not counted among the hands.
+  await expect(dropped.locator("ol")).toHaveAttribute("aria-label", "3 hands so far.");
 });
 
 test("a figure opens to its source, and the lens opens them all", async ({ page }) => {
@@ -147,14 +198,72 @@ test("a figure opens to its source, and the lens opens them all", async ({ page 
   await open(page, "?lens=on");
   const lensed = panel(page, "dark").locator('[data-case="open"] .ah-deal');
   await expect(lensed).toContainText("hands(12).reward = 40000000");
+  await expect(lensed).toContainText("hands(12).expiry = 1797768000");
   await expect(lensed).toContainText("Network time · block 1 234 · 20 Nov 14:02");
+  await expect(panel(page, "dark").locator('[data-case="thanked"] .ah-deal')).toContainText("hands(12).closedAt = 1796299200");
+  // A card with no hand behind it yet (the raise screen's preview) names no source, lens or not.
+  const preview = panel(page, "dark").locator('[data-case="preview"] .ah-deal');
+  await expect(preview).toContainText("$40 reward · open until 20 Dec");
+  await expect(preview).not.toContainText("hands(");
+  await expect(preview.locator(".ah-mark--chain")).toHaveCount(0);
+});
+
+test("a date on the Deal card opens to the second Core keeps, in the reader's zone and in UTC", async ({ page }) => {
+  await open(page);
+  const side = panel(page, "light");
+  const card = (id: string) => side.locator(`[data-case="${id}"] .ah-deal`);
+  const source = (id: string, field: "expiry" | "closedAt") => card(id).locator(`[data-source="${field}"]`);
+
+  // Open: "open until 20 Dec" is hands(12).expiry. The gallery's reader is in UTC: one line.
+  await expect(card("open")).not.toContainText("hands(12).expiry");
+  await card("open").getByRole("button", { name: "20 Dec", exact: true }).click();
+  await expect(source("open", "expiry")).toContainText("hands(12).expiry = 1797768000");
+  await expect(source("open", "expiry")).toContainText("20 Dec 2026, 12:00:00 UTC");
+  await expect(source("open", "expiry").locator(".ah-mark--chain")).toBeVisible();
+  await expect(source("open", "expiry")).toContainText("block 1 234");
+  await card("open").getByRole("button", { name: "20 Dec", exact: true }).click();
+  await expect(source("open", "expiry")).toHaveCount(0);
+
+  // A reader elsewhere gets their own zone first, then UTC.
+  await card("zone").getByRole("button", { name: "20 Dec", exact: true }).click();
+  await expect(source("zone", "expiry").locator(".ah-meta--exact")).toHaveText(["hands(12).expiry = 1797768000", "20 Dec 2026, 16:00:00 GMT+4", "20 Dec 2026, 12:00:00 UTC"]);
+
+  // Time's up, and no block yet: the same field behind "was open until" and "until".
+  await card("expired").getByRole("button", { name: "20 Dec", exact: true }).click();
+  await expect(source("expired", "expiry")).toContainText("hands(12).expiry = 1797768000");
+  await card("no-clock").getByRole("button", { name: "20 Dec", exact: true }).click();
+  await expect(source("no-clock", "expiry")).toContainText("hands(12).expiry = 1797768000");
+  await expect(source("no-clock", "expiry")).not.toContainText("block");
+
+  // Closed: "Thanked on 3 Dec." is hands(12).closedAt, and the chain mark beside it opens the same.
+  const thanked = card("thanked");
+  const mark = thanked.locator(".ah-deal__closed").getByRole("button", { name: "On chain" });
+  await expect(mark).toHaveAttribute("aria-expanded", "false");
+  await expect(thanked).not.toContainText("closedAt");
+  await thanked.getByRole("button", { name: "3 Dec", exact: true }).click();
+  await expect(source("thanked", "closedAt").locator(".ah-meta--exact")).toHaveText(["hands(12).closedAt = 1796299200", "3 Dec 2026, 12:00:00 UTC"]);
+  await expect(source("thanked", "closedAt")).toContainText("block 1 234");
+  await expect(mark).toHaveAttribute("aria-expanded", "true");
+  await mark.click();
+  await expect(source("thanked", "closedAt")).toHaveCount(0);
+  await mark.click();
+  await expect(source("thanked", "closedAt")).toContainText("hands(12).closedAt = 1796299200");
+
+  await card("refunded").getByRole("button", { name: "21 Dec", exact: true }).click();
+  await expect(source("refunded", "closedAt")).toContainText("hands(12).closedAt = 1797854400");
+
+  // In Russian the dates are written the Russian way; Core's names stay as they are.
+  await open(page, "?lang=ru");
+  const ru = panel(page, "light").locator('[data-case="zone"] .ah-deal');
+  await ru.getByRole("button", { name: "20 дек", exact: true }).click();
+  await expect(ru.locator('[data-source="expiry"] .ah-meta--exact')).toHaveText(["hands(12).expiry = 1797768000", "20 дек. 2026 г., 16:00:00 GMT+4", "20 дек. 2026 г., 12:00:00 UTC"]);
 });
 
 test("Cyrillic headlines are drawn in Onest, Latin ones in Schibsted Grotesk", async ({ page }) => {
   await open(page, "?lang=ru");
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   const title = '[data-panel="light"] [data-case="open"] .ah-deal__title';
-  await expect(page.locator(title)).toHaveText("квартиру в Ереване на июнь.");
+  await expect(page.locator(title)).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
   const russian = await fontsDrawn(page, title);
   expect(russian.some((family) => /Onest/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
   expect(russian.every((family) => /Onest|Schibsted/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
