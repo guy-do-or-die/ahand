@@ -78,6 +78,8 @@ interface PublicConfig {
   relays: string[];
   site: string;
   previews?: boolean;
+  /** Email sign-in through Privy: the app's pages name Privy's sources in their CSP, exit.html never. */
+  privy?: { appId: string } | null;
 }
 
 /** Whether this build answers a Hand's address with face's tags and card (absent means yes). */
@@ -85,8 +87,13 @@ export function previewsOn(config: Pick<PublicConfig, "previews">): boolean {
   return config.previews !== false;
 }
 
+/** Whether this build signs in by email through Privy. */
+export function privyOn(config: Pick<PublicConfig, "privy">): boolean {
+  return typeof config.privy === "object" && config.privy !== null;
+}
+
 function sourcesOf(config: PublicConfig): CspSources {
-  return { rpcUrls: config.chain.rpcUrls, relays: config.relays };
+  return { rpcUrls: config.chain.rpcUrls, relays: config.relays, ...(privyOn(config) ? { privy: true } : {}) };
 }
 
 /** The sha256 sources of the inline scripts of an HTML file, as CSP writes them (face and static.ts compute the same). */
@@ -104,10 +111,11 @@ export function inlineScriptHashes(html: string): string[] {
 /**
  * exit.html's CSP, as face's `cspFor(…, { inline, anyRpc: true })` writes it: the app's policy with
  * its inline script named by hash, any https RPC or this machine, and the fonts it carries as data:.
+ * Never Privy's sources: exit.html carries no sign-in, only the reader's own wallet.
  */
 export function exitCsp(sources: CspSources, exitHtml: string): string {
   const inline = inlineScriptHashes(exitHtml);
-  return appCsp(sources, "header")
+  return appCsp({ rpcUrls: sources.rpcUrls, relays: sources.relays }, "header")
     .replace("script-src 'self'", ["script-src 'self'", ...inline].join(" "))
     .replace("font-src 'self'", "font-src 'self' data:")
     .replace(/connect-src ([^;]*)/, (_all, list: string) => `connect-src ${[...new Set([...list.split(" "), "https:", "http://127.0.0.1:*", "http://localhost:*"])].join(" ")}`);
@@ -225,7 +233,8 @@ export function buildApp(configFile: string, outDir: string, cacheDir?: string):
 /**
  * Face's settings for the function, as the FACE_* names of apps/face/src/config.ts: the
  * configuration's one RPC (face's CSP names only that one, so the page's header stays the static
- * one), the chain, the Cores it trusts on that chain, the canonical Core and the relays.
+ * one), the chain, the Cores it trusts on that chain, the canonical Core and the relays, and
+ * FACE_PRIVY when the app signs in by email through Privy (face's CSP then names Privy, as the page's meta tag does).
  */
 export function faceEnvOf(config: PublicConfig): Record<string, string> {
   if (config.chain.rpcUrls.length !== 1) throw new Error("face reads one RPC, and its CSP would name only that one: the public configuration must have exactly one");
@@ -238,6 +247,7 @@ export function faceEnvOf(config: PublicConfig): Record<string, string> {
     FACE_CANONICAL: config.cores.canonical ?? "",
     FACE_RELAYS: config.relays.join(","),
     FACE_SITE: config.site,
+    ...(privyOn(config) ? { FACE_PRIVY: "1" } : {}),
   };
 }
 

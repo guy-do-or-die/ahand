@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { cspFor } from "../../face/src/headers.ts";
-import { appCsp, appHeaders, cspMetaTag } from "../csp.ts";
+import { cspFor, PRIVY_SOURCES } from "../../face/src/headers.ts";
+import { appCsp, appHeaders, cspMetaTag, PRIVY_CSP } from "../csp.ts";
 
 const sources = { rpcUrls: ["http://127.0.0.1:18555/"], relays: ["ws://127.0.0.1:18557"] };
 
@@ -20,6 +20,21 @@ describe("the app's CSP (ARCHITECTURE §11)", () => {
     const face = cspFor({ rpc: sources.rpcUrls[0]!, relays: [...sources.relays] });
     expect(face).toBe(appCsp(sources, "header"));
     expect(appCsp(sources, "meta")).toBe(face.replace("; frame-ancestors 'none'", ""));
+  });
+
+  test("with Privy (email), the app and face add the same: Privy's frame, its API and RPC, nothing else", () => {
+    expect(PRIVY_SOURCES).toEqual(PRIVY_CSP);
+    const privy = { ...sources, privy: true };
+    expect(appCsp(privy)).toBe(
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; " +
+        "connect-src 'self' http://127.0.0.1:18555 ws://127.0.0.1:18557 https://auth.privy.io https://*.rpc.privy.systems; " +
+        "frame-src https://auth.privy.io; child-src https://auth.privy.io; worker-src 'none'; object-src 'none'; " +
+        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    );
+    expect(cspFor({ rpc: sources.rpcUrls[0]!, relays: [...sources.relays], privy: true })).toBe(appCsp(privy, "header"));
+    // A page with inline code (exit.html) never gets Privy, even when the app has it.
+    expect(cspFor({ rpc: sources.rpcUrls[0]!, relays: [], privy: true }, { anyRpc: true })).not.toContain("privy");
+    expect(appCsp({ ...sources, privy: false })).toBe(appCsp(sources));
   });
 
   test("the meta form leaves out frame-ancestors, which only works as a header", () => {

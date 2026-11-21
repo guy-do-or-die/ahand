@@ -45,6 +45,15 @@ export function isLocalChain(file: string = configFile): boolean {
   return parsed.chain?.local === true;
 }
 
+/**
+ * Whether the configuration has email through Privy (`privy`). The build defines `__AHAND_PRIVY__`
+ * from it: with false, the email connector is dead code and Privy's SDK is never emitted.
+ */
+export function hasPrivy(file: string = configFile): boolean {
+  const parsed = JSON.parse(readFileSync(file, "utf8")) as { privy?: unknown };
+  return typeof parsed.privy === "object" && parsed.privy !== null;
+}
+
 const VIRTUAL = "virtual:ahand-config";
 const RESOLVED = `\0${VIRTUAL}`;
 
@@ -64,11 +73,12 @@ export function ahandConfig(): Plugin {
   };
 }
 
-/** The RPC and relay addresses of the configuration: the only places the built app may connect to. */
+/** The RPC and relay addresses of the configuration, and Privy when it has `privy`: the only places the built app may connect to. */
 export function cspSources(): CspSources {
-  const parsed = JSON.parse(readFileSync(configFile, "utf8")) as { chain?: { rpcUrls?: unknown }; relays?: unknown };
+  const parsed = JSON.parse(readFileSync(configFile, "utf8")) as { chain?: { rpcUrls?: unknown }; relays?: unknown; privy?: unknown };
   const list = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
-  return { rpcUrls: list(parsed.chain?.rpcUrls), relays: list(parsed.relays) };
+  const privy = typeof parsed.privy === "object" && parsed.privy !== null;
+  return { rpcUrls: list(parsed.chain?.rpcUrls), relays: list(parsed.relays), ...(privy ? { privy: true } : {}) };
 }
 
 /** The headers `vite preview` sends: the same CSP, Referrer-Policy and nosniff as face. */

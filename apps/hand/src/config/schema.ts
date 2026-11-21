@@ -74,6 +74,23 @@ export interface Defaults {
   expiryDays: number;
 }
 
+/**
+ * Email sign-in through Privy (ARCHITECTURE §7 Wallets): a person without a crypto app signs in
+ * with an emailed code and gets a wallet Privy keeps for them. The app id is public: it ships in
+ * every page. Absent means no email sign-in: only the wallets this browser has.
+ */
+export interface PrivyConfig {
+  /** The Privy app's public id, from the Privy dashboard. */
+  appId: string;
+  /**
+   * The site addresses the Privy dashboard allows, as it lists them ("https://ahand.in",
+   * "https://*.ahand.in"). On any other address Privy still opens its email window but cannot
+   * make the wallet, so the app says at once that email can't be reached there. Left out, every
+   * address is tried.
+   */
+  origins?: string[];
+}
+
 export interface AppConfig {
   chain: ChainConfig;
   cores: { trusted: TrustedCoreConfig[]; canonical: Address | null };
@@ -98,6 +115,8 @@ export interface AppConfig {
    * a Vercel Function runs face for a Hand's address and its card (apps/hand/vercel.ts).
    */
   previews?: boolean;
+  /** Email sign-in through Privy; absent means none (the local stand has none). */
+  privy?: PrivyConfig;
 }
 
 /** A test network: local, or marked `testnet` (its money is test money). */

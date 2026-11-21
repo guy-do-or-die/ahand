@@ -67,3 +67,25 @@ describe("the public test network's fields", () => {
     expect(() => parseConfig({ ...sepolia, chain: { ...sepolia.chain, testnet: false } })).toThrow(/faucets belong to a test network/);
   });
 });
+
+describe("email sign-in through Privy", () => {
+  const sepolia = JSON.parse(readFileSync(new URL("./base-sepolia.json", import.meta.url), "utf8"));
+
+  test("base-sepolia.json turns it on with the public app id; the local example has none", () => {
+    expect(parseConfig(sepolia).privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji", origins: ["https://ahand.in", "https://*.ahand.in"] });
+    expect(parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji" } }).privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji" });
+    expect(() => parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji", origins: "https://ahand.in" } })).toThrow(/privy.origins must be a list/);
+    for (const bad of ["http://ahand.in", "https://ahand.in/", "https://*", "https://a.*.ahand.in", "*.ahand.in"]) {
+      expect(() => parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji", origins: [bad] } })).toThrow(/privy.origins\[0\]/);
+    }
+    expect(parseConfig(example).privy).toBeUndefined();
+    expect(parseConfig({ ...sepolia, privy: null }).privy).toBeUndefined();
+  });
+
+  test("an app id is letters and digits only, and a local chain cannot have Privy", () => {
+    expect(() => parseConfig({ ...sepolia, privy: { appId: "x" } })).toThrow(/privy.appId/);
+    expect(() => parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji\"; script-src *" } })).toThrow(/privy.appId/);
+    expect(() => parseConfig({ ...sepolia, privy: {} })).toThrow(/privy.appId must be a string/);
+    expect(() => parseConfig({ ...example, privy: { appId: "clt69jwp204btq1o3q72cupji" } })).toThrow(/privy belongs to a public network/);
+  });
+});

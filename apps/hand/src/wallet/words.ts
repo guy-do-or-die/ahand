@@ -9,6 +9,8 @@ import { useLang, type Lang } from "../ui/ambient";
 
 const EN = {
   title: "Connect a wallet",
+  /** The same control's name where email is offered: someone with no crypto app would not press "Connect a wallet". */
+  logIn: "Log in",
   found: "Found in this browser",
   none: "Nothing to connect was found in this browser. On a computer, add a crypto app's browser extension, then reload this page. On a phone, open this page in the browser inside your crypto app (MetaMask, Rabby, Trust and others have one).",
   browser: "The crypto app in this browser",
@@ -21,6 +23,14 @@ const EN = {
   another: "Use another account",
   otherNetwork: (network: string) => `This account is on another network. Switch it to ${network} to go on.`,
   step: (n: number, of: number) => `Step ${n} of ${of}`,
+  email: {
+    heading: "No crypto app? Use your email",
+    action: "Continue with email",
+    note: "A code comes to your email, and an account is made for you on this network. Privy keeps its key; this site never sees it.",
+    opening: "Opening the email step…",
+    unavailable: "Email can't be reached right now. You can still connect a crypto app from this browser.",
+    none: "No crypto app was found in this browser. Use your email above, or open this page inside your crypto app.",
+  },
   dev: {
     heading: "Test accounts · this local network only",
     account: (n: number) => `Test account ${n}`,
@@ -36,6 +46,7 @@ export type WalletWords = typeof EN;
 
 const RU: WalletWords = {
   title: "Подключить кошелёк",
+  logIn: "Войти",
   found: "Найдено в этом браузере",
   none: "В этом браузере нечего подключить. На компьютере добавь расширение криптоприложения для браузера и перезагрузи страницу. На телефоне открой эту страницу в браузере внутри своего криптоприложения (он есть в MetaMask, Rabby, Trust и других).",
   browser: "Криптоприложение в этом браузере",
@@ -48,6 +59,14 @@ const RU: WalletWords = {
   another: "Сменить аккаунт",
   otherNetwork: (network) => `Этот аккаунт в другой сети. Переключи его на «${network}», чтобы продолжить.`,
   step: (n, of) => `Шаг ${n} из ${of}`,
+  email: {
+    heading: "Нет криптоприложения? Войди по почте",
+    action: "Продолжить с почтой",
+    note: "На почту придёт код, и для тебя создастся аккаунт в этой сети. Его ключ хранит Privy; этот сайт его не видит.",
+    opening: "Открываем вход по почте…",
+    unavailable: "Вход по почте сейчас недоступен. Можно подключить криптоприложение из этого браузера.",
+    none: "В этом браузере не нашлось криптоприложения. Войди по почте выше или открой эту страницу внутри своего криптоприложения.",
+  },
   dev: {
     heading: "Тестовые аккаунты · только эта локальная сеть",
     account: (n) => `Тестовый аккаунт ${n}`,

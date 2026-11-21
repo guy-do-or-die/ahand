@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { ANVIL_MNEMONIC, anvilKeys, audit, type AuditConfig } from "./audit.ts";
+import { ANVIL_MNEMONIC, anvilKeys, audit, privySdkFiles, type AuditConfig } from "./audit.ts";
 
 const publicConfig: AuditConfig = { chain: { rpcUrls: ["https://rpc.example.org/key"], local: false }, relays: ["wss://relay.example.org"], site: "https://hand.example.org" };
 const meta = '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'" />';
@@ -72,6 +72,41 @@ describe("bundle audit", () => {
         { file: "gallery.html", what: "a local-only file in a build that is not local" },
       ]);
       expect(audit(folder, { ...publicConfig, chain: { ...publicConfig.chain, local: true } }).findings).toEqual([]);
+    } finally {
+      rmSync(folder, { recursive: true });
+    }
+  });
+
+  test("Privy's SDK: the chunks only privy-host reaches are Privy's, and only a build with privy may carry them", () => {
+    const folder = folderWith({
+      "index.html": `<head>${meta}<script type="module" src="/assets/index-a.js"></script></head>`,
+      // The app's entry names privy-host only in a dynamic import, and the SDK chunk only in a preload list.
+      "assets/index-a.js": 'import{x}from"./shared-b.js";const __vite__mapDeps=["assets/sdk-c.js"];()=>import(`./privy-host-d.js`);',
+      "assets/shared-b.js": '"https://viem.sh/docs"',
+      "assets/privy-host-d.js": 'import{y}from"./sdk-c.js";import{x}from"./shared-b.js";',
+      "assets/sdk-c.js": '"https://explorer-api.walletconnect.com";"https://auth.privy.io"',
+    });
+    try {
+      expect([...privySdkFiles(folder)].sort()).toEqual(["assets/privy-host-d.js", "assets/sdk-c.js"]);
+      expect(audit(folder, { ...publicConfig, privy: { appId: "clt69jwp204btq1o3q72cupji" } }).findings).toEqual([]);
+      const without = audit(folder, publicConfig).findings;
+      expect(without).toContainEqual({ file: "assets/sdk-c.js", what: "Privy's SDK in a build without privy" });
+      expect(without).toContainEqual({ file: "assets/sdk-c.js", what: "an address that is not the configured RPC, relay or site: https://explorer-api.walletconnect.com" });
+    } finally {
+      rmSync(folder, { recursive: true });
+    }
+  });
+
+  test("an address in a chunk a page loads is still a finding, even with privy", () => {
+    const folder = folderWith({
+      "index.html": `<head>${meta}<script type="module" src="/assets/index-a.js"></script></head>`,
+      "assets/index-a.js": 'import{x}from"./both-b.js";()=>import("./privy-host-d.js");',
+      "assets/privy-host-d.js": 'import{x}from"./both-b.js";',
+      "assets/both-b.js": '"https://cdn.tracker.example/x.js"',
+    });
+    try {
+      expect([...privySdkFiles(folder)]).toEqual(["assets/privy-host-d.js"]);
+      expect(audit(folder, { ...publicConfig, privy: { appId: "clt69jwp204btq1o3q72cupji" } }).findings.map((f) => f.what)).toContain("an address that is not the configured RPC, relay or site: https://cdn.tracker.example");
     } finally {
       rmSync(folder, { recursive: true });
     }

@@ -3,13 +3,15 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { ANVIL_MNEMONIC, audit, type AuditConfig } from "./audit.ts";
+import { ANVIL_MNEMONIC, audit, privySdkFiles, type AuditConfig } from "./audit.ts";
 
 /**
  * The main build itself (vite.config.ts), run three times on configurations written here:
  *  - chain 8453 marked local must not build at all (a local build carries anvil's public keys);
  *  - chain 8453, not local: no gallery.html, no gallery or dev wallet chunk, no mnemonic, and the
  *    bundle audit is clean;
+ *  - chain 8453 with `privy` (email): Privy's SDK sits only behind privy-host-*.js, no page loads it
+ *    before email is picked, and the audit is clean (a build without `privy` carries none of it);
  *  - chain 31337, local: the gallery and the dev wallet are there (the check above is not vacuous).
  * Each build writes into its own temporary folder with its own Vite cache.
  */
@@ -74,6 +76,27 @@ describe("the main build", () => {
       expect(assets.filter((name) => /^(gallery|dev)-/.test(name))).toEqual([]);
       for (const name of assets.filter((n) => n.endsWith(".js"))) expect(readFileSync(join(out, "assets", name), "utf8").includes(ANVIL_MNEMONIC)).toBe(false);
       expect(audit(out, config as AuditConfig).findings).toEqual([]);
+    },
+    120_000,
+  );
+
+  test(
+    "a public build with email (privy) carries Privy's SDK only behind privy-host, and no page loads it first",
+    () => {
+      const config = { ...configOn(8453, false), privy: { appId: "clt69jwp204btq1o3q72cupji" } };
+      const { code, output, out } = build("base-privy", config);
+      expect(code, output).toBe(0);
+      const sdk = privySdkFiles(out);
+      expect(sdk.size).toBeGreaterThan(10);
+      expect([...sdk].some((file) => /^assets\/privy-host-/.test(file))).toBe(true);
+      const index = readFileSync(join(out, "index.html"), "utf8");
+      const first = [...index.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => `assets/${match[1]}`);
+      expect(first.filter((file) => sdk.has(file))).toEqual([]);
+      for (const file of first) expect({ file, privy: readFileSync(join(out, file), "utf8").includes("auth.privy.io") }).toEqual({ file, privy: false });
+      expect(index).toContain("frame-src https://auth.privy.io");
+      expect(audit(out, config as AuditConfig).findings).toEqual([]);
+      // The same folder audited as if the configuration had no privy: every Privy chunk is a finding.
+      expect(audit(out, configOn(8453, false) as AuditConfig).findings.filter((f) => f.what === "Privy's SDK in a build without privy").length).toBe(sdk.size);
     },
     120_000,
   );

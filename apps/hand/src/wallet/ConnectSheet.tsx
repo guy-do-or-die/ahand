@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Address } from "viem";
 
 import { config as app } from "../config";
@@ -7,6 +7,7 @@ import { chainName } from "../i18n/common/chain";
 import { TID } from "../testids";
 import { ErrorBand, Identity, QuietButton, Sheet } from "../ui";
 import { clsx } from "../lib/clsx";
+import { privyPhase, watchPrivyPhase } from "./privy";
 import { connectWallet, disconnectWallet, foundOptions, optionAddress, useWallet, useWalletOptions, type WalletOption } from "./state";
 import { useWalletWords } from "./words";
 
@@ -17,9 +18,14 @@ import { useWalletWords } from "./words";
  * through <img>, and nothing ever read from its `rdns`; the sheet says that these names are the
  * apps' own. In a local build the dev wallet's test accounts follow, under their own heading.
  *
+ * When the configuration has `privy`, "Continue with email" comes first, for someone with no
+ * crypto app (wallet/privy.ts). While Privy's own window is open the sheet steps aside (its modal
+ * <dialog> would make Privy's window unreachable) and comes back if the person closes it or
+ * Privy cannot be reached, with a sentence that says so; the browser's wallets stay offered.
+ *
  * Test ids: the button that opens the sheet is `connect-wallet`, each dev account
  * `dev-account-<n>` / `dev-account-not-set-up` (tests/e2e/lib/accounts.ts); each found wallet
- * `kit-connect-option` with its connector id in `data-value`.
+ * `kit-connect-option` with its connector id in `data-value`; email `connect-email`.
  */
 
 export const CONNECT_TID = TID.wallet.connect;
@@ -85,9 +91,11 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
   const options = useWalletOptions();
   const wallet = useWallet();
   const [busy, setBusy] = useState<WalletOption | undefined>();
-  const [problem, setProblem] = useState<"refused" | "failed" | "unknown-network" | undefined>();
+  const [problem, setProblem] = useState<"refused" | "failed" | "unknown-network" | "unavailable" | undefined>();
+  const phase = useSyncExternalStore(watchPrivyPhase, privyPhase, privyPhase);
   const found = foundOptions(options);
   const dev = options.filter((o) => o.kind === "dev");
+  const email = options.find((o) => o.kind === "email");
 
   async function pick(option: WalletOption) {
     setBusy(option);
@@ -102,10 +110,36 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
     onClose();
   }
 
+  // Privy's window is on screen: the sheet's modal dialog would sit above it and block it.
+  if (busy?.kind === "email" && phase === "open") return null;
+
   return (
-    <Sheet label={words.title} onClose={onClose}>
+    <Sheet label={email ? words.logIn : words.title} onClose={onClose}>
       <div data-testid={TID.kit.connectSheet} className="flex flex-col gap-5 pt-4">
-        <h2 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{words.title}.</h2>
+        <h2 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{email ? words.logIn : words.title}.</h2>
+
+        {email ? (
+          <section className="flex flex-col gap-3" aria-labelledby="connect-email">
+            <span id="connect-email" className="ah-label">
+              {words.email.heading}
+            </span>
+            <button
+              type="button"
+              data-testid={TID.wallet.email}
+              data-value={email.id}
+              disabled={busy !== undefined}
+              onClick={() => void pick(email)}
+              className={clsx(
+                "flex min-h-[64px] w-full items-center gap-3 rounded-[var(--r-card-sm)] border-[length:var(--bw-emph)] border-[var(--ink)] bg-[var(--card)] px-4 py-3 text-left text-[var(--ink)]",
+                "hover:border-[var(--ink-a50)] focus-visible:border-[var(--ink)] disabled:opacity-50",
+              )}
+            >
+              <Initial name={words.email.action} mark="@" />
+              <span className="text-[length:var(--fs-card-title-sm)] font-bold leading-tight">{words.email.action}</span>
+            </button>
+            <p className="ah-label ah-label--dim m-0">{words.email.note}</p>
+          </section>
+        ) : null}
 
         <section className="flex flex-col gap-3" aria-labelledby="connect-found">
           <span id="connect-found" className="ah-label">
@@ -118,7 +152,7 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
               ))}
             </ul>
           ) : (
-            <p className="m-0 text-[length:var(--fs-body-md)] leading-snug">{words.none}</p>
+            <p className="m-0 text-[length:var(--fs-body-md)] leading-snug">{email ? words.email.none : words.none}</p>
           )}
           {found.length > 0 ? <p className="ah-label ah-label--dim m-0">{words.selfNamed}</p> : null}
         </section>
@@ -136,12 +170,28 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
           </section>
         ) : null}
 
-        {busy ? (
+        {busy?.kind === "email" ? (
+          <p role="status" className="ah-label m-0">
+            {words.email.opening}
+          </p>
+        ) : busy ? (
           <p role="status" className="ah-label m-0">
             {words.waiting(busy.kind === "dev" ? (busy.devWho === "not-set-up" ? words.dev.unset : words.dev.account(busy.devWho as number)) : busy.fallback ? words.browser : busy.name)}
           </p>
         ) : null}
-        {problem ? <ErrorBand what={problem === "refused" ? words.refused : problem === "unknown-network" ? t("common.error.unknownNetwork", { network: chainName(app.chain) }) : words.failed} /> : null}
+        {problem ? (
+          <ErrorBand
+            what={
+              problem === "refused"
+                ? words.refused
+                : problem === "unavailable"
+                  ? words.email.unavailable
+                  : problem === "unknown-network"
+                    ? t("common.error.unknownNetwork", { network: chainName(app.chain) })
+                    : words.failed
+            }
+          />
+        ) : null}
         {wallet.status === "connected" && wallet.address ? (
           <p className="ah-label m-0 flex flex-wrap items-baseline gap-2">
             {words.connected}: <Identity address={wallet.address} />
@@ -194,8 +244,9 @@ export function ConnectButton({ className, onConnected }: { className?: string; 
           </QuietButton>
         </>
       ) : (
-        <QuietButton compact data-testid={CONNECT_TID} onClick={() => setOpen(true)} aria-label={words.title}>
-          {words.title}
+        // Where email is offered, someone with no crypto app should still see a way in: "Log in".
+        <QuietButton compact data-testid={CONNECT_TID} onClick={() => setOpen(true)} aria-label={app.privy ? words.logIn : words.title}>
+          {app.privy ? words.logIn : words.title}
         </QuietButton>
       )}
       {open ? <ConnectSheet onClose={() => setOpen(false)} {...(onConnected ? { onConnected } : {})} /> : null}

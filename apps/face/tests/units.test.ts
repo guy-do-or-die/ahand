@@ -278,6 +278,17 @@ describe("configuration", () => {
     expect(() => configFromEnv({ ...env, FACE_RELAYS: "http://x" })).toThrow("WebSocket");
     expect(() => configFromEnv({ ...env, FACE_SITE: undefined })).toThrow("FACE_SITE is not set");
   });
+
+  it("FACE_PRIVY=1 (the app signs in by email through Privy) puts Privy's sources into the CSP; absent or 0 leaves them out", () => {
+    expect(configFromEnv(env).privy).toBeUndefined();
+    expect(configFromEnv({ ...env, FACE_PRIVY: "0" }).privy).toBeUndefined();
+    const privy = configFromEnv({ ...env, FACE_PRIVY: "1" });
+    expect(privy.privy).toBe(true);
+    expect(cspFor(privy)).toContain("frame-src https://auth.privy.io;");
+    expect(cspFor(privy)).toContain("https://auth.privy.io https://*.rpc.privy.systems;");
+    expect(cspFor(configFromEnv(env))).not.toContain("privy");
+    expect(() => configFromEnv({ ...env, FACE_PRIVY: "yes" })).toThrow("FACE_PRIVY");
+  });
 });
 
 describe("compression and caches", () => {

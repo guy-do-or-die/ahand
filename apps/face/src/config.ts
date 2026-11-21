@@ -17,6 +17,9 @@ import { getAddress, isAddress, type Address } from "viem";
  * into the CSP's connect-src beside FACE_RPC; without them the app's delivery would be blocked
  * by face's own header (ARCHITECTURE §11 lists "<relay urls>" there).
  *
+ * And FACE_PRIVY, "1" when the app's configuration has email sign-in through Privy: the CSP then
+ * names Privy's frame and API (headers.ts PRIVY_SOURCES), as the app's own meta tag does.
+ *
  * Nothing here is a secret: face holds no key.
  */
 export interface FaceConfig {
@@ -28,6 +31,8 @@ export interface FaceConfig {
   canonical?: Address;
   site: string;
   relays: string[];
+  /** The app signs in by email through Privy: the CSP names Privy's sources. */
+  privy?: boolean;
 }
 
 function list(value: string | undefined): string[] {
@@ -71,6 +76,8 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
   const canonicalText = env.FACE_CANONICAL?.trim();
   const canonical = canonicalText ? address(canonicalText, "FACE_CANONICAL") : undefined;
   if (canonical && !trusted.includes(canonical)) throw new Error("FACE_CANONICAL is not among FACE_CORES");
+  const privy = env.FACE_PRIVY?.trim() ?? "";
+  if (privy !== "" && privy !== "0" && privy !== "1") throw new Error(`FACE_PRIVY: ${env.FACE_PRIVY} is not 0 or 1`);
   const relays = list(env.FACE_RELAYS);
   for (const relay of relays) {
     const url = new URL(relay);
@@ -85,5 +92,6 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     canonical,
     site: origin(need("FACE_SITE"), "FACE_SITE"),
     relays,
+    ...(privy === "1" ? { privy: true } : {}),
   };
 }

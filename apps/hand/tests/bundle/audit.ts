@@ -8,15 +8,24 @@
  *    the configuration is not local (ARCHITECTURE §7: local builds only);
  *  - an HTML page of the main build without the CSP `<meta>` tag.
  *
+ * Privy's SDK (email, wallet/privy-host.tsx) is the one third-party library whose text names many
+ * other services (wallet apps, WalletConnect, explorers). When the configuration has `privy`, the
+ * chunks only privy-host-*.js reaches, and that no page loads before email is picked
+ * (`privySdkFiles`), are listed as Privy's and their addresses are not findings: at run time the
+ * CSP lets that code reach Privy's sign-in frame and API only. Every chunk a page loads without
+ * email is audited as before, and a build without `privy` may carry no Privy chunk at all.
+ *
  *   bun apps/hand/tests/bundle/audit.ts <dist folder> <config.json>
  *
  * Exit 0 when clean; otherwise it prints each finding and exits 1. Only addresses are printed.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { bytesToHex } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+
+import { PRIVY_CSP } from "../../csp.ts";
 
 /** anvil's public test mnemonic (the dev wallet's, local builds only). */
 export const ANVIL_MNEMONIC = "test test test test test test test test test test test junk";
@@ -57,6 +66,42 @@ export interface AuditConfig {
   chain: { rpcUrls: string[]; local: boolean };
   relays: string[];
   site: string;
+  /** Email through Privy: Privy's own chunks are listed, not audited for addresses. */
+  privy?: unknown;
+}
+
+/** What the built JavaScript imports: `from"./x.js"`, `import"./x.js"`, `import("./x.js")`, `` import(`./x.js`) ``. */
+const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)["'`]\.\/([A-Za-z0-9_.-]+\.js)["'`]/g;
+/** The scripts an HTML page loads or preloads. */
+const PAGE_SCRIPT = /(?:src|href)="\/?assets\/([A-Za-z0-9_.-]+\.js)"/g;
+const PRIVY_HOST = /^privy-host-[A-Za-z0-9_-]+\.js$/;
+
+/**
+ * The chunks of Privy's SDK in a built folder: everything privy-host-*.js imports, at any depth,
+ * that the pages do not reach without it. Preload lists (`__vite__mapDeps`, written as
+ * "assets/…") are not imports and are not followed, so naming a chunk there does not make it the app's.
+ */
+export function privySdkFiles(folder: string): Set<string> {
+  const assets = join(folder, "assets");
+  if (!existsSync(assets)) return new Set();
+  const names = readdirSync(assets).filter((name) => name.endsWith(".js"));
+  const imports = new Map(names.map((name) => [name, [...readFileSync(join(assets, name), "utf8").matchAll(IMPORT)].map((m) => m[1]!)]));
+  const reach = (roots: string[], skip: (name: string) => boolean) => {
+    const seen = new Set<string>();
+    const queue = roots.filter((name) => imports.has(name) && !skip(name));
+    while (queue.length > 0) {
+      const name = queue.pop()!;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      for (const next of imports.get(name) ?? []) if (imports.has(next) && !skip(next) && !seen.has(next)) queue.push(next);
+    }
+    return seen;
+  };
+  const pages = readdirSync(folder).filter((name) => name.endsWith(".html"));
+  const roots = pages.flatMap((page) => [...readFileSync(join(folder, page), "utf8").matchAll(PAGE_SCRIPT)].map((m) => m[1]!));
+  const app = reach(roots, (name) => PRIVY_HOST.test(name));
+  const privy = reach(names.filter((name) => PRIVY_HOST.test(name)), () => false);
+  return new Set([...privy].filter((name) => !app.has(name)).map((name) => `assets/${name}`));
 }
 
 export interface Finding {
@@ -80,10 +125,14 @@ const TEXT = /\.(html|js|mjs|css|json|svg|txt|webmanifest)$/;
 const ADDRESS = /\b(?:https?|wss?):\/\/[A-Za-z0-9.-]+(?::\d+)?/g;
 
 export function audit(folder: string, config: AuditConfig): { findings: Finding[]; seen: Map<string, Set<string>> } {
-  const allowed = new Set([...config.chain.rpcUrls, ...config.relays, config.site].map((url) => new URL(url).origin));
+  // With email, Privy's API is the app's too: the CSP (and so the meta tag) names it.
+  const privyOrigins = config.privy ? [...PRIVY_CSP.frame, ...PRIVY_CSP.connect].filter((source) => !source.includes("*")) : [];
+  const allowed = new Set([...config.chain.rpcUrls, ...config.relays, config.site, ...privyOrigins].map((url) => new URL(url).origin));
   const keys = config.chain.local ? [] : anvilKeys();
   const findings: Finding[] = [];
   const seen = new Map<string, Set<string>>();
+  const privySdk = privySdkFiles(folder);
+  if (!config.privy) for (const file of privySdk) findings.push({ file, what: "Privy's SDK in a build without privy" });
   for (const path of filesOf(folder)) {
     const file = relative(folder, path);
     if (!config.chain.local && LOCAL_ONLY.test(file)) findings.push({ file, what: "a local-only file in a build that is not local" });
@@ -99,6 +148,7 @@ export function audit(folder: string, config: AuditConfig): { findings: Finding[
       if (!seen.has(origin)) seen.set(origin, new Set());
       seen.get(origin)!.add(file);
       if (allowed.has(origin) || origin in LIBRARY_TEXT) continue;
+      if (config.privy && privySdk.has(file)) continue;
       if (file === "exit.html" && `${origin}:`.startsWith(EXIT_LOCAL_HINT)) continue;
       findings.push({ file, what: `an address that is not the configured RPC, relay or site: ${origin}` });
     }
@@ -124,9 +174,11 @@ if (import.meta.main) {
   }
   const config = JSON.parse(readFileSync(configPath, "utf8")) as AuditConfig;
   const { findings, seen } = audit(folder, config);
-  console.log(`addresses in ${folder} (local build: ${config.chain.local}):`);
+  const privySdk = privySdkFiles(folder);
+  console.log(`addresses in ${folder} (local build: ${config.chain.local}${config.privy ? `, Privy's SDK in ${privySdk.size} chunks` : ""}):`);
   for (const [origin, files] of [...seen].sort()) {
-    const why = LIBRARY_TEXT[origin] ?? (origin.startsWith("http://127.0.0.1") && !config.chain.rpcUrls.some((url) => url.startsWith(origin)) ? "exit.html's local server hint" : "configured");
+    const onlyPrivy = [...files].every((file) => privySdk.has(file));
+    const why = LIBRARY_TEXT[origin] ?? (onlyPrivy ? "Privy's SDK text (the CSP lets it reach auth.privy.io only)" : origin.startsWith("http://127.0.0.1") && !config.chain.rpcUrls.some((url) => url.startsWith(origin)) ? "exit.html's local server hint" : "configured");
     console.log(`  ${origin.padEnd(36)} ${why} · ${[...files].join(", ")}`);
   }
   for (const finding of findings) console.log(`FINDING ${finding.file}: ${finding.what}`);

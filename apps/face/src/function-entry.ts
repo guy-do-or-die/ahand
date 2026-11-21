@@ -9,7 +9,8 @@ import { faceFunction } from "./function.ts";
  * which apps/web/api/face.mjs re-exports). Beside the bundle the build puts:
  *
  *   face.json    face's settings as FACE_* names (config.ts), from the public configuration:
- *                FACE_RPC, FACE_CHAIN, FACE_CORES, FACE_CANONICAL, FACE_RELAYS, FACE_SITE
+ *                FACE_RPC, FACE_CHAIN, FACE_CORES, FACE_CANONICAL, FACE_RELAYS, FACE_SITE,
+ *                and FACE_PRIVY when the app signs in by email through Privy
  *   index.html   the built app's index.html, byte for byte the one Vercel serves as a file
  *   fonts/, og/  og.tsx's fonts and lockup (it reads them beside itself)
  *   node_modules/@resvg/…   resvg's JavaScript and its prebuilt binary for this platform

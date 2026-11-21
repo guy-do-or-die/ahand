@@ -11,6 +11,10 @@ export class ConfigError extends Error {
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const HASH = /^0x[0-9a-fA-F]{64}$/;
+/** A Privy app id as the dashboard shows it, e.g. "clt69jwp204btq1o3q72cupji". */
+const PRIVY_APP_ID = /^[a-z0-9]{16,40}$/;
+/** An allowed site address as Privy's dashboard lists it: https, a host, and at most a leading "*." wildcard. */
+const PRIVY_ORIGIN = /^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
 type Json = Record<string, unknown>;
 
@@ -140,10 +144,27 @@ export function parseConfig(input: unknown): AppConfig {
           }),
         }),
     ...(root.previews === undefined ? {} : { previews: boolean(root.previews, "previews") }),
+    ...(root.privy === undefined || root.privy === null
+      ? {}
+      : (() => {
+          const p = object(root.privy, "privy");
+          const appId = string(p.appId, "privy.appId");
+          if (!PRIVY_APP_ID.test(appId)) throw new ConfigError("privy.appId must be a Privy app id (letters and digits, as the Privy dashboard shows it)");
+          if (p.origins === undefined) return { privy: { appId } };
+          if (!Array.isArray(p.origins)) throw new ConfigError("privy.origins must be a list of site addresses");
+          const origins = p.origins.map((o, i) => {
+            const at = `privy.origins[${i}]`;
+            const origin = string(o, at);
+            if (!PRIVY_ORIGIN.test(origin)) throw new ConfigError(`${at} must be an https origin, with at most a leading *. before its host, as the Privy dashboard lists it`);
+            return origin;
+          });
+          return { privy: { appId, origins } };
+        })()),
   };
 
   const localProblem = localChainProblem(config.chain);
   if (localProblem) throw new ConfigError(localProblem);
+  if (config.privy && config.chain.local) throw new ConfigError("privy belongs to a public network: Privy's wallets cannot reach a local chain");
   if (config.faucets?.length && !(config.chain.testnet ?? config.chain.local)) throw new ConfigError("faucets belong to a test network: set chain.testnet");
   if (config.chain.rpcUrls.length === 0) throw new ConfigError("chain.rpcUrls must name at least one RPC");
   if (!config.cores.trusted.some((t) => t.chainId === chainId)) throw new ConfigError("cores.trusted must name a Core on chain.id");

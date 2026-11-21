@@ -7,6 +7,7 @@ import { config as app } from "../config";
 import { chainOf } from "../chain/clients";
 import { walletConfig } from "./config";
 import { FALLBACK_ID } from "./fallback";
+import { PRIVY_TYPE, privyUnavailable } from "./privy";
 import type { DevRole, DevWho } from "./dev";
 import { unknownNetwork } from "./errors";
 import { safeIcon } from "./icons";
@@ -34,6 +35,11 @@ export interface WalletState {
   onChain: boolean;
   /** False for an account that cannot send (the dev wallet's "not set up yet"). */
   canSend: boolean;
+  /**
+   * An email account (Privy): it confirms on this page with no window of its own, so whatever it
+   * confirms must stand on the app's own screen in both views.
+   */
+  email?: boolean;
 }
 
 export interface WalletOption {
@@ -42,7 +48,8 @@ export interface WalletOption {
   name: string;
   /** A `data:` image, or none. */
   icon?: string;
-  kind: "found" | "dev";
+  /** "email": Privy (wallet/privy.ts), offered only when the configuration has `privy`. */
+  kind: "found" | "dev" | "email";
   /** `window.ethereum`, offered only when no wallet announced itself (wallet/config.ts). */
   fallback?: boolean;
   devRole?: DevRole;
@@ -65,6 +72,7 @@ function emit(next: Snapshot): void {
 
 function optionOf(connector: Connector): WalletOption {
   const dev = connector.type === "dev";
+  if (connector.type === PRIVY_TYPE) return { id: connector.id, name: connector.name, kind: "email" };
   const extra = connector as unknown as { devRole?: DevRole; devWho?: DevWho };
   const icon = dev ? undefined : safeIcon(connector.icon);
   return {
@@ -91,6 +99,7 @@ function read(config: Config): Snapshot {
     ...(connection.chainId !== undefined ? { chainId: connection.chainId } : {}),
     ...(connector ? { connectorId: connector.id, name: connector.name } : {}),
     ...(extra?.devRole ? { devRole: extra.devRole } : {}),
+    ...(connector?.type === PRIVY_TYPE ? { email: true } : {}),
   };
   return { state, options: getConnectors(config).map(optionOf) };
 }
@@ -117,14 +126,15 @@ export function useWallet(): WalletState {
   return useSyncExternalStore(subscribe, () => snapshot.state);
 }
 
-/** What "Connect a wallet" offers: wallets this browser announced, then the dev accounts (local only). */
+/** What "Connect a wallet" offers: email (when configured), wallets this browser announced, then the dev accounts (local only). */
 export function useWalletOptions(): WalletOption[] {
   return useSyncExternalStore(subscribe, () => snapshot.options);
 }
 
 export { foundOptions } from "./fallback";
 
-export type ConnectOutcome = { ok: true; address: Address } | { ok: false; reason: "refused" | "failed" | "unknown-network" };
+/** "unavailable": email through Privy could not be reached (the browser's wallets still work). */
+export type ConnectOutcome = { ok: true; address: Address } | { ok: false; reason: "refused" | "failed" | "unknown-network" | "unavailable" };
 
 function said(error: unknown, code: number): boolean {
   let node: unknown = error;
@@ -148,6 +158,7 @@ export async function connectWallet(id: string): Promise<ConnectOutcome> {
     const result = await connect(config, { connector, chainId: app.chain.id });
     return { ok: true, address: result.accounts[0]! };
   } catch (error) {
+    if (privyUnavailable(error)) return { ok: false, reason: "unavailable" };
     if (unknownNetwork(error)) return { ok: false, reason: "unknown-network" };
     return { ok: false, reason: said(error, 4001) ? "refused" : "failed" };
   }

@@ -12,7 +12,7 @@ import { isolate } from "../../face/src/bidi.ts";
 import { faceFunction, type FunctionConfig } from "../../face/src/function.ts";
 import { metaOf, pngSize, raiseHand, send, unescape, USD, type RaiseOptions } from "../../face/tests/hands.ts";
 import { connectSourcesOf, contentSecurityPolicy, inlineScriptHashes as staticHashes } from "../../../infra/stand/static.ts";
-import { appHeaders } from "../csp.ts";
+import { appCsp, appHeaders, PRIVY_CSP } from "../csp.ts";
 import {
   APP_PATHS,
   buildApp,
@@ -55,6 +55,8 @@ const dist = join(scratch, "dist");
 const configFile = writePublicConfig(join(scratch, "config"));
 const config = JSON.parse(readFileSync(configFile, "utf8"));
 const vercel = JSON.parse(readFileSync(VERCEL_JSON, "utf8"));
+/** The app's headers for the public configuration: its RPC and relays, and Privy (email), which it has. */
+const appOf = () => appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays, privy: true });
 
 beforeAll(() => {
   buildApp(configFile, dist, join(scratch, "vite"));
@@ -119,8 +121,9 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
   test("an app page carries the headers the stand's static server sends for this configuration", () => {
     const connect = connectSourcesOf(config);
     expect(readFileSync(join(dist, "index.html"), "utf8").match(/<script\b(?![^>]*\bsrc=)[^>]*>[^<]/g)).toBeNull();
-    const app = appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays });
-    expect(app["Content-Security-Policy"]).toBe(contentSecurityPolicy(connect));
+    // The stand's server has no Privy: without it, the policy is the stand's word for word.
+    expect(appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays })["Content-Security-Policy"]).toBe(contentSecurityPolicy(connect));
+    const app = appOf();
     for (const path of ["/", "/raise", "/84532/12/proof", "/84532/0x65ac707e2ae7392583de5d6192c619f1d8862309/12/proof", "/84532/abc", "/0x65ac707e2ae7392583de5d6192c619f1d8862309/12", "/84532/12/", "/my", "/my/84532/3", "/pass", "/give", "/thank", "/waiting", "/check", "/core", "/care/84532/1", "/print", "/limits", "/defaults", "/without-us", "/nowhere/at/all"]) {
       const answer = serve(path);
       expect({ path, status: answer.status, file: answer.file }).toEqual({ path, status: 200, file: join(dist, "index.html") });
@@ -134,6 +137,44 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     expect(answer.file).toBe(join(dist, "exit.html"));
     expect(answer.headers["Content-Security-Policy"]).toBe(contentSecurityPolicy(connectSourcesOf(config), { inline: staticHashes(html), anyRpc: true }));
     expect(answer.headers["Referrer-Policy"]).toBe("no-referrer");
+  });
+
+  test("email through Privy: the app's pages name Privy's frame and API and nothing else of it; exit.html and the stand never do", () => {
+    expect(config.privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji", origins: ["https://ahand.in", "https://*.ahand.in"] });
+    const page = serve("/raise").headers["Content-Security-Policy"]!;
+    const plain = appCsp({ rpcUrls: config.chain.rpcUrls, relays: config.relays }, "header");
+    // Exactly two directives more, and connect-src longer by Privy's API and RPC; every other directive as before.
+    expect(page).toBe(
+      plain
+        .replace(/connect-src ([^;]*)/, (_all, list: string) => `connect-src ${list} https://auth.privy.io https://*.rpc.privy.systems; frame-src https://auth.privy.io; child-src https://auth.privy.io`),
+    );
+    expect(PRIVY_CSP).toEqual({ frame: ["https://auth.privy.io"], connect: ["https://auth.privy.io", "https://*.rpc.privy.systems"] });
+    // No script, style, image or worker from Privy: its code ships in the app's own files.
+    expect(page).toContain("script-src 'self';");
+    expect(page).toContain("worker-src 'none'");
+    expect(page).toContain("img-src 'self' data:;");
+    // The built page's meta tag says the same (without frame-ancestors, which only works as a header).
+    const meta = readFileSync(join(dist, "index.html"), "utf8").match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/)![1]!.replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+    expect(meta).toBe(page.replace("; frame-ancestors 'none'", ""));
+    // A Hand's address (face's function) carries the same policy as any other page.
+    expect(serve("/84532/12").headers["Content-Security-Policy"]).toBe(page);
+    // exit.html is the reader's own way out: no sign-in, so nothing of Privy, in its policy or its code.
+    const exit = serve("/exit.html").headers["Content-Security-Policy"]!;
+    expect(exit).not.toContain("privy");
+    expect(exit).not.toContain("frame-src");
+    expect(readFileSync(join(dist, "exit.html"), "utf8")).not.toContain("auth.privy.io");
+    // Without privy in the configuration, nothing of Privy anywhere in vercel.json.
+    const off = JSON.stringify(vercelJson({ ...config, privy: undefined }, readFileSync(join(dist, "exit.html"), "utf8")));
+    expect(off).not.toContain("privy");
+  });
+
+  test("Privy's SDK is not on a page's first load: index.html loads none of it, the email connector loads it on first use", () => {
+    const index = readFileSync(join(dist, "index.html"), "utf8");
+    const loaded = [...index.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => match[1]!);
+    expect(loaded.length).toBeGreaterThan(0);
+    for (const name of loaded) expect({ name, privy: readFileSync(join(dist, "assets", name), "utf8").includes("auth.privy.io") }).toEqual({ name, privy: false });
+    const host = readdirSync(join(dist, "assets")).filter((name) => /^privy-host-.*\.js$/.test(name));
+    expect(host.length).toBe(1);
   });
 
   test("files stay files; a missing file is a 404, never the index", () => {
@@ -197,7 +238,7 @@ describe("link previews: a Hand's address and its card reach face's Vercel Funct
   });
 
   test("Vercel's route compiler sends Hands' addresses and cards to the function, with the app's headers; everything else stays as before", () => {
-    const app = appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays });
+    const app = appOf();
     for (const path of [...HANDS, ...CARDS]) {
       const answer = serve(path);
       expect({ path, status: answer.status, fn: answer.fn }).toEqual({ path, status: 200, fn: true });
@@ -244,7 +285,7 @@ describe("face's Vercel Function, called with Requests as Vercel's Node.js runti
     index = readFileSync(join(dist, "index.html"), "utf8");
     // Face reads the test chain through its client; everything else is the public configuration's,
     // so the CSP it writes is the one vercel.json sends for the same path.
-    const fn: FunctionConfig = { rpc: config.chain.rpcUrls[0], chainId: chain.chainId, trusted: [chain.core], canonical: chain.core, relays: config.relays };
+    const fn: FunctionConfig = { rpc: config.chain.rpcUrls[0], chainId: chain.chainId, trusted: [chain.core], canonical: chain.core, relays: config.relays, privy: true };
     handle = faceFunction(fn, index, { client: chain.client, previewTtlMs: 0 });
   }, 60_000);
 
@@ -385,7 +426,7 @@ describe("face's Vercel Function, called with Requests as Vercel's Node.js runti
       const page = await call(path);
       expect(page.status).toBe(200);
       expect(page.text).toBe(index);
-      expect(page.header("content-security-policy")).toBe(appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays })["Content-Security-Policy"]);
+      expect(page.header("content-security-policy")).toBe(appOf()["Content-Security-Policy"]);
     }
   });
 });
@@ -404,6 +445,7 @@ describe("the function as Vercel puts it together: the build's folder, traced, a
       FACE_CANONICAL: config.cores.canonical,
       FACE_RELAYS: config.relays.join(","),
       FACE_SITE: config.site,
+      FACE_PRIVY: "1",
     });
 
     // What @vercel/node does: trace the entry from the repository's root (ts, mixed modules), then add includeFiles.
@@ -436,6 +478,6 @@ describe("the function as Vercel puts it together: the build's folder, traced, a
     expect(out.card.bytes).toBeGreaterThan(10_000);
     expect(out.page.status).toBe(200);
     expect(out.page.text).toBe(readFileSync(join(dist, "index.html"), "utf8"));
-    expect(out.page.csp).toBe(appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays })["Content-Security-Policy"]);
+    expect(out.page.csp).toBe(appOf()["Content-Security-Policy"]);
   }, 120_000);
 });

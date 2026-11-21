@@ -14,7 +14,16 @@ import type { FaceConfig } from "./config.ts";
  * served, so exactly the shipped code runs and nothing injected does; and exit.html, which takes
  * any RPC address its reader types, may connect to any https address and to this machine, and
  * may load the fonts it carries inside itself as data: URLs (a font cannot send anything anywhere).
+ *
+ * With `privy` (the app signs in by email through Privy) the app's pages also name Privy's sign-in
+ * frame and its API (`PRIVY_SOURCES`, the same as apps/hand/csp.ts); exit.html never does.
  */
+
+/** What email sign-in through Privy needs beyond the app's own policy (apps/hand/csp.ts PRIVY_CSP holds the same). */
+export const PRIVY_SOURCES = {
+  frame: ["https://auth.privy.io"],
+  connect: ["https://auth.privy.io", "https://*.rpc.privy.systems"],
+} as const;
 
 /** A CSP source for a URL: its origin (scheme, host, port). */
 const sourceOf = (url: string): string => new URL(url).origin;
@@ -31,8 +40,9 @@ export function inlineScriptHashes(html: string): string[] {
   return hashes;
 }
 
-export function cspFor(config: Pick<FaceConfig, "rpc" | "relays">, page: { inline?: string[]; anyRpc?: boolean } = {}): string {
-  const connect = ["'self'", sourceOf(config.rpc), ...config.relays.map(sourceOf)];
+export function cspFor(config: Pick<FaceConfig, "rpc" | "relays" | "privy">, page: { inline?: string[]; anyRpc?: boolean } = {}): string {
+  const privy = config.privy === true && !page.anyRpc;
+  const connect = ["'self'", sourceOf(config.rpc), ...config.relays.map(sourceOf), ...(privy ? PRIVY_SOURCES.connect : [])];
   if (page.anyRpc) connect.push("https:", "http://127.0.0.1:*", "http://localhost:*");
   const script = ["'self'", ...(page.inline ?? [])];
   return [
@@ -42,6 +52,7 @@ export function cspFor(config: Pick<FaceConfig, "rpc" | "relays">, page: { inlin
     "img-src 'self' data:",
     page.anyRpc ? "font-src 'self' data:" : "font-src 'self'",
     `connect-src ${[...new Set(connect)].join(" ")}`,
+    ...(privy ? [`frame-src ${PRIVY_SOURCES.frame.join(" ")}`, `child-src ${PRIVY_SOURCES.frame.join(" ")}`] : []),
     "worker-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",

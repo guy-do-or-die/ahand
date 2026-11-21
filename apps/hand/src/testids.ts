@@ -425,6 +425,7 @@ export const TID = {
     connect: "connect-wallet",
     connected: "wallet-connected", // data-value: the connected address
     devAccount: "dev-account", // + "-<n>" | "-not-set-up" (tests/e2e/lib/accounts.ts)
+    email: "connect-email", // email through Privy, in a build whose configuration has `privy`
   },
 
   /** The shared kit (ui/), wherever a screen mounts it. */
