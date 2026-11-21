@@ -20,8 +20,47 @@ import { getAddress, isAddress, type Address } from "viem";
  * And FACE_PRIVY, "1" when the app's configuration logs in through Privy: the CSP then
  * names Privy's and WalletConnect's sources (headers.ts PRIVY_SOURCES), as the app's own meta tag does.
  *
+ * And FACE_TOKENS, the tokens the app's configuration lists, comma-separated, each
+ * `<address>:<decimals>:<symbol>`, with `:$` after a dollar token (`faceTokensOf` writes it from the
+ * app's token list). A reward is written as an amount only in a listed token, and in dollars only
+ * in a listed dollar token. Face never reads `symbol()` or `decimals()` from a token: a token
+ * anyone can deploy names itself whatever it likes ("USDC") and could revert to send face to a
+ * URL of its choosing (CCIP-Read).
+ *
  * Nothing here is a secret: face holds no key.
  */
+/** A token the app's configuration lists: what face may say about an amount in it. */
+export interface ListedToken {
+  address: Address;
+  decimals: number;
+  /** As the configuration writes it: 1 to 12 of A-Z a-z 0-9 . - */
+  symbol: string;
+  /** A dollar token: its amounts are written "$40". */
+  dollar: boolean;
+}
+
+/** The token kinds of the app's configuration (apps/hand/src/config/schema.ts) that are dollars. */
+export const DOLLAR_KINDS: readonly string[] = ["usd", "usdc", "blacklist"];
+
+const SYMBOL = /^[A-Za-z0-9.-]{1,12}$/;
+
+/** FACE_TOKENS for the app's token list. */
+export function faceTokensOf(tokens: readonly { address: string; decimals: number; symbol: string; kind: string }[]): string {
+  return tokens.map((t) => `${t.address}:${t.decimals}:${t.symbol}${DOLLAR_KINDS.includes(t.kind) ? ":$" : ""}`).join(",");
+}
+
+/** Reads FACE_TOKENS; throws a plain sentence for the first entry that is wrong. */
+export function tokensOf(value: string | undefined): ListedToken[] {
+  return list(value).map((entry) => {
+    const [at, decimalsText, symbol, mark, ...rest] = entry.split(":");
+    const decimals = Number(decimalsText);
+    if (rest.length > 0 || (mark !== undefined && mark !== "$")) throw new Error(`FACE_TOKENS: ${entry} is not <address>:<decimals>:<symbol>[:$]`);
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) throw new Error(`FACE_TOKENS: ${entry} has no decimals from 0 to 36`);
+    if (!symbol || !SYMBOL.test(symbol)) throw new Error(`FACE_TOKENS: ${entry} has no symbol of 1 to 12 letters, digits, dots or hyphens`);
+    return { address: address(at ?? "", "FACE_TOKENS"), decimals, symbol, dollar: mark === "$" };
+  });
+}
+
 export interface FaceConfig {
   port: number;
   dist: string;
@@ -33,6 +72,8 @@ export interface FaceConfig {
   relays: string[];
   /** The app logs in through Privy: the CSP names Privy's sources. */
   privy?: boolean;
+  /** The tokens the app lists (FACE_TOKENS); an amount in any other token is not written. */
+  tokens: ListedToken[];
 }
 
 function list(value: string | undefined): string[] {
@@ -92,6 +133,7 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     canonical,
     site: origin(need("FACE_SITE"), "FACE_SITE"),
     relays,
+    tokens: tokensOf(env.FACE_TOKENS),
     ...(privy === "1" ? { privy: true } : {}),
   };
 }

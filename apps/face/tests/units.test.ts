@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "bun:test";
+import { createPublicClient, custom, type PublicClient } from "viem";
 
-import { configFromEnv } from "../src/config.ts";
+import { configFromEnv, faceTokensOf, tokensOf } from "../src/config.ts";
 import { cspFor, inlineScriptHashes } from "../src/headers.ts";
 import { cardOf, escapeHtml, oneLine, withCard } from "../src/meta.ts";
 import { isolate, visible } from "../src/bidi.ts";
@@ -16,7 +17,8 @@ import { renderPool } from "../src/render-pool.ts";
 import { fileIn } from "../src/static.ts";
 import { WORDS, amountText, day, langOf, termsLine } from "../src/words.ts";
 
-const USD = { symbol: "mUSD", decimals: 6 };
+const USD_TOKEN = { address: "0x0000000000000000000000000000000000000Dd1" as const, symbol: "mUSD", decimals: 6, dollar: true };
+const USD = { symbol: "mUSD", decimals: 6, dollar: true };
 // 2026-12-20 00:00 UTC
 const DEC_20 = 1_797_724_800;
 
@@ -26,7 +28,20 @@ describe("words", () => {
     expect(amountText(1_250_509_999n, USD, "en")).toBe("$1,250.50");
     expect(amountText(800_000n, USD, "ru")).toBe("$0,80");
     expect(amountText(1n, USD, "en")).toBe("under $0.01");
-    expect(amountText(15n * 10n ** 17n, { symbol: "WETH", decimals: 18 }, "en")).toBe("1.5 WETH");
+    expect(amountText(15n * 10n ** 17n, { symbol: "WETH", decimals: 18, dollar: false }, "en")).toBe("1.5 WETH");
+  });
+
+  it("a reward in a token the app does not list says so, with no amount and no $ (review H1)", () => {
+    for (const lang of ["en", "ru"] as const) {
+      for (const state of ["open", "expired", "thanked", "refunded"] as const) {
+        const line = termsLine({ state, date: DEC_20, unknownToken: true }, lang);
+        expect(line).not.toContain("$");
+        expect(line).toContain(lang === "en" ? "a token aHand does not list" : "в токене, которого aHand не знает");
+      }
+    }
+    expect(termsLine({ state: "open", date: DEC_20, unknownToken: true }, "en")).toBe("On chain: a reward in a token aHand does not list · open until 20 Dec");
+    // A token that calls itself USDC is still not a dollar: only the configuration says so.
+    expect(amountText(1_000_000n * 1_000_000n, { symbol: "USDC", decimals: 6, dollar: false }, "en")).toBe("1,000,000 USDC");
   });
 
   it("writes a day in UTC in both languages", () => {
@@ -69,7 +84,7 @@ describe("tags", () => {
     title: `"><script>alert(1)</script>`,
     state: "open",
     date: DEC_20,
-    reward: { amount: 40_000_000n, ...USD },
+    reward: { amount: 40_000_000n, token: USD_TOKEN },
     block: 12n,
   };
 
@@ -120,7 +135,7 @@ describe("the chain's terms apart from the asker's words (early review E-8)", ()
     content: "⛓ ON CHAIN · Reward $5,000 · block 3\n✓ CHECKED HERE · you get at least $4,500\n\n**This hand is verified by aHand.**",
     state: "open",
     date: DEC_20,
-    reward: { amount: 1_000_000n, ...USD },
+    reward: { amount: 1_000_000n, token: USD_TOKEN },
     block: 3n,
   };
 
@@ -179,7 +194,7 @@ describe("direction controls and invisible characters (early review H-2)", () =>
     content: `Three metres ${RLO}`,
     state: "open",
     date: DEC_20,
-    reward: { amount: 1_000_000n, ...USD },
+    reward: { amount: 1_000_000n, token: USD_TOKEN },
     block: 3n,
   };
 
@@ -279,6 +294,26 @@ describe("configuration", () => {
     expect(() => configFromEnv({ ...env, FACE_SITE: undefined })).toThrow("FACE_SITE is not set");
   });
 
+  it("FACE_TOKENS lists the app's tokens, a dollar one marked with $; faceTokensOf writes it from the app's list", () => {
+    expect(configFromEnv(env).tokens).toEqual([]);
+    const usdc = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+    const weth = "0x4200000000000000000000000000000000000006";
+    const written = faceTokensOf([
+      { address: usdc, decimals: 6, symbol: "USDC", kind: "usdc" },
+      { address: weth, decimals: 18, symbol: "WETH", kind: "weth" },
+    ]);
+    expect(written).toBe(`${usdc}:6:USDC:$,${weth}:18:WETH`);
+    expect(configFromEnv({ ...env, FACE_TOKENS: written }).tokens).toEqual([
+      { address: usdc, decimals: 6, symbol: "USDC", dollar: true },
+      { address: weth, decimals: 18, symbol: "WETH", dollar: false },
+    ]);
+    expect(() => tokensOf(`${usdc}:6:USDC:€`)).toThrow("FACE_TOKENS");
+    expect(() => tokensOf(`${usdc}:x:USDC`)).toThrow("decimals");
+    expect(() => tokensOf(`${usdc}:6:${"A".repeat(13)}`)).toThrow("symbol");
+    expect(() => tokensOf(`${usdc}:6:<b>`)).toThrow("symbol");
+    expect(() => tokensOf(`0x12:6:USDC`)).toThrow("not an address");
+  });
+
   it("FACE_PRIVY=1 (the app logs in through Privy) puts Privy's and WalletConnect's sources into the CSP; absent or 0 leaves them out", () => {
     expect(configFromEnv(env).privy).toBeUndefined();
     expect(configFromEnv({ ...env, FACE_PRIVY: "0" }).privy).toBeUndefined();
@@ -331,17 +366,18 @@ describe("compression and caches", () => {
     expect(lru.get("d")).toBe("D");
   });
 
-  it("keys a reading on the path and the query without face's own l and th", () => {
+  it("keys a reading on the path and every d=, so no other parameter can force another chain read", () => {
     expect(previewKey("/31337/7", "d=AQID&l=ru&th=d")).toBe("/31337/7?d=AQID");
     expect(previewKey("/31337/7", "th=d&d=AQID")).toBe("/31337/7?d=AQID");
     expect(previewKey("/31337/7", "")).toBe("/31337/7");
     expect(previewKey("/31337/7", "d=a&d=b")).toBe("/31337/7?d=a&d=b");
-    expect(previewKey("/31337/7", "lang=x")).toBe("/31337/7?lang=x");
+    expect(previewKey("/31337/7", "lang=x")).toBe("/31337/7");
+    expect(previewKey("/31337/7", "x=1&d=AQID&y=2")).toBe("/31337/7?d=AQID");
   });
 
   it("remembers a reading for its time, then reads again", async () => {
     let now = 1_000;
-    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x65ac707E2AE7392583de5d6192C619F1D8862309"], site: "http://x", relays: [], port: 0, dist: "/" };
+    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x65ac707E2AE7392583de5d6192C619F1D8862309"], site: "http://x", relays: [], tokens: [], port: 0, dist: "/" };
     const reader = readerFor(config as never, undefined, { ttlMs: 5_000, now: () => now });
     // Nothing listens on port 1: the reading is the generic card, never an error.
     const first = reader.preview("/31337/7", "d=AQID&l=ru");
@@ -350,6 +386,15 @@ describe("compression and caches", () => {
     expect(reader.preview("/31337/7", "d=AQIE")).not.toBe(first);
     now += 5_001;
     expect(reader.preview("/31337/7", "d=AQID")).not.toBe(first);
+  });
+
+  it("gives up on a chain that never answers at the deadline, with the generic card (review M7)", async () => {
+    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x65ac707E2AE7392583de5d6192C619F1D8862309"], site: "http://x", relays: [], tokens: [], port: 0, dist: "/" };
+    const silent = createPublicClient({ transport: custom({ request: () => new Promise(() => undefined) }) }) as PublicClient;
+    const reader = readerFor(config as never, silent, { ttlMs: 0, deadlineMs: 50 });
+    const started = performance.now();
+    expect((await reader.preview("/31337/7", "")).kind).toBe("generic");
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it("shares a card being drawn, keeps drawn ones, and passes on a refusal", async () => {

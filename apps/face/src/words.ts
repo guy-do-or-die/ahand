@@ -27,11 +27,13 @@ export function unitsText(amount: bigint, decimals: number): string {
 }
 
 /**
- * The reward as people read it. A dollar token reads "$40" or "$0.80" ("$0,80" in Russian), cents
- * cut and never rounded up, as the app writes money; any other token reads "40 WETH".
+ * The reward as people read it, in a token the app lists (config.ts ListedToken). A dollar token
+ * reads "$40" or "$0.80" ("$0,80" in Russian), cents cut and never rounded up, as the app writes
+ * money; any other listed token reads "40 WETH". Whether a token is a dollar is the
+ * configuration's word, never the token's own `symbol()`: a token anyone deploys can call itself "USDC".
  */
-export function amountText(amount: bigint, token: { symbol: string; decimals: number }, lang: Lang): string {
-  if (!/usd/i.test(token.symbol)) {
+export function amountText(amount: bigint, token: { symbol: string; decimals: number; dollar: boolean }, lang: Lang): string {
+  if (!token.dollar) {
     const [whole, fraction] = unitsText(amount, token.decimals).split(".");
     const grouped = new Intl.NumberFormat(LOCALE[lang], { maximumFractionDigits: 0 }).format(BigInt(whole!));
     const point = lang === "ru" ? "," : ".";
@@ -52,6 +54,8 @@ export type CardState = "open" | "expired" | "thanked" | "refunded";
 export interface Terms {
   state: CardState;
   amount?: string;
+  /** A reward in a token the app does not list: no amount is written, and no "$". */
+  unknownToken?: boolean;
   /** The expiry, or the closing time for a closed Hand: a block's timestamp. */
   date: number;
 }
@@ -87,8 +91,21 @@ export const WORDS: Record<Lang, Words> = {
     closed: "this hand is closed",
     cta: "see how you can help →",
     siteName: "aHand",
-    terms({ state, amount, date }) {
+    terms({ state, amount, unknownToken, date }) {
       const d = day(date, "en");
+      if (!amount && unknownToken) {
+        const reward = "a reward in a token aHand does not list";
+        switch (state) {
+          case "open":
+            return { before: `On chain: ${reward} · open until ${d}`, after: "" };
+          case "expired":
+            return { before: `On chain: ${reward} · time's up on ${d}`, after: "" };
+          case "thanked":
+            return { before: `Thanked on ${d} · ${reward}`, after: "" };
+          case "refunded":
+            return { before: `Closed on ${d} · ${reward} went back`, after: "" };
+        }
+      }
       switch (state) {
         case "open":
           return amount
@@ -122,8 +139,21 @@ export const WORDS: Record<Lang, Words> = {
     closed: "эта рука закрыта",
     cta: "посмотри, чем помочь →",
     siteName: "aHand",
-    terms({ state, amount, date }) {
+    terms({ state, amount, unknownToken, date }) {
       const d = day(date, "ru");
+      if (!amount && unknownToken) {
+        const reward = "награда в токене, которого aHand не знает";
+        switch (state) {
+          case "open":
+            return { before: `В сети ${reward} · открыта до ${d}`, after: "" };
+          case "expired":
+            return { before: `В сети ${reward} · срок вышел ${d}`, after: "" };
+          case "thanked":
+            return { before: `Поблагодарили ${d} · ${reward}`, after: "" };
+          case "refunded":
+            return { before: `Закрыта ${d} · ${reward} вернулась автору`, after: "" };
+        }
+      }
       switch (state) {
         case "open":
           return amount

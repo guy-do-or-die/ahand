@@ -270,7 +270,10 @@ function Card({ model }: { model: CardModel }) {
 /** The card as SVG, then PNG at 1200×630. */
 export async function renderCard(model: CardModel): Promise<Uint8Array> {
   const svg = await satori(<Card model={model} />, { width: WIDTH, height: HEIGHT, fonts: fontsOnce() });
-  const png = new Resvg(svg, { fitTo: { mode: "width", value: WIDTH } }).render().asPng();
+  // satori has already turned every glyph into a path, so resvg needs no font. Left to itself it
+  // loads every font of the machine for each card: on a host with a few thousand fonts that was
+  // ~130 ms of a ~140 ms render. Off, a card takes ~11 ms, with the same bytes on any host.
+  const png = new Resvg(svg, { fitTo: { mode: "width", value: WIDTH }, font: { loadSystemFonts: false } }).render().asPng();
   return new Uint8Array(png);
 }
 

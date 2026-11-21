@@ -41,6 +41,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { parseDeployment } from "@ahand/abi";
 
 import { buildRecord } from "../../tools/manifest.ts";
+import { faceTokensOf } from "../face/src/config.ts";
 import { appCsp, appHeaders, type CspSources } from "./csp.ts";
 
 export const HAND_DIR = import.meta.dirname;
@@ -77,6 +78,8 @@ interface PublicConfig {
   cores: { trusted: { chainId: number; core: string }[]; canonical?: string };
   relays: string[];
   site: string;
+  /** The tokens the app lists; face writes an amount only in one of them. */
+  tokens: { address: string; decimals: number; symbol: string; kind: string }[];
   previews?: boolean;
   /** Email sign-in through Privy: the app's pages name Privy's sources in their CSP, exit.html never. */
   privy?: { appId: string } | null;
@@ -241,7 +244,8 @@ export function buildApp(configFile: string, outDir: string, cacheDir?: string):
 /**
  * Face's settings for the function, as the FACE_* names of apps/face/src/config.ts: the
  * configuration's one RPC (face's CSP names only that one, so the page's header stays the static
- * one), the chain, the Cores it trusts on that chain, the canonical Core and the relays, and
+ * one), the chain, the Cores it trusts on that chain, the canonical Core, the relays, the listed
+ * tokens (face writes an amount only in one of them, and "$" only in a dollar one), and
  * FACE_PRIVY when the app signs in by email through Privy (face's CSP then names Privy, as the page's meta tag does).
  */
 export function faceEnvOf(config: PublicConfig): Record<string, string> {
@@ -255,6 +259,7 @@ export function faceEnvOf(config: PublicConfig): Record<string, string> {
     FACE_CANONICAL: config.cores.canonical ?? "",
     FACE_RELAYS: config.relays.join(","),
     FACE_SITE: config.site,
+    FACE_TOKENS: faceTokensOf(config.tokens),
     ...(privyOn(config) ? { FACE_PRIVY: "1" } : {}),
   };
 }

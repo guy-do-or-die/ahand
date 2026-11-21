@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { parseDeployment } from "@ahand/abi";
 import { getContractAddress } from "viem";
 
+import { faceTokensOf } from "../../apps/face/src/config.ts";
 import type { AppConfig } from "../../apps/hand/src/config/schema.ts";
 import { buildRecord } from "../../tools/manifest.ts";
 import { forge, foundryPath } from "./foundry.ts";
@@ -561,6 +562,8 @@ async function startFace(slot: number): Promise<{ ok: true } | { ok: false; why:
       FACE_SITE: siteUrl(ports),
       // Not among §14's names, but face reads it: the relays go into its CSP's connect-src.
       FACE_RELAYS: (config?.relays ?? [stand.relay]).join(","),
+      // The tokens the app lists: face writes an amount only in one of them.
+      FACE_TOKENS: faceTokensOf(config?.tokens ?? stand.tokens),
     },
   });
   try {

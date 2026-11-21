@@ -14,7 +14,7 @@ import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 
 import { isolate } from "../src/bidi.ts";
 import { USD, metaOf, pngSize, raiseHand, send as sendFrom, unescape, type RaiseOptions } from "./hands.ts";
-import type { FaceConfig } from "../src/config.ts";
+import { faceTokensOf, tokensOf, type FaceConfig } from "../src/config.ts";
 import { createFace, type FaceOptions } from "../src/server.ts";
 
 /**
@@ -83,6 +83,7 @@ beforeAll(async () => {
     canonical: chain.core,
     site: SITE,
     relays: ["ws://127.0.0.1:18547"],
+    tokens: tokensOf(faceTokensOf(chain.tokens)),
   };
   face = createFace(config, { log: (line) => logs.push(line), previewTtlMs: TTL });
   await new Promise<void>((done) => face.listen(PORT, "127.0.0.1", done));
@@ -304,7 +305,7 @@ function raw(port: number, path: string, headers: Record<string, string> = {}) {
 
 async function startFace(config: Partial<FaceConfig> & { port: number }, options: FaceOptions = {}) {
   const server = createFace(
-    { dist, rpc: chain.rpc, chainId: chain.chainId, trusted: [chain.core], canonical: chain.core, site: `http://127.0.0.1:${config.port}`, relays: [], ...config },
+    { dist, rpc: chain.rpc, chainId: chain.chainId, trusted: [chain.core], canonical: chain.core, site: `http://127.0.0.1:${config.port}`, relays: [], tokens: tokensOf(faceTokensOf(chain.tokens)), ...config },
     { log: () => undefined, ...options },
   );
   await new Promise<void>((done) => server.listen(config.port, "127.0.0.1", done));
@@ -453,12 +454,13 @@ describe("under a burst of cold cards", () => {
 
   it("reads the chain once for a page, its card and the card in other themes and languages", async () => {
     const { before } = await raise({ mode: "unlisted", title: "Read once", reward: 4n * USD });
-    let calls = 0;
+    const seen: string[] = [];
     const counting = createPublicClient({
       chain: foundry,
       transport: custom({
         request: (args: { method: string; params?: unknown }) => {
-          calls++;
+          const to = ((args.params as [{ to?: string }] | undefined)?.[0]?.to ?? "").toLowerCase();
+          seen.push(`${args.method}${to ? ` ${to}` : ""}`);
           return (chain.client.request as (a: unknown) => Promise<unknown>)(args);
         },
       }),
@@ -468,12 +470,38 @@ describe("under a burst of cold cards", () => {
     try {
       const card = `/og${before.replace("?", ".png?")}`;
       expect(metaOf((await raw(port, before)).body.toString("utf8"), "og:title")).toBe("\u2068Read once\u2069"); // the asker's words isolated (H-2)
-      const once = calls;
-      expect(once).toBeGreaterThan(0);
-      await Promise.all([raw(port, before), raw(port, `${before}&l=ru`), raw(port, card), raw(port, `${card}&th=d`), raw(port, `${card}&l=ru`)]);
-      expect(calls).toBe(once);
+      // One reading of an open Hand: hands(id) once and the latest block, nothing from the token
+      // (its facts are FACE_TOKENS'), so no contract but Core is ever called (review M7).
+      expect(seen.toSorted()).toEqual([`eth_call ${chain.core.toLowerCase()}`, "eth_getBlockByNumber"]);
+      await Promise.all([
+        raw(port, before),
+        raw(port, `${before}&l=ru`),
+        raw(port, `${before}&x=1`), // a parameter that is not d does not force a new reading
+        raw(port, card),
+        raw(port, `${card}&th=d`),
+        raw(port, `${card}&l=ru`),
+      ]);
+      expect(seen.length).toBe(2);
     } finally {
       await counted.stop();
+    }
+  }, 30_000);
+
+  it("a reward in a token the app does not list is never written as an amount or in dollars (review H1)", async () => {
+    // The same test dollar, but this face lists no token: it stands for any token anyone can
+    // deploy and name "USDC".
+    const { before } = await raise({ mode: "unlisted", title: "Unknown money", reward: 7n * USD });
+    const port = FACE_BASE + 6;
+    const unlisted = await startFace({ port, tokens: [] }, { previewTtlMs: 0 });
+    try {
+      const page = (await raw(port, before)).body.toString("utf8");
+      const description = metaOf(page, "og:description")!;
+      expect(description).toContain("a reward in a token aHand does not list");
+      expect(description).not.toContain("$");
+      const png = await raw(port, `/og${before.replace("?", ".png?")}`);
+      expect(png.status).toBe(200);
+    } finally {
+      await unlisted.stop();
     }
   }, 30_000);
 });
@@ -499,6 +527,7 @@ describe("face as its own program", () => {
         FACE_CORES: chain.core,
         FACE_CANONICAL: chain.core,
         FACE_SITE: `http://127.0.0.1:${PROCESS_PORT}`,
+        FACE_TOKENS: faceTokensOf(chain.tokens),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

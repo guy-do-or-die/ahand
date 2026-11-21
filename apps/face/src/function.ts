@@ -33,7 +33,7 @@ import { langOf, type Lang } from "./words.ts";
  *   - when anything goes wrong on a page, the answer is index.html as built: the app still opens.
  */
 
-export type FunctionConfig = Pick<FaceConfig, "rpc" | "chainId" | "trusted" | "canonical" | "relays" | "privy">;
+export type FunctionConfig = Pick<FaceConfig, "rpc" | "chainId" | "trusted" | "canonical" | "relays" | "privy" | "tokens">;
 
 export interface FunctionOptions {
   /** A client of the chain to read instead of one over `config.rpc` (tests). */

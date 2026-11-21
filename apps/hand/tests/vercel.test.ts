@@ -9,6 +9,7 @@ import { fromBase64Url, refundCall, toText } from "@ahand/sdk";
 import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 
 import { isolate } from "../../face/src/bidi.ts";
+import { faceTokensOf, tokensOf } from "../../face/src/config.ts";
 import { faceFunction, type FunctionConfig } from "../../face/src/function.ts";
 import { metaOf, pngSize, raiseHand, send, unescape, USD, type RaiseOptions } from "../../face/tests/hands.ts";
 import { connectSourcesOf, contentSecurityPolicy, inlineScriptHashes as staticHashes } from "../../../infra/stand/static.ts";
@@ -294,7 +295,7 @@ describe("face's Vercel Function, called with Requests as Vercel's Node.js runti
     index = readFileSync(join(dist, "index.html"), "utf8");
     // Face reads the test chain through its client; everything else is the public configuration's,
     // so the CSP it writes is the one vercel.json sends for the same path.
-    const fn: FunctionConfig = { rpc: config.chain.rpcUrls[0], chainId: chain.chainId, trusted: [chain.core], canonical: chain.core, relays: config.relays, privy: true };
+    const fn: FunctionConfig = { rpc: config.chain.rpcUrls[0], chainId: chain.chainId, trusted: [chain.core], canonical: chain.core, relays: config.relays, privy: true, tokens: tokensOf(faceTokensOf(chain.tokens)) };
     handle = faceFunction(fn, index, { client: chain.client, previewTtlMs: 0 });
   }, 60_000);
 
@@ -454,6 +455,8 @@ describe("the function as Vercel puts it together: the build's folder, traced, a
       FACE_CANONICAL: config.cores.canonical,
       FACE_RELAYS: config.relays.join(","),
       FACE_SITE: config.site,
+      // Test USDC, the one token the public configuration lists, as a dollar token (review H1).
+      FACE_TOKENS: "0x036CbD53842c5426634e7929541eC2318f3dCF7e:6:USDC:$",
       FACE_PRIVY: "1",
     });
 
