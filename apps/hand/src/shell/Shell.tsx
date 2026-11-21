@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useEffect, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, type ReactNode } from "react";
 
 import { config, TESTNET } from "../config";
 import { LANGS, setLang, t, useLang, type Lang } from "../i18n";
@@ -11,8 +11,8 @@ import { toggleLens, useLens } from "./lens";
 
 /**
  * The frame every screen is mounted in (UX-SPEC §6): the header (the local ribbon, then lockup
- * and EN · RU), the screen, and the footer (the line to /core, the three honest links, then the
- * lens and the theme switch side by side).
+ * and EN · RU), the screen, and the footer (under the lens only, Core's address linking to /core;
+ * then the three honest links, and the lens and the theme switch side by side).
  */
 
 const MONO = "font-[family-name:var(--font-meta)] uppercase tracking-[var(--track-mono-sm)]";
@@ -63,12 +63,17 @@ function LangSwitch() {
 }
 
 /**
- * The lens switch, beside the theme switch and drawn like it: 44px high, a 16px ink glyph, no
- * emoji (those are kept for the gestures), and one short word beside the glyph, since its hint
- * is a tooltip a phone never shows. Off, the screens speak plainly; on, the proof stands under
- * every sentence. Pressed, it sits on an amber fill with an ink rim, so on and off differ by
- * more than colour; its name says what it does in both languages, and the hint names the `?`
- * key that flips it too.
+ * The lens switch, beside the theme switch and drawn exactly like it (ui/ThemeToggle.tsx): a bare
+ * 16px ink glyph in a 44×44 box, no word, no rim, no fill, no padding, the same colour and cursor.
+ * The owner on 2026-11-21: «ты можешь еще переверстать саму кнопку, чтоб аккуратно было, как
+ * переключение темы?» ("can you redo the button itself so it is neat, like the theme switch?").
+ * The first build had the word "Proof" beside the glyph and an amber fill when pressed.
+ *
+ * No emoji (those are kept for the gestures). On and off differ by shape, not only by colour, the
+ * way the theme glyph turns: off, an outline magnifier; on, the same magnifier with its lens
+ * filled. With no word shown, the name carries what it does in both languages (`aria-label`),
+ * `aria-pressed` says whether it is on, and the hint (a tooltip, `title`) names the `?` key that
+ * flips it too.
  */
 function LensToggle() {
   const on = useLens();
@@ -81,16 +86,23 @@ function LensToggle() {
       aria-keyshortcuts="?"
       data-testid={TID.shell.lens}
       onClick={toggleLens}
-      className={`flex h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--r-control)] border-[1.5px] border-solid px-2 text-[length:var(--fs-body-sm)] font-semibold text-ink ${
-        on ? "border-ink bg-amber" : "border-transparent bg-transparent"
-      }`}
-      style={on ? { color: "var(--on-amber)" } : undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: 44,
+        height: 44,
+        padding: 0,
+        background: "none",
+        border: 0,
+        cursor: "pointer",
+        color: "var(--ink)",
+      }}
     >
       <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="8.5" cy="8.5" r="6" fill={on ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />
         <path d="M13 13 L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
-      <span aria-hidden="true">{t("common.lensWord")}</span>
     </button>
   );
 }
@@ -121,54 +133,46 @@ export function Header() {
 }
 
 /**
- * The footer's mono line. Each "·"-separated part stays on one line, and the Core address keeps
- * its case (mono is exact data; the style sets the rest in capitals). The calm view leaves the
- * address out and keeps the three facts, "unaudited" first: that one is a warning.
+ * The footer's one mono line, under the lens only: "Core 0x65ac…2309", a quiet link to /core. The
+ * address keeps its case (mono is exact data; the style sets the rest in capitals).
+ *
+ * The first build's line was "Unaudited · Core {core} · No owner · No fee" (the calm view without
+ * the address). The owner on 2026-11-21: «и заодним другой мусор из подвала убрать про контракт
+ * (можно под лупой оставить, но тож хз), no audit (мы, что, этим типа гордимся?), no owner, no
+ * fees... нахуя это там?» ("and while at it take the other junk about the contract out of the
+ * footer (it can stay under the lens, but I'm not sure either), no audit (what, are we proud of
+ * that?), no owner, no fees... why is that there?"). So the three facts are gone from both views
+ * and only Core's address stays, under the lens. The warning is not lost: /limits ends with
+ * "Unaudited" in full (`limits.unaudited.say`), and /core says it again (`core.unaudited`).
  */
 function CoreLine({ core }: { core: string }) {
   const MARK = "\u0000";
-  const lens = useLens();
+  const [before = "", after = ""] = t("common.lens.core", { core: MARK }).split(MARK);
   return (
-    <>
-      {(lens ? t("common.footer", { core: MARK }) : t("common.footer.calm"))
-        .split(" · ")
-        .map((part, i) => {
-          const [before = "", after] = part.split(MARK);
-          return (
-            <Fragment key={i}>
-              {i > 0 ? " · " : ""}
-              <span className="whitespace-nowrap">
-              {before}
-              {after === undefined ? null : (
-                <>
-                  <span className="normal-case">{shortAddress(core)}</span>
-                  {after}
-                </>
-              )}
-              </span>
-            </Fragment>
-          );
-        })}
-    </>
+    <span className="whitespace-nowrap">
+      {before}
+      <span className="normal-case">{shortAddress(core)}</span>
+      {after}
+    </span>
   );
 }
 
 export function Footer() {
   const core = config.cores.canonical ?? config.cores.trusted.find((c) => c.chainId === config.chain.id)!.core;
   const link = "inline-flex min-h-11 items-center text-ink/70 underline decoration-ink/30 decoration-dashed decoration-[1.5px] underline-offset-[5px] hover:text-ink";
-  // The line names Core's address only under the lens, and only then speaks in Core's mono capitals.
+  // Core's line is the lens's alone: off the lens the footer is the three links and the two switches.
   const lens = useLens();
   return (
     <footer data-testid={TID.shell.footer} className="mt-10 border-t border-solid border-ink/10 px-4 pb-6 pt-4 sm:px-6 md:px-10">
-      <a
-        href="/core"
-        data-testid={TID.shell.footerCore}
-        className={`${lens ? `${MONO} text-[length:var(--fs-mono-sm)]` : "text-[length:var(--fs-body-sm)]"} inline-flex min-h-11 items-center leading-[1.6] text-ink/60 no-underline hover:text-ink`}
-      >
-        <span>
+      {lens ? (
+        <a
+          href="/core"
+          data-testid={TID.shell.footerCore}
+          className={`${MONO} inline-flex min-h-11 items-center text-[length:var(--fs-mono-sm)] leading-[1.6] text-ink/60 no-underline hover:text-ink`}
+        >
           <CoreLine core={core} />
-        </span>
-      </a>
+        </a>
+      ) : null}
       <div className="flex items-center gap-x-5">
         <nav aria-label={t("common.footer.nav")} className="flex flex-1 flex-wrap gap-x-5 text-[length:var(--fs-body-sm)]">
           <a href="/limits" data-testid={TID.shell.footerLimits} className={link}>

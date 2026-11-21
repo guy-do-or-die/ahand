@@ -120,7 +120,7 @@ export function useLang(): Lang {
   return useSyncExternalStore(subscribe, currentLang, currentLang);
 }
 
-/** Translate: t("raise.title"), t("common.footer", { core }). */
+/** Translate: t("raise.title"), t("common.lens.core", { core }). */
 export function t(id: string, values?: Record<string, unknown>): string {
   return i18n._(id, values);
 }

@@ -15,8 +15,10 @@ import { SRC } from "./files";
  *
  * The specialist layer is exempt from the banned words: keys with a `lens` segment
  * (`common.lens.cap`, `proof.lens.gas`), where Core's own names stand in mono, and the local-only
- * dev wallet page. Allowed phrases: "Connect a wallet" / «Подключить кошелёк» anywhere; "No fee"
- * / «Без комиссии» in the footer line; "safe" / «в безопасности» only on /waiting (PLAN, feat-waiting).
+ * dev wallet page. Allowed phrases: "Connect a wallet" / «Подключить кошелёк» anywhere; "safe" /
+ * «в безопасности» only on /waiting (PLAN, feat-waiting). The footer's "No fee" / «Без комиссии»
+ * was allowed too until the owner had the footer's line taken out on 2026-11-21 ("no fees...
+ * нахуя это там?"); with it went its allowance, so "fee" is banned on the whole human layer.
  */
 
 interface Place {
@@ -70,7 +72,6 @@ const BANNED_RU: [string, RegExp][] = [
 
 const ALWAYS_ALLOWED = [/connect a wallet/gi, /подключить кошел[её]к/gi];
 const ALLOWED_BY_KEY: [RegExp, RegExp[]][] = [
-  [/^common\.footer(\.calm)?$/, [/\bno fee\b/gi, /без комиссии/gi]],
   [/^waiting\./, [/\bsafe\b/gi, /в безопасности/gi]],
 ];
 
@@ -161,7 +162,9 @@ describe("words: two languages, one key set, no banned word", () => {
     expect(bannedIn("raise.x", "Design a signal", "en")).toEqual([]);
     expect(bannedIn("raise.x", "Connect a wallet", "en")).toEqual([]);
     expect(bannedIn("raise.x", "your wallet", "en")).toEqual(["wallet"]);
-    expect(bannedIn("common.footer", "Unaudited · No fee", "en")).toEqual([]);
+    // The footer's line is gone (2026-11-21), and its "No fee" allowance with it.
+    expect(bannedIn("common.footer", "Unaudited · No fee", "en")).toEqual(["fee"]);
+    expect(bannedIn("common.footer", "Без комиссии", "ru")).toEqual(["комиссия"]);
     expect(bannedIn("raise.x", "It is safe", "en")).toEqual(["safe"]);
     expect(bannedIn("waiting.safe", "Your money is safe where it is.", "en")).toEqual([]);
     expect(bannedIn("raise.x", "Подпиши транзакцию", "ru")).toEqual(["транзакция", "подпись"]);

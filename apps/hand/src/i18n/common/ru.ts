@@ -11,8 +11,6 @@ const ru: Record<keyof typeof en, string> = {
   "common.chain.31337": "Локальная тестовая сеть",
   "common.chain.84532": "Base Sepolia (тестовая сеть)",
   "common.chain.8453": "Base",
-  "common.footer": "Без аудита · Core {core} · Без владельца · Без комиссии",
-  "common.footer.calm": "Без аудита · Без владельца · Без комиссии",
   "common.footer.limits": "Чего aHand не обещает",
   "common.footer.withoutUs": "Сделать без нас",
   "common.footer.defaults": "Об этих настройках",
@@ -21,7 +19,6 @@ const ru: Record<keyof typeof en, string> = {
   "common.language.en": "English",
   "common.language.ru": "Русский",
   "common.lensToggle": "Показать доказательства",
-  "common.lensWord": "Доказательства",
   "common.lensHint": "Доказательства: откуда взялась каждая цифра — для тех, кто хочет проверить. Клавиша ? тоже их показывает и прячет.",
   "common.theme": "Сменить тему",
   "common.home": "aHand: на главную",
@@ -107,6 +104,7 @@ const ru: Record<keyof typeof en, string> = {
   "common.lens.networkTime": "Время сети · Блок {block} · {time}",
   "common.lens.cap": "Предел 180 д · минус 10 мин, чтобы не опоздать",
   "common.lens.deviceTime": "Впервые на этом устройстве {time}",
+  "common.lens.core": "Core {core}",
 
   // ── Общие строки ошибок ───────────────────────────────────────────────
   "common.error.offline": "Сеть сейчас недоступна. Ничего не отправлено.",

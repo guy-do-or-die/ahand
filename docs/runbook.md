@@ -55,4 +55,4 @@ If the reward's token stops moving or changes its rules after rewards are locked
 
 ## Tell people
 
-The footer of every screen says `UNAUDITED · CORE 0x… · NO OWNER · NO FEE`. [limits](limits.md) is the list to link to.
+The footer no longer says `UNAUDITED · CORE 0x… · NO OWNER · NO FEE`: the owner had that line taken out on 2026-11-21 («no audit (мы, что, этим типа гордимся?), no owner, no fees... нахуя это там?», [app](app.md)). The footer is the three links and the lens and theme switches; under the lens only, `CORE 0x…` links to /core. "Unaudited" is said in full at the end of /limits (`limits.unaudited.say`) and on /core; `exit.html` still carries the old line. [limits](limits.md) is the list to link to.

@@ -21,8 +21,6 @@ const en = {
   "common.chain.31337": "Local test network",
   "common.chain.84532": "Base Sepolia (test network)",
   "common.chain.8453": "Base",
-  "common.footer": "Unaudited · Core {core} · No owner · No fee",
-  "common.footer.calm": "Unaudited · No owner · No fee",
   "common.footer.limits": "What it can't promise",
   "common.footer.withoutUs": "Do it without us",
   "common.footer.defaults": "About these defaults",
@@ -31,7 +29,6 @@ const en = {
   "common.language.en": "English",
   "common.language.ru": "Русский",
   "common.lensToggle": "Show the proof",
-  "common.lensWord": "Proof",
   "common.lensHint": "The proof: where each figure comes from, for whoever wants to check. The ? key shows and hides it too.",
   "common.theme": "Switch theme",
   "common.home": "aHand: back to the start",
@@ -117,6 +114,9 @@ const en = {
   "common.lens.networkTime": "Network time · Block {block} · {time}",
   "common.lens.cap": "Cap 180 d · less 10 min, so it can't arrive too late",
   "common.lens.deviceTime": "First seen on this device {time}",
+  // The footer's line under the lens only (shell/Shell.tsx CoreLine, the owner's 2026-11-21 decision);
+  // "Unaudited" lives in full on /limits (limits.unaudited.say) and /core.
+  "common.lens.core": "Core {core}",
 
   // ── Shared error lines (UX-SPEC §6, §12) ───────────────────────────────
   "common.error.offline": "Can't reach the network right now. Nothing was sent.",

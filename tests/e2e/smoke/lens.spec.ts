@@ -48,13 +48,14 @@ test("a Hand opens calm: plain words and the actions, none of the chain's machin
   for (const evidence of EVIDENCE) expect(text).not.toMatch(evidence);
   // The rail names people in words and nothing on it turns over.
   await expect(page.getByTestId("twist-flip")).toHaveCount(0);
-  // The footer keeps "unaudited" and leaves the contract's address to the lens.
-  const footer = page.getByTestId("shell-footer-core");
-  await expect(footer).toContainText(/unaudited/i);
-  await expect(footer).not.toContainText(/0x/);
+  // The footer has no Core line and none of the old "Unaudited · No owner · No fee" (the owner,
+  // 2026-11-21: «no audit (мы, что, этим типа гордимся?), no owner, no fees... нахуя это там?»).
+  // "Unaudited" is said in full on /limits.
+  await expect(page.getByTestId("shell-footer-core")).toHaveCount(0);
+  await expect(page.getByTestId("shell-footer")).not.toContainText(/unaudited|no owner|no fee|0x/i);
 });
 
-test("the lens switch stands beside the theme switch, drawn alike, and names what it does", async ({ page }) => {
+test("the lens switch stands beside the theme switch, drawn alike (a bare glyph, no word), and names what it does", async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
   const lens = page.getByTestId("shell-lens");
   const theme = page.getByTestId("shell-theme").getByRole("button");
@@ -64,9 +65,20 @@ test("the lens switch stands beside the theme switch, drawn alike, and names wha
   await expect(lens).toHaveAttribute("aria-pressed", "false");
   await expect(lens).toHaveAttribute("aria-keyshortcuts", "?");
   await expect(lens).toHaveAttribute("title", /\?/);
+  // The owner, 2026-11-21: «переверстать саму кнопку, чтоб аккуратно было, как переключение темы».
+  expect((await lens.innerText()).trim()).toBe("");
+  const look = (button: typeof lens) =>
+    button.evaluate((node) => {
+      const css = getComputedStyle(node);
+      return { border: css.borderTopWidth, background: css.backgroundColor, padding: css.paddingLeft, color: css.color, cursor: css.cursor };
+    });
+  expect(await look(lens)).toEqual(await look(theme));
+  // Off, the magnifier's lens is an outline; on, it is filled: a change of shape, not only of colour.
+  await expect(lens.locator("circle")).toHaveAttribute("fill", "none");
   const [a, b] = [await lens.boundingBox(), await theme.boundingBox()];
   expect(a && b).toBeTruthy();
   expect(Math.round(a!.height)).toBe(Math.round(b!.height));
+  expect(Math.round(a!.width)).toBe(Math.round(b!.width));
   expect(Math.abs(a!.y - b!.y)).toBeLessThan(2);
   expect(Math.abs(a!.x + a!.width - b!.x)).toBeLessThan(12);
 });
@@ -80,7 +92,12 @@ test("the lens shows the evidence where it stood, stays on after a reload, and ?
   expect(text).toMatch(/hands\(\d+\)\.reward = /);
   expect(text).toMatch(/On chain/i);
   expect(text).toMatch(SHORT);
-  await expect(page.getByTestId("shell-footer-core")).toContainText(/0x/);
+  await expect(page.getByTestId("shell-lens").locator("circle")).toHaveAttribute("fill", "currentColor");
+  // Under the lens the footer keeps one quiet line: Core's short address, linking to /core.
+  const core = page.getByTestId("shell-footer-core");
+  await expect(core).toHaveText(new RegExp(`^core ${SHORT.source}$`, "i"));
+  await expect(core).toHaveAttribute("href", "/core");
+  await expect(page.getByTestId("shell-footer")).not.toContainText(/unaudited|no owner|no fee/i);
   await expect(page.getByTestId("twist-flip").first()).toBeVisible();
 
   // Kept on this device: the next page opens with the lens on.
@@ -108,14 +125,16 @@ test("a closed Hand's receipt says who got what in words; the lens adds the addr
   await expect(page.getByTestId("hand-newer-count")).toBeVisible();
 });
 
-test("in Russian the switch says what it shows", async ({ browser }) => {
+test("in Russian the switch says what it shows, and the footer carries none of the old line", async ({ browser }) => {
   const context = await browser.newContext({ locale: "ru-RU" });
   try {
     await quiet(context, stand.site!);
     const page = await context.newPage();
     await page.goto("/", { waitUntil: "networkidle" });
     await expect(page.getByTestId("shell-lens")).toHaveAccessibleName("Показать доказательства");
-    await expect(page.getByTestId("shell-footer-core")).toContainText(/без аудита/i);
+    expect((await page.getByTestId("shell-lens").innerText()).trim()).toBe("");
+    await expect(page.getByTestId("shell-footer-core")).toHaveCount(0);
+    await expect(page.getByTestId("shell-footer")).not.toContainText(/без аудита|без владельца|без комиссии/i);
   } finally {
     await context.close();
   }

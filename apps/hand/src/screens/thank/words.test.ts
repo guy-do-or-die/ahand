@@ -5,7 +5,7 @@ import ru from "./ru";
 
 /**
  * The thank screen's own word rules, beside the app-wide words guard (tests/guards/words.test.ts).
- * The footer of every page says the contract has no owner, so no sentence here may speak of one:
+ * The contract has no owner (/limits and /core say so), so no sentence here may speak of one:
  * a payout that waits belongs to its payee, "whoever it belongs to".
  */
 describe("thank words", () => {
