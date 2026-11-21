@@ -1,7 +1,7 @@
 // The wallet layer (ARCHITECTURE §7): wagmi config, dev wallet (local builds only, loaded by
 // config.ts behind the build flag), ConnectSheet, useSend, useTypedSigner. Screens import only
 // from here and never call wagmi themselves. Nothing here exports or imports ./dev statically.
-export { ConnectButton, ConnectSheet, CONNECT_TID, devAccountTid, type ConnectSheetProps } from "./ConnectSheet";
+export { ConnectButton, ConnectSheet, CONNECT_TID, devAccountTid, LinkAgain, type ConnectSheetProps } from "./ConnectSheet";
 export { LOCAL, walletConfig, walletConfigOf } from "./config";
 export { safeIcon } from "./icons";
 export {
@@ -25,7 +25,9 @@ export {
   connectedWallet,
   connectWallet,
   disconnectWallet,
+  logIn,
   optionAddress,
+  restoreSession,
   switchToAppChain,
   useWallet,
   useWalletOptions,

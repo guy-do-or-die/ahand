@@ -22,19 +22,24 @@ describe("the app's CSP (ARCHITECTURE §11)", () => {
     expect(appCsp(sources, "meta")).toBe(face.replace("; frame-ancestors 'none'", ""));
   });
 
-  test("with Privy (email), the app and face add the same: Privy's frame, its API and RPC, nothing else", () => {
+  test("with Privy, the app and face add the same: Privy's frame, API and RPC, WalletConnect's verify frame, relay and wallet list, nothing else", () => {
     expect(PRIVY_SOURCES).toEqual(PRIVY_CSP);
     const privy = { ...sources, privy: true };
     expect(appCsp(privy)).toBe(
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; " +
-        "connect-src 'self' http://127.0.0.1:18555 ws://127.0.0.1:18557 https://auth.privy.io https://*.rpc.privy.systems; " +
-        "frame-src https://auth.privy.io; child-src https://auth.privy.io; worker-src 'none'; object-src 'none'; " +
-        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://explorer-api.walletconnect.com; font-src 'self'; " +
+        "connect-src 'self' http://127.0.0.1:18555 ws://127.0.0.1:18557 https://auth.privy.io https://*.rpc.privy.systems wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://explorer-api.walletconnect.com; " +
+        "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org; child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org; " +
+        "worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     );
     expect(cspFor({ rpc: sources.rpcUrls[0]!, relays: [...sources.relays], privy: true })).toBe(appCsp(privy, "header"));
     // A page with inline code (exit.html) never gets Privy, even when the app has it.
-    expect(cspFor({ rpc: sources.rpcUrls[0]!, relays: [], privy: true }, { anyRpc: true })).not.toContain("privy");
+    const exit = cspFor({ rpc: sources.rpcUrls[0]!, relays: [], privy: true }, { anyRpc: true });
+    expect(exit).not.toContain("privy");
+    expect(exit).not.toContain("walletconnect");
     expect(appCsp({ ...sources, privy: false })).toBe(appCsp(sources));
+    // Nothing Privy's page lists for parts this app leaves out: Coinbase's relay, Cloudflare, Telegram.
+    expect(appCsp(privy)).not.toMatch(/cloudflare|telegram|blob:/);
+    expect(appCsp(privy)).toContain("script-src 'self';");
   });
 
   test("the meta form leaves out frame-ancestors, which only works as a header", () => {

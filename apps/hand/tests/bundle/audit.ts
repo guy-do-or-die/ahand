@@ -66,8 +66,12 @@ export interface AuditConfig {
   chain: { rpcUrls: string[]; local: boolean };
   relays: string[];
   site: string;
-  /** Email through Privy: Privy's own chunks are listed, not audited for addresses. */
-  privy?: unknown;
+  /**
+   * Logging in through Privy: Privy's own chunks are listed, not audited for addresses, and the
+   * site addresses Privy's dashboard allows (`origins`, which the app only compares with its own
+   * address) are the configuration's own.
+   */
+  privy?: { appId?: string; origins?: string[] } | null;
 }
 
 /** What the built JavaScript imports: `from"./x.js"`, `import"./x.js"`, `import("./x.js")`, `` import(`./x.js`) ``. */
@@ -125,8 +129,8 @@ const TEXT = /\.(html|js|mjs|css|json|svg|txt|webmanifest)$/;
 const ADDRESS = /\b(?:https?|wss?):\/\/[A-Za-z0-9.-]+(?::\d+)?/g;
 
 export function audit(folder: string, config: AuditConfig): { findings: Finding[]; seen: Map<string, Set<string>> } {
-  // With email, Privy's API is the app's too: the CSP (and so the meta tag) names it.
-  const privyOrigins = config.privy ? [...PRIVY_CSP.frame, ...PRIVY_CSP.connect].filter((source) => !source.includes("*")) : [];
+  // With Privy, its sources are the app's too: the CSP (and so the meta tag) names them.
+  const privyOrigins = config.privy ? [...PRIVY_CSP.frame, ...PRIVY_CSP.connect, ...PRIVY_CSP.img, ...(config.privy.origins ?? [])].filter((source) => !source.includes("*")) : [];
   const allowed = new Set([...config.chain.rpcUrls, ...config.relays, config.site, ...privyOrigins].map((url) => new URL(url).origin));
   const keys = config.chain.local ? [] : anvilKeys();
   const findings: Finding[] = [];

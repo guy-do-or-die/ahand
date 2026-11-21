@@ -70,6 +70,7 @@ const ru: Record<keyof typeof en, string> = {
   "raise.swipe.noClock": "Сеть сейчас недоступна.",
   "raise.steps.label": "Шаги",
   "raise.steps.connect": "Подключить кошелёк",
+  "raise.steps.logIn": "Войти",
   "raise.steps.keys": "Твоя ссылка",
   "raise.steps.lock": "Положить награду",
   "raise.steps.allow": "1 из 2: разрешить",

@@ -9,6 +9,10 @@ import { startIntake } from "./link-intake";
 import { initLens, listenForLensKey } from "./shell/lens";
 import { applyTheme, watchTheme } from "./shell/theme";
 import { escrowStamps, loadPrefs, outboxStore, type Prefs } from "./store/db";
+import { privyMarked, privyReturning } from "./wallet/privy-mark";
+
+/** Set by the build from the configuration's `privy` (vite.config.ts); false or absent: nothing of Privy runs. */
+declare const __AHAND_PRIVY__: boolean | undefined;
 
 /**
  * Boot, in this order: take the link out of the address bar first (before anything waits), start
@@ -40,6 +44,23 @@ async function boot(): Promise<void> {
   );
   void resumeOutbox();
   void sweepCopies();
+  void restoreLogin();
+}
+
+/**
+ * A person who logged in through Privy on this browser stays logged in: with the mark of a session
+ * (wallet/privy-mark.ts) Privy loads once the page is idle and lets them back in without a window;
+ * coming back from a social login, at once. Without either, nothing of Privy loads here.
+ */
+async function restoreLogin(): Promise<void> {
+  if (typeof __AHAND_PRIVY__ !== "boolean" || !__AHAND_PRIVY__) return;
+  if (!privyMarked() && !privyReturning()) return;
+  try {
+    const { restoreSession } = await import("./wallet/state");
+    await restoreSession();
+  } catch {
+    // The code failed to load: the person presses "Log in" again.
+  }
 }
 
 /**

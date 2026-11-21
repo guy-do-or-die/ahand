@@ -9,8 +9,9 @@ import { privyAllowsOrigin, privyConnector, PrivyUnavailableError } from "./priv
  * The wagmi configuration (ARCHITECTURE §7 Wallets, D-29): the build's one chain, browser wallets
  * found by EIP-6963 announcements, the page's own `window.ethereum` as a fallback for an app's
  * browser that sets it without announcing (many phone wallets' built-in browsers; ConnectSheet
- * lists it only when nothing announced), email through Privy when the configuration has `privy`
- * (wallet/privy.ts; its SDK loads only when email is picked), and in local builds the dev wallet. Nothing is persisted:
+ * lists it only when nothing announced), logging in through Privy when the configuration has `privy`
+ * (wallet/privy.ts; its SDK loads on the first "Log in", or on idle for a returning person), and in
+ * local builds the dev wallet. Nothing of wagmi's is persisted:
  * `storage: null`, so no wallet state is written to this device's storage (ARCHITECTURE §11);
  * after a reload the person connects again (a sent action is still followed: `useSend.resume`
  * needs only its stored hash and the RPC).
@@ -48,7 +49,7 @@ declare const __AHAND_LOCAL__: boolean | undefined;
 export const LOCAL: boolean = typeof __AHAND_LOCAL__ === "boolean" ? __AHAND_LOCAL__ : app.chain.local;
 
 /**
- * Set by the build from the configuration's `privy`: with false, the email connector's import
+ * Set by the build from the configuration's `privy`: with false, the Privy connector's import
  * below is dead code, and Privy's SDK (wallet/privy-host.tsx and everything under it) is never emitted.
  */
 declare const __AHAND_PRIVY__: boolean | undefined;
@@ -61,9 +62,9 @@ export function walletConfig(): Promise<Config> {
   made ??= (async () => {
     const dev = LOCAL ? (await import("./dev")).devConnectors(app) : [];
     // The SDK's import stays inside this branch, so a build without Privy drops it and its chunks.
-    // On a site address Privy's dashboard does not allow, its email window would still open and
-    // fail only after the person typed their email: say at once that email can't be reached here.
-    const email =
+    // On a site address Privy's dashboard does not allow, its window would still open and fail
+    // only after the person typed their email: say at once that logging in can't be reached here.
+    const privy =
       PRIVY && app.privy
         ? [
             privyConnector(app.privy, app.chain, async (settings, chain) => {
@@ -72,7 +73,7 @@ export function walletConfig(): Promise<Config> {
             }),
           ]
         : [];
-    return walletConfigOf(app.chain, [...dev, ...email, browserFallback()]);
+    return walletConfigOf(app.chain, [...dev, ...privy, browserFallback()]);
   })();
   return made;
 }

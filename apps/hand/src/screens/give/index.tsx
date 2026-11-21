@@ -29,7 +29,7 @@ import {
   type DealDescription,
   type Landing,
 } from "../../ui";
-import { ConnectSheet, switchToAppChain, useTypedSigner, useWallet } from "../../wallet";
+import { ConnectSheet, LinkAgain, switchToAppChain, useTypedSigner, useWallet } from "../../wallet";
 import { answerLink, confirmWithAccount, confirmWithKey, confirmWithWallet, type AnswerOutcome, type AnswerStep, type Confirm } from "./answer";
 import { relayCount, retryNow, sendToInbox, useEntry, useMyAnswers } from "./deliver";
 import { claimAmount, claimText, deliveryState, keyFileOf, MAX_WORDS, onAppChain, shareText, signatureKind, wordsOf } from "./flow";
@@ -92,6 +92,7 @@ export default function GiveScreen() {
       <Frame>
         <Title />
         <p className="m-0">{t("give.noLink")}</p>
+        <LinkAgain />
       </Frame>
     );
   }
@@ -375,7 +376,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
           purpose="give"
           {...(account ? { account } : {})}
           onConnect={() => setConnecting(true)}
-          email={config.privy !== undefined}
+          logIn={config.privy !== undefined}
           ctx={ctx}
           initialAddress={picker.initial}
           onChange={setLanding}
@@ -449,7 +450,7 @@ function AgreeCard({
   decimals: number;
   noReward: boolean;
   lang: "en" | "ru";
-  /** The connected account is an email account (Privy), which shows no window of its own. */
+  /** The connected account is a wallet Privy keeps (email, social, passkey), which shows no window of its own. */
   email: boolean;
 }) {
   const core = opened.domain.verifyingContract;

@@ -49,7 +49,7 @@ export function UnlockBar({ account }: { account: Address | undefined }) {
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const place = keysPlace();
   if (!place) return null;
-  if (!account) return <Line>{t("my.unlock.connect")}</Line>;
+  if (!account) return <Line>{t(config.privy ? "my.unlock.logIn" : "my.unlock.connect")}</Line>;
   const unlocked = unlockedFor(place.chainId, place.core, account);
   if (unlocked) {
     return (

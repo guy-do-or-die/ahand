@@ -11,7 +11,8 @@ import { code, filesUnder, hits } from "./files";
  * - `location.hash`, `location.href` and `document.URL` are read only by link-intake.ts;
  * - no `console` at all;
  * - no `sessionStorage`, `document.cookie`, `indexedDB` outside store/db.ts, and `localStorage`
- *   only for the theme override (the literal key "ahand-theme", not a secret);
+ *   only for the theme override (the literal key "ahand-theme") and the mark that a Privy session
+ *   may be here (the literal key "ahand-privy", wallet/privy-mark.ts), neither a secret;
  * - no request but RPC and relays (made by viem and packages/deliver, not here): `fetch` only of a
  *   same-site path written as a literal, and no XMLHttpRequest, sendBeacon, WebSocket or
  *   EventSource in the app's own code;
@@ -53,9 +54,10 @@ describe("secrets: the fragment and the link's text have nowhere to go", () => {
     expect(scan(/\bsessionStorage\b|document\s*\.\s*cookie|\bcookieStore\b/)).toEqual([]);
   });
 
-  test("localStorage holds only the theme override", () => {
-    const uses = scan(/\blocalStorage\b/);
-    const other = uses.filter((line) => !/localStorage\.(setItem|getItem|removeItem)\(\s*(THEME_KEY|"ahand-theme")/.test(line.split(": ").slice(1).join(": ")));
+  test("localStorage holds only the theme override and the Privy session mark", () => {
+    // The one unit test that stands a Map in for localStorage (the mark's own tests) writes nothing anywhere.
+    const uses = scan(/\blocalStorage\b/, (f) => f === "wallet/privy.test.ts");
+    const other = uses.filter((line) => !/localStorage\.(setItem|getItem|removeItem)\(\s*(THEME_KEY|"ahand-theme"|"ahand-privy")/.test(line.split(": ").slice(1).join(": ")));
     // A line that only names localStorage in a type or a guard is still a use: list them all.
     expect(other).toEqual([]);
   });

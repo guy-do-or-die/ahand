@@ -8,7 +8,7 @@ import { navigate } from "../../router";
 import { remember, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
 import { CopyRow, DealCard, ErrorBand, Identity, LandSheet, Mark, Proof, Qr, QuietButton, SwipeButton, money, percent, shortAddress, type Landing } from "../../ui";
-import { ConnectSheet, useWallet } from "../../wallet";
+import { ConnectSheet, LinkAgain, useWallet } from "../../wallet";
 import { failureOf, keepMax, makePass, pathOf, shareOf, KEEP_STEP, type Failure, type Held, type Made } from "../hand/held";
 import { Unreachable } from "../hand/Unreachable";
 import { LINK_OPTIONS, cardDescription, pollNow, useDecimals, useOpening, useReread } from "../hand/useHeld";
@@ -57,6 +57,7 @@ function NoLink() {
     <div className="mx-auto flex max-w-[620px] flex-col gap-4">
       <h1 className="m-0 text-[length:var(--fs-title-m)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title)]">{t("pass.title")}</h1>
       <p className="ah-note m-0">{t("pass.noLink")}</p>
+      <LinkAgain />
       <QuietButton onClick={() => navigate("/")} className="self-start">
         {t("pass.toStart")}
       </QuietButton>
@@ -246,7 +247,7 @@ function Pass({ opened, onRetry }: { opened: OpenedAddress; onRetry: () => void 
           purpose="share"
           {...(wallet.address ? { account: wallet.address } : {})}
           onConnect={() => setSheet("connect")}
-          email={config.privy !== undefined}
+          logIn={config.privy !== undefined}
           ctx={ctx}
           {...(landing?.choice === "address" ? { initialAddress: landing.payee } : {})}
           onDone={(next) => {

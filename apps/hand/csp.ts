@@ -11,27 +11,35 @@
  * In a `<meta>` tag `frame-ancestors` is left out: browsers ignore it there and Chromium reports
  * the ignored directive as a console error. It only works as a header, which face sends.
  *
- * A configuration with `privy` (email sign-in, wallet/privy.ts) adds Privy's sources and nothing
- * else (`PRIVY_CSP`): its sign-in and wallet frame in frame-src and child-src, and its API and the
- * RPC its wallets send through in connect-src. No script from anywhere but this site: Privy's code
- * is bundled with the app, and its wallet keys live inside its own frame on auth.privy.io.
+ * A configuration with `privy` (logging in through Privy, wallet/privy.ts) adds Privy's sources and
+ * nothing else (`PRIVY_CSP`): its login and wallet frame and WalletConnect's verify frame in
+ * frame-src and child-src, Privy's API, the RPC its wallets send through and WalletConnect's relay
+ * and wallet list in connect-src, and the wallet list's icons in img-src. No script from anywhere
+ * but this site: Privy's code is bundled with the app, and its wallet keys live inside its own
+ * frame on auth.privy.io.
  */
 
 /**
- * What email sign-in through Privy needs beyond the app's own policy (docs.privy.io, "Content
- * Security Policy"), without the parts this app does not use: no WalletConnect or Coinbase relays
- * (it offers no wallet through Privy, only email) and no Cloudflare script (bot protection off).
+ * What logging in through Privy needs beyond the app's own policy, as Privy's "Content Security
+ * Policy" page lists it (https://docs.privy.io/security/implementation-guide/content-security-policy,
+ * read 2026-11-21), for the ways in this app offers: email, social accounts, a passkey, Farcaster
+ * and crypto wallets with WalletConnect: all of the page's "required domains", Coinbase's relay
+ * (wss://www.walletlink.org) among them, as Privy's SDK may reach a Coinbase wallet through it.
+ * Left out: Cloudflare's script and frame (Privy's bot protection stays off), Telegram, the funding
+ * kit and Solana. `img` is the WalletConnect list's own icons, which Privy shows from
+ * explorer-api.walletconnect.com.
  * apps/face/src/headers.ts PRIVY_SOURCES holds the same; tests/csp.test.ts holds the two together.
  */
 export const PRIVY_CSP = {
-  frame: ["https://auth.privy.io"],
-  connect: ["https://auth.privy.io", "https://*.rpc.privy.systems"],
+  frame: ["https://auth.privy.io", "https://verify.walletconnect.com", "https://verify.walletconnect.org"],
+  connect: ["https://auth.privy.io", "https://*.rpc.privy.systems", "wss://relay.walletconnect.com", "wss://relay.walletconnect.org", "wss://www.walletlink.org", "https://explorer-api.walletconnect.com"],
+  img: ["https://explorer-api.walletconnect.com"],
 } as const;
 
 export interface CspSources {
   rpcUrls: readonly string[];
   relays: readonly string[];
-  /** The configuration has `privy`: email sign-in through Privy. */
+  /** The configuration has `privy`: logging in through Privy. */
   privy?: boolean;
 }
 
@@ -46,7 +54,7 @@ export function appCsp(sources: CspSources, delivery: "header" | "meta" = "heade
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    `img-src ${["'self'", "data:", ...(sources.privy ? PRIVY_CSP.img : [])].join(" ")}`,
     "font-src 'self'",
     `connect-src ${connect.join(" ")}`,
     ...(sources.privy ? [`frame-src ${PRIVY_CSP.frame.join(" ")}`, `child-src ${PRIVY_CSP.frame.join(" ")}`] : []),

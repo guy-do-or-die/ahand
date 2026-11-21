@@ -43,6 +43,7 @@ const en = {
   "my.unlock.differs": "Your account answers differently each time, so this device keeps each hand's reply key itself. A link can be shown again only while its locked copy is still here.",
   // One sentence for the list and for a single hand's page: it names no number of hands.
   "my.unlock.connect": "Connect the account you raise hands from to unlock links and replies.",
+  "my.unlock.logIn": "Log in with the account you raise hands from to unlock links and replies.",
 
   "my.add.title": "Add a hand by its number",
   "my.add.label": "The hand's number",
@@ -52,6 +53,7 @@ const en = {
   "my.add.already": "That hand is already in this list.",
   "my.add.done": "Added hand {id}. Its words are not on this device; the link you saved still has them.",
   "my.add.connect": "Connect the account that raised it first.",
+  "my.add.logIn": "Log in with the account that raised it first.",
   "my.add.offline": "Can't reach the network right now. Nothing was added.",
 
   "my.passed.title": "Hands you passed on from this device",

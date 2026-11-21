@@ -241,7 +241,7 @@ function AddByNumber({ account }: { account: Address | undefined }) {
     setMessage(undefined);
     const handId = parseHandNumber(text);
     if (handId === undefined) return setMessage({ id: "my.add.bad", error: true });
-    if (!account) return setMessage({ id: "my.add.connect", error: true });
+    if (!account) return setMessage({ id: config.privy ? "my.add.logIn" : "my.add.connect", error: true });
     const place = keysPlace();
     const core = coreOn(place?.chainId ?? 0);
     if (!place || !core) return;
@@ -346,7 +346,7 @@ function RebuildFromCode({ account }: { account: Address | undefined }) {
     const handId = parseHandNumber(number);
     if (handId === undefined) return setState({ status: "error", id: "my.add.bad" });
     const place = keysPlace();
-    if (!account || !place) return setState({ status: "error", id: "my.add.connect" });
+    if (!account || !place) return setState({ status: "error", id: config.privy ? "my.add.logIn" : "my.add.connect" });
     const core = place.core;
     let session = unlockedFor(place.chainId, core, account);
     if (!session) {

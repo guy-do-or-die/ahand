@@ -16,7 +16,7 @@ import type { Intent } from "../wallet/send";
  * | inbox   | Gives received or pasted, as give links, with first-seen times         | id             |
  * | outbox  | the giver's envelopes on their way (packages/deliver's OutboxStore)    | any string     |
  * | passed  | Hands this device passed on: chain, handId, position, payee            | id             |
- * | prefs   | language, lens, theme                                                  | name           |
+ * | prefs   | language, lens, theme; a raise form across a social login (≤ 30 min)   | name           |
  * | vault   | one AES-GCM key per device, made non-extractable                      | "device"       |
  * | escrow  | the locked copy of a new Hand's seed (signers that do not repeat)      | intent         |
  * | sends   | a money action on its way from this device (care, /waiting, send-back) | action + place |
@@ -126,6 +126,29 @@ export interface Prefs {
   lang?: "en" | "ru";
   lens?: boolean;
   theme?: "light" | "dark";
+  /** The raise form while a social login through Privy leaves the page and comes back (screens/raise/kept.ts). */
+  raiseForm?: KeptRaise;
+}
+
+/**
+ * A raise form not yet sent, kept only for the trip a social login makes away from the page and
+ * back (Google, Apple, X through Privy load the page afresh). The asker's own words, as `hands`
+ * keeps them once raised; no seed, no key, no link. Taken out as /raise opens, used only within
+ * half an hour of being written.
+ */
+export interface KeptRaise {
+  poster: string;
+  details: string;
+  showDetails: boolean;
+  rewardKey: string;
+  /** A custom reward in the token's smallest units, as decimal digits. */
+  custom?: string;
+  days: number;
+  mode: Mode;
+  minClaimBps: number;
+  payoutGasK: number;
+  /** When it was written (the device's clock, ms). */
+  at: number;
 }
 
 interface EscrowRecord {
