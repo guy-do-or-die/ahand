@@ -18,7 +18,7 @@ import { spawnSync } from "node:child_process";
 import { parseConfig } from "../../../apps/hand/src/config/load.ts";
 import { hashDir } from "../../../tools/manifest.ts";
 import { pathsOf, portsOf, REPO_ROOT } from "../ports.ts";
-import { AHEAD_SECONDS, anvilArgs, assertLocalChain, configOf, parseArgs, standOf, type StandRecord } from "../stand.ts";
+import { AHEAD_SECONDS, anvilArgs, assertLocalChain, configOf, parseArgs, slotInUse, standOf, type StandRecord } from "../stand.ts";
 import { contentSecurityPolicy, inlineScriptHashes, resolvePath, securityHeaders, startStatic } from "../static.ts";
 
 const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
@@ -268,17 +268,21 @@ const slots = (process.env.STAND_TEST_SLOTS ?? "8,9").split(",").map(Number);
 
 describe("two stands side by side", () => {
   let free = true;
+  /** The slots this test itself brought up: the only ones it brings down. */
+  const brought: number[] = [];
   beforeAll(async () => {
+    // A slot is taken when its ports answer or when its pids.json names a live process: a stand
+    // started under another STAND_PORT_BASE listens elsewhere, but `down` would still stop it.
     for (const slot of slots) {
-      const ports = portsOf(slot);
-      for (const port of [ports.chain, ports.relay, ports.site, ports.dev]) {
-        if (await portBusy(port)) free = false;
+      const busy = await slotInUse(slot);
+      if (busy.length > 0) {
+        free = false;
+        console.warn(`skipping: slot ${slot} is in use (${busy.join(", ")}); bring that stand down first, or set STAND_TEST_SLOTS`);
       }
     }
-    if (!free) console.warn(`skipping: a port of slot ${slots.join(" or ")} is in use; bring those stands down first`);
   });
   afterAll(async () => {
-    if (free) await Promise.all(slots.map((slot) => stand(["down", "--slot", String(slot)])));
+    await Promise.all(brought.map((slot) => stand(["down", "--slot", String(slot)])));
   });
 
   test(
@@ -286,6 +290,7 @@ describe("two stands side by side", () => {
     async () => {
       if (!free) return;
       const results = await Promise.all(slots.map((slot) => stand(["up", "--slot", String(slot), "--no-face"])));
+      results.forEach((r, i) => r.code === 0 && brought.push(slots[i]!));
       results.forEach((r, i) => expect(r.code, `slot ${slots[i]}: ${r.out}`).toBe(0));
 
       for (const slot of slots) {

@@ -602,7 +602,8 @@ function updateStand(slot: number, change: Partial<StandRecord>): void {
 
 /* ---------------------------------------------------------------- commands */
 
-async function slotInUse(slot: number): Promise<string[]> {
+/** What holds a slot: a live process its pids.json names, or one of its ports. Empty when it is free. */
+export async function slotInUse(slot: number): Promise<string[]> {
   const busy: string[] = [];
   for (const [service, entry] of Object.entries(readPids(slot))) if (entry && alive(entry.pid)) busy.push(`${service} (pid ${entry.pid})`);
   for (const [service, port] of Object.entries(portsOf(slot))) if (await portBusy(port)) busy.push(`port ${port} (${service})`);
