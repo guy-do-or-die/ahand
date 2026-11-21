@@ -491,47 +491,72 @@ describe("where a Hand's events sit", () => {
     }
   });
 
-  it("finds a later Hand of the same raiser in exactly the requests it announced", async () => {
+  it("finds the raiser's later Hands by number, newest first, in exactly the requests it announced", async () => {
     const earlier = await raise(raiserKey, { reward: 0n });
-    await rpc("anvil_mine", ["0xbb8"]); // 3 000 empty blocks
-    await raise(otherRaiserKey, { reward: 0n }); // another raiser: not a match
-    await rpc("anvil_mine", ["0x3e8"]);
-    const later = await raise(raiserKey, { reward: 0n });
-    const latest = await client.getBlockNumber({ cacheTime: 0 });
+    await rpc("anvil_mine", ["0xbb8"]); // 3 000 empty blocks: blocks do not matter to this look
+    const others = [await raise(otherRaiserKey, { reward: 0n }), await raise(otherRaiserKey, { reward: 0n })]; // another raiser: not a match
+    const later = [await raise(raiserKey, { reward: 0n })];
+    others.push(await raise(otherRaiserKey, { reward: 0n }));
+    later.push(await raise(raiserKey, { reward: 0n }));
+    const forwarder = chain.forwarder!;
+    expect(forwarder).toBeTruthy();
 
+    // Planning reads `handsCount` once and nothing else.
     const counted = recording();
-    const look = findLaterHands(counted.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest });
-    const span = Number(latest - earlier.block);
-    expect(look.requests).toBe(Math.ceil(span / 2_000));
-    expect(counted.requests).toHaveLength(0);
+    const look = await findLaterHands(counted.client, chain.core, earlier.handId, raiser, { forwarder, batch: 2 });
+    expect(counted.requests.map((r) => r.method)).toEqual(["eth_call"]);
+    expect(look.handsCount).toBe(later[1]!.handId);
+    expect(look.after).toBe(5n);
+    expect(look).toMatchObject({ reads: 5, capped: false, requests: 3 });
+    counted.requests.length = 0;
     const progress: number[] = [];
     const found = await look.run((_, done) => {
       progress.push(done);
     });
-    expect(found).toEqual([{ handId: later.handId, block: later.block }]);
+    const openedAt = async (handId: bigint) => (await readHand(client, chain.core, handId)).view.openedAt;
+    expect(found).toEqual(await Promise.all(later.map(async ({ handId }) => ({ handId, openedAt: await openedAt(handId) }))));
+    expect(found.map((hand) => hand.handId)).not.toContain(earlier.handId);
+    for (const other of others) expect(found.map((hand) => hand.handId)).not.toContain(other.handId);
+    // One eth_call per batch, each to the forwarder, newest first: 2, 2 and the last one.
     expect(counted.requests).toHaveLength(look.requests);
-    expect(progress).toEqual(Array.from({ length: look.requests }, (_, i) => i + 1));
+    expect(progress).toEqual([1, 2, 3]);
+    const batches = counted.requests.map((r) => (r.params as [{ to: Address; data: Hex }])[0]);
+    for (const call of batches) expect(call.to.toLowerCase()).toBe(forwarder.toLowerCase());
 
-    // Bounded: one window does not reach the later Hand, and stopping early keeps what was found.
-    const capped = recording();
-    const short = findLaterHands(capped.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest, maxWindows: 1 });
-    expect(short.requests).toBe(1);
-    expect(await short.run()).toEqual([]);
-    expect(capped.requests).toHaveLength(1);
-    // A window asked larger than 2 000 blocks is cut to 2 000, and the count announced follows it.
-    const wide = recording();
-    const big = findLaterHands(wide.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest, chunk: 1_000_000, maxWindows: 2 });
-    expect(big.requests).toBe(Math.min(2, Math.ceil(span / 2_000)));
-    await big.run();
-    expect(wide.requests).toHaveLength(big.requests);
-    for (const request of wide.requests) {
-      const [{ fromBlock, toBlock }] = request.params as [{ fromBlock: Hex; toBlock: Hex }];
-      expect(BigInt(toBlock) - BigInt(fromBlock) + 1n).toBeLessThanOrEqual(2_000n);
-    }
+    // The default batch reads all five in one request.
+    const whole = recording();
+    const one = await findLaterHands(whole.client, chain.core, earlier.handId, raiser, { forwarder });
+    whole.requests.length = 0;
+    expect(one.requests).toBe(1);
+    expect((await one.run()).map((hand) => hand.handId)).toEqual(later.map((hand) => hand.handId));
+    expect(whole.requests).toHaveLength(1);
+
+    // Capped: only the newest two are read (one of them another raiser's), and the look says it did not read them all.
+    const capped = await findLaterHands(client, chain.core, earlier.handId, raiser, { forwarder, batch: 1, cap: 2 });
+    expect(capped).toMatchObject({ after: 5n, reads: 2, capped: true, requests: 2 });
+    expect((await capped.run()).map((hand) => hand.handId)).toEqual([later[1]!.handId]);
+
+    // Stopped after the first request: what that request found stays.
     const stopped = recording();
-    const stoppable = findLaterHands(stopped.client, chain.core, raiser, { fromBlock: earlier.block + 1n, toBlock: latest });
-    await stoppable.run(() => false);
+    const stoppable = await findLaterHands(stopped.client, chain.core, earlier.handId, raiser, { forwarder, batch: 1 });
+    stopped.requests.length = 0;
+    expect(await stoppable.run(() => false)).toEqual([{ handId: later[1]!.handId, openedAt: await openedAt(later[1]!.handId) }]);
     expect(stopped.requests).toHaveLength(1);
+
+    // Without a forwarder each Hand is its own call to Core, still announced first.
+    const alone = recording();
+    const direct = await findLaterHands(alone.client, chain.core, earlier.handId, raiser);
+    alone.requests.length = 0;
+    expect(direct.requests).toBe(5);
+    expect((await direct.run()).map((hand) => hand.handId)).toEqual(later.map((hand) => hand.handId));
+    expect(alone.requests).toHaveLength(5);
+    for (const request of alone.requests) expect((request.params as [{ to: Address }])[0].to.toLowerCase()).toBe(chain.core.toLowerCase());
+
+    // The newest Hand has nothing after it: no request at all.
+    const newest = await findLaterHands(client, chain.core, later[1]!.handId, raiser, { forwarder });
+    expect(newest).toMatchObject({ after: 0n, reads: 0, capped: false, requests: 0 });
+    expect(await newest.run()).toEqual([]);
+    await expect(findLaterHands(client, chain.core, earlier.handId, raiser, { forwarder, batch: 0 })).rejects.toThrow(RangeError);
   });
 });
 

@@ -18,7 +18,7 @@ import { dirname, resolve } from "node:path";
 import { getAddress, type Address, type Hex } from "viem";
 
 import { seenIn } from "../../packages/sdk/src/address.ts";
-import { LATER_HANDS_WINDOWS, chainNow } from "../../packages/sdk/src/chain.ts";
+import { chainNow } from "../../packages/sdk/src/chain.ts";
 import { decodeCoreError } from "../../packages/sdk/src/errors.ts";
 import { fromText, peekLink } from "../../packages/sdk/src/link.ts";
 import { collect, exportBundle, passportOf, readBetween, readBundle, verifyBundle, verifyBundleOnChain, type BuildFacts, type Check } from "../../packages/sdk/src/proof.ts";
@@ -27,6 +27,9 @@ import { Fail, clean, cloneCore, connect, deploymentFileOf, group, handIdOf, sho
 import { passportLines, summaryOf } from "./passport.ts";
 
 const USAGE = "verify --rpc URL [--core 0x...] <handId>, or verify --bundle FILE [--rpc URL]";
+
+/** The stretch between a raise and its closing is read at once up to this many requests: one day of Base (200 ms blocks) in windows of 2 000. */
+const BETWEEN_AT_ONCE = 216;
 
 /**
  * The facts the "This contract" check derives Core's address from, as this clone knows them: the
@@ -135,7 +138,7 @@ export async function verifyCommand(args: Args): Promise<number> {
     }
     if (record.between && !record.between.read) {
       const { requests, fromBlock, toBlock } = record.between;
-      if (requests <= LATER_HANDS_WINDOWS || args.flags.has("--between")) {
+      if (requests <= BETWEEN_AT_ONCE || args.flags.has("--between")) {
         console.error(`reading blocks ${fromBlock}–${toBlock} between the raise and the closing: ${group(requests)} request${requests === 1 ? "" : "s"} for Funded and Extended`);
         record = await readBetween(chain.client, record);
       } else {

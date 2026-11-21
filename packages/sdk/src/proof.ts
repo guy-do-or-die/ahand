@@ -15,7 +15,7 @@ import {
 } from "viem";
 import { z } from "zod";
 
-import { LOG_WINDOW, handLogs, handLogsAt, handLogsInBlock, type HandEventName, type HandLog, type HandView } from "./chain.js";
+import { handLogs, handLogsAt, handLogsInBlock, logWindowsOver, type HandEventName, type HandLog, type HandView } from "./chain.js";
 import { readDescription } from "./describe.js";
 import { CoreRefused } from "./errors.js";
 import { digest, domainSeparator, giveHash, routeHash, shakeHash } from "./hash.js";
@@ -62,7 +62,10 @@ export interface BuildFacts {
 export interface Between {
   fromBlock: bigint;
   toBlock: bigint;
-  /** `eth_getLogs` requests reading it takes, in windows of at most 2 000 blocks. */
+  /**
+   * `eth_getLogs` requests reading it takes, in the client's window (at most 2 000 blocks). A node
+   * that refuses that window makes it more: the window then shrinks (`readLogWindows`).
+   */
   requests: number;
   read: boolean;
 }
@@ -134,7 +137,7 @@ export interface CollectOptions {
   build?: BuildFacts;
   /** Read the stretch between at once when it is needed (default: no, the record says what it costs). */
   readBetween?: boolean;
-  /** Window size for that read, at most 2 000 blocks. */
+  /** The window that read starts at, at most 2 000 blocks; a node's refusal shrinks it. */
   chunk?: number;
 }
 
@@ -198,9 +201,7 @@ export async function collect(
   if (raised && (raised.args.reward !== reward || raised.args.expiry !== expiry)) {
     const fromBlock = raised.blockNumber + 1n;
     const toBlock = closer ? closer.blockNumber - 1n : block;
-    const size = BigInt(Math.min(extra.chunk ?? LOG_WINDOW, LOG_WINDOW));
-    const span = toBlock >= fromBlock ? toBlock - fromBlock + 1n : 0n;
-    record.between = { fromBlock, toBlock, requests: Number((span + size - 1n) / size), read: false };
+    record.between = { fromBlock, toBlock, requests: logWindowsOver(client, fromBlock, toBlock, extra.chunk), read: false };
     if (extra.readBetween) record = await readBetween(client, record, extra.chunk);
   }
 

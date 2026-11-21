@@ -1,14 +1,19 @@
 /**
  * `find`: every Hand one raiser opened in the last N days, from `Raised` logs filtered by the
- * raiser's topic, in windows of at most 2 000 blocks (D-5, D-64).
+ * raiser's topic, in windows of at most 2 000 blocks (D-5).
  *
- * The app's own look for a newer Hand is the SDK's findLaterHands bounded to one day after a Hand
- * ended (216 windows: a day of Base at 200 ms blocks). This is the long one, for a terminal: it is
- * bounded by days, prints how many log requests it will make before the first, shows progress,
- * and stops on Ctrl-C with what it found so far. An indexer would replace it (D-5: after mainnet).
- * Every "now" is the latest block's timestamp.
+ * The app's own look for a newer Hand is the SDK's findLaterHands, which reads Hands by their
+ * numbers after the one at hand (D-64) and reads no log. This one is bounded by days instead, for a
+ * terminal: it prints how many log requests it will make before the first, shows progress, and
+ * stops on Ctrl-C with what it found so far. A node that takes fewer blocks per request than the
+ * window (Base Sepolia's public RPC: 200) gets each window in smaller pieces (the SDK's
+ * readLogWindows), so it then makes more requests than it announced. An indexer would replace it
+ * (D-5: after mainnet). Every "now" is the latest block's timestamp.
  */
-import { findBlockAt, findLaterHands, chainNow, readHand, LOG_WINDOW } from "../../packages/sdk/src/chain.ts";
+import { getAbiItem, type AbiEvent, type Address, type PublicClient } from "viem";
+
+import { findBlockAt, chainNow, readHand, readLogWindows, LOG_WINDOW } from "../../packages/sdk/src/chain.ts";
+import { CORE_ABI } from "../../packages/sdk/src/tx.ts";
 import { Fail, addressFlag, amountOf, connect, group, trustedCore, utc, wholeFlag, type Args } from "./cli.ts";
 
 const USAGE = "find --rpc URL [--core 0x...] --raiser 0x... [--days N] [--chunk BLOCKS]";
@@ -16,6 +21,35 @@ const MAX_DAYS = 366;
 
 /** Exit status when the person stopped the search: what was found so far is printed. */
 export const STOPPED = 130;
+
+const RAISED = getAbiItem({ abi: CORE_ABI, name: "Raised" }) as AbiEvent;
+
+/**
+ * The raiser's `Raised` logs in `[fromBlock, toBlock]`, in windows of `chunk` blocks: `requests`
+ * is known before any is made. `onProgress` returning `false` stops after that window.
+ */
+function raisedBy(client: PublicClient, core: Address, raiser: Address, range: { fromBlock: bigint; toBlock: bigint; chunk: number }) {
+  const size = BigInt(range.chunk);
+  const span = range.toBlock >= range.fromBlock ? range.toBlock - range.fromBlock + 1n : 0n;
+  const requests = Number((span + size - 1n) / size);
+  return {
+    requests,
+    async run(onProgress: (found: { handId: bigint; block: bigint }[], done: number) => boolean) {
+      const found: { handId: bigint; block: bigint }[] = [];
+      for (let done = 0; done < requests; ) {
+        const from = range.fromBlock + BigInt(done) * size;
+        const end = from + size - 1n < range.toBlock ? from + size - 1n : range.toBlock;
+        const logs = await readLogWindows(client, { fromBlock: from, toBlock: end, window: range.chunk }, (a, b) =>
+          client.getLogs({ address: core, event: RAISED, args: { raiser }, fromBlock: a, toBlock: b, strict: true }),
+        );
+        for (const log of logs) found.push({ handId: (log.args as { handId: bigint }).handId, block: log.blockNumber });
+        done++;
+        if (!onProgress([...found], done)) break;
+      }
+      return found;
+    },
+  };
+}
 
 export async function findCommand(args: Args): Promise<number> {
   const raiser = addressFlag(args, "--raiser");
@@ -31,10 +65,10 @@ export async function findCommand(args: Args): Promise<number> {
   const now = await chainNow(chain.client);
   const since = now.timestamp - days * 86_400;
   const fromBlock = await findBlockAt(chain.client, Math.max(since, 0));
-  const search = findLaterHands(chain.client, trusted.core, raiser, { fromBlock, toBlock: now.number, chunk, maxWindows: Number.MAX_SAFE_INTEGER });
+  const search = raisedBy(chain.client, trusted.core, raiser, { fromBlock, toBlock: now.number, chunk });
   const blocks = now.number - fromBlock + 1n;
   console.error(
-    `find: ${group(search.requests)} request${search.requests === 1 ? "" : "s"}: eth_getLogs over blocks ${fromBlock}–${now.number} (${group(blocks)} blocks, windows of ${group(chunk)}; a day of Base is about 216), then up to 4 reads per Hand found for its state and reward. Ctrl-C stops and prints what was found.`,
+    `find: ${group(search.requests)} request${search.requests === 1 ? "" : "s"}: eth_getLogs over blocks ${fromBlock}–${now.number} (${group(blocks)} blocks, windows of ${group(chunk)}; a day of Base is about 216; a node that takes fewer blocks at once gets each window in smaller pieces), then up to 4 reads per Hand found for its state and reward. Ctrl-C stops and prints what was found.`,
   );
 
   let stop = false;

@@ -156,10 +156,9 @@ describe("seed", () => {
     expect(fixture.dropped).toEqual([expect.objectContaining({ position: 1, payee: runs[0]!.run.accounts.holderB })]);
   });
 
-  test("the refunded Hand's raiser has later Hands, found from the block where it ended", async () => {
+  test("the refunded Hand's raiser has later Hands, found by the numbers after its own", async () => {
     const { fixtures, raiser } = runs[0]!.run;
-    const now = await world.now();
-    const look = findLaterHands(world.client, world.core, raiser.address, { fromBlock: BigInt(fixtures.refunded!.endedBlock as string), toBlock: now.number });
+    const look = await findLaterHands(world.client, world.core, BigInt(fixtures.refunded!.handId as string), raiser.address, { forwarder: world.stand.forwarder });
     expect(look.requests).toBeGreaterThan(0);
     const found = (await look.run()).map((hand) => String(hand.handId));
     for (const name of ["thanked", "unlisted", "dark", "public", "blocked"] as const) expect(found).toContain(String(fixtures[name]!.handId));
