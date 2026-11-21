@@ -541,10 +541,7 @@ export default function RaiseScreen() {
               calm={TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.calmTest", { network: chainName(config.chain) }) : t("raise.reward.calm")) : t("raise.reward.calmStand")}
             >
               {TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.issuerTest", { network: chainName(config.chain) }) : t("raise.reward.issuer")) : t("raise.reward.issuerStand")}
-            </Proof>{" "}
-            <a href="/limits" className="underline">
-              {t("common.footer.limits")}
-            </a>
+            </Proof>
           </p>
           <Faucets />
           <Disclose label={TOKEN.symbol}>

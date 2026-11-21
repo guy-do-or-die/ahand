@@ -137,8 +137,8 @@ export function Header() {
  *
  * The first build's line was "Unaudited · Core {core} · No owner · No fee" (the calm view without
  * the address). Decided by the owner on 2026-11-21: the footer drops "Unaudited", "No owner" and
- * "No fee" from both views, and only Core's address stays, under the lens. The warning is not lost: /limits ends with
- * "Unaudited" in full (`limits.unaudited.say`), and /core says it again (`core.unaudited`).
+ * "No fee" from both views, and only Core's address stays, under the lens. The warning is not lost: /core says
+ * "Unaudited" in full (`core.unaudited`), and docs/limits.md ends with it.
  */
 function CoreLine({ core }: { core: string }) {
   const MARK = "\u0000";
@@ -155,7 +155,7 @@ function CoreLine({ core }: { core: string }) {
 export function Footer() {
   const core = config.cores.canonical ?? config.cores.trusted.find((c) => c.chainId === config.chain.id)!.core;
   const link = "inline-flex min-h-11 items-center text-ink/70 underline decoration-ink/30 decoration-dashed decoration-[1.5px] underline-offset-[5px] hover:text-ink";
-  // Core's line is the lens's alone: off the lens the footer is the three links and the two switches.
+  // Core's line is the lens's alone: off the lens the footer is the two links and the two switches.
   const lens = useLens();
   return (
     <footer data-testid={TID.shell.footer} className="mt-10 border-t border-solid border-ink/10 px-4 pb-6 pt-4 sm:px-6 md:px-10">
@@ -170,9 +170,6 @@ export function Footer() {
       ) : null}
       <div className="flex items-center gap-x-5">
         <nav aria-label={t("common.footer.nav")} className="flex flex-1 flex-wrap gap-x-5 text-[length:var(--fs-body-sm)]">
-          <a href="/limits" data-testid={TID.shell.footerLimits} className={link}>
-            {t("common.footer.limits")}
-          </a>
           <a href="/without-us" data-testid={TID.shell.footerWithoutUs} className={link}>
             {t("common.footer.withoutUs")}
           </a>

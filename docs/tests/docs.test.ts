@@ -158,6 +158,24 @@ describe("words the app says", () => {
     for (const page of OWN_PAGES) expect(read(page), page).not.toMatch(/who gets what|кому сколько,/i);
   });
 
+  test("no page says the app shows its limits: the /limits screen is gone and docs/limits.md is the reference", () => {
+    // Decided by the owner on 2026-11-22: the app's "What it can't promise" screen was removed.
+    expect(read("apps/hand/src/routes.ts")).not.toContain('"/limits"');
+    for (const row of read("docs/app.md").split("\n").filter((line) => line.startsWith("| `/"))) expect(row).not.toContain("/limits");
+    // A paragraph may still name the screen only to say it is gone: dated to the decision and saying so.
+    // The glossary is checked too (evidence.md is a dated record and stays out).
+    const names = /(^|[\s`(])\/limits\b|\blimits (page|screen)\b|(page|screen) [“"]What it can't promise/i;
+    const saysGone = (paragraph: string) => paragraph.includes("2026-11-22") && /remov|not-found|no limits page|gone/i.test(paragraph);
+    const stale: string[] = [];
+    for (const page of [...OWN_PAGES, "docs/glossary.md"]) {
+      for (const paragraph of read(page).split("\n")) {
+        if (names.test(paragraph) && !saysGone(paragraph)) stale.push(`${page}: ${paragraph.slice(0, 80)}`);
+      }
+    }
+    expect(stale).toEqual([]);
+    expect(read("docs/limits.md")).not.toMatch(/key `limits\./);
+  });
+
   test("the bundle is said to check its signatures and arithmetic offline, and amounts to need the chain", () => {
     expect(read("docs/how-it-works.md")).toContain("signatures and arithmetic with no network; amounts need the chain");
     expect(read("docs/ru/how-it-works.md")).toContain("подписи и арифметику без сети; суммы — только по сети");

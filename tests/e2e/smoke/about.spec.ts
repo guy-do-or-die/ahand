@@ -1,10 +1,11 @@
 /**
- * The three pages that say what aHand is and is not (PLAN wave 5, about-pages): the landing and
- * its "Got a link? Paste it" row against real seeded Hands on a real local chain, "What it can't
- * promise" and "About these defaults" in both languages, and axe on all three. The early review's
- * fixes are held here too: the gestures come before the paste row and each card front takes its
- * own height (F17), only an entry's first sentence is bold on /limits (F13), /without-us reads
- * whole (F9), and /core and /defaults write Russian numbers and units (F10, F16).
+ * The pages that say what aHand is and is not (PLAN wave 5, about-pages): the landing and its
+ * "Got a link? Paste it" row against real seeded Hands on a real local chain, "About these
+ * defaults" in both languages, and axe on both. The "What it can't promise" screen was removed by
+ * the owner's decision of 2026-11-22 (its words stay in docs/limits.md): an old /limits link lands
+ * on the not-found page. The early review's fixes are held here too: the gestures come before the
+ * paste row and each card front takes its own height (F17), /without-us reads whole (F9), and
+ * /core and /defaults write Russian numbers and units (F10, F16).
  *
  *   STAND_SLOT=6 bunx playwright test tests/e2e/smoke/about.spec.ts
  */
@@ -69,6 +70,9 @@ test("the landing says what this is, turns each gesture over to Core's own call,
   await front.click();
   await expect(raise).toHaveAttribute("data-open", "true");
 
+  // The honest sentence stays; it no longer leads to a limits screen.
+  await expect(page.locator("[data-screen]")).toContainText("Thanking is voluntary: the asker decides.");
+  await expect(page.locator('a[href="/limits"]')).toHaveCount(0);
   await expect(page.getByTestId("landing-my")).toHaveAttribute("href", "/my");
   await expect(page.getByTestId("landing-without-us")).toHaveAttribute("href", "/without-us");
   await page.getByTestId("landing-raise").click();
@@ -129,27 +133,12 @@ test("text that is no link opens nothing and says so", async ({ page }) => {
   await expect(page).toHaveURL(/\/$/);
 });
 
-const TOKEN_EN = "If a token stops moving or changes its rules after a reward is locked, everything held in that token is stuck in the contract";
-const USDC_EN = "USDC has an issuer. It can freeze any address, the contract's own included, or the whole token.";
-const TOKEN_RU = "Если токен перестанет переводиться или сменит правила после того, как награда положена";
-const USDC_RU = "У USDC есть эмитент. Он может заморозить любой адрес, в том числе сам контракт, или весь токен.";
-
-test("“What it can't promise” has exactly sixteen entries in English and in Russian, from voluntary thanks to the unaudited sentence", async ({ page }) => {
+test("an old /limits link lands on the not-found page, which leads back to the start", async ({ page }) => {
   await page.goto("/limits");
-  const entries = page.getByTestId("limits-entry");
-  await expect(entries).toHaveCount(16);
-  await expect(entries.first()).toContainText("Thanking is voluntary. The asker can get help and let the hand run out; the reward then goes back to them.");
-  await expect(entries.last()).toContainText("Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.");
-  await expect(page.getByTestId("limits-entry").filter({ hasText: TOKEN_EN })).toHaveCount(1);
-  await expect(page.getByTestId("limits-entry").filter({ hasText: USDC_EN })).toHaveCount(1);
-  for (let i = 0; i < 16; i++) await expect(entries.nth(i)).toHaveAttribute("data-index", String(i + 1));
-
-  await toRussian(page);
-  await expect(entries).toHaveCount(16);
-  await expect(entries.first()).toContainText("Благодарить — по желанию.");
-  await expect(entries.last()).toContainText("Без аудита");
-  await expect(page.getByTestId("limits-entry").filter({ hasText: TOKEN_RU })).toHaveCount(1);
-  await expect(page.getByTestId("limits-entry").filter({ hasText: USDC_RU })).toHaveCount(1);
+  const missing = page.locator('[data-screen="not-found"]');
+  await expect(missing).toContainText("Nothing here.");
+  await missing.getByRole("link", { name: "To the start" }).click();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("“About these defaults” marks every row as not the project owner's, with its row number", async ({ page }) => {
@@ -178,7 +167,7 @@ test("“About these defaults” marks every row as not the project owner's, wit
   await expect(rows.filter({ hasText: "Рука открыта 30 дней." })).toHaveCount(1);
 });
 
-for (const path of ["/", "/limits", "/defaults"]) {
+for (const path of ["/", "/defaults"]) {
   for (const lang of ["en", "ru"] as const) {
     test(`axe finds no serious or critical issue on the ${path} screen (${lang})`, async ({ page }) => {
       await page.goto(path);
@@ -211,16 +200,6 @@ test("the landing shows the three gestures before the paste row, each card as ta
   await toRussian(page);
   expect(await page.locator(".lp-mark").evaluate((node) => node.getClientRects().length)).toBe(1);
   await expect(page.getByText("Есть ссылка? Вставь её")).toBeVisible();
-});
-
-test("/limits sets only each entry's first sentence in bold (F13)", async ({ page }) => {
-  await page.goto("/limits");
-  const first = page.getByTestId("limits-entry").first();
-  await expect(first.locator("strong")).toHaveText("Thanking is voluntary.");
-  await toRussian(page);
-  await expect(first.locator("strong")).toHaveText("Благодарить — по желанию.");
-  await expect(first).toContainText("так и не сказать спасибо до конца срока");
-  await expect(page.locator("h1")).toHaveText("Чего aHand не обещает.");
 });
 
 test("/without-us's refund line reads whole in both languages (F9)", async ({ page }) => {

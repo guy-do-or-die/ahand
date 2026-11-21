@@ -200,12 +200,7 @@ export default function LandingScreen() {
           <GestureCard gesture="pass" />
           <GestureCard gesture="thank" />
         </ol>
-        <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-[length:var(--fs-body-md)]">
-          <span>{t("landing.honest")}</span>
-          <a href="/limits" className="inline-flex min-h-[44px] items-center font-semibold text-[color:var(--ink)] underline decoration-[1.5px] underline-offset-4">
-            {t("landing.limits")} →
-          </a>
-        </p>
+        <p className="m-0 text-[length:var(--fs-body-md)]">{t("landing.honest")}</p>
       </section>
 
       <div className="max-w-[720px]">

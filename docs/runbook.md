@@ -55,4 +55,4 @@ If the reward's token stops moving or changes its rules after rewards are locked
 
 ## Tell people
 
-The footer no longer says `UNAUDITED · CORE 0x… · NO OWNER · NO FEE`: removed by the owner's decision of 2026-11-21 ([app](app.md)). The footer is the three links and the lens and theme switches; under the lens only, `CORE 0x…` links to /core. "Unaudited" is said in full at the end of /limits (`limits.unaudited.say`) and on /core; `exit.html` dropped it too, the same day. [limits](limits.md) is the list to link to.
+The footer no longer says `UNAUDITED · CORE 0x… · NO OWNER · NO FEE`: removed by the owner's decision of 2026-11-21 ([app](app.md)). The footer is the two links and the lens and theme switches; under the lens only, `CORE 0x…` links to /core. "Unaudited" is said in full on /core; `exit.html` dropped it too, the same day. The app has no limits screen since 2026-11-22 (the owner's decision; an old `/limits` link shows the not-found page): [limits](limits.md) is the list to link to.

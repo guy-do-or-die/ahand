@@ -19,7 +19,7 @@ Core's own names (`HAND`, `SHAKE`, `GIVE`, `handId`, `claimBps`, `payee` and the
 | Pending | waiting for you; take it out; deliver | ждёт тебя; забрать; доставить | `pending`, `withdraw`, `Pending`, `Withdrawn` | balance, claim (as a verb), received; баланс, получено |
 | Paid | left the contract for {payee} | ушло из контракта на {payee} | `Paid` | got, received, arrived, delivered (as a promise about the token's end); получил, получено, зачислено |
 | Payout | a payout; "Here's every payout" (a `Paid` and a `Pending` alike) | выплата; «Все выплаты» | `Paid`, `Pending` | "who got what"; «кто сколько получил» |
-| Payee | where the money lands | куда придут деньги | `payee` | recipient, beneficiary, wallet; получатель (allowed only in the two /limits token entries that UX-SPEC quotes) |
+| Payee | where the money lands | куда придут деньги | `payee` | recipient, beneficiary, wallet; получатель (not used on the human layer; the two token entries that used it now live only in [limits](limits.md)) |
 | Raiser | the asker; "Someone" on the Deal card | автор; «Кто-то» | `raiser` | owner, friend, creator, poster; хозяин, друг, создатель |
 | Helper | the helper | помощник | `giver` | solver, winner, recipient; победитель |
 | Holder | someone; a short address where a share was named | кто-то; короткий адрес | the key in a `Shake` | friend, friend of a friend, contact; друг, знакомый |
@@ -49,4 +49,4 @@ Core's own names (`HAND`, `SHAKE`, `GIVE`, `handId`, `claimBps`, `payee` and the
 - An error says what happened. Where money could be in doubt, it then says what was not lost: "Nothing was sent.", "Nothing left your account.", "The money stays waiting; nothing was lost."
 - Russian quotes are «…» everywhere, never „…“ or "…" (`review-1.test.ts` checks the human layer).
 - A sentence promises only what happens by itself. What needs one more press says so: "After you raise it, you'll get a button to add a calendar reminder."
-- Any amount promised to a helper says "if they thank you" (or "if this route is thanked"). Thanking is called voluntary on the Hand view, the give screen and /limits.
+- Any amount promised to a helper says "if they thank you" (or "if this route is thanked"). Thanking is called voluntary on the landing, the Hand view and the give screen, in /core's accepted limits, and in [limits](limits.md).

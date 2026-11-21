@@ -50,7 +50,7 @@ test("a Hand opens calm: plain words and the actions, none of the chain's machin
   await expect(page.getByTestId("twist-flip")).toHaveCount(0);
   // The footer has no Core line and none of the old "Unaudited · No owner · No fee" (removed by
   // the owner's decision of 2026-11-21).
-  // "Unaudited" is said in full on /limits.
+  // "Unaudited" is said in full on /core.
   await expect(page.getByTestId("shell-footer-core")).toHaveCount(0);
   await expect(page.getByTestId("shell-footer")).not.toContainText(/unaudited|no owner|no fee|0x/i);
 });

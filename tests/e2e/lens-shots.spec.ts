@@ -106,7 +106,6 @@ const SCREENS: Shot[] = [
   { slug: "passport", go: (page) => at(`/${run.chainId}/${fixtureOf(run, "thanked").handId}/proof`)(page) },
   { slug: "check", go: at("/check") },
   { slug: "core", go: at("/core") },
-  { slug: "limits", go: at("/limits") },
   { slug: "defaults", go: at("/defaults") },
   { slug: "without-us", go: at("/without-us") },
   { slug: "print", go: at("/print") },

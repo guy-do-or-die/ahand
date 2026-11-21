@@ -79,7 +79,6 @@ const ROUTES: Route[] = [
   { name: "/<chain>/<hand>/proof", go: (page) => at(`/${run.chainId}/${fixtureOf(run, "thanked").handId}/proof`)(page) },
   { name: "/check", go: at("/check") },
   { name: "/core", go: at("/core") },
-  { name: "/limits", go: at("/limits") },
   { name: "/defaults", go: at("/defaults") },
   { name: "/without-us", go: at("/without-us") },
   { name: "not found", go: at("/no/such/place") },

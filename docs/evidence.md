@@ -87,7 +87,7 @@ The production bar of brief 05 §2, translated to this Core (core-v3: no charity
 | A thanked Hand proves itself from the chain | step 28 | 18 checks, 17 ok, 1 not checkable (no description given) | `--give` and the bundle path were not run tonight (wave 5 ran them) |
 | No "gasless" and no "XMTP" in the app | `grep -rioE "gasless\|xmtp" apps/hand/src apps/hand/dist infra/stand/.run/0/dist` | 0 hits | — |
 | "Unaudited" is visible | step 19 `proof.spec` (the /core sentence, word for word); step 28 (`… Unaudited.`) | passed; printed | — |
-| UI offers one dollar token; token risks said | step 19 `about.spec` (/limits, 16 entries) | passed | Listed tokens take their decimals from the deployment file, not from the token contract (a deviation, `docs/app-duties.md` duty 12) |
+| UI offers one dollar token; token risks said | step 19 `about.spec` (/limits, 16 entries; the screen was removed on 2026-11-22, its words are in [limits](limits.md)) | passed | Listed tokens take their decimals from the deployment file, not from the token contract (a deviation, `docs/app-duties.md` duty 12) |
 | CI runs forge, SDK and app checks | `.github/workflows/check.yml` | **not shown**: never run (no GitHub Actions here); its parts ran as steps 1–15 | — |
 | On Base | — | **not shown**: no public network was used tonight (ground rule) | Every gas, price and finality number on Base is a reading of records, not a run |
 

@@ -10,7 +10,6 @@ const ru: Record<keyof typeof en, string> = {
   "common.chain.31337": "Локальная тестовая сеть",
   "common.chain.84532": "Base Sepolia (тестовая сеть)",
   "common.chain.8453": "Base",
-  "common.footer.limits": "Чего aHand не обещает",
   "common.footer.withoutUs": "Сделать без нас",
   "common.footer.defaults": "Об этих настройках",
   "common.footer.nav": "Об этом сайте",

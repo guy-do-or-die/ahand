@@ -22,7 +22,6 @@ const en = {
   "common.chain.31337": "Local test network",
   "common.chain.84532": "Base Sepolia (test network)",
   "common.chain.8453": "Base",
-  "common.footer.limits": "What it can't promise",
   "common.footer.withoutUs": "Do it without us",
   "common.footer.defaults": "About these defaults",
   "common.footer.nav": "About this site",
@@ -77,7 +76,7 @@ const en = {
   "common.noCore.retry": "Check again",
   "common.lens.cap": "Cap 180 d · less 10 min, so it can't arrive too late",
   // The footer's line under the lens only (shell/Shell.tsx CoreLine, the owner's 2026-11-21 decision);
-  // "Unaudited" lives in full on /limits (limits.unaudited.say) and /core.
+  // "Unaudited" is said in full on /core (core.unaudited).
   "common.lens.core": "Core {core}",
 
   // ── Shared error lines (UX-SPEC §6, §12) ───────────────────────────────

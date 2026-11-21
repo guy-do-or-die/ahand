@@ -24,6 +24,5 @@ describe("landing: a newcomer meets the gestures before the paste box (F17)", ()
 
   test("the third card says who gets the money in words a native would use (F16)", () => {
     expect(ru["landing.thank.say"]).toStartWith("Скажи спасибо тому, кто помог, — деньги получат все, кто передавал ссылку.");
-    expect(ru["landing.limits"]).toBe("Чего aHand не обещает");
   });
 });

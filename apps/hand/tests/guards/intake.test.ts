@@ -108,7 +108,7 @@ describe("router", () => {
 
   test("a click on a same-site link moves without a page load; a link with # is left to the browser", () => {
     const root = document.createElement("div");
-    root.innerHTML = '<a id="a" href="/limits">x</a><a id="b" href="/#abc">y</a>';
+    root.innerHTML = '<a id="a" href="/defaults">x</a><a id="b" href="/#abc">y</a>';
     document.body.append(root);
     const stop = router.interceptLinks(root);
     // Runs after the router's listener: records whether it took the click, then keeps happy-dom from following it.
@@ -119,10 +119,10 @@ describe("router", () => {
     };
     document.addEventListener("click", after);
     root.querySelector("#a")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
-    expect(window.location.pathname).toBe("/limits");
+    expect(window.location.pathname).toBe("/defaults");
     root.querySelector("#b")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
     expect(taken).toEqual([true, false]);
-    expect(window.location.pathname).toBe("/limits");
+    expect(window.location.pathname).toBe("/defaults");
     document.removeEventListener("click", after);
     stop();
   });

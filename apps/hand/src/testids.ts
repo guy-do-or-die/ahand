@@ -18,7 +18,6 @@ export const TID = {
     main: "shell-main",
     footer: "shell-footer",
     footerCore: "shell-footer-core",
-    footerLimits: "shell-footer-limits",
     footerWithoutUs: "shell-footer-without-us",
     footerDefaults: "shell-footer-defaults",
     theme: "shell-theme",
@@ -360,16 +359,14 @@ export const TID = {
     limitHere: "core-limit-here", // data-value: paid passes at worst; data-gas-k
   },
 
-  /** `/limits`, `/defaults`, `/without-us` (§11). */
+  /** `/defaults`, `/without-us` (§11). */
   about: {
-    limit: "limits-entry", // data-index: 1..16
     default: "defaults-row", // data-value: the decision's number
     exitFile: "without-us-exit",
     command: "without-us-command",
     explorer: "without-us-explorer",
     download: "without-us-download",
     core: "without-us-core",
-    limitHere: "limits-length-here", // data-value: paid shares at worst with this build's setting
   },
 
   /** Print `/print` (§11). */

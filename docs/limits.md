@@ -1,11 +1,6 @@
 # What it can't promise
 
-```
-/limits  ·  What it can't promise.  ·  Чего она не обещает.
-1. Thanking is voluntary. The asker can get help and let the hand run out; the reward then goes back to them.
-```
-
-The sixteen entries of the `/limits` screen, in its order: the twelve accepted limits of the owner's record (1–11 and 16), the two token risks of the plan's token policy (12, 13), and the two this build adds (14, 15). The words are the screen's own, copied on 2026-11-20 from `apps/hand/src/screens/limits/en.ts` and `ru.ts` (the order and the sources from `index.tsx`); if the catalogue changes, the screen is right and this page is stale. The `/raise` screen repeats the USDC line under the reward; `/core` repeats the twelve accepted limits in the record's own wording. Tested by `tests/e2e/smoke/about.spec.ts` ("/limits 16 entries in EN and RU with both token entries").
+The sixteen things the system can't promise: the twelve accepted limits of the owner's record (1–11 and 16), the two token risks of the plan's token policy (12, 13), and the two this build adds (14, 15). This page is the reference. Each entry gives the English sentence and example and the Russian sentence; the Russian examples were not copied here. The app showed the same entries on a `/limits` screen until 2026-11-22, when the owner decided to remove that screen; the words below were copied on 2026-11-20 from its catalogue. After that copy the screen reworded entry 1's Russian sentence (it now said the asker may get help and never say thanks before the end), so the Russian line under entry 1 is the earlier wording; entry 4's figure for this build ("With this site's setting, that is N paid shares") is left out. The app now has no page of its own for them (an old `/limits` link shows the not-found page). In the app, `/core` lists the twelve accepted limits in the record's own wording and says "Unaudited" in full, and `/raise` says under the reward, for those who check, that USDC's issuer can freeze an address.
 
 ### 1. Thanking is voluntary.
 
@@ -15,7 +10,7 @@ Thanking is voluntary. The asker can get help and let the hand run out; the rewa
 
 RU: Благодарить — по желанию. Автор может получить помощь и дождаться конца срока; тогда награда вернётся ему.
 
-Source: `R-3 · ACCEPTED LIMITS` · from the record's twelve accepted limits · key `limits.voluntary`
+Source: `R-3 · ACCEPTED LIMITS` · from the record's twelve accepted limits
 
 ### 2. Whoever passes it on relies on the asker and the helper.
 
@@ -25,7 +20,7 @@ Whoever passes it on relies on the asker and the helper. Anyone who held the lin
 
 RU: Тот, кто передаёт дальше, полагается на автора и помощника. Любой, у кого ссылка была раньше, включая автора, может предложить помощнику путь покороче, без тех, кто был после него, и помощник может согласиться. Контракт только делает это видимым и доказуемым.
 
-Source: `R-29 · ONEDOLLARAUDIT M-3` · from the record's twelve accepted limits · key `limits.route`
+Source: `R-29 · ONEDOLLARAUDIT M-3` · from the record's twelve accepted limits
 
 ### 3. A second address is invisible.
 
@@ -35,7 +30,7 @@ A second address is invisible. The contract only stops the asker's own address f
 
 RU: Второй адрес не виден. Контракт не даёт стать помощником только собственному адресу автора; если автор отвечает с другого адреса, это выглядит как обычный помощник.
 
-Source: `R-4 · GIVERISRAISER COMPARES ADDRESSES` · from the record's twelve accepted limits · key `limits.second`
+Source: `R-4 · GIVERISRAISER COMPARES ADDRESSES` · from the record's twelve accepted limits
 
 ### 4. A very long route can't be thanked.
 
@@ -45,7 +40,7 @@ A very long route can't be thanked. More than about 369 passes, or about 70 paid
 
 RU: Очень длинный путь нельзя поблагодарить. Больше примерно 369 передач или примерно 70 оплачиваемых долей в токене, который при каждой выплате запускает код получателя, в одну благодарность не помещаются. Застревает только эта ветка, и любой, у кого есть ссылка, может забить ветку пустыми передачами.
 
-Source: `R-45 · R-46 · ONEDOLLARAUDIT M-1` · from the record's twelve accepted limits · key `limits.length`
+Source: `R-45 · R-46 · ONEDOLLARAUDIT M-1` · from the record's twelve accepted limits
 
 ### 5. Tokens that change balances by themselves don't fit.
 
@@ -55,7 +50,7 @@ Tokens that change balances by themselves don't fit. With a token that grows, sh
 
 RU: Токены, которые сами меняют балансы, не подходят. С токеном, который сам растёт, уменьшается или удерживает часть, последние в очереди на выплату могут получить меньше, или их деньги будут ждать, пока выплаты снова не станут точными. Любой излишек и любой токен, отправленный в контракт напрямую, останутся в нём навсегда.
 
-Source: `R-2 · R-26 · R-102 · ONEDOLLARAUDIT M-2, L-8` · from the record's twelve accepted limits · key `limits.balances`
+Source: `R-2 · R-26 · R-102 · ONEDOLLARAUDIT M-2, L-8` · from the record's twelve accepted limits
 
 ### 6. Money for a blocked address waits.
 
@@ -65,7 +60,7 @@ Money for a blocked address waits. If a token refuses to pay an address, that sh
 
 RU: Деньги для заблокированного адреса ждут. Если токен отказывается платить на какой-то адрес, эта доля ждёт в контракте, и только сам этот адрес может отправить её в другое место.
 
-Source: `R-26 · PENDING · WITHDRAW` · from the record's twelve accepted limits · key `limits.blocked`
+Source: `R-26 · PENDING · WITHDRAW` · from the record's twelve accepted limits
 
 ### 7. A pass or an answer can't be taken back.
 
@@ -75,7 +70,7 @@ A pass or an answer can't be taken back. They have no deadline of their own and 
 
 RU: Передачу или ответ нельзя забрать назад. У них нет своего срока, и они действуют, пока рука открыта, даже после продления.
 
-Source: `R-20` · from the record's twelve accepted limits · key `limits.forever`
+Source: `R-20` · from the record's twelve accepted limits
 
 ### 8. At most 180 days at a time.
 
@@ -85,7 +80,7 @@ At most 180 days at a time. Each raise or extension reaches at most 180 days ahe
 
 RU: Не больше 180 дней за раз. Каждый подъём или продление — максимум на 180 дней вперёд. Если автор не продлит вовремя, награда вернётся, а все собранные пути пропадут.
 
-Source: `R-98 · R-99 · MAX_EXPIRY_PERIOD 180 D` · from the record's twelve accepted limits · key `limits.cap`
+Source: `R-98 · R-99 · MAX_EXPIRY_PERIOD 180 D` · from the record's twelve accepted limits
 
 ### 9. Lose the link and only the way back remains.
 
@@ -95,7 +90,7 @@ Lose the link and only the way back remains. If the asker loses what opens the h
 
 RU: Потеряешь ссылку — останется только возврат. Если автор потеряет то, что открывает ссылку руки, поблагодарить никого не выйдет; после конца срока награда вернётся.
 
-Source: `R-19 · ROOT KEY` · from the record's twelve accepted limits · key `limits.lost`
+Source: `R-19 · ROOT KEY` · from the record's twelve accepted limits
 
 ### 10. Nobody can fix it or rescue anything.
 
@@ -105,7 +100,7 @@ Nobody can fix it or rescue anything. The contract has no owner, takes nothing a
 
 RU: Никто не может её исправить или что-то спасти. У контракта нет владельца, он ничего себе не берёт, и в нём нет кнопки спасения. Ошибка в нём — навсегда.
 
-Source: `NO OWNER · NO ADMIN · NO RESCUE FUNCTION` · from the record's twelve accepted limits · key `limits.rescue`
+Source: `NO OWNER · NO ADMIN · NO RESCUE FUNCTION` · from the record's twelve accepted limits
 
 ### 11. A send-back can be pushed into waiting.
 
@@ -115,7 +110,7 @@ A send-back can be pushed into waiting. Anyone can send a hand back after its en
 
 RU: Возврат можно столкнуть в ожидание. Вернуть руку после конца срока может кто угодно, и тот, кто запустит возврат впритык, без запаса на выполнение, может оставить деньги автора ждать вместо того, чтобы их доставить. Тогда нужен ещё один шаг — забрать их.
 
-Source: `R-33 · REFUND → PENDING` · from the record's twelve accepted limits · key `limits.refund`
+Source: `R-33 · REFUND → PENDING` · from the record's twelve accepted limits
 
 ### 12. If a token stops moving or changes its rules after a reward is locked, everything held in that token is stuck in the contract: rewards, waiting money and the way back to the asker.
 
@@ -125,7 +120,7 @@ If a token stops moving or changes its rules after a reward is locked, everythin
 
 RU: Если токен перестанет переводиться или сменит правила после того, как награда положена, в контракте застрянет всё, что в нём лежит: награды, ждущие деньги и возврат автору. Спасти их некому.
 
-Source: `PLAN · TOKEN POLICY · MAINNET RISKS` · from the plan's token policy · key `limits.token`
+Source: `PLAN · TOKEN POLICY · MAINNET RISKS` · from the plan's token policy
 
 ### 13. USDC has an issuer.
 
@@ -135,7 +130,7 @@ USDC has an issuer. It can freeze any address, the contract's own included, or t
 
 RU: У USDC есть эмитент. Он может заморозить любой адрес, в том числе сам контракт, или весь токен. Деньги замороженного получателя ждут. Если заморожен сам контракт, застрянут все руки в USDC, включая возврат.
 
-Source: `PLAN · TOKEN POLICY · USDC BLOCKLIST` · from the plan's token policy · key `limits.usdc`
+Source: `PLAN · TOKEN POLICY · USDC BLOCKLIST` · from the plan's token policy
 
 ### 14. This site's code reads your link.
 
@@ -145,7 +140,7 @@ This site's code reads your link. A server never receives what follows # in an a
 
 RU: Код этого сайта читает твою ссылку. Сервер никогда не получает то, что стоит после # в адресе, но код, который отдаёт этот сайт, читает это в твоём браузере — иначе ссылка не откроется. Нечестный сайт или сайт-двойник может скопировать ссылку или вписать в передачу другой адрес для денег.
 
-Source: `THIS BUILD · ARCHITECTURE §9, §11` · from this build · key `limits.code`
+Source: `THIS BUILD · ARCHITECTURE §9, §11` · from this build
 
 ### 15. Another site can ask for the same keys confirmation.
 
@@ -155,7 +150,7 @@ Another site can ask for the same keys confirmation. A hand's keys come from one
 
 RU: Другой сайт может попросить то же подтверждение ключей. Ключи руки получаются из одного неизменного сообщения, которое подтверждает твой аккаунт. Сайт, получивший такое же подтверждение, сможет восстановить твои ссылки и читать присланные тебе ответы. Забрать награду он не сможет никогда: благодарит и получает её назад только твой аккаунт.
 
-Source: `THIS BUILD · D-19 · KEYS/1 MESSAGE` · from this build · key `limits.keys`
+Source: `THIS BUILD · D-19 · KEYS/1 MESSAGE` · from this build
 
 ### 16. Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.
 
@@ -165,5 +160,5 @@ Unaudited: seven AI reviews and one AI scan found no defect; no professional aud
 
 RU: Без аудита: семь проверок ИИ и одно сканирование ИИ не нашли дефектов; профессионального аудита не было.
 
-Source: `7 AI REVIEWS · 1 AI SCAN · TESTED: COINBASE SMART WALLET, SAFE 1.4.1` · from the record's twelve accepted limits · key `limits.unaudited`
+Source: `7 AI REVIEWS · 1 AI SCAN · TESTED: COINBASE SMART WALLET, SAFE 1.4.1` · from the record's twelve accepted limits
 

@@ -56,8 +56,6 @@ const DYNAMIC: readonly { family: RegExp; file: string; template: string }[] = [
   { family: /^defaults\.value\.\w+$/, file: "screens/defaults/index.tsx", template: "`defaults.value.${row.value.key}`" },
   { family: /^print\.format\.\w+$/, file: "screens/print/index.tsx", template: "`print.format.${item}`" },
   { family: /^print\.closed\.\w+$/, file: "screens/print/index.tsx", template: "`print.closed.${closing.how}`" },
-  { family: /^limits\.\w+\.say$/, file: "screens/limits/index.tsx", template: "`limits.${id}.say`" },
-  { family: /^limits\.\w+\.example$/, file: "screens/limits/index.tsx", template: "`limits.${id}.example`" },
   { family: /^hand\.code\.link\.[a-z-]+$/, file: "screens/hand/held.ts", template: "`hand.code.link.${error.code}`" },
 ];
 

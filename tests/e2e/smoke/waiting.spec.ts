@@ -205,7 +205,9 @@ test("another account may Deliver but not take it out; while the payee is blocke
   const said = error.getByRole("button", { name: "What the token said" });
   await expect(said).toHaveAttribute("aria-expanded", "true");
   await expect(error).toContainText("BLACKLISTED");
-  await expect(row(page, token).getByTestId("waiting-issuer")).toHaveAttribute("href", "/limits");
+  const issuer = row(page, token).getByTestId("waiting-issuer");
+  await expect(issuer).toContainText("Its issuer can freeze an address, and then that money waits.");
+  await expect(issuer).not.toHaveAttribute("href", /.*/);
   expect(await pending(chain, stand.core, token, payee)).toBe(before);
 });
 

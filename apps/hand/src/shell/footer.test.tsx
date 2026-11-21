@@ -100,16 +100,16 @@ describe("footer: the lens switch drawn like the theme switch, Core's line under
     expect(line.textContent).not.toMatch(/unaudited|owner|fee/i);
   });
 
-  test("the three links stay as they were", () => {
+  test("the two links stay as they were, and none leads to /limits (removed by the owner's decision of 2026-11-22)", () => {
     const doc = footer(false);
-    expect(byId(doc, TID.shell.footerLimits)?.getAttribute("href")).toBe("/limits");
+    expect(doc.querySelector('a[href="/limits"]')).toBeNull();
     expect(byId(doc, TID.shell.footerWithoutUs)?.getAttribute("href")).toBe("/without-us");
     expect(byId(doc, TID.shell.footerDefaults)?.getAttribute("href")).toBe("/defaults");
   });
 
   test("the old keys are gone and the lens line reads the same in both languages", () => {
     for (const catalogue of [common, ru] as Record<string, string>[]) {
-      for (const key of ["common.footer", "common.footer.calm", "common.lensWord"]) expect(catalogue[key]).toBeUndefined();
+      for (const key of ["common.footer", "common.footer.calm", "common.lensWord", "common.footer.limits"]) expect(catalogue[key]).toBeUndefined();
       expect(catalogue["common.lens.core"]).toBe("Core {core}");
     }
   });

@@ -44,8 +44,7 @@ const en = {
   "core.comesWith": "These numbers come with this site. The command above checks them without it.",
 
   "core.limitsTitle": "What it accepts it can't do",
-  "core.limits.body": "The twelve accepted limits of the project's record, word for word. Plain sentences are on the page “What it can't promise”.",
-  "core.limits.plain": "In plain words",
+  "core.limits.body": "The twelve accepted limits of the project's record, word for word.",
   "core.unaudited": "Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.",
 
   // The specialist layer: the record's own words, verbatim (brief 02 §2).

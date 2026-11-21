@@ -101,7 +101,6 @@ const SCREENS: Shot[] = [
   },
   { slug: "check", go: at("/check") },
   { slug: "core", go: at("/core") },
-  { slug: "limits", go: at("/limits") },
   { slug: "defaults", go: at("/defaults") },
   { slug: "without-us", go: at("/without-us") },
   { slug: "dev-wallet", go: at("/dev/wallet") },

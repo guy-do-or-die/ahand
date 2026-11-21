@@ -65,7 +65,6 @@ export const ROUTES: readonly Route[] = [
   { name: "print", pattern: "/print", screen: screen(() => import("./screens/print/index.tsx")) },
   { name: "check", pattern: "/check", screen: screen(() => import("./screens/check/index.tsx")) },
   { name: "core", pattern: "/core", screen: screen(() => import("./screens/core/index.tsx")) },
-  { name: "limits", pattern: "/limits", screen: screen(() => import("./screens/limits/index.tsx")) },
   { name: "defaults", pattern: "/defaults", screen: screen(() => import("./screens/defaults/index.tsx")) },
   { name: "without-us", pattern: "/without-us", screen: screen(() => import("./screens/without-us/index.tsx")) },
   ...(LOCAL

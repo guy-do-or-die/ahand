@@ -169,13 +169,16 @@ function FailureBand({ failure, said }: { failure: Failure; said?: string }) {
   );
 }
 
-/** Why a token can refuse: the issuer's power, for those who check. The refusal itself always stands. */
+/**
+ * Why a token can refuse: the issuer's power, for those who check. The refusal itself always stands.
+ * A sentence, not a link: the app has no limits page since the owner's decision of 2026-11-22.
+ */
 function IssuerLine() {
   return (
     <Proof>
-      <a href="/limits" className="ah-label ah-label--dim underline decoration-dashed underline-offset-4" data-testid={TID.waiting.issuer}>
+      <span className="ah-label ah-label--dim" data-testid={TID.waiting.issuer}>
         {t("waiting.issuer")}
-      </a>
+      </span>
     </Proof>
   );
 }

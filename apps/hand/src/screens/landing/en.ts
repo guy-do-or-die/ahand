@@ -19,7 +19,6 @@ const en = {
   "landing.lens.thank": "One call pays each share kept on the route, then the rest to the helper's payee. From the expiry on, anyone may call refund and the whole reward goes back to the raiser.",
 
   "landing.honest": "Thanking is voluntary: the asker decides.",
-  "landing.limits": "What it can't promise",
 
   "landing.open.title": "Got a link? Paste it",
   "landing.open.hint": "Paste an address, a link, or the digits under a QR code.",

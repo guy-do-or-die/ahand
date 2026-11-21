@@ -19,7 +19,6 @@ const ru: Record<keyof typeof en, string> = {
   "landing.lens.thank": "Один вызов платит каждую долю на пути, а остаток — на payee помощника. С момента expiry любой может вызвать refund, и вся награда вернётся автору.",
 
   "landing.honest": "Благодарить или нет — решает автор.",
-  "landing.limits": "Чего aHand не обещает",
 
   "landing.open.title": "Есть ссылка? Вставь её",
   "landing.open.hint": "Вставь адрес, ссылку или цифры под QR-кодом.",
