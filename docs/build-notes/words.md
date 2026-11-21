@@ -216,9 +216,9 @@ One deliberate difference: §8.6 names the first choice "My wallet". The kit say
 | §8.2 | This hand is closed. | i18n/common/en.ts common.state.closed; screens/hand/en.ts hand.closed | (no RU in spec) |
 | §8.2 | The reward went back. | i18n/common/en.ts common.state.wentBack; screens/hand/en.ts hand.sendBack.done | (no RU in spec) |
 | §8.2 | Look for a newer hand by this asker | screens/hand/en.ts hand.newer.look | screens/hand/ru.ts hand.newer.look |
-| §8.2 | The same address raised hand {number} later. | screens/hand/en.ts hand.newer.found | screens/hand/ru.ts hand.newer.found |
-| §8.2 | It has its own link. Ask whoever sent you this one. | screens/hand/en.ts hand.newer.ownLink | screens/hand/ru.ts hand.newer.ownLink |
-| §8.2 | Nothing newer in that stretch. | screens/hand/en.ts hand.newer.none | screens/hand/ru.ts hand.newer.none |
+| §8.2 | The same address raised hand {number} after this one. (Changed 2026-11-21 for D-64: the look reads Hand numbers, not a stretch of time.) | screens/hand/en.ts hand.newer.found | screens/hand/ru.ts hand.newer.found |
+| §8.2 | It has its own link. Ask whoever sent you this one. (2026-11-21: "Each has its own link…" when more than one is found.) | screens/hand/en.ts hand.newer.ownLink, hand.newer.ownLinks | screens/hand/ru.ts hand.newer.ownLink, hand.newer.ownLinks |
+| §8.2 | None of them was raised by this asker. (Changed 2026-11-21 for D-64, from "Nothing newer in that stretch.") | screens/hand/en.ts hand.newer.none | screens/hand/ru.ts hand.newer.none |
 | §8.2 | Ask whoever sent you the link whether there is a newer one. | screens/hand/en.ts hand.askSender | screens/hand/ru.ts hand.askSender |
 | §8.2 | Someone answered this hand. Pass it back to whoever sent you the link. | screens/hand/en.ts hand.give.holder | screens/hand/ru.ts hand.give.holder |
 | §8.2 | This is an answer to your hand. | screens/hand/en.ts hand.give.raiser | (no RU in spec) |
@@ -443,9 +443,9 @@ const QUOTES: [string, string, string][] = [
   ["§8.2", "This hand is closed.", ""],
   ["§8.2", "The reward went back.", ""],
   ["§8.2", "Look for a newer hand by this asker", "Поискать новую руку этого автора"],
-  ["§8.2", "The same address raised hand {number} later.", "С этого же адреса позже поднята рука {number}."],
+  ["§8.2", "The same address raised hand {number} after this one.", "С этого же адреса после этой поднята рука {number}."],
   ["§8.2", "It has its own link. Ask whoever sent you this one.", "У неё своя ссылка. Спроси у того, кто прислал эту."],
-  ["§8.2", "Nothing newer in that stretch.", "За это время новой нет."],
+  ["§8.2", "None of them was raised by this asker.", "Среди них нет рук этого автора."],
   ["§8.2", "Ask whoever sent you the link whether there is a newer one.", "Спроси у того, кто прислал ссылку, нет ли новой."],
   ["§8.2", "Someone answered this hand. Pass it back to whoever sent you the link.", "На эту руку ответили. Передай это тому, кто прислал тебе ссылку."],
   ["§8.2", "This is an answer to your hand.", ""],

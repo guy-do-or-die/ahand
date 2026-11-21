@@ -83,6 +83,8 @@ export function parseConfig(input: unknown): AppConfig {
       name: string(chain.name, "chain.name"),
       rpcUrls: list(chain.rpcUrls, "chain.rpcUrls", (v, at) => url(v, at, ["http:", "https:"])),
       blockTimeMs: integer(chain.blockTimeMs, "chain.blockTimeMs", 1),
+      ...(chain.pollMs === undefined || chain.pollMs === null ? {} : { pollMs: integer(chain.pollMs, "chain.pollMs", 100) }),
+      ...(chain.logWindow === undefined || chain.logWindow === null ? {} : { logWindow: integer(chain.logWindow, "chain.logWindow", 1, 2_000) }),
       local: boolean(chain.local, "chain.local"),
       hasL1: boolean(chain.hasL1, "chain.hasL1"),
       ...(chain.testnet === undefined ? {} : { testnet: boolean(chain.testnet, "chain.testnet") }),

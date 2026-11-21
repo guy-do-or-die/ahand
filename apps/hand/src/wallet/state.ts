@@ -4,6 +4,7 @@ import type { Config, Connector } from "wagmi";
 import { connect, disconnect, getConnection, getConnectors, switchChain, watchConnection, watchConnectors } from "wagmi/actions";
 
 import { config as app } from "../config";
+import { pollMsOf } from "../config/schema";
 import { chainOf } from "../chain/clients";
 import { walletConfig } from "./config";
 import { FALLBACK_ID } from "./fallback";
@@ -187,7 +188,9 @@ export async function connectedWallet(): Promise<SignedInWallet | undefined> {
   const connection = getConnection(config);
   if (connection.status !== "connected" || !connection.address || !connection.connector) return undefined;
   const provider = (await connection.connector.getProvider()) as EIP1193Provider;
-  return createWalletClient({ account: connection.address, chain: chainOf(app.chain), transport: custom(provider) });
+  // The chain's pace is its real block time (200 ms on Base), so viem's default polling would be
+  // 500 ms; the app's own polling interval is set instead, as on every other client.
+  return createWalletClient({ account: connection.address, chain: chainOf(app.chain), transport: custom(provider), pollingInterval: pollMsOf(app.chain) });
 }
 
 /** The address a dev account answers for (read from its own provider), or undefined for other wallets. */

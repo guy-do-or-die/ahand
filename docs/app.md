@@ -13,7 +13,7 @@
 | Route | Screen (`src/screens/…`) | What it does |
 |---|---|---|
 | `/` | `landing` | the hero, a box to paste an address, bare link or QR digits, three gesture cards that turn over to Core's calls. With a fragment it is the Hand view |
-| `/<chain>/<hand>`, `/<chain>/<core>/<hand>` (`?d=` optional) | `hand` | the Deal card, the route as a rail of cards that turn over (the twist), "Pass it on", "I can help"; after the end "Send it back"; on a closed Hand a bounded look for the asker's newer Hand |
+| `/<chain>/<hand>`, `/<chain>/<core>/<hand>` (`?d=` optional) | `hand` | the Deal card, the route as a rail of cards that turn over (the twist), "Pass it on", "I can help"; after the end "Send it back"; on a closed Hand a bounded look for the asker's newer Hand, by Hand numbers (D-64) |
 | `/pass` | `pass` | signs a Shake with the link key (no wallet), keeps the shape or makes it darker, reads the new link back and shows its payee and share, *checked here* |
 | `/give` | `give` | the helper's answer: a connected account, a one-time key with a pasted payee, or a new address whose twelve words are shown once; Core's `checkGive` before it is called an answer; delivery to the asker's inbox, with "Send this back to whoever sent you the link" as the fallback |
 | `/raise` | `raise` | words, mode, reward (zero allowed), days; keys confirmation; simulate, then send; the first link at "In a block" |

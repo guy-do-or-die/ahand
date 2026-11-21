@@ -393,21 +393,3 @@ export async function makePass(
   const qr = toAddress({ site, link: bare, shape: "bare", form: "digits" }, options);
   return { address, qr, shape, readBack: readBackOf(written) };
 }
-
-/** What a look for a newer Hand by the same asker will read, said before it runs (D-64). */
-export interface LaterPlan {
-  fromBlock: bigint;
-  toBlock: bigint;
-  /** The blocks the look covers, at most `maxWindows` windows. */
-  blocks: bigint;
-  /** The network's time those blocks span, in minutes, at the chain's block time. */
-  minutes: number;
-}
-
-/** The stretch after a Hand ended that `findLaterHands` reads: from the block it ended in to the latest. */
-export function laterPlan(endedBlock: bigint, latest: bigint, blockTimeMs: number, maxWindows = 216, chunk = 2_000): LaterPlan {
-  const span = latest >= endedBlock ? latest - endedBlock + 1n : 0n;
-  const cap = BigInt(maxWindows) * BigInt(chunk);
-  const blocks = span < cap ? span : cap;
-  return { fromBlock: endedBlock, toBlock: latest, blocks, minutes: Math.max(1, Math.ceil((Number(blocks) * blockTimeMs) / 60_000)) };
-}

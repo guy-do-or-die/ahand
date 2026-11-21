@@ -1,7 +1,7 @@
 import { createConfig, injected, type Config, type CreateConnectorFn } from "wagmi";
 
 import { config as app } from "../config";
-import type { ChainConfig } from "../config/schema";
+import { pollMsOf, type ChainConfig } from "../config/schema";
 import { chainOf, transportOf } from "../chain/clients";
 import { privyAllowsOrigin, privyConnector, PrivyUnavailableError } from "./privy";
 
@@ -28,7 +28,7 @@ export function walletConfigOf(chain: ChainConfig, connectors: CreateConnectorFn
     multiInjectedProviderDiscovery: true,
     storage: null,
     ssr: false,
-    pollingInterval: chain.blockTimeMs,
+    pollingInterval: pollMsOf(chain),
   });
 }
 

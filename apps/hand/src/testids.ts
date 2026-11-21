@@ -212,6 +212,7 @@ export const TID = {
     newerCount: "hand-newer-count",
     newerFound: "hand-newer-found",
     newerNone: "hand-newer-none",
+    newerFailed: "hand-newer-failed",
     askSender: "hand-ask-sender",
     giveLink: "hand-give-link",
     toThank: "hand-to-thank",

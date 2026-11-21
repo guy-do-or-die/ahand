@@ -11,8 +11,8 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { erc20Abi, type Address } from "viem";
 
 import { account, pickDevAccount } from "../lib/accounts";
-import { craft, cutRpc, getLogsCount, logRequests, quietDevServer, type SeedRun } from "../lib/feat-hand/helpers";
-import { hands, rpc, type Rpc } from "../lib/rpc";
+import { aggregateCount, craft, cutRpc, getLogsCount, logRequests, quietDevServer, type SeedRun } from "../lib/feat-hand/helpers";
+import { hands, handsCount, rpc, type Rpc } from "../lib/rpc";
 import { lensOn } from "../lib/lens";
 import { readStand, seed, tokenOf } from "../lib/stand";
 
@@ -242,7 +242,7 @@ test("past its end by the network's clock (the browser's two years behind) it re
   expect(after - before).toBe(BigInt(expired.reward));
 });
 
-test("a refunded hand looks for a newer one by the same asker with exactly the requests it announced; a found hand opens with no actions", async ({ page }) => {
+test("a refunded hand looks for a newer one by the same asker by hand numbers, with exactly the requests it announced; a found hand opens with no actions", async ({ page }) => {
   // The proof, the count of requests and the evidence under the card stand under the lens.
   await lensOn(page);
   const refunded = fixture("refunded");
@@ -251,14 +251,24 @@ test("a refunded hand looks for a newer one by the same asker with exactly the r
   await expect(page.getByTestId("hand-ask-sender")).toHaveText("Ask whoever sent you the link whether there is a newer one.");
   const count = page.getByTestId("hand-newer-count");
   await expect(count).toBeVisible();
+  // Core's handsCount was read first: every Hand numbered after this one is read, up to 200 per
+  // request. Other workers may raise Hands on this stand meanwhile, so the count is at most today's.
+  const after = Number(await count.getAttribute("data-hands"));
+  expect(after).toBeGreaterThan(0);
+  expect(BigInt(after)).toBeLessThanOrEqual((await handsCount(chain, run.core)) - BigInt(refunded.handId));
   const announced = Number(await count.getAttribute("data-value"));
-  expect(announced).toBeGreaterThan(0);
+  expect(announced).toBe(Math.ceil(after / 200));
+  await expect(count).toHaveText(new RegExp(`^Reads (the one hand|the ${after} hands) raised after this one \\(${announced} requests?\\)\\. Any of them by the same address counts, even one raised while this one was still open\\.$`));
 
   const seen = logRequests(page);
   await page.getByTestId("hand-newer-look").click();
   const found = page.getByTestId("hand-newer-found");
   await expect(found).toBeVisible();
-  expect(getLogsCount(seen)).toBe(announced);
+  // Found Hands show after any batch, so the count waits for the look to be done.
+  await expect(found).toHaveAttribute("data-look", "done");
+  // Each request is one eth_call to the forwarder's aggregate3, and no log is read.
+  expect(aggregateCount(seen, stand.forwarder!)).toBe(announced);
+  expect(getLogsCount(seen)).toBe(0);
 
   const ids = ((await found.getAttribute("data-value")) ?? "").split(",");
   const later = fixture("thanked").handId;

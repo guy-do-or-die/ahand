@@ -10,8 +10,23 @@ export interface ChainConfig {
   id: number;
   name: string;
   rpcUrls: string[];
-  /** How often the block watcher polls: the chain's block time. */
+  /**
+   * The chain's real pace: one block every so many milliseconds (Base: 200). The SDK's
+   * `findBlockAt` guesses a block from a time with it. Not how often the app asks: see `pollMs`.
+   */
   blockTimeMs: number;
+  /**
+   * How often the app asks the chain for news (the block watcher, viem's and wagmi's polling), in
+   * milliseconds. Absent: the block time, but at least a second (`pollMsOf`). Base Sepolia sets
+   * 2 000, so its public RPC is not asked five times a second.
+   */
+  pollMs?: number;
+  /**
+   * The widest `eth_getLogs` range, in blocks, that the chain's RPCs take, when it is below the
+   * SDK's 2 000 (Base Sepolia's public RPC: 200). Log reads start at it rather than learning it
+   * from a refusal. Absent: 2 000, and a node that takes less still makes the window shrink.
+   */
+  logWindow?: number;
   /** A local test chain: the dev wallet and the LOCAL STAND-IN tags exist only here. */
   local: boolean;
   /** An OP Stack chain with Ethereum behind it (L1 fee, "Recorded on Ethereum"). */
@@ -117,6 +132,11 @@ export interface AppConfig {
   previews?: boolean;
   /** Email sign-in through Privy; absent means none (the local stand has none). */
   privy?: PrivyConfig;
+}
+
+/** How often the app polls a chain: its `pollMs`, else its block time but at least a second. */
+export function pollMsOf(chain: Pick<ChainConfig, "blockTimeMs" | "pollMs">): number {
+  return chain.pollMs ?? Math.max(chain.blockTimeMs, 1_000);
 }
 
 /** A test network: local, or marked `testnet` (its money is test money). */

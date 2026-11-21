@@ -89,3 +89,36 @@ describe("email sign-in through Privy", () => {
     expect(() => parseConfig({ ...example, privy: { appId: "clt69jwp204btq1o3q72cupji" } })).toThrow(/privy belongs to a public network/);
   });
 });
+
+describe("chain.pollMs and chain.logWindow", () => {
+  const sepolia = JSON.parse(readFileSync(new URL("./base-sepolia.json", import.meta.url), "utf8")) as unknown;
+  const withChain = (fields: Record<string, unknown>) => {
+    const copy = structuredClone(example) as unknown as { chain: Record<string, unknown> };
+    Object.assign(copy.chain, fields);
+    return copy;
+  };
+
+  test("Base Sepolia states its real pace (200 ms), polls every 2 s and reads logs 200 blocks at a time", () => {
+    const chain = parseConfig(sepolia).chain;
+    expect(chain.blockTimeMs).toBe(200);
+    expect(chain.pollMs).toBe(2_000);
+    expect(chain.logWindow).toBe(200);
+  });
+
+  test("both are optional: the local example sets neither", () => {
+    const chain = parseConfig(example).chain;
+    expect(chain.pollMs).toBeUndefined();
+    expect(chain.logWindow).toBeUndefined();
+    expect("pollMs" in chain || "logWindow" in chain).toBe(false);
+    expect(parseConfig(withChain({ pollMs: null, logWindow: null })).chain.logWindow).toBeUndefined();
+  });
+
+  test("they are whole numbers in range: polling at least 100 ms, a log window of 1 to 2 000 blocks", () => {
+    expect(parseConfig(withChain({ pollMs: 500, logWindow: 1 })).chain).toMatchObject({ pollMs: 500, logWindow: 1 });
+    expect(() => parseConfig(withChain({ pollMs: 50 }))).toThrow(/chain.pollMs must be a whole number from 100/);
+    expect(() => parseConfig(withChain({ pollMs: "2000" }))).toThrow(ConfigError);
+    expect(() => parseConfig(withChain({ logWindow: 0 }))).toThrow(/chain.logWindow must be a whole number from 1 to 2000/);
+    expect(() => parseConfig(withChain({ logWindow: 5_000 }))).toThrow(ConfigError);
+    expect(() => parseConfig(withChain({ logWindow: 2.5 }))).toThrow(ConfigError);
+  });
+});

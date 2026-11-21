@@ -19,7 +19,7 @@ import { signTypedWith } from "./typed";
  * wrapped in a viem wallet client (state.ts `connectedWallet`), so that is what is driven here.
  */
 
-const SEPOLIA: ChainConfig = { id: 84532, name: "Base Sepolia", rpcUrls: ["https://sepolia.base.org"], blockTimeMs: 2000, local: false, hasL1: true, testnet: true };
+const SEPOLIA: ChainConfig = { id: 84532, name: "Base Sepolia", rpcUrls: ["https://sepolia.base.org"], blockTimeMs: 200, pollMs: 2000, logWindow: 200, local: false, hasL1: true, testnet: true };
 const SETTINGS = { appId: "clt69jwp204btq1o3q72cupji" };
 // anvil's public test key 7: never a real account.
 const KEY = privateKeyToAccount("0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356");

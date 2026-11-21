@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { ContractFunctionExecutionError, HttpRequestError, SocketClosedError, TimeoutError, WebSocketRequestError } from "viem";
+import { ContractFunctionExecutionError, HttpRequestError, RpcRequestError, SocketClosedError, TimeoutError, WebSocketRequestError } from "viem";
 
-import { isNetworkError } from "./errors";
+import { answerOf, isNetworkError } from "./errors";
 
 describe("isNetworkError: the network not answering, and nothing else", () => {
   test("viem's transport errors, deep in the cause chain too", () => {
@@ -36,5 +36,27 @@ describe("isNetworkError: the network not answering, and nothing else", () => {
     const a: { name: string; cause?: unknown } = { name: "A" };
     a.cause = { name: "B", cause: a };
     expect(isNetworkError(a)).toBe(false);
+  });
+});
+
+describe("answerOf: a node that answered, even with a failure", () => {
+  test("an HTTP error with a status is an answer, whatever isNetworkError says", () => {
+    const busy = new HttpRequestError({ url: "https://sepolia.base.org", status: 429, details: "Too Many Requests" });
+    expect(isNetworkError(busy)).toBe(true);
+    expect(answerOf(busy)).toEqual({ status: 429, words: "Too Many Requests" });
+    const wrapped = new ContractFunctionExecutionError(new HttpRequestError({ url: "https://sepolia.base.org", status: 503, details: "Service Unavailable" }) as never, { abi: [], functionName: "handsCount" });
+    expect(answerOf(wrapped)).toEqual({ status: 503, words: "Service Unavailable" });
+  });
+
+  test("a JSON-RPC refusal carries the node's own words", () => {
+    const refused = new RpcRequestError({ body: {}, url: "https://sepolia.base.org", error: { code: -32016, message: "over rate limit" } });
+    expect(answerOf(refused)).toEqual({ words: "over rate limit" });
+  });
+
+  test("no answer: fetch failed, a timeout, a plain bug", () => {
+    expect(answerOf(new HttpRequestError({ url: "http://127.0.0.1:1", cause: new TypeError("fetch failed") }))).toBeUndefined();
+    expect(answerOf(new TimeoutError({ body: {}, url: "http://127.0.0.1:1" }))).toBeUndefined();
+    expect(answerOf(new Error("x is not a function"))).toBeUndefined();
+    expect(answerOf(undefined)).toBeUndefined();
   });
 });

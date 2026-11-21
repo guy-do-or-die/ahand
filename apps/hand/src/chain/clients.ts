@@ -1,6 +1,7 @@
+import { setLogWindow } from "@ahand/sdk";
 import { createPublicClient, defineChain, fallback, http, type Chain, type PublicClient, type Transport } from "viem";
 
-import type { ChainConfig } from "../config/schema";
+import { pollMsOf, type ChainConfig } from "../config/schema";
 import { ccipReadIsHere } from "./ccip";
 
 /**
@@ -9,7 +10,11 @@ import { ccipReadIsHere } from "./ccip";
  * the app's one set from the build configuration.
  */
 
-/** The viem chain a configuration describes. Its currency is ether on every chain aHand runs on. */
+/**
+ * The viem chain a configuration describes. Its currency is ether on every chain aHand runs on.
+ * Its `blockTime` is the chain's real pace (the SDK's `findBlockAt` guesses with it), not how often
+ * the app polls (`pollMsOf`).
+ */
 export function chainOf(chain: ChainConfig): Chain {
   return defineChain({
     id: chain.id,
@@ -44,12 +49,16 @@ export function transportOf(chain: ChainConfig, timing: TransportTiming = {}): T
 }
 
 /**
- * A public client that polls at the chain's block time. Its `ccipRead` names viem's CCIP-Read
- * helper (./ccip.ts), so the helper ships with the chain layer and a failed call on any screen
- * never asks the site for one more file; with the helper present the setting is viem's default.
+ * A public client that polls at the chain's polling interval (`pollMsOf`). Its `ccipRead` names
+ * viem's CCIP-Read helper (./ccip.ts), so the helper ships with the chain layer and a failed call
+ * on any screen never asks the site for one more file; with the helper present the setting is
+ * viem's default. Where the chain names a `logWindow`, the client's log reads start at it (the
+ * SDK's `setLogWindow`), so the first read on Base Sepolia is not a refused one of 2 000 blocks.
  */
 export function publicClientOf(chain: ChainConfig, timing: TransportTiming = {}): PublicClient {
-  return createPublicClient({ chain: chainOf(chain), transport: transportOf(chain, timing), pollingInterval: chain.blockTimeMs, ...(ccipReadIsHere ? {} : { ccipRead: false }) }) as PublicClient;
+  const client = createPublicClient({ chain: chainOf(chain), transport: transportOf(chain, timing), pollingInterval: pollMsOf(chain), ...(ccipReadIsHere ? {} : { ccipRead: false }) }) as PublicClient;
+  if (chain.logWindow !== undefined) setLogWindow(client, chain.logWindow);
+  return client;
 }
 
 /** The block watcher's own client: the same RPC, with WATCH_TIMING, so a dead network shows within seconds. */

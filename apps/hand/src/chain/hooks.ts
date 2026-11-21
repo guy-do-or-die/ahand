@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { serializeTransaction, type Address, type Hex, type PublicClient } from "viem";
 
 import { config as app } from "../config";
+import { pollMsOf } from "../config/schema";
 import { clientsOf, watchClientOf } from "./clients";
 import { standingOf, type Reached } from "./finality";
 import { presenceOf, PresenceStore, type PresenceState } from "./presence";
@@ -29,8 +30,8 @@ export function watcherOf(chainId: number = app.chain.id): BlockWatcher {
   let watcher = watchers.get(chainId);
   if (!watcher) {
     const client = chainId === app.chain.id ? watchClientOf(app.chain) : clientOf(chainId);
-    const blockTimeMs = chainId === app.chain.id ? app.chain.blockTimeMs : 2000;
-    watcher = new BlockWatcher(latestTip(client), { intervalMs: blockTimeMs });
+    const intervalMs = chainId === app.chain.id ? pollMsOf(app.chain) : 2000;
+    watcher = new BlockWatcher(latestTip(client), { intervalMs });
     watchers.set(chainId, watcher);
   }
   return watcher;

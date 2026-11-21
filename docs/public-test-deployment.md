@@ -13,6 +13,14 @@ Four optional fields describe a public test site (a stand's configuration has no
 
 `chain.name` is `Base Sepolia`, the name a wallet stores when it adds the network; screens show the catalogue's name for chain 84532, «Base Sepolia (тестовая сеть)» in Russian.
 
+Three chain fields set how the site meets the network (2026-11-21; a stand sets only the first, 1 000):
+
+| Field | Value here | What it changes |
+|---|---|---|
+| `chain.blockTimeMs` | `200` | the chain's real pace: Base makes a block every 200 ms (blocks 61 429 229 and 61 441 608 are 2 476 s apart). The SDK's `findBlockAt` guesses a block from a time with it: five reads find a Hand's block, where the 2 000 written before took 35 |
+| `chain.pollMs` | `2000` | how often the app asks for news: the block watcher, viem's and wagmi's polling, `exit.html`'s refresh (four times this). Absent, it is the block time but at least a second; here it keeps the public RPC from being asked five times a second |
+| `chain.logWindow` | `200` | the widest `eth_getLogs` range the public RPC takes (wider: HTTP 413, `{"code":-32614,"message":"eth_getLogs is limited to a 200 range"}`). Every log read starts at it. Absent, reads start at 2 000 blocks and a refused window shrinks by itself |
+
 Until Core is put on Base Sepolia, every screen that reads Core says "This contract is not on Base Sepolia (test network) yet." («Этого контракта ещё нет в сети Base Sepolia (тестовая сеть).») with a Check again button; `/core` shows the derivation and the empty `eth_getCode`. A network that does not answer still says "Can't reach the network right now."
 
 ## What Vercel runs

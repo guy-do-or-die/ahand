@@ -27,3 +27,26 @@ export function isNetworkError(error: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * What a node answered, when it answered at all: the HTTP status of a failed response (viem's
+ * `HttpRequestError` carries `status` only when a response came back) and the node's own words
+ * (viem's `details`: the JSON-RPC error's message, or the response's status text). `undefined`
+ * when nothing in the cause chain shows an answer. An error that has an answer is a refusal, not
+ * "the network did not answer", even when `isNetworkError` matches it by name: a 429 or a 503 came
+ * from someone.
+ */
+export function answerOf(error: unknown): { status?: number; words?: string } | undefined {
+  const seen = new Set<unknown>();
+  let status: number | undefined;
+  let words: string | undefined;
+  for (let node: unknown = error; node && typeof node === "object" && !seen.has(node); node = (node as { cause?: unknown }).cause) {
+    seen.add(node);
+    const { name, status: code, details } = node as { name?: unknown; status?: unknown; details?: unknown };
+    if (status === undefined && typeof code === "number") status = code;
+    // A transport error's details are the browser's sentence about the failure, not a node's words.
+    if (words === undefined && typeof details === "string" && details && !(typeof name === "string" && TRANSPORT.has(name) && typeof code !== "number")) words = details;
+  }
+  if (status === undefined && (words === undefined || isNetworkError(error))) return undefined;
+  return { ...(status === undefined ? {} : { status }), ...(words === undefined ? {} : { words }) };
+}

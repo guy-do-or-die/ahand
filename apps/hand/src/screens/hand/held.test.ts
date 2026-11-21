@@ -22,7 +22,7 @@ import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequ
 import { privateKeyToAddress } from "viem/accounts";
 
 import en from "./en";
-import { LINK_CODES, NETWORK, RETRY_MS, arrivalOf, canRetry, failureOf, holderStatements, keepMax, laterPlan, makePass, openHeld, pathOf, proofPathOf, readBackOf, retryWhileVisible, routeHands, shareOf } from "./held";
+import { LINK_CODES, NETWORK, RETRY_MS, arrivalOf, canRetry, failureOf, holderStatements, keepMax, makePass, openHeld, pathOf, proofPathOf, readBackOf, retryWhileVisible, routeHands, shareOf } from "./held";
 import ru from "./ru";
 
 /**
@@ -397,14 +397,5 @@ describe("the share and the pass", () => {
     expect(holderStatements(opened)).toEqual([]);
     expect(routeHands(opened)).toEqual([{ role: "asker", address: RAISER }]);
     expect(zeroAddress).toBe("0x0000000000000000000000000000000000000000");
-  });
-});
-
-describe("laterPlan: the look for a newer Hand is bounded and said first", () => {
-  test("from the block the Hand ended to the latest, at most 216 windows of 2 000", () => {
-    expect(laterPlan(13n, 112n, 1_000)).toEqual({ fromBlock: 13n, toBlock: 112n, blocks: 100n, minutes: 2 });
-    const far = laterPlan(0n, 10_000_000n, 200);
-    expect(far.blocks).toBe(432_000n);
-    expect(far.minutes).toBe(1_440);
   });
 });

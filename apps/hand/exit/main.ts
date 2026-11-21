@@ -54,6 +54,7 @@ import {
 } from "viem";
 
 import { parseConfig } from "../src/config/load";
+import { pollMsOf } from "../src/config/schema";
 import { MARK, MARK_DESCENT_EM } from "../src/lib/markSpec";
 import { codeBlock, h, type Child } from "./dom";
 import { bpsText, castCall, castSend, explorerValue, fileServe, shareOf, span, stateBadge, unitsText, type ShareRow } from "./logic";
@@ -72,7 +73,7 @@ const HANDS_SIG = "hands(uint256)(address,uint40,uint40,uint40,address,uint16,ui
 const PENDING_SIG = "pending(address,address)(uint256)";
 const ERC1271 = parseAbi(["function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)"]);
 const SERVE_PORT = 8000;
-const POLL_MS = Math.max(2_000, config.chain.blockTimeMs * 4);
+const POLL_MS = Math.max(2_000, pollMsOf(config.chain) * 4);
 
 type ActionKey = "refund" | "withdraw" | "setup" | "thank";
 
@@ -420,7 +421,7 @@ async function send(key: ActionKey, call: Call, after: () => Promise<void>, gasL
     const hash = await sendWithWallet(wallet, from, call, gasLimit === undefined ? undefined : BigInt(gasLimit));
     S.tx[key] = { phase: "sent", hash };
     render();
-    const receipt = await net.client.waitForTransactionReceipt({ hash, pollingInterval: Math.min(1_000, config.chain.blockTimeMs), timeout: 180_000 });
+    const receipt = await net.client.waitForTransactionReceipt({ hash, pollingInterval: Math.min(1_000, pollMsOf(config.chain)), timeout: 180_000 });
     S.tx[key] = { phase: "mined", hash, block: receipt.blockNumber, ok: receipt.status === "success" };
     await tick();
     if (receipt.status === "success") await after();
