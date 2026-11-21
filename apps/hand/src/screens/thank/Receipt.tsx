@@ -4,7 +4,7 @@ import type { Hex, TransactionReceipt } from "viem";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, Mark, ReceiptTable, count, money, receiptAmounts, shortAddress } from "../../ui";
+import { CopyRow, Disclose, GestureEmoji, Mark, ReceiptTable, count, money, receiptAmounts, shortAddress } from "../../ui";
 import { ThankSpent } from "./Spent";
 import { OnExplorer } from "../../shell/OnExplorer";
 
@@ -55,9 +55,7 @@ export function ThankReceipt({
   return (
     <section className="flex flex-col gap-4" data-testid={TID.thank.done} data-hash={hash}>
       <p className="m-0 flex items-start gap-3 text-[length:var(--fs-title-m)] font-extrabold leading-[1.08] tracking-[-0.03em]">
-        <span aria-hidden="true" className="ah-hero--bow shrink-0">
-          🙏
-        </span>
+        <GestureEmoji kind="bow" className="shrink-0" />
         <span>{t(before ? "thank.done.before" : "thank.done")}</span>
       </p>
 

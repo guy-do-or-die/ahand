@@ -6,7 +6,7 @@ import { stampSeed } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, ErrorBand, Mark, Qr, QuietButton, shortAddress, TxRail, type TxReached } from "../../ui";
+import { CopyRow, Disclose, ErrorBand, GestureEmoji, Mark, Qr, QuietButton, shortAddress, TxRail, type TxReached } from "../../ui";
 import { saved, type Up } from "./flow";
 import { OnExplorer } from "../../shell/OnExplorer";
 
@@ -80,9 +80,7 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
     <section className="flex flex-col gap-6" aria-labelledby="raise-up-title">
       <div className="flex flex-col gap-3" data-testid={TID.raise.up} data-hand-id={handId} data-data-hash={raised.hand.dataHash} data-root-key={raised.hand.rootKey}>
         <h1 id="raise-up-title" className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title-m)]">
-          <span aria-hidden="true" className="mr-2">
-            ✋
-          </span>
+          <GestureEmoji kind="raise" className="mr-2" />
           {t("raise.up")}
         </h1>
         <div data-testid={TID.raise.txRail} data-value={reached}>

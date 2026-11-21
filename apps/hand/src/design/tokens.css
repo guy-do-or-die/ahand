@@ -182,6 +182,7 @@
   --dur-idle-raise-hero: 4s;
   --dur-idle-shake: 3.2s;
   --dur-idle-cheer: 3s;
+  --dur-idle-cheer-hero: 3.6s;
   --dur-idle-bow: 4s;
   --dur-hover: 140ms; /* flat border and colour changes */
 

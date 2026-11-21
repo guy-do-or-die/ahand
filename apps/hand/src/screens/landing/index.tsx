@@ -4,7 +4,7 @@ import { t, useLang } from "../../i18n";
 import { navigate } from "../../router";
 import { remember } from "../../store/memory";
 import { TID } from "../../testids";
-import { ErrorBand, SwipeButton, useLens } from "../../ui";
+import { ErrorBand, GestureEmoji, SwipeButton, useLens, type GestureKind } from "../../ui";
 import { readPaste, type Paste } from "./paste";
 import "./landing.css";
 
@@ -18,7 +18,8 @@ import "./landing.css";
 
 type Gesture = "raise" | "pass" | "thank";
 
-const EMOJI: Record<Gesture, string> = { raise: "✋", pass: "🤝", thank: "🙏" };
+/** Each card's emoji and its motion: ✋ rises, 🤝 shakes, 🙏 bows. */
+const KIND: Record<Gesture, GestureKind> = { raise: "raise", pass: "shake", thank: "bow" };
 
 /** Core's own names, never translated (UX-SPEC §5): the call each gesture ends in. */
 const CORE_WORDS: Record<Gesture, string[]> = {
@@ -42,9 +43,7 @@ function GestureCard({ gesture }: { gesture: Gesture }) {
   return (
     <li className="lp-flip" data-open={open} data-testid={TID.landing.gesture} data-value={gesture}>
       <button ref={front} type="button" className="lp-flip__face lp-flip__front" aria-expanded={open} aria-controls={backId} onClick={() => turn(!open)}>
-        <span aria-hidden="true" className="lp-flip__emoji">
-          {EMOJI[gesture]}
-        </span>
+        <GestureEmoji kind={KIND[gesture]} className="lp-flip__emoji" />
         <span className="text-[length:var(--fs-card-title)] font-extrabold leading-[1.15] tracking-[-0.015em]">{t(`landing.${gesture}.say`)}</span>
         <span className="lp-flip__turn" aria-hidden="true">
           ↻ {t("landing.turn")}
@@ -162,9 +161,7 @@ export default function LandingScreen() {
   return (
     <section className="mx-auto flex w-full max-w-[1040px] flex-col gap-10 px-6 pb-14 pt-8 md:px-10 md:pt-14" data-screen="landing">
       <header className="flex flex-col gap-5 md:max-w-[760px]">
-        <span aria-hidden="true" className="ah-hero ah-hero--raise text-[64px] md:text-[84px]">
-          ✋
-        </span>
+        <GestureEmoji kind="raise" className="text-[64px] md:text-[84px]" />
         <Hero />
         <p className="m-0 max-w-[620px] text-[length:var(--fs-body-xl)] leading-[1.45]">{t("landing.lead")}</p>
       </header>

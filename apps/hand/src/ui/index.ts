@@ -17,6 +17,7 @@ export { CostLine, type CostLineProps } from "./CostLine";
 export { AskerText, DealCard, dealDescriptionOf, type DealCardProps, type DealDescription } from "./DealCard";
 export { Disclose, type DiscloseProps } from "./Disclose";
 export { Emoji } from "./Emoji";
+export { GESTURE_EMOJI, GESTURE_KEYFRAMES, GestureEmoji, type GestureKind } from "./Gesture";
 export { ErrorBand, type ErrorBandProps } from "./ErrorBand";
 export { Identity, type IdentityProps } from "./Identity";
 export { LandPicker, LandSheet, type LandPickerProps, type LandSheetProps } from "./LandSheet";

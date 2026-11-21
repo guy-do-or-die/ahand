@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 /**
  * Decorative native emoji. Always rendered with the platform emoji stack
  * and hidden from assistive tech — the surrounding text carries the meaning.
+ * It never moves: a gesture that is the hero of the moment is a <GestureEmoji>.
  */
 export function Emoji({
   children,

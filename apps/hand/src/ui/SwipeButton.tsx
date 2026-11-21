@@ -1,14 +1,8 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { clsx } from "../lib/clsx";
+import { GestureEmoji, type GestureKind } from "./Gesture";
 
-export type Gesture = "raise" | "shake" | "cheer" | "bow";
-
-const GESTURE_EMOJI: Record<Gesture, string> = {
-  raise: "✋",
-  shake: "🤝",
-  cheer: "🙌",
-  bow: "🙏",
-};
+export type Gesture = GestureKind;
 
 export interface SwipeButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Picks the emoji, its idle animation and mock-exact size/offset. */
@@ -27,7 +21,8 @@ export interface SwipeButtonProps extends ButtonHTMLAttributes<HTMLButtonElement
  * Marker-swipe button — the signature CTA. Gradient fill fades to
  * transparent so the oversized gesture emoji stands on the page background
  * (overflow stays visible by design). The label is the accessible name;
- * the emoji is decorative.
+ * the emoji is decorative. The emoji idles with its gesture's motion, jumps
+ * on press, and stands still while the button is disabled.
  */
 export function SwipeButton({
   gesture,
@@ -52,13 +47,12 @@ export function SwipeButton({
       {...rest}
     >
       {children}
-      <span
-        aria-hidden="true"
+      <GestureEmoji
+        kind={gesture}
+        still={still}
         className={clsx("ah-swipe__emoji", `ah-swipe__emoji--${gesture}`)}
-        style={still ? { animation: "none" } : undefined}
-      >
-        {emoji ?? GESTURE_EMOJI[gesture]}
-      </span>
+        {...(emoji ? { emoji } : {})}
+      />
     </button>
   );
 }

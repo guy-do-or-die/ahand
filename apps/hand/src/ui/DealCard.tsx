@@ -5,6 +5,7 @@ import { clsx } from "../lib/clsx";
 import { TID } from "../testids";
 import { Ambient, useLang, useLens, type Lang } from "./ambient";
 import { atLeast, count, day, inBothZones, minute, money, moneyExact, percent, unitsText } from "./format";
+import { GestureEmoji } from "./Gesture";
 import { Identity } from "./Identity";
 import { amountsIn, readAskerWords, type MentionedAmount, type WordsReading } from "./judge";
 import { Mark } from "./Mark";
@@ -162,9 +163,8 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
   return (
     <article className={clsx("ah-deal", className)} aria-labelledby={titleId} data-state={state ?? "unknown"} data-funded={funded} data-viewer={viewer}>
       <div className="ah-deal__head">
-        <span aria-hidden="true" className="ah-deal__gesture">
-          ✋
-        </span>
+        {/* The hand keeps rising while it is up (or still being written); a closed Hand's hand rests. */}
+        <GestureEmoji kind="raise" still={state !== undefined && state !== "open"} className="ah-deal__gesture" />
         <div className="min-w-0 flex-1">
           {description.status === "attached" && asker ? (
             <AskerWords title={description.title} content={description.content} reading={asker} titleId={titleId} heading={Heading} intro={own ? own.intro : words.intro} label={own ? own.wordsLabel : words.wordsLabel} />

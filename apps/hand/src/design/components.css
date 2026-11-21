@@ -55,6 +55,36 @@
   cursor: not-allowed;
 }
 
+/* ── Gesture emoji (ui/Gesture.tsx): each gesture idles with its own motion ──
+   ✋ rises, 🤝 shakes, 🙌 cheers, 🙏 bows. Used where the gesture is the hero of the moment
+   (the Deal card, a screen's big emoji, the swipe button); a small emoji in running text stays
+   still. A context sets --gesture-dur to change the loop's length (the swipe buttons do).
+   tokens.css stops every animation under prefers-reduced-motion. */
+.ah-gesture {
+  display: inline-block;
+  /* A flex column would stretch it to the row's width and swing it around the row's middle. */
+  width: fit-content;
+  line-height: 1;
+  font-family: var(--emoji);
+  letter-spacing: 0;
+  transform-origin: 50% 90%;
+}
+.ah-gesture--raise {
+  animation: ah-raise var(--gesture-dur, var(--dur-idle-raise-hero)) ease-in-out infinite;
+}
+.ah-gesture--shake {
+  animation: ah-shake var(--gesture-dur, var(--dur-idle-shake)) ease-in-out infinite;
+}
+.ah-gesture--cheer {
+  animation: ah-cheer var(--gesture-dur, var(--dur-idle-cheer-hero)) ease-in-out infinite;
+}
+.ah-gesture--bow {
+  animation: ah-bow var(--gesture-dur, var(--dur-idle-bow)) ease-in-out infinite;
+}
+.ah-gesture--still {
+  animation: none;
+}
+
 .ah-swipe__emoji {
   position: absolute;
   bottom: 6px;
@@ -63,26 +93,26 @@
   transform-origin: 50% 85%;
   transition: transform var(--dur-press) ease-out;
 }
-/* Per-gesture mock-exact size/offset/idle animation */
+/* Per-gesture mock-exact size/offset; the idle loop is the gesture's own, at the button's pace */
 .ah-swipe__emoji--raise {
   right: 4px;
   font-size: 66px;
-  animation: ah-raise var(--dur-idle-raise) ease-in-out infinite;
+  --gesture-dur: var(--dur-idle-raise);
 }
 .ah-swipe__emoji--shake {
   right: 10px;
   font-size: 60px;
-  animation: ah-shake var(--dur-idle-shake) ease-in-out infinite;
+  --gesture-dur: var(--dur-idle-shake);
 }
 .ah-swipe__emoji--cheer {
   right: 0;
   font-size: 68px;
-  animation: ah-cheer var(--dur-idle-cheer) ease-in-out infinite;
+  --gesture-dur: var(--dur-idle-cheer);
 }
 .ah-swipe__emoji--bow {
   right: 6px;
   font-size: 64px;
-  animation: ah-bow var(--dur-idle-bow) ease-in-out infinite;
+  --gesture-dur: var(--dur-idle-bow);
 }
 .ah-swipe--compact .ah-swipe__emoji {
   font-size: 54px;
@@ -529,26 +559,6 @@
 }
 .ah-card--lg {
   border-radius: var(--r-card-lg);
-}
-
-/* ── Hero gesture emoji (screen-level, mock 4s cycle) ───────────────── */
-.ah-hero {
-  display: inline-block;
-  line-height: 1;
-  font-family: var(--emoji);
-  transform-origin: 50% 90%;
-}
-.ah-hero--raise {
-  animation: ah-raise var(--dur-idle-raise-hero) ease-in-out infinite;
-}
-.ah-hero--shake {
-  animation: ah-shake var(--dur-idle-shake) ease-in-out infinite;
-}
-.ah-hero--cheer {
-  animation: ah-cheer 3.6s ease-in-out infinite;
-}
-.ah-hero--bow {
-  animation: ah-bow var(--dur-idle-bow) ease-in-out infinite;
 }
 
 /* ── Compose surface (Raise) — borderless poster textarea ───────────── */
