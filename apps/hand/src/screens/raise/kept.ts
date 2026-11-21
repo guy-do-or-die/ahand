@@ -8,7 +8,8 @@ import { deviceClock, loadPrefs, setPref, type KeptRaise } from "../../store/db"
  * /raise opens it is taken out (removed in any case) and filled back in if it was written within
  * `KEPT_MS` by this device's clock (store/db.ts `deviceClock`: the trip is this device's own, not
  * the chain's). The asker's own words only, the same that `hands` keeps once a Hand is raised: no seed,
- * no key, no link (an opened link is never kept, D-39).
+ * no key, no link (an opened link crosses the same trip on its own, in this tab's session storage
+ * only: link-carry.ts).
  */
 
 export type RaiseForm = Omit<KeptRaise, "at">;

@@ -7,6 +7,7 @@ import type { ChainConfig, PrivyConfig } from "../config/schema";
 import { chainOf } from "../chain/clients";
 import { AMBER_HEX, SURFACE_DARK_HEX } from "../design/tokens";
 import { currentLang, i18n } from "../i18n";
+import { armLinkCarry } from "../link-carry";
 import { lensOn, watchLens } from "../shell/lens";
 import type { Lang } from "../ui/ambient";
 import { privyReturning } from "./privy-mark";
@@ -23,8 +24,9 @@ import { PrivyUnavailableError, setPrivyPhase, type PrivyHost, type PrivyLoginMe
  *
  *   - one window, Privy's: email, Google, Apple, X, Farcaster, a passkey and crypto wallets, on
  *     every screen; nothing of the app's own comes before it. Google, Apple and X send the person
- *     away and back by a full load: the raise form is kept across it (screens/raise/kept.ts), an
- *     opened link is not (D-39; wallet/privy.ts says more).
+ *     away and back by a full load: the raise form is kept across it (screens/raise/kept.ts), and
+ *     since the owner's answer to question 11 (2026-11-21) so is an opened link, in this tab's
+ *     session storage for that one trip only (link-carry.ts, the one exception to D-39).
  *   - crypto wallets: those this browser announces (EIP-6963: MetaMask, Rabby, Coinbase Wallet's
  *     extension and others), then MetaMask, Rainbow, Zerion and Uniswap by name (so a phone
  *     without them is offered the app), then WalletConnect's list for every other phone app.
@@ -360,6 +362,10 @@ async function openLogin(methods: readonly PrivyLoginMethod[]): Promise<void> {
   });
   setPrivyPhase("open");
   now.login({ loginMethods: [...methods] });
+  // Google, Apple and X leave the page from inside Privy's window: while it is open, an opened link
+  // on screen is written as the page leaves and erased if the login ends here (link-carry.ts, the
+  // owner's option b of question 11). Privy's own `location.assign` gives the app no earlier moment.
+  const disarm = armLinkCarry();
   // Privy does not report every closed window as an error (Escape, the backdrop), so the
   // window itself is watched: in, or opened and closed again with nobody in.
   let opened = false;
@@ -381,6 +387,7 @@ async function openLogin(methods: readonly PrivyLoginMethod[]): Promise<void> {
     }
   } finally {
     loginOutcome = undefined;
+    disarm();
     // In: the app's status line comes back while the wallet is fetched.
     setPrivyPhase("loading");
   }

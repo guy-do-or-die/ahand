@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
 import { initLang, preloadLang } from "./i18n";
+import { restoreCarriedLink } from "./link-carry";
 import { startIntake } from "./link-intake";
 import { initLens, listenForLensKey } from "./shell/lens";
 import { applyTheme, watchTheme } from "./shell/theme";
@@ -15,13 +16,16 @@ import { privyMarked, privyReturning } from "./wallet/privy-mark";
 declare const __AHAND_PRIVY__: boolean | undefined;
 
 /**
- * Boot, in this order: take the link out of the address bar first (before anything waits), start
+ * Boot, in this order: take the link out of the address bar first (before anything waits), then
+ * take out a link carried across a social login (link-carry.ts: erased on every load, put back
+ * into memory only on the way back from Google, Apple or X), start
  * fetching the device language's words, read this device's preferences (language, lens, theme;
  * none where storage is refused), load the chosen language's words, then render. React's own error reports are silenced: an error can carry text from a link, and
  * nothing of a link may reach the console (ARCHITECTURE §11).
  */
 async function boot(): Promise<void> {
   startIntake();
+  restoreCarriedLink();
   preloadLang();
   // Storage that never answers (a blocked upgrade, a locked-down profile) must not hold the page.
   const slow = new Promise<Prefs>((resolve) => setTimeout(() => resolve({}), 1500));

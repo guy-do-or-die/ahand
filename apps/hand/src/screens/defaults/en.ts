@@ -35,7 +35,7 @@ const en = {
   "defaults.d37.body": "An address is not a person. This build shows no names and no relationship words, only addresses where they matter.",
 
   "defaults.d39.title": "A reload forgets an opened link.",
-  "defaults.d39.body": "The link is read once and taken out of the address bar, so it isn't kept anywhere. Keep the message it came in.",
+  "defaults.d39.body": "The link is read once and taken out of the address bar, so it isn't kept anywhere. Only logging in with Google, Apple or X, which reloads the page, carries it across that reload in this tab: it is used only if you come back within ten minutes, and erased the next time this tab opens the app. Keep the message it came in.",
 
   "defaults.d40.title": "Answers travel through a relay on this computer.",
   "defaults.d40.body": "A helper's answer reaches the asker through a test relay running on this computer, then back along the route, then by pasting. No public relay is used in this build.",

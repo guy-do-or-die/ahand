@@ -32,7 +32,7 @@ const EN = {
     failed: "Logging in didn't finish. Nothing was sent.",
     retry: "Try again",
     close: "Close",
-    /** Back from Google, Apple or X: the page was loaded afresh, and an opened link lives only in a tab's memory (D-39). */
+    /** Back from Google, Apple or X with no link: the page was loaded afresh and the carry failed (link-carry.ts), so the link is gone from this tab (D-39). */
     linkAgain: "You're logged in. Logging in with a social account reloads the page, and a link lives only in this tab's memory, so open the one you were sent once more.",
   },
   dev: {

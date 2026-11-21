@@ -10,9 +10,12 @@ import { code, filesUnder, hits } from "./files";
  *
  * - `location.hash`, `location.href` and `document.URL` are read only by link-intake.ts;
  * - no `console` at all;
- * - no `sessionStorage`, `document.cookie`, `indexedDB` outside store/db.ts, and `localStorage`
- *   only for the theme override (the literal key "ahand-theme") and the mark that a Privy session
- *   may be here (the literal key "ahand-privy", wallet/privy-mark.ts), neither a secret;
+ * - no `document.cookie`, no `indexedDB` outside store/db.ts, and `localStorage` only for the
+ *   theme override (the literal key "ahand-theme") and the mark that a Privy session may be here
+ *   (the literal key "ahand-privy", wallet/privy-mark.ts), neither a secret;
+ * - `sessionStorage` in link-carry.ts only, under the literal key "ahand-link-carry": the one
+ *   exception to D-39 the owner accepted on 2026-11-21 (docs/defaults.md question 11), the opened
+ *   link carried across a social login's reload in this tab and erased on the next load;
  * - no request but RPC and relays (made by viem and packages/deliver, not here): `fetch` only of a
  *   same-site path written as a literal, and no XMLHttpRequest, sendBeacon, WebSocket or
  *   EventSource in the app's own code;
@@ -50,8 +53,19 @@ describe("secrets: the fragment and the link's text have nowhere to go", () => {
     expect(scan(/\bconsole\s*[.[]/)).toEqual([]);
   });
 
-  test("no session storage and no cookies", () => {
-    expect(scan(/\bsessionStorage\b|document\s*\.\s*cookie|\bcookieStore\b/)).toEqual([]);
+  test("no cookies", () => {
+    expect(scan(/document\s*\.\s*cookie|\bcookieStore\b/)).toEqual([]);
+  });
+
+  test("session storage only in link-carry.ts, under its one key", () => {
+    // Its unit test (tests/guards/carry.test.ts) runs in happy-dom's window, outside src.
+    const uses = scan(/\bsessionStorage\b/);
+    const other = uses.filter((line) => {
+      const [file] = line.split(":");
+      return !(file === "link-carry.ts" && /sessionStorage\.(setItem|getItem|removeItem)\(\s*"ahand-link-carry"/.test(line.split(": ").slice(1).join(": ")));
+    });
+    expect(other).toEqual([]);
+    expect(uses.length).toBeGreaterThan(0);
   });
 
   test("localStorage holds only the theme override and the Privy session mark", () => {

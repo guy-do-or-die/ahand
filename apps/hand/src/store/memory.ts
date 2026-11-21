@@ -7,8 +7,10 @@ import { useSyncExternalStore } from "react";
  * removes the fragment from the address bar. The landing's paste box, /my handing a give
  * address to /thank, and a pass that wrote a new address put theirs here the same way. "Copy"
  * and "Share" read the address from here, never from `location`. A reload forgets it, and the
- * screen says so: nothing here is ever written to storage, the console, a query string or a
- * request.
+ * screen says so: nothing here is ever written to the console, a query string or a request, nor
+ * to storage, with one exception the owner accepted (2026-11-21, docs/defaults.md question 11):
+ * across a social login's own reload, link-carry.ts keeps it in this tab's session storage and
+ * erases it on the next load.
  */
 
 export interface OpenedLink {

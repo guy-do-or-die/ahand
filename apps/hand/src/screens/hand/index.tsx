@@ -5,6 +5,7 @@ import { isAddressEqual, type Address } from "viem";
 import { useChainStatus, useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
+import { useHoldsLink } from "../../link-carry";
 import { navigate, unmarkHandView, usePlace } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { addressOf, useOpened } from "../../store/memory";
@@ -47,6 +48,8 @@ export default function HandViewScreen({ params }: ScreenProps) {
   // forgot): this screen says so once, and the entry loses its mark, so the next reload or the
   // site's root typed into this tab shows the start page again (FINDINGS O-2).
   const unmark = arrival.kind === "nothing" && place.path === "/";
+  // A link on screen is carried across a social login's reload (link-carry.ts, question 11).
+  useHoldsLink(arrival.kind === "link");
   useEffect(() => {
     if (unmark) unmarkHandView();
   }, [unmark]);

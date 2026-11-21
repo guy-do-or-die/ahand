@@ -41,8 +41,10 @@ export const PRIVY_METHODS: readonly PrivyLoginMethod[] = ["email", "google", "a
  * by a fresh load of the same address (Privy's SDK calls `window.location.assign`; it has no
  * pop-up for them). They are offered everywhere all the same, as the owner asked (2026-11-21:
  * email, social accounts and wallets in one window). What a fresh load would forget is handled
- * where it lives: the raise form is kept across that one trip (screens/raise/kept.ts); an opened
- * link is not (D-39), and the screen says to open it once more (docs/defaults.md question 11).
+ * where it lives: the raise form is kept across that one trip (screens/raise/kept.ts), and so is an
+ * opened link, in this tab's session storage only, erased on return (link-carry.ts; the owner's
+ * option b of docs/defaults.md question 11, the one exception to D-39). Where that storage refuses,
+ * the screen says to open the link once more (`LinkAgain`).
  */
 
 /** The connector's id and type: one per build that has `privy` in its configuration. */

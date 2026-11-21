@@ -6,6 +6,7 @@ import { isAddressEqual, type Address, type TypedDataDefinition } from "viem";
 import { clientOf, useChainStatus, useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
+import { useHoldsLink } from "../../link-carry";
 import { navigate } from "../../router";
 import { useOpened } from "../../store/memory";
 import { TID } from "../../testids";
@@ -81,6 +82,8 @@ export default function GiveScreen() {
   useLang();
   const link = useOpened();
   const opening = useOpening(link);
+  // "Log in to get paid" may go through Google, Apple or X: the link is carried across that reload (link-carry.ts).
+  useHoldsLink(!!link);
 
   // With no link in this tab there is nothing to answer: back to the Hand view, which says so.
   useEffect(() => {

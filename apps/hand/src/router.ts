@@ -77,6 +77,11 @@ function subscribe(listener: () => void): () => void {
 }
 const current = () => place;
 
+/** Where the router last read this tab to be, outside React (link-carry.ts keeps the Hand-view mark by it). */
+export function placeNow(): Place {
+  return place;
+}
+
 /** Where this tab is, re-rendering the caller when it moves. */
 export function usePlace(): Place {
   return useSyncExternalStore(subscribe, current, current);

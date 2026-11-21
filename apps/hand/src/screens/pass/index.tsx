@@ -4,6 +4,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { useChainStatus, useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
+import { useHoldsLink } from "../../link-carry";
 import { navigate } from "../../router";
 import { remember, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
@@ -31,6 +32,8 @@ export default function PassScreen() {
   // the new link, and the screen must not start over on it.
   const [source] = useState<Held | undefined>(() => (opened ? { before: opened.before, fragment: opened.fragment } : undefined));
   const opening = useOpening(source);
+  // A login from here through Google, Apple or X carries the link across its reload (link-carry.ts).
+  useHoldsLink(!!source);
   const [again, reread] = useReread();
 
   let body;

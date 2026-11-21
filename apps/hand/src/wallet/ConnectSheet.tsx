@@ -327,7 +327,9 @@ export function ConnectButton({ className, onConnected }: { className?: string; 
 /**
  * On a screen that needs an opened link and has none: after a social login (Google, Apple, X) the
  * page was loaded afresh, which forgets a link (D-39), so the person is told to open it once more.
- * Nothing at any other time.
+ * The link is normally carried across that reload (link-carry.ts, question 11), so this shows only
+ * where that failed: storage refused, the trip took longer than `CARRY_MS`, or the way back landed
+ * on another path. Nothing at any other time.
  */
 export function LinkAgain({ className }: { className?: string }) {
   const words = useWalletWords();
