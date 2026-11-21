@@ -38,8 +38,9 @@ export interface WalletState {
   /** False for an account that cannot send (the dev wallet's "not set up yet"). */
   canSend: boolean;
   /**
-   * A wallet Privy keeps (logged in by email, a social account or a passkey): it confirms on this
-   * page with no window of its own, so whatever it confirms must stand on the app's own screen in
+   * A wallet Privy keeps (logged in by email, a social account or a passkey): with the lens off it
+   * confirms on this page with no window of its own (Privy's shows only with the lens on,
+   * privy-host.tsx `showWalletUIs`), so whatever it confirms must stand on the app's own screen in
    * both views. Not set for a crypto wallet, even one logged in through Privy.
    */
   email?: boolean;

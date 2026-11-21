@@ -54,8 +54,9 @@ export interface PrivySession {
   address: Address;
   provider: EIP1193Provider;
   /**
-   * A wallet Privy keeps (email, social, passkey): it confirms on this page with no window of its
-   * own. False for a crypto wallet, which shows its own window for every request.
+   * A wallet Privy keeps (email, social, passkey): it shows Privy's own confirmation window only
+   * while the lens is on (privy-host.tsx, `showWalletUIs`). False for a crypto wallet, which shows
+   * its own window for every request.
    */
   embedded: boolean;
   /** Moves the wallet to a chain the way Privy does (adding the chain to a crypto wallet that lacks it); else `wallet_switchEthereumChain`. */
@@ -222,7 +223,7 @@ export function privyConnector(settings: PrivyConfig, chain: ChainConfig, load: 
       id: PRIVY_ID,
       name: "Privy",
       type: PRIVY_TYPE,
-      /** The account is a wallet Privy keeps (email, social, passkey), which shows no window of its own. */
+      /** The account is a wallet Privy keeps (email, social, passkey), whose window shows only with the lens on. */
       privyEmbedded(): boolean {
         return session?.embedded === true;
       },

@@ -7,6 +7,7 @@ import type { ChainConfig, PrivyConfig } from "../config/schema";
 import { chainOf } from "../chain/clients";
 import { AMBER_HEX, SURFACE_DARK_HEX } from "../design/tokens";
 import { currentLang, i18n } from "../i18n";
+import { lensOn, watchLens } from "../shell/lens";
 import type { Lang } from "../ui/ambient";
 import { privyReturning } from "./privy-mark";
 import { PrivyUnavailableError, setPrivyPhase, type PrivyHost, type PrivyLoginMethod, type PrivySession } from "./privy";
@@ -31,12 +32,19 @@ import { PrivyUnavailableError, setPrivyPhase, type PrivyHost, type PrivyLoginMe
  *     header would cut the pop-up off, and its extension is found by EIP-6963 anyway.
  *   - a wallet Privy keeps is made on first entry for anyone without one (`users-without-wallets`):
  *     whoever comes with a crypto wallet gets none.
- *   - Privy's own confirmation windows are off (`showWalletUIs: false`): every money action already
- *     has the app's own review step and its progress rail, and a second window that shows raw
- *     calldata and a gas price adds nothing a newcomer can check. The app's screens are the
- *     confirmation, as with the old app. This is a proposed deviation from R-23 / R-29 ("the wallet
- *     shows every field") for accounts Privy keeps, not an owner decision (docs/defaults.md, D-21
- *     and question 10). A crypto wallet still shows its own window for every request.
+ *   - Privy's own confirmation windows follow the lens (`showWalletUIs: look.lens`): the owner on
+ *     2026-11-21, asked whether they are needed, «в режиме лупы можно демонстрировать»
+ *     (docs/defaults.md question 10). With the lens on, a wallet Privy keeps (email, social,
+ *     passkey) shows Privy's window for every signature and transaction, so a person who checks
+ *     sees what is signed in Privy's words; for a transaction that window also waits for the
+ *     receipt and hands the hash back only at its "All Done", so the app's rail stays on "asking"
+ *     until then. With it off, the app's review step and its progress rail are the confirmation,
+ *     and a second window with raw calldata and a gas price, which a newcomer cannot check, stays
+ *     away. `Host` gives Privy new settings on every flip (`lookKey`, `watchLook`), not a new
+ *     mount: Privy reads `showWalletUIs` as each request comes (its `isHeadlessSigning`), and the
+ *     wallet's EIP-1193 provider, which the app uses, carries no per-request `uiOptions`, so this
+ *     setting is the only switch. It governs only the wallets Privy keeps: a crypto wallet shows
+ *     its own window for every request either way.
  *   - the build's one chain, as Privy's default and only chain, with the build's own RPC.
  *   - the window follows the page: its theme (light or dark, read again when it flips), the amber
  *     accent, the aHand lockup, and the language (Privy translates only its title, its line under
@@ -125,14 +133,16 @@ function Bridge() {
   return null;
 }
 
-/** The theme the page shows now: the switch's choice, else the device's. */
+/** The theme the page shows now: the switch's choice, else the device's; light where there is no page (unit tests). */
 function themeNow(): "light" | "dark" {
+  if (typeof document === "undefined") return "light";
   const chosen = document.documentElement.dataset.theme;
   if (chosen === "light" || chosen === "dark") return chosen;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function watchTheme(onChange: () => void): () => void {
+  if (typeof document === "undefined") return () => undefined;
   const observer = new MutationObserver(onChange);
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -190,6 +200,8 @@ export const PRIVY_RU: NonNullable<NonNullable<PrivyClientConfig["intl"]>["textL
 export interface PrivyLook {
   theme: "light" | "dark";
   lang: Lang;
+  /** The lens is on: Privy's own confirmation windows show for a wallet it keeps. */
+  lens: boolean;
 }
 
 /** Privy's settings for this build and this look. Pure: the look is read by the caller. */
@@ -201,7 +213,9 @@ export function privyClientConfig(chain: ChainConfig, look: PrivyLook): PrivyCli
     supportedChains: [viemChain],
     embeddedWallets: {
       ethereum: { createOnLogin: "users-without-wallets" },
-      showWalletUIs: false,
+      // The owner, 2026-11-21: Privy's windows in the lens only. Read by Privy at each request (its
+      // `isHeadlessSigning`), so the window that comes is the lens's of that moment.
+      showWalletUIs: look.lens,
     },
     appearance: {
       // Dark: the app's own dark card, from which Privy works out the rest; light: Privy's white, the app's card.
@@ -222,24 +236,37 @@ export function privyClientConfig(chain: ChainConfig, look: PrivyLook): PrivyCli
   };
 }
 
-function lookNow(): PrivyLook {
-  return { theme: themeNow(), lang: currentLang() };
+/** The page's look now, from which `Host` makes Privy's settings. */
+export function lookNow(): PrivyLook {
+  return { theme: themeNow(), lang: currentLang(), lens: lensOn() };
 }
 
-const lookKey = (): string => `${themeNow()}|${currentLang()}`;
-function watchLook(onChange: () => void): () => void {
+/** Names the look: it changes exactly when Privy needs new settings (theme, language or lens). */
+export function lookKey(): string {
+  return `${themeNow()}|${currentLang()}|${lensOn() ? "lens" : "calm"}`;
+}
+
+/** Calls `onChange` when the theme, the language or the lens moves; returns the way to stop. */
+export function watchLook(onChange: () => void): () => void {
   const stopTheme = watchTheme(onChange);
   const stopLang = i18n.on("change", onChange);
+  const stopLens = watchLens(onChange);
   return () => {
     stopTheme();
     stopLang();
+    stopLens();
   };
 }
 
-/** Privy's provider with the page's look, given again whenever the theme or the language changes. */
+/**
+ * Privy's provider with the page's look, given again whenever the theme, the language or the lens
+ * changes. The provider stays mounted: Privy takes new settings in place (its client and the
+ * session stay), and reports each set it has not seen on this device once to its own
+ * analytics (`sdk_initialize`), as it does for a new theme.
+ */
 function Host({ settings, chain }: { settings: PrivyConfig; chain: ChainConfig }) {
   const key = useSyncExternalStore(watchLook, lookKey, lookKey);
-  // `key` names the look: the settings are made again only when the theme or the language moves.
+  // `key` names the look: the settings are made again only when the theme, the language or the lens moves.
   const config = useMemo(() => privyClientConfig(chain, lookNow()), [chain, key]);
   return (
     <PrivyProvider appId={settings.appId} config={config}>

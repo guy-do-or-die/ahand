@@ -450,13 +450,14 @@ function AgreeCard({
   decimals: number;
   noReward: boolean;
   lang: "en" | "ru";
-  /** The connected account is a wallet Privy keeps (email, social, passkey), which shows no window of its own. */
+  /** The connected account is a wallet Privy keeps (email, social, passkey), which shows no window of its own with the lens off. */
   email: boolean;
 }) {
   const core = opened.domain.verifyingContract;
-  // An email account confirms right here with no window of its own, so the fields it confirms
-  // (the contract and the hand's number) stand on this card in both views; any other account
-  // shows them on its own screen, and here they are the lens's.
+  // An email account confirms right here with no window of its own in the calm view (Privy's
+  // window shows only with the lens on), so the fields it confirms (the contract and the hand's
+  // number) stand on this card in both views; any other account shows them on its own screen, and
+  // here they are the lens's.
   const signedHere = email && landing.signing.kind === "account";
   const signed = (
     <>

@@ -6,7 +6,9 @@ import { setPref } from "../store/db";
  * The lens (UX-SPEC §6): one switch that opens every disclosure in place, so the evidence under
  * each sentence shows without changing the layout. The footer's switch beside the theme switch
  * and the `?` key flip it; the choice is kept in `prefs` on this device. While it is on, <html> carries `data-lens="on"` for
- * styles, and `useLens()` re-renders whoever reads it (Disclose, the Deal card's lens lines).
+ * styles, and `useLens()` re-renders whoever reads it (Disclose, the Deal card's lens lines). It
+ * also brings up Privy's own confirmation windows for an account Privy keeps (wallet/privy-host.tsx
+ * `showWalletUIs`, the owner's decision of 2026-11-21).
  */
 
 let on = false;
@@ -52,14 +54,18 @@ export function toggleLens(): void {
   setLens(!on);
 }
 
-function subscribe(listener: () => void): () => void {
+/**
+ * Calls `listener` after every flip; returns the way to stop. For whoever follows the lens outside
+ * a component of the app's own tree (wallet/privy-host.tsx gives Privy its windows by it).
+ */
+export function watchLens(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
 /** Whether the lens is on, re-rendering the caller when it flips. */
 export function useLens(): boolean {
-  return useSyncExternalStore(subscribe, lensOn, lensOn);
+  return useSyncExternalStore(watchLens, lensOn, lensOn);
 }
 
 function typing(target: EventTarget | null): boolean {
