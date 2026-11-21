@@ -6,7 +6,7 @@
                                [🤝 Pass it on]   [🙌 I can help]
 ```
 
-`apps/hand`: React 19, Vite 8, wagmi 3 (EIP-6963 injected wallets only), a 60-line router over `pathname` (`src/router.ts`, one table in `src/routes.ts`). The build is a folder of static files plus a self-contained `exit.html`. English and Russian; Russian speaks as «ты». Built with `bun run --cwd apps/hand build`; unit tests `cd apps/hand && bun test`; browser smokes `tests/e2e/smoke/*.spec.ts`.
+`apps/hand`: React 19, Vite 8, wagmi 3 (EIP-6963 injected wallets, and email through Privy when the configuration has `privy`; see "Email through Privy" below), a 60-line router over `pathname` (`src/router.ts`, one table in `src/routes.ts`). The build is a folder of static files plus a self-contained `exit.html`. English and Russian; Russian speaks as «ты». Built with `bun run --cwd apps/hand build`; unit tests `cd apps/hand && bun test`; browser smokes `tests/e2e/smoke/*.spec.ts`.
 
 ## Screens
 
@@ -61,8 +61,21 @@ Clearing the storage loses only "My hands on this device", answers seen and the 
 
 ## Headers
 
-Face and `static.ts` send `Content-Security-Policy: default-src 'self'; script-src 'self'; … connect-src 'self' <rpc> <relay>; frame-ancestors 'none'` and `Referrer-Policy: no-referrer` (`apps/face/src/headers.ts`). `exit.html` alone also allows any RPC the reader types, and the hash of its one inline script. No third-party code.
+Face and `static.ts` send `Content-Security-Policy: default-src 'self'; script-src 'self'; … connect-src 'self' <rpc> <relay>; frame-ancestors 'none'` and `Referrer-Policy: no-referrer` (`apps/face/src/headers.ts`). `exit.html` alone also allows any RPC the reader types, and the hash of its one inline script. No third-party script from another origin.
+
+A build whose configuration has `privy` adds Privy's sources and nothing else (`apps/hand/csp.ts` `PRIVY_CSP`, the same in face's `PRIVY_SOURCES`, `FACE_PRIVY=1`): `https://auth.privy.io` and `https://*.rpc.privy.systems` in `connect-src`, and `frame-src` / `child-src https://auth.privy.io` for Privy's sign-in and key frame. `exit.html` never gets them.
+
+## Email through Privy
+
+A person without a crypto app picks "Continue with email" («Продолжить с почтой») at the top of the connect sheet; where the configuration has `privy`, the control that opens it says "Log in" («Войти») instead of "Connect a wallet", and the helper's "Where should the money land?" offers "Get paid to an email account" first: Privy's own window asks for the address and the emailed code, makes a wallet for a newcomer (`createOnLogin: users-without-wallets`) and keeps its key inside its frame on `auth.privy.io`. In the app it is one more wagmi connector (`apps/hand/src/wallet/privy.ts`) over the EIP-1193 provider of that wallet, so raise (approve, then raise, as two steps: Privy's wallet has no EIP-5792 batch), give and shake signatures (`eth_signTypedData_v4`), thanks, refunds and withdrawals take the same path as a browser wallet. No `@privy-io/wagmi`: the wallet layer has no React providers to adapt.
+
+- Configuration: `"privy": { "appId": "…", "origins": ["https://ahand.in", "https://*.ahand.in"] }` (public; it ships in every page). `origins` copies the Privy dashboard's allowed domains: on any other site address the sheet says at once that email can't be reached, because Privy would still open its email window there and fail only after the person typed their email (its key frame is refused by its `frame-ancestors`). `base-sepolia.json` has it; the local stand's configurations do not (Privy's wallets cannot reach a local chain, and `parseConfig` refuses the pair). The build defines `__AHAND_PRIVY__` from it: without `privy` no Privy code is emitted.
+- Loading: Privy's SDK (`@privy-io/react-auth`, about 270 chunks) loads only when email is picked; a page's first load carries none of it (`tests/vercel.test.ts`, `tests/bundle/build.test.ts`). The bundle audit lists the chunks only `privy-host-*.js` reaches as Privy's (`tests/bundle/audit.ts privySdkFiles`).
+- Choices: email only (Privy's Google login leaves the page and comes back, and a Hand's link keeps its secret only in the page's memory); Privy's own confirmation windows off (`showWalletUIs: false`): the app's review step and progress rail are the confirmation, and a Privy window opened from inside one of the app's sheets (a modal `<dialog>`) could not be clicked. This is a proposed deviation, not an owner decision: it departs from R-23 and R-29's "the wallet shows every field" and widens D-21 to email accounts (`docs/defaults.md`, question 10). So that an email account still sees what it confirms, the give screen's agreement keeps the contract and the hand's number in the calm view when the connected account is an email account. A browser wallet still shows its own confirmation. Privy's window takes the app's theme and the landing title in the app's language; the rest of it is Privy's English.
+- viem: the root `overrides` pin viem 2.52.0 for the whole tree, while `@privy-io/react-auth` 3.51.3 pins 2.57.8 and its subpackages ask for `^2.57.8`, so Privy's code runs on the older viem. The build and the email window work; Privy's own signing and sending (`eth_signTypedData_v4`, `eth_sendTransaction`, `wallet_switchEthereumChain` inside its provider) have not run against it, since no real email round has been done. Run one before relying on it.
+- Privy unreachable: offline, at once; blocked or not answering, after 15 s; a site address outside `privy.origins`, at once. The sheet says "Email can't be reached right now…" and the browser's wallets work as before. Closing Privy's window reads as "You said no". After the code, the sheet comes back with "Opening the email step…" while Privy makes or fetches the wallet.
+- "Disconnect" ends the Privy session on the device; a session still open after a reload lets "Continue with email" through without a new code.
 
 ## Not built
 
-Links to a personal wallet (`addressed`, D-45), WalletConnect and Coinbase's `baseAccount` (D-29), a paymaster (D-28), ENS names without an L1 RPC, local nicknames (D-56), WebKit tests (D-57).
+Links to a personal wallet (`addressed`, D-45), WalletConnect and Coinbase's `baseAccount` (D-29), Google and other social logins through Privy, a paymaster (D-28), ENS names without an L1 RPC, local nicknames (D-56), WebKit tests (D-57).
