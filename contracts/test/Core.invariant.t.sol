@@ -218,7 +218,7 @@ contract CoreInvariantTest is Test {
     MockUSD blockingToken;
     Handler handler;
 
-    function setUp() public {
+    function setUp() public virtual {
         core = new AHandCore();
         plainToken = new MockUSD();
         blockingToken = new BlacklistToken();
@@ -232,7 +232,7 @@ contract CoreInvariantTest is Test {
     /// After every run: close every open Hand, unblock everyone and withdraw everything pending.
     /// Then Core holds nothing, and the actors hold exactly what was raised: whatever was left
     /// pending could really be withdrawn.
-    function afterInvariant() public {
+    function afterInvariant() public virtual {
         handler.drain();
         invariant_stateRebuildsFromEvents();
         assertEq(plainToken.balanceOf(address(core)), 0);

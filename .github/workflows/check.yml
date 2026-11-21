@@ -1,0 +1,89 @@
+# The contracts' gate on every push: Core unchanged byte for byte, forge build, the Core recorded on
+# Base Sepolia is the Core this tree builds, every forge test (unit, invariants, the hostile
+# invariants, the SDK vectors and gas fixtures Core writes, the deployment), the fixtures unchanged
+# after the tests rewrote them from Core, and the exit kit's self-test.
+# It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
+# The bun steps (typecheck, SDK, packages, app) join when those parts arrive on this branch.
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # Every script calls Foundry by path (bare `forge` may be another program).
+      FOUNDRY_BIN: /home/runner/.foundry/bin
+      # The exit kit's self-test starts its own anvil on this port.
+      SELFTEST_PORT: "19210"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Core is unchanged
+        run: echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+
+      # contracts/lib is not in the repository. The two libraries Core and its tests build against.
+      - name: Contract libraries
+        run: |
+          mkdir -p contracts/lib
+          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+
+      - name: Foundry where the scripts look for it
+        run: |
+          mkdir -p "$FOUNDRY_BIN"
+          # foundry-toolchain may already install into $FOUNDRY_BIN: linking a tool onto itself would replace it with a loop.
+          for tool in forge cast anvil chisel; do
+            found=$(command -v $tool)
+            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+          done
+          "$FOUNDRY_BIN/forge" --version
+
+      - name: Build
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
+      # Offline, from contracts/deployments/84532.json: keccak256 of the AHandCore built here equals
+      # the recorded initcodeHash, and create2(factory, salt, initcodeHash) is the recorded Core. A
+      # change to Core's source or build settings would move Core to another address.
+      - name: Deployed Core is the Core this tree builds
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" test --match-contract DeploymentRecordTest'
+
+      # WRITE_VECTORS=true: SdkVectors and SdkGas rewrite the fixtures from Core before comparing.
+      - name: Test
+        working-directory: contracts
+        env:
+          WRITE_VECTORS: "true"
+        run: '"$FOUNDRY_BIN/forge" test'
+
+      # The tests above rewrote these files from Core; a difference means Core and the committed
+      # fixtures disagree.
+      - name: Fixtures match Core
+        # add -N makes a fixture a test wrote but nobody committed show up in the diff too.
+        run: git add -N contracts/test/fixtures && git diff --exit-code -- contracts/test/fixtures
+
+      - name: Exit kit self-test
+        run: bash contracts/exit/selftest.sh
+
+      - name: Core is still unchanged
+        run: |
+          echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol

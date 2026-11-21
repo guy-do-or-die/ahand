@@ -15,12 +15,16 @@ contracts/lib/
 # Local development metadata
 contracts/broadcast/
 contracts/foundry.lock
+# Deployments to a local chain (contracts/deployments/README.md)
+contracts/deployments/31337*.json
 artifacts/
 
 # JS/Node
 node_modules/
 dist/
 .*
+# ...except the CI workflows: the rule above would hide .github/ too.
+!.github/
 
 # Secrets & deploy metadata
 .env*

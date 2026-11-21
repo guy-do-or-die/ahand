@@ -11,6 +11,7 @@ import {ReturnsFalseToken} from "./mocks/ReturnsFalseToken.sol";
 import {BlacklistToken} from "./mocks/BlacklistToken.sol";
 import {HookToken, IHookRecipient} from "./mocks/HookToken.sol";
 import {ReturndataBombToken} from "./mocks/ReturndataBombToken.sol";
+import {IdleToken, GenerousToken} from "./mocks/OddTokens.sol";
 import {shakeStructHash, giveStructHash, digestOf, HandView, handOf, ThankView, thankOf} from "./Helpers.sol";
 import {FactsReader} from "./probes/FactsReader.sol";
 
@@ -39,6 +40,13 @@ contract Refuser is IHookRecipient {
 contract Burner is IHookRecipient {
     function onTokenReceived(address, uint256) external pure {
         while (true) {}
+    }
+}
+
+/// Code put on a payee's address: sends half of what it is paid straight back, while it is being paid.
+contract GivesBack is IHookRecipient {
+    function onTokenReceived(address from, uint256 amount) external {
+        MockUSD(msg.sender).transfer(from, amount / 2);
     }
 }
 
@@ -2077,7 +2085,8 @@ contract CoreTest is Test {
     }
 
     /// Padding up to the largest transaction ordinary nodes accept, every Shake encoded on its own,
-    /// still fits the gas one transaction may use, and the giver is paid (Р-45).
+    /// still fits the gas one transaction may use, and the giver is paid: Core does not bound a
+    /// route's length, the transaction's limits do.
     function test_route_longestAcceptedRouteFitsTheGasCap() public {
         (uint256 id, SignedShake[] memory shakes, Give memory give, bytes memory keySig, bytes memory giverSig) =
             _emptyRoute(LONGEST_ACCEPTED, REWARD);
@@ -2654,6 +2663,82 @@ contract CoreTest is Test {
         assertEq(usd.balanceOf(alice), aliceBefore + REWARD);
         assertEq(usd.balanceOf(address(core)), 7);
         assertEq(core.pending(address(usd), bob), 0);
+    }
+
+    /// A transfer that answers `true` and moves nothing is not a payout made: it stays pending,
+    /// and a withdrawal fails until the token moves money again. Nor is it a reward received.
+    function test_token_trueReturnThatMovesNothingIsNotPaid() public {
+        IdleToken token = new IdleToken();
+        _fund(address(token), alice);
+        uint256 id = _raise(alice, address(token), REWARD);
+        token.setIdle(true);
+
+        vm.prank(alice);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.raise(address(token), REWARD, expiry, root, GAS_K, 0, ASK);
+
+        vm.warp(expiry);
+        vm.expectEmit(address(core));
+        emit Pending(id, address(token), alice, REWARD);
+        core.refund(id);
+        assertEq(core.pending(address(token), alice), REWARD);
+        assertEq(token.balanceOf(address(core)), REWARD);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.withdraw(address(token), alice, alice);
+        assertEq(core.pending(address(token), alice), REWARD);
+
+        token.setIdle(false);
+        core.withdraw(address(token), alice, alice);
+        assertEq(token.balanceOf(address(core)), 0);
+        assertEq(core.pending(address(token), alice), 0);
+    }
+
+    /// A token that credits Core more than was sent is refused at the door, in `raise` and in
+    /// `fund`: Core would hold units that are no Hand's reward.
+    function test_token_receivingMoreThanAskedIsRefused() public {
+        GenerousToken token = new GenerousToken();
+        _fund(address(token), alice);
+        uint256 id = _raise(alice, address(token), REWARD);
+        token.setGenerous(true);
+
+        vm.startPrank(alice);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.raise(address(token), REWARD, expiry, root, GAS_K, 0, ASK);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.fund(id, 1);
+        vm.stopPrank();
+        assertEq(token.balanceOf(address(core)), REWARD);
+
+        // On the way out only Core's side is measured: the payee gets what the token gives it.
+        vm.warp(expiry);
+        uint256 before = token.balanceOf(alice);
+        core.refund(id);
+        assertEq(token.balanceOf(alice), before + REWARD + 1);
+        assertEq(token.balanceOf(address(core)), 0);
+    }
+
+    /// A payee that sends part of its payout back while it is being paid: Core's balance did not
+    /// drop by the amount, so the payout is undone as a whole and stays pending. Nothing is left
+    /// behind in Core beyond it, and the payee can still take it once it stops.
+    function test_payout_payeeSendingMoneyBackLeavesItPending() public {
+        HookToken token = new HookToken();
+        _fund(address(token), alice);
+        uint256 id = _raise(alice, address(token), REWARD);
+        address payee = makeAddr("payee");
+        vm.etch(payee, type(GivesBack).runtimeCode);
+        token.setHooked(payee, true);
+
+        _thankTo(alice, id, carolKey, payee);
+        assertEq(core.pending(address(token), payee), REWARD);
+        assertEq(token.balanceOf(payee), 0);
+        assertEq(token.balanceOf(address(core)), REWARD);
+        vm.expectRevert(AHandCore.InexactTransfer.selector);
+        core.withdraw(address(token), payee, payee);
+
+        token.setHooked(payee, false);
+        core.withdraw(address(token), payee, payee);
+        assertEq(token.balanceOf(payee), REWARD);
+        assertEq(token.balanceOf(address(core)), 0);
     }
 
     /*//////////////////////////// payouts ////////////////////////////*/
