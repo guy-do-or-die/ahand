@@ -13,8 +13,8 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const HASH = /^0x[0-9a-fA-F]{64}$/;
 /** A Privy app id as the dashboard shows it, e.g. "clt69jwp204btq1o3q72cupji". */
 const PRIVY_APP_ID = /^[a-z0-9]{16,40}$/;
-/** An allowed site address as Privy's dashboard lists it: https, a host, and at most a leading "*." wildcard. */
-const PRIVY_ORIGIN = /^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+/** An allowed site address as Privy's dashboard lists it: https, a host, and at most a leading "*." wildcard; or a port on this machine (http://localhost:3300). */
+const PRIVY_ORIGIN = /^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$|^http:\/\/localhost:[0-9]{2,5}$/;
 
 type Json = Record<string, unknown>;
 
@@ -155,7 +155,7 @@ export function parseConfig(input: unknown): AppConfig {
           const origins = p.origins.map((o, i) => {
             const at = `privy.origins[${i}]`;
             const origin = string(o, at);
-            if (!PRIVY_ORIGIN.test(origin)) throw new ConfigError(`${at} must be an https origin, with at most a leading *. before its host, as the Privy dashboard lists it`);
+            if (!PRIVY_ORIGIN.test(origin)) throw new ConfigError(`${at} must be an https origin, with at most a leading *. before its host, or a localhost port over http, as the Privy dashboard lists it`);
             return origin;
           });
           return { privy: { appId, origins } };

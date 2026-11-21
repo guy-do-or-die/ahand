@@ -12,6 +12,7 @@ const en = {
   "waiting.look.bad": "That isn't a whole address yet: 0x and forty characters.",
   "waiting.look.mine": "Show my own",
   "waiting.start": "Paste any address, or Connect a wallet, to see what waits for it.",
+  "waiting.start.logIn": "Paste any address, or Log in, to see what waits for it.",
   "waiting.for": "For this address",
 
   // What waits
@@ -31,6 +32,7 @@ const en = {
   "waiting.deliver.note": "Whoever presses, it lands only at this address.",
   // Nobody connected: Deliver is still on the row, and its press opens "Connect a wallet"
   "waiting.deliver.visitor": "Anyone can deliver it. You'll be asked to Connect a wallet first; whoever presses, the money lands only at this address.",
+  "waiting.deliver.visitorLogIn": "Anyone can deliver it. You'll be asked to Log in first; whoever presses, the money lands only at this address.",
   "waiting.cost.checking": "Working out what it costs…",
 
   // When nobody here can pay the cost

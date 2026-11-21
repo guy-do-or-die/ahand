@@ -263,7 +263,7 @@ function Actions({ token, payee, offer, from, kept, onDone }: { token: TokenConf
           ) : null}
         </>
       ) : (
-        <p className="ah-label m-0">{t(visitor ? "waiting.deliver.visitor" : "waiting.deliver.note")}</p>
+        <p className="ah-label m-0">{t(visitor ? (config.privy ? "waiting.deliver.visitorLogIn" : "waiting.deliver.visitor") : "waiting.deliver.note")}</p>
       )}
       {visitor ? null : ahead && !busy ? (
         <FailureBand failure={ahead} {...(cost.status === "failed" ? { said: cost.message } : {})} />
@@ -536,7 +536,7 @@ export default function WaitingScreen() {
       </div>
 
       {!payee ? (
-        <p className="ah-label m-0">{t("waiting.start")}</p>
+        <p className="ah-label m-0">{t(config.privy ? "waiting.start.logIn" : "waiting.start")}</p>
       ) : (
         <>
           <div className="flex flex-col gap-1">

@@ -7,7 +7,8 @@ import { config as app } from "../config";
 import { chainOf } from "../chain/clients";
 import { walletConfig } from "./config";
 import { FALLBACK_ID } from "./fallback";
-import { PRIVY_TYPE, privyUnavailable } from "./privy";
+import { PRIVY_ID, PRIVY_TYPE, isPrivyEmbedded, PRIVY_METHODS, privyUnavailable, type PrivyAsk } from "./privy";
+import { privyMarked, privyReturning } from "./privy-mark";
 import type { DevRole, DevWho } from "./dev";
 import { unknownNetwork } from "./errors";
 import { safeIcon } from "./icons";
@@ -36,10 +37,13 @@ export interface WalletState {
   /** False for an account that cannot send (the dev wallet's "not set up yet"). */
   canSend: boolean;
   /**
-   * An email account (Privy): it confirms on this page with no window of its own, so whatever it
-   * confirms must stand on the app's own screen in both views.
+   * A wallet Privy keeps (logged in by email, a social account or a passkey): it confirms on this
+   * page with no window of its own, so whatever it confirms must stand on the app's own screen in
+   * both views. Not set for a crypto wallet, even one logged in through Privy.
    */
   email?: boolean;
+  /** Logged in through Privy (any way in): the control says "Log out", not "Disconnect". */
+  privy?: boolean;
 }
 
 export interface WalletOption {
@@ -48,8 +52,8 @@ export interface WalletOption {
   name: string;
   /** A `data:` image, or none. */
   icon?: string;
-  /** "email": Privy (wallet/privy.ts), offered only when the configuration has `privy`. */
-  kind: "found" | "dev" | "email";
+  /** "privy": logging in through Privy's one window (wallet/privy.ts), only when the configuration has `privy`. */
+  kind: "found" | "dev" | "privy";
   /** `window.ethereum`, offered only when no wallet announced itself (wallet/config.ts). */
   fallback?: boolean;
   devRole?: DevRole;
@@ -72,7 +76,7 @@ function emit(next: Snapshot): void {
 
 function optionOf(connector: Connector): WalletOption {
   const dev = connector.type === "dev";
-  if (connector.type === PRIVY_TYPE) return { id: connector.id, name: connector.name, kind: "email" };
+  if (connector.type === PRIVY_TYPE) return { id: connector.id, name: connector.name, kind: "privy" };
   const extra = connector as unknown as { devRole?: DevRole; devWho?: DevWho };
   const icon = dev ? undefined : safeIcon(connector.icon);
   return {
@@ -99,7 +103,8 @@ function read(config: Config): Snapshot {
     ...(connection.chainId !== undefined ? { chainId: connection.chainId } : {}),
     ...(connector ? { connectorId: connector.id, name: connector.name } : {}),
     ...(extra?.devRole ? { devRole: extra.devRole } : {}),
-    ...(connector?.type === PRIVY_TYPE ? { email: true } : {}),
+    ...(connector?.type === PRIVY_TYPE ? { privy: true } : {}),
+    ...(isPrivyEmbedded(connector) ? { email: true } : {}),
   };
   return { state, options: getConnectors(config).map(optionOf) };
 }
@@ -126,14 +131,14 @@ export function useWallet(): WalletState {
   return useSyncExternalStore(subscribe, () => snapshot.state);
 }
 
-/** What "Connect a wallet" offers: email (when configured), wallets this browser announced, then the dev accounts (local only). */
+/** What the wallet layer offers: Privy (when configured), wallets this browser announced, then the dev accounts (local only). */
 export function useWalletOptions(): WalletOption[] {
   return useSyncExternalStore(subscribe, () => snapshot.options);
 }
 
 export { foundOptions } from "./fallback";
 
-/** "unavailable": email through Privy could not be reached (the browser's wallets still work). */
+/** "unavailable": Privy could not be reached (the browser's wallets still work). */
 export type ConnectOutcome = { ok: true; address: Address } | { ok: false; reason: "refused" | "failed" | "unknown-network" | "unavailable" };
 
 function said(error: unknown, code: number): boolean {
@@ -147,21 +152,54 @@ function said(error: unknown, code: number): boolean {
   return false;
 }
 
-/** Connects the option with this id, on the build's chain. */
-export async function connectWallet(id: string): Promise<ConnectOutcome> {
+/** Connects the option with this id, on the build's chain; `privy` is what to ask of Privy's window. */
+export async function connectWallet(id: string, privy?: PrivyAsk): Promise<ConnectOutcome> {
   const config = await start();
   const connector = getConnectors(config).find((c) => c.id === id);
   if (!connector) return { ok: false, reason: "failed" };
   const current = getConnection(config);
   if (current.status === "connected" && current.connector) await disconnect(config, { connector: current.connector }).catch(() => undefined);
   try {
-    const result = await connect(config, { connector, chainId: app.chain.id });
+    const result = await connect(config, { connector, chainId: app.chain.id, ...(privy ? { privy } : {}) } as { connector: typeof connector; chainId: number });
     return { ok: true, address: result.accounts[0]! };
   } catch (error) {
     if (privyUnavailable(error)) return { ok: false, reason: "unavailable" };
     if (unknownNetwork(error)) return { ok: false, reason: "unknown-network" };
     return { ok: false, reason: said(error, 4001) ? "refused" : "failed" };
   }
+}
+
+/** Opens Privy's one window with every way in: email, social accounts, a passkey and crypto wallets. */
+export function logIn(): Promise<ConnectOutcome> {
+  return connectWallet(PRIVY_ID, { methods: PRIVY_METHODS });
+}
+
+let restoring: Promise<void> | undefined;
+
+/** Runs `run` once the page is idle (or after a short while where the browser has no idle callback). */
+function whenIdle(run: () => void): void {
+  const w = globalThis as { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number };
+  if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 4000 });
+  else setTimeout(run, 1500);
+}
+
+/**
+ * Lets a returning person back in without a window, once per page: at once when a social login
+ * has just come back to this page (Privy finishes it as it loads), and once the page is idle when
+ * this browser holds the mark of a Privy session (privy-mark.ts). Without either, nothing loads.
+ */
+export function restoreSession(): Promise<void> {
+  restoring ??= (async () => {
+    const back = privyReturning();
+    if (!back && !privyMarked()) return;
+    if (!back) await new Promise<void>((resolve) => whenIdle(resolve));
+    const config = await start();
+    const connector = getConnectors(config).find((c) => c.type === PRIVY_TYPE);
+    if (!connector || getConnection(config).status === "connected") return;
+    const ask: PrivyAsk = { restore: true };
+    await connect(config, { connector, chainId: app.chain.id, privy: ask } as Parameters<typeof connect>[1]).catch(() => undefined);
+  })();
+  return restoring;
 }
 
 export async function disconnectWallet(): Promise<void> {

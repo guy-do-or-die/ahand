@@ -9,7 +9,7 @@ import { useLang, type Lang } from "../ui/ambient";
 
 const EN = {
   title: "Connect a wallet",
-  /** The same control's name where email is offered: someone with no crypto app would not press "Connect a wallet". */
+  /** The same control's name where Privy is the way in: someone with no crypto app would not press "Connect a wallet". */
   logIn: "Log in",
   found: "Found in this browser",
   none: "Nothing to connect was found in this browser. On a computer, add a crypto app's browser extension, then reload this page. On a phone, open this page in the browser inside your crypto app (MetaMask, Rabby, Trust and others have one).",
@@ -23,14 +23,17 @@ const EN = {
   another: "Use another account",
   otherNetwork: (network: string) => `This account is on another network. Switch it to ${network} to go on.`,
   step: (n: number, of: number) => `Step ${n} of ${of}`,
-  email: {
-    heading: "No crypto app? Use your email",
-    action: "Continue with email",
-    calm: "We'll email you a code. No app needed.",
-    note: "A code comes to your email, and an account is made for you on this network. Privy keeps its key; this site never sees it.",
-    opening: "Opening the email step…",
-    unavailable: "Email can't be reached right now. You can still connect a crypto app from this browser.",
-    none: "No crypto app was found in this browser. Use your email above, or open this page inside your crypto app.",
+  /** Logging in through Privy's one window (a build whose configuration has `privy`). */
+  privy: {
+    opening: "Opening log in…",
+    unavailable: "Logging in can't be reached right now. You can still connect a crypto app from this browser.",
+    loggedIn: "Logged in",
+    logOut: "Log out",
+    failed: "Logging in didn't finish. Nothing was sent.",
+    retry: "Try again",
+    close: "Close",
+    /** Back from Google, Apple or X: the page was loaded afresh, and an opened link lives only in a tab's memory (D-39). */
+    linkAgain: "You're logged in. Logging in with a social account reloads the page, and a link lives only in this tab's memory, so open the one you were sent once more.",
   },
   dev: {
     heading: "Test accounts · this local network only",
@@ -60,15 +63,15 @@ const RU: WalletWords = {
   another: "Сменить аккаунт",
   otherNetwork: (network) => `Этот аккаунт в другой сети. Переключи его на «${network}», чтобы продолжить.`,
   step: (n, of) => `Шаг ${n} из ${of}`,
-  email: {
-    heading: "Нет криптоприложения? Войди по почте",
-    action: "Продолжить с почтой",
-    // Privy's window is in English apart from its title: say in Russian what it will ask for.
-    calm: "Пришлём код на почту, никаких приложений не нужно. Окно входа будет на английском: сначала поле для почты, потом шестизначный код из письма.",
-    note: "На почту придёт код, и для тебя создастся аккаунт в этой сети. Его ключ хранит Privy; этот сайт его не видит.",
-    opening: "Открываем вход по почте…",
-    unavailable: "Вход по почте сейчас недоступен. Можно подключить криптоприложение из этого браузера.",
-    none: "В этом браузере не нашлось криптоприложения. Войди по почте выше или открой эту страницу внутри своего криптоприложения.",
+  privy: {
+    opening: "Открываем вход…",
+    unavailable: "Вход сейчас недоступен. Можно подключить криптоприложение из этого браузера.",
+    loggedIn: "Вход выполнен",
+    logOut: "Выйти",
+    failed: "Вход не завершился. Ничего не отправлено.",
+    retry: "Попробовать снова",
+    close: "Закрыть",
+    linkAgain: "Вход выполнен. Вход через соцсеть перезагружает страницу, а ссылка живёт только в памяти этой вкладки, поэтому открой присланную ссылку ещё раз.",
   },
   dev: {
     heading: "Тестовые аккаунты · только эта локальная сеть",

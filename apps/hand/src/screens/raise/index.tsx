@@ -11,6 +11,7 @@ import { TID } from "../../testids";
 import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, Proof, QuietButton, Sheet, SwipeButton, TxRail, count, day, money, percent, useLens, type MoneyReading, type TxReached } from "../../ui";
 import { ConnectSheet, connectedWallet, useSend, useTypedSigner, useWallet } from "../../wallet";
 import { exactMoney } from "./exact";
+import { dropKeptRaise, keepRaise, takeKeptRaise, type RaiseForm } from "./kept";
 import {
   droppedSeen,
   lastDropped,
@@ -32,6 +33,13 @@ import { expiryFor, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, weigh } f
 import { Chips, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
 import { Faucets, OnExplorer } from "../../shell/OnExplorer";
+
+/** This build logs in through Privy: the way in is "Log in", not "Connect a wallet". */
+const LOG_IN = config.privy !== undefined;
+
+/** The form kept across a social login, taken out of storage once per page load (React may mount the screen twice). */
+let kept: Promise<(RaiseForm & { used?: boolean }) | undefined> | undefined;
+const keptOnce = (): Promise<(RaiseForm & { used?: boolean }) | undefined> => (kept ??= takeKeptRaise());
 
 /**
  * /raise (UX-SPEC §7.2): one screen from a thought to a link. The compose surface, then the swipe,
@@ -124,6 +132,31 @@ export default function RaiseScreen() {
   /** The raise itself has left (its hash is on the device): the TxRail shows from "Sent" on. */
   const [raiseSent, setRaiseSent] = useState(false);
   const busy = useRef(false);
+
+  // Back from a social login (Privy's Google, Apple or X load /raise afresh): the form written
+  // before it comes back (kept.ts). Taken once as the screen opens; a form already typed into wins.
+  const typed = useRef(false);
+  typed.current = poster !== "" || details !== "";
+  useEffect(() => {
+    if (!LOG_IN) return;
+    let open = true;
+    void keptOnce().then((form) => {
+      if (!open || !form || typed.current || form.used) return;
+      form.used = true;
+      setPoster(form.poster);
+      setDetails(form.details);
+      setShowDetails(form.showDetails);
+      setRewardKey(form.rewardKey);
+      if (form.custom !== undefined && /^[0-9]+$/.test(form.custom)) setCustom({ status: "ok", amount: BigInt(form.custom) });
+      setDays(form.days);
+      setMode(form.mode);
+      setMinClaimBps(form.minClaimBps);
+      setPayoutGasK(form.payoutGasK);
+    });
+    return () => {
+      open = false;
+    };
+  }, []);
 
   const ctx = useMemo<RaiseContext>(
     () => ({
@@ -243,7 +276,23 @@ export default function RaiseScreen() {
     setRaiseSent(false);
     void droppedSeen(ctx).catch(() => undefined);
     try {
+      // A social login leaves the page and comes back by a fresh load: the form goes with it (kept.ts).
+      const carry = LOG_IN && !(wallet.status === "connected" && wallet.address);
+      if (carry) {
+        void keepRaise({
+          poster,
+          details,
+          showDetails,
+          rewardKey,
+          ...(rewardKey === "custom" && custom.status === "ok" ? { custom: custom.amount.toString() } : {}),
+          days,
+          mode,
+          minClaimBps,
+          payoutGasK,
+        });
+      }
       const raiser = await ensureWallet();
+      if (carry) void dropKeptRaise();
       if (!raiser) {
         setPhase({ kind: "compose" });
         return;
@@ -363,7 +412,7 @@ export default function RaiseScreen() {
                 ? {
                     action: (
                       <QuietButton compact data-testid={TID.raise.pendingConnect} onClick={() => setConnectAsk({ answer: () => undefined })}>
-                        {t("raise.steps.connect")}
+                        {t(LOG_IN ? "raise.steps.logIn" : "raise.steps.connect")}
                       </QuietButton>
                     ),
                   }
@@ -474,7 +523,7 @@ export default function RaiseScreen() {
           />
           {rewardKey === "custom" ? (
             <div data-testid={TID.raise.rewardCustom}>
-              <MoneyInput label={t("raise.reward.customLabel")} decimals={decimals} onReading={setCustom} />
+              <MoneyInput label={t("raise.reward.customLabel")} decimals={decimals} {...(custom.status === "ok" ? { initial: custom.amount } : {})} onReading={setCustom} />
             </div>
           ) : null}
           {reward === 0n ? (
@@ -594,7 +643,7 @@ export default function RaiseScreen() {
                 claimBps={10_000}
                 heading="h2"
                 {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}
-                {...(wallet.address ? { raiser: wallet.address } : {})}
+                {...(wallet.address ? { raiser: wallet.address } : { raiserByLogIn: LOG_IN })}
               />
             ) : (
               <p className="ah-note m-0">{t("common.time.offline")}</p>
@@ -695,7 +744,7 @@ function TooLong({ sentence, what }: { sentence: string; what: "title" | "detail
 function Steps({ phase, needsConnect, amount }: { phase: Extract<Phase, { kind: "working" }>; needsConnect: boolean; amount: string | undefined }) {
   const lock = phase.step === "allow" ? (amount ? t("raise.steps.allowAmount", { amount }) : t("raise.steps.allow")) : phase.step === "raise" && phase.of > 1 ? t("raise.steps.raise2") : phase.step === "raise" ? t("raise.steps.raise") : t("raise.steps.lock");
   const items: { key: string; label: string }[] = [
-    ...(needsConnect || phase.step === "connect" ? [{ key: "connect", label: t("raise.steps.connect") }] : []),
+    ...(needsConnect || phase.step === "connect" ? [{ key: "connect", label: t(LOG_IN ? "raise.steps.logIn" : "raise.steps.connect") }] : []),
     { key: "keys", label: t("raise.steps.keys") },
     { key: "lock", label: lock },
   ];

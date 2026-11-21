@@ -64,6 +64,8 @@ export interface DealCardProps {
    * then says the address comes once one is, never a zero address (F5).
    */
   raiser?: Address;
+  /** Without `raiser`: the account comes by "Log in" (a build that logs in through Privy), not by connecting a wallet. */
+  raiserByLogIn?: boolean;
   /** A name proved for the raiser's address (ENS both ways); the card still says "Someone". */
   raiserName?: string;
   /**
@@ -112,7 +114,7 @@ export function DealCard(props: DealCardProps) {
   );
 }
 
-function Card({ state, description, reward, decimals, expiry, closedAt, claimBps, viewer = "holder", raiser, raiserName, handId, block, timeZone, offlineSaid, heading = "h2", children, className }: DealCardProps) {
+function Card({ state, description, reward, decimals, expiry, closedAt, claimBps, viewer = "holder", raiser, raiserByLogIn, raiserName, handId, block, timeZone, offlineSaid, heading = "h2", children, className }: DealCardProps) {
   const lang = useLang();
   const lens = useLens();
   const words = useWords().deal;
@@ -318,7 +320,7 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
       {own && raiser && !lens ? null : (
         <div className="ah-deal__foot" data-raiser={raiser ? "known" : "later"}>
           <span className="ah-label">{own ? own.askedBy : words.askedBy}</span>
-          {raiser ? <Identity address={raiser} name={raiserName} /> : <span className="ah-label">{words.askedByLater}</span>}
+          {raiser ? <Identity address={raiser} name={raiserName} /> : <span className="ah-label">{raiserByLogIn ? words.askedByLaterLogIn : words.askedByLater}</span>}
         </div>
       )}
       {lens && block ? (

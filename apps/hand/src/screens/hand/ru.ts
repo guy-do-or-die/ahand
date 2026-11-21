@@ -38,6 +38,7 @@ const ru: Record<keyof typeof en, string> = {
   "hand.give.raiser": "Это ответ на твою руку.",
   "hand.give.toThank": "Открыть ответ",
   "hand.give.mine": "Это твоя рука? Подключи аккаунт, с которого она поднята, чтобы прочитать ответ.",
+  "hand.give.mineLogIn": "Это твоя рука? Войди в аккаунт, с которого она поднята, чтобы прочитать ответ.",
 
   "hand.sendBack.title": "Вернуть награду автору",
   "hand.sendBack.title.noReward": "Закрыть руку",

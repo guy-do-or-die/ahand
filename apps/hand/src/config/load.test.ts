@@ -68,14 +68,17 @@ describe("the public test network's fields", () => {
   });
 });
 
-describe("email sign-in through Privy", () => {
+/** The site addresses base-sepolia.json expects Privy's dashboard to allow: the site, and the ports on this machine the owner allowed. */
+const SEPOLIA_ORIGINS = ["https://ahand.in", "https://*.ahand.in", ...[3000, 3001, 3300, 3400, 3411, 5173].map((port) => `http://localhost:${port}`)];
+
+describe("sign-in through Privy", () => {
   const sepolia = JSON.parse(readFileSync(new URL("./base-sepolia.json", import.meta.url), "utf8"));
 
   test("base-sepolia.json turns it on with the public app id; the local example has none", () => {
-    expect(parseConfig(sepolia).privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji", origins: ["https://ahand.in", "https://*.ahand.in"] });
+    expect(parseConfig(sepolia).privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji", origins: SEPOLIA_ORIGINS });
     expect(parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji" } }).privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji" });
     expect(() => parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji", origins: "https://ahand.in" } })).toThrow(/privy.origins must be a list/);
-    for (const bad of ["http://ahand.in", "https://ahand.in/", "https://*", "https://a.*.ahand.in", "*.ahand.in"]) {
+    for (const bad of ["http://ahand.in", "https://ahand.in/", "https://*", "https://a.*.ahand.in", "*.ahand.in", "http://localhost", "http://127.0.0.1:3300", "http://localhost:3300/", "http://*.localhost:3300"]) {
       expect(() => parseConfig({ ...sepolia, privy: { appId: "clt69jwp204btq1o3q72cupji", origins: [bad] } })).toThrow(/privy.origins\[0\]/);
     }
     expect(parseConfig(example).privy).toBeUndefined();

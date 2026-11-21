@@ -426,7 +426,8 @@ export const TID = {
     connect: "connect-wallet",
     connected: "wallet-connected", // data-value: the connected address
     devAccount: "dev-account", // + "-<n>" | "-not-set-up" (tests/e2e/lib/accounts.ts)
-    email: "connect-email", // email through Privy, in a build whose configuration has `privy`
+    privyStatus: "privy-status", // "Opening log in…" while Privy loads (data-value "failed": the login did not finish), in a build whose configuration has `privy`
+    linkAgain: "privy-link-again", // back from a social login with no link open: open it once more
   },
 
   /** The shared kit (ui/), wherever a screen mounts it. */

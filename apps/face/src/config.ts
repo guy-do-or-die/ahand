@@ -17,8 +17,8 @@ import { getAddress, isAddress, type Address } from "viem";
  * into the CSP's connect-src beside FACE_RPC; without them the app's delivery would be blocked
  * by face's own header (ARCHITECTURE §11 lists "<relay urls>" there).
  *
- * And FACE_PRIVY, "1" when the app's configuration has email sign-in through Privy: the CSP then
- * names Privy's frame and API (headers.ts PRIVY_SOURCES), as the app's own meta tag does.
+ * And FACE_PRIVY, "1" when the app's configuration logs in through Privy: the CSP then
+ * names Privy's and WalletConnect's sources (headers.ts PRIVY_SOURCES), as the app's own meta tag does.
  *
  * Nothing here is a secret: face holds no key.
  */
@@ -31,7 +31,7 @@ export interface FaceConfig {
   canonical?: Address;
   site: string;
   relays: string[];
-  /** The app signs in by email through Privy: the CSP names Privy's sources. */
+  /** The app logs in through Privy: the CSP names Privy's sources. */
   privy?: boolean;
 }
 

@@ -145,20 +145,22 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     expect(answer.headers["Referrer-Policy"]).toBe("no-referrer");
   });
 
-  test("email through Privy: the app's pages name Privy's frame and API and nothing else of it; exit.html and the stand never do", () => {
-    expect(config.privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji", origins: ["https://ahand.in", "https://*.ahand.in"] });
+  test("logging in through Privy: the app's pages name Privy's and WalletConnect's sources and nothing else of them; exit.html and the stand never do", () => {
+    expect(config.privy).toEqual({ appId: "clt69jwp204btq1o3q72cupji", origins: ["https://ahand.in", "https://*.ahand.in", ...[3000, 3001, 3300, 3400, 3411, 5173].map((port) => `http://localhost:${port}`)] });
     const page = serve("/raise").headers["Content-Security-Policy"]!;
     const plain = appCsp({ rpcUrls: config.chain.rpcUrls, relays: config.relays }, "header");
-    // Exactly two directives more, and connect-src longer by Privy's API and RPC; every other directive as before.
+    // Exactly two directives more, img-src and connect-src longer by Privy's sources; every other directive as before.
     expect(page).toBe(
       plain
-        .replace(/connect-src ([^;]*)/, (_all, list: string) => `connect-src ${list} https://auth.privy.io https://*.rpc.privy.systems; frame-src https://auth.privy.io; child-src https://auth.privy.io`),
+        .replace("img-src 'self' data:", `img-src 'self' data: ${PRIVY_CSP.img.join(" ")}`)
+        .replace(/connect-src ([^;]*)/, (_all, list: string) => `connect-src ${list} ${PRIVY_CSP.connect.join(" ")}; frame-src ${PRIVY_CSP.frame.join(" ")}; child-src ${PRIVY_CSP.frame.join(" ")}`),
     );
-    expect(PRIVY_CSP).toEqual({ frame: ["https://auth.privy.io"], connect: ["https://auth.privy.io", "https://*.rpc.privy.systems"] });
-    // No script, style, image or worker from Privy: its code ships in the app's own files.
+    expect(PRIVY_CSP.frame).toEqual(["https://auth.privy.io", "https://verify.walletconnect.com", "https://verify.walletconnect.org"]);
+    expect(PRIVY_CSP.connect).toEqual(["https://auth.privy.io", "https://*.rpc.privy.systems", "wss://relay.walletconnect.com", "wss://relay.walletconnect.org", "wss://www.walletlink.org", "https://explorer-api.walletconnect.com"]);
+    // No script, style or worker from Privy: its code ships in the app's own files.
     expect(page).toContain("script-src 'self';");
     expect(page).toContain("worker-src 'none'");
-    expect(page).toContain("img-src 'self' data:;");
+    expect(page).toContain("img-src 'self' data: https://explorer-api.walletconnect.com;");
     // The built page's meta tag says the same (without frame-ancestors, which only works as a header).
     const meta = readFileSync(join(dist, "index.html"), "utf8").match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/)![1]!.replaceAll("&quot;", '"').replaceAll("&amp;", "&");
     expect(meta).toBe(page.replace("; frame-ancestors 'none'", ""));
@@ -167,6 +169,7 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     // exit.html is the reader's own way out: no sign-in, so nothing of Privy, in its policy or its code.
     const exit = serve("/exit.html").headers["Content-Security-Policy"]!;
     expect(exit).not.toContain("privy");
+    expect(exit).not.toContain("walletconnect");
     expect(exit).not.toContain("frame-src");
     expect(readFileSync(join(dist, "exit.html"), "utf8")).not.toContain("auth.privy.io");
     // Without privy in the configuration, nothing of Privy anywhere in vercel.json.

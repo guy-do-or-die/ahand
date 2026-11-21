@@ -87,7 +87,7 @@ export function previewsOn(config: Pick<PublicConfig, "previews">): boolean {
   return config.previews !== false;
 }
 
-/** Whether this build signs in by email through Privy. */
+/** Whether this build logs in through Privy. */
 export function privyOn(config: Pick<PublicConfig, "privy">): boolean {
   return typeof config.privy === "object" && config.privy !== null;
 }

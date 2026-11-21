@@ -25,10 +25,11 @@ export interface LandPickerProps {
   /** Opens the screen's own way of connecting. The kit knows nothing about wallets. */
   onConnect: () => void;
   /**
-   * The screen's way of connecting offers email (a build with Privy): the connect choice then
-   * says so, since someone with no crypto app would not press "Connect a wallet".
+   * The screen's way of connecting is logging in through Privy (email or a crypto app in one
+   * window): the connect choice then says "Log in to get paid", since someone with no crypto app
+   * would not press "Connect a wallet".
    */
-  email?: boolean;
+  logIn?: boolean;
   /** This Hand's Core, asker and token, for the SDK's `payeeProblem`. */
   ctx: PayeeContext;
   /** An address to start the "An address I have" field with. */
@@ -55,7 +56,7 @@ export interface LandPickerProps {
  *
  * A key made in the browser is never the default: with no connected account, nothing is chosen.
  */
-export function LandPicker({ purpose, account, onConnect, email = false, ctx, initialAddress = "", onChange, onWaiting }: LandPickerProps) {
+export function LandPicker({ purpose, account, onConnect, logIn = false, ctx, initialAddress = "", onChange, onWaiting }: LandPickerProps) {
   const words = useWords().land;
   const name = useId();
   const [choice, setChoice] = useState<Choice | undefined>(account ? "account" : undefined);
@@ -139,9 +140,9 @@ export function LandPicker({ purpose, account, onConnect, email = false, ctx, in
         </div>
       ) : (
         <div className="ah-stack">
-          <QuietButton onClick={onConnect}>{email ? words.connectEmail : words.connect}</QuietButton>
+          <QuietButton onClick={onConnect}>{logIn ? words.logIn : words.connect}</QuietButton>
           <p className="ah-label" style={{ margin: 0 }}>
-            {email ? words.connectEmailHint : words.connectHint}
+            {logIn ? words.logInHint : words.connectHint}
           </p>
         </div>
       )}

@@ -15,14 +15,15 @@ import type { FaceConfig } from "./config.ts";
  * any RPC address its reader types, may connect to any https address and to this machine, and
  * may load the fonts it carries inside itself as data: URLs (a font cannot send anything anywhere).
  *
- * With `privy` (the app signs in by email through Privy) the app's pages also name Privy's sign-in
- * frame and its API (`PRIVY_SOURCES`, the same as apps/hand/csp.ts); exit.html never does.
+ * With `privy` (the app logs in through Privy) the app's pages also name Privy's login frame, its
+ * API and WalletConnect's (`PRIVY_SOURCES`, the same as apps/hand/csp.ts); exit.html never does.
  */
 
-/** What email sign-in through Privy needs beyond the app's own policy (apps/hand/csp.ts PRIVY_CSP holds the same). */
+/** What logging in through Privy needs beyond the app's own policy (apps/hand/csp.ts PRIVY_CSP holds the same, and says why each is there). */
 export const PRIVY_SOURCES = {
-  frame: ["https://auth.privy.io"],
-  connect: ["https://auth.privy.io", "https://*.rpc.privy.systems"],
+  frame: ["https://auth.privy.io", "https://verify.walletconnect.com", "https://verify.walletconnect.org"],
+  connect: ["https://auth.privy.io", "https://*.rpc.privy.systems", "wss://relay.walletconnect.com", "wss://relay.walletconnect.org", "wss://www.walletlink.org", "https://explorer-api.walletconnect.com"],
+  img: ["https://explorer-api.walletconnect.com"],
 } as const;
 
 /** A CSP source for a URL: its origin (scheme, host, port). */
@@ -49,7 +50,7 @@ export function cspFor(config: Pick<FaceConfig, "rpc" | "relays" | "privy">, pag
     "default-src 'self'",
     `script-src ${script.join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    `img-src ${["'self'", "data:", ...(privy ? PRIVY_SOURCES.img : [])].join(" ")}`,
     page.anyRpc ? "font-src 'self' data:" : "font-src 'self'",
     `connect-src ${[...new Set(connect)].join(" ")}`,
     ...(privy ? [`frame-src ${PRIVY_SOURCES.frame.join(" ")}`, `child-src ${PRIVY_SOURCES.frame.join(" ")}`] : []),

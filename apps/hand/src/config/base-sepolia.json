@@ -29,7 +29,7 @@
   "relays": ["wss://relay.damus.io", "wss://nos.lol"],
   "site": "https://exp-e2e.ahand.in",
   "previews": true,
-  "privy": { "appId": "clt69jwp204btq1o3q72cupji", "origins": ["https://ahand.in", "https://*.ahand.in"] },
+  "privy": { "appId": "clt69jwp204btq1o3q72cupji", "origins": ["https://ahand.in", "https://*.ahand.in", "http://localhost:3000", "http://localhost:3001", "http://localhost:3300", "http://localhost:3400", "http://localhost:3411", "http://localhost:5173"] },
   "faucets": [
     { "asset": "USDC", "url": "https://faucet.circle.com" },
     { "asset": "ETH", "url": "https://docs.base.org/base-chain/tools/network-faucets" }

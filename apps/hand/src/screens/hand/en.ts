@@ -38,6 +38,7 @@ const en = {
   "hand.give.raiser": "This is an answer to your hand.",
   "hand.give.toThank": "Open the answer",
   "hand.give.mine": "Did you raise this hand? Connect the account that raised it to read the answer.",
+  "hand.give.mineLogIn": "Did you raise this hand? Log in with the account that raised it to read the answer.",
 
   "hand.sendBack.title": "Send the reward back",
   "hand.sendBack.title.noReward": "Close this hand",

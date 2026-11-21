@@ -10,7 +10,7 @@ import type { ScreenProps } from "../../routes";
 import { addressOf, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
 import { ChainRail, CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Mark, Proof, QuietButton, SwipeButton, day, shortAddress, useLens, type DealDescription, type RailHand } from "../../ui";
-import { ConnectButton, useWallet } from "../../wallet";
+import { ConnectButton, LinkAgain, useWallet } from "../../wallet";
 import { Closed } from "./Closed";
 import { arrivalOf, canRetry, failureOf, holderStatements, proofPathOf, routeHands, type Failure, type Held } from "./held";
 import { SendBack } from "./SendBack";
@@ -261,6 +261,7 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
             {t("hand.noLink")}
           </p>
         ) : null}
+        {state === "open" && !opened ? <LinkAgain /> : null}
         {!opened && !closed ? (
           <Proof>
             <ProofLink to={proof} />
@@ -544,7 +545,7 @@ function GiveArrived({ raiser, check }: { raiser: boolean; check: GiveCheck }) {
           <CopyRow value={address} />
         </div>
       ) : null}
-      <p className="ah-label m-0">{t("hand.give.mine")}</p>
+      <p className="ah-label m-0">{t(config.privy ? "hand.give.mineLogIn" : "hand.give.mine")}</p>
       <ConnectButton />
     </div>
   );

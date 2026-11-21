@@ -76,6 +76,7 @@ const en = {
   "raise.swipe.noClock": "Can't reach the network right now.",
   "raise.steps.label": "Steps",
   "raise.steps.connect": "Connect a wallet",
+  "raise.steps.logIn": "Log in",
   "raise.steps.keys": "Your link",
   "raise.steps.lock": "Lock the reward",
   "raise.steps.allow": "1 of 2: allow",
