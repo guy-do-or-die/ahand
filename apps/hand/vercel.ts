@@ -133,8 +133,8 @@ export function vercelJson(config: PublicConfig, exitHtml: string) {
   return {
     $schema: "https://openapi.vercel.sh/vercel.json",
     framework: null,
-    installCommand: "cd ../.. && bun install --frozen-lockfile",
-    buildCommand: "cd ../.. && bun apps/hand/vercel.ts build",
+    installCommand: `cd ../.. && npx -y bun@${BUN} install --frozen-lockfile`,
+    buildCommand: `cd ../.. && npx -y bun@${BUN} apps/hand/vercel.ts build`,
     outputDirectory: VERCEL_OUT,
     ...(previewsOn(config) ? { functions: { [FUNCTION_ENTRY]: { includeFiles: `${FUNCTION_DIR}/**`, maxDuration: FUNCTION_MAX_SECONDS } } } : {}),
     rewrites: [
@@ -195,10 +195,18 @@ export function writePublicConfig(dir: string, configFile = PUBLIC_CONFIG, deplo
  */
 export const MIN_BUN = "1.3.2";
 
+/**
+ * The Bun that installs and builds the public site: the one CI pins (.github/workflows/check.yml,
+ * setup-bun) and the one bun.lock is written with. Vercel's build image carries its own Bun 1.x
+ * (1.3.14 on 2026-11-21), which rewrites a lockfile made by 1.4 (it drops `libc` and adds
+ * `hasInstallScript`) and so refuses `--frozen-lockfile`; npx fetches this exact one instead.
+ */
+export const BUN = "1.4.4";
+
 /** Why this Bun cannot make the public build, or undefined when it can. */
 export function bunProblem(version: string = Bun.version): string | undefined {
   if (Bun.semver.order(version, MIN_BUN) >= 0) return undefined;
-  return `Bun ${version} is older than ${MIN_BUN}: it installs bun.lock hoisted and exit.html loses its fonts. Set installCommand to "cd ../.. && npx -y bun@1.4.4 install --frozen-lockfile" and buildCommand to "cd ../.. && npx -y bun@1.4.4 apps/hand/vercel.ts build" in vercel.json (apps/hand/vercel.ts vercelJson)`;
+  return `Bun ${version} is older than ${MIN_BUN}: it installs bun.lock hoisted and exit.html loses its fonts. Run the commands vercel.json names (npx -y bun@${BUN} …)`;
 }
 
 /**

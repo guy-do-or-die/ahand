@@ -16,6 +16,7 @@ import { appCsp, appHeaders, PRIVY_CSP } from "../csp.ts";
 import {
   APP_PATHS,
   buildApp,
+  BUN,
   bunProblem,
   copyFunction,
   exitProblem,
@@ -99,6 +100,11 @@ function serve(path: string): { status: number; file?: string; fn?: true; header
   return { status: 404, headers };
 }
 
+test("the site is built with the Bun that CI pins, so bun.lock installs frozen on both", () => {
+  const workflow = readFileSync(join(import.meta.dir, "../../../.github/workflows/check.yml"), "utf8");
+  expect(workflow).toContain(`bun-version: ${BUN}`);
+});
+
 describe("apps/web/vercel.json (the public test deployment)", () => {
   test("is exactly what a fresh public build needs: bun apps/hand/vercel.ts write", () => {
     expect(readFileSync(VERCEL_JSON, "utf8")).toBe(formatJson(expectedVercelJson(dist, configFile)));
@@ -107,8 +113,8 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
   test("builds the right app where Vercel serves it, with no gallery and no dev wallet", () => {
     expect(vercel.framework).toBeNull();
     expect(vercel.outputDirectory).toBe("dist");
-    expect(vercel.installCommand).toBe("cd ../.. && bun install --frozen-lockfile");
-    expect(vercel.buildCommand).toBe("cd ../.. && bun apps/hand/vercel.ts build");
+    expect(vercel.installCommand).toBe(`cd ../.. && npx -y bun@${BUN} install --frozen-lockfile`);
+    expect(vercel.buildCommand).toBe(`cd ../.. && npx -y bun@${BUN} apps/hand/vercel.ts build`);
     expect(config.chain.local).toBe(false);
     expect(existsSync(join(dist, "gallery.html"))).toBe(false);
     const assets = readdirSync(join(dist, "assets"));
