@@ -9,7 +9,7 @@ import { navigate, unmarkHandView, usePlace } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { addressOf, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { ChainRail, CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Mark, QuietButton, SwipeButton, day, shortAddress, useLens, type DealDescription, type RailHand } from "../../ui";
+import { ChainRail, CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, Mark, Proof, QuietButton, SwipeButton, day, shortAddress, useLens, type DealDescription, type RailHand } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
 import { Closed } from "./Closed";
 import { arrivalOf, canRetry, failureOf, holderStatements, proofPathOf, routeHands, type Failure, type Held } from "./held";
@@ -252,7 +252,7 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
       <aside className="flex min-w-0 flex-col gap-5 md:sticky md:top-6 md:col-start-2 md:row-span-2 md:row-start-1">
         {cut && !closed ? (
           <p className="ah-alert m-0" role="status" data-testid={TID.hand.offline} data-value={readAt?.toString() ?? ""}>
-            {t("hand.offline", { n: readAt?.toString() ?? "?" })}
+            {lens ? t("hand.offline", { n: readAt?.toString() ?? "?" }) : t("hand.offline.calm")}
           </p>
         ) : null}
         {actions ? <Actions left={left ?? 0} until={until} funded={funded} inBar={bar} off={cut} /> : null}
@@ -261,7 +261,11 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
             {t("hand.noLink")}
           </p>
         ) : null}
-        {!opened && !closed ? <ProofLink to={proof} /> : null}
+        {!opened && !closed ? (
+          <Proof>
+            <ProofLink to={proof} />
+          </Proof>
+        ) : null}
         {kind === "addressed" && state === "open" ? <p className="ah-note m-0">{t("hand.addressed")}</p> : null}
         {kind === "give" && !closed ? <GiveArrived raiser={isRaiser} check={giveCheck} /> : null}
         {state === "expired" ? <SendBack core={core} handId={view.handId} funded={funded} /> : null}

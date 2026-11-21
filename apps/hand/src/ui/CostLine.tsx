@@ -1,7 +1,7 @@
 import type { Cost, PriceSnapshot } from "@ahand/sdk";
 
 import { clsx } from "../lib/clsx";
-import { useLang } from "./ambient";
+import { useLang, useLens } from "./ambient";
 import { Disclose } from "./Disclose";
 import { count, day } from "./format";
 import { useWords } from "./words";
@@ -17,15 +17,26 @@ export interface CostLineProps {
 }
 
 /**
- * What an action costs, in money: "costs about $0.003 on Base · $0.21 on Ethereum", always
- * with the date of the prices. The gas units and gwei stand behind a disclosure, in mono.
+ * What an action costs, in money. The calm view says the fee on this site's network alone,
+ * "network fee about $0.003"; the lens adds what it would cost on Ethereum, the date of the
+ * prices and, behind a disclosure, the gas units and gwei in mono.
  */
 export function CostLine({ cost, prices, gas, className }: CostLineProps) {
   const lang = useLang();
   const words = useWords().cost;
+  const lens = useLens();
   const point = (text: string) => (lang === "ru" ? text.replace(".", ",") : text);
   // The snapshot's date is a calendar day; noon UTC keeps it the same day in every time zone.
   const date = day(Date.parse(`${prices.date}T12:00:00Z`) / 1000, lang, "UTC");
+  if (!lens) {
+    return (
+      <div className={clsx("ah-cost", className)}>
+        <p className="ah-label" style={{ margin: 0 }}>
+          {words.calm(point(cost.base.usd))}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className={clsx("ah-cost", className)}>
       <p className="ah-label" style={{ margin: 0 }}>

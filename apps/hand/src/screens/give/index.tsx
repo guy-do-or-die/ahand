@@ -1,4 +1,4 @@
-import { newKey, raiserHops, readDescription, walletKind, type OpenedAddress } from "@ahand/sdk";
+import { newKey, raiserHops, readDescription, readThank, walletKind, type OpenedAddress } from "@ahand/sdk";
 import type { Hex } from "@ahand/deliver";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { isAddressEqual, type Address, type TypedDataDefinition } from "viem";
@@ -15,11 +15,13 @@ import {
   dealDescriptionOf,
   Disclose,
   ErrorBand,
+  GestureEmoji,
   Identity,
   LandPicker,
   Mark,
   money,
   percent,
+  Proof,
   Qr,
   QuietButton,
   shortAddress,
@@ -373,6 +375,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
           purpose="give"
           {...(account ? { account } : {})}
           onConnect={() => setConnecting(true)}
+          email={config.privy !== undefined}
           ctx={ctx}
           initialAddress={picker.initial}
           onChange={setLanding}
@@ -397,7 +400,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
 
       <Step title={t("give.step.agree")} testId={TID.give.agree}>
         {landing ? (
-          <AgreeCard opened={opened} landing={landing} claim={claim} decimals={decimals} noReward={noReward} lang={lang} />
+          <AgreeCard opened={opened} landing={landing} claim={claim} decimals={decimals} noReward={noReward} lang={lang} email={wallet.email === true} />
         ) : (
           <p className="ah-label ah-label--dim m-0">{t(landWaiting === "tick" ? "give.agree.tick" : "give.agree.pick")}</p>
         )}
@@ -431,8 +434,39 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function AgreeCard({ opened, landing, claim, decimals, noReward, lang }: { opened: OpenedAddress; landing: Landing; claim: bigint; decimals: number; noReward: boolean; lang: "en" | "ru" }) {
+function AgreeCard({
+  opened,
+  landing,
+  claim,
+  decimals,
+  noReward,
+  lang,
+  email,
+}: {
+  opened: OpenedAddress;
+  landing: Landing;
+  claim: bigint;
+  decimals: number;
+  noReward: boolean;
+  lang: "en" | "ru";
+  /** The connected account is an email account (Privy), which shows no window of its own. */
+  email: boolean;
+}) {
   const core = opened.domain.verifyingContract;
+  // An email account confirms right here with no window of its own, so the fields it confirms
+  // (the contract and the hand's number) stand on this card in both views; any other account
+  // shows them on its own screen, and here they are the lens's.
+  const signedHere = email && landing.signing.kind === "account";
+  const signed = (
+    <>
+      <Row label={t("give.agree.contract")}>
+        <span className="ah-meta ah-meta--exact" title={core}>
+          {shortAddress(core)}
+        </span>
+      </Row>
+      <Row label={t("give.agree.hand")}>{t("give.agree.handNumber", { n: opened.hand.handId.toString() })}</Row>
+    </>
+  );
   const claimLine = noReward
     ? t("give.agree.claimNoReward", { percent: percent(opened.end.claimBps, lang) })
     : t("give.agree.claimMoney", { percent: percent(opened.end.claimBps, lang), amount: claimText(claim, decimals, lang, money) });
@@ -442,19 +476,20 @@ function AgreeCard({ opened, landing, claim, decimals, noReward, lang }: { opene
       <p className="ah-label m-0 py-2">{t("give.agree.intro")}</p>
       <dl className="m-0">
         <Row label={t("give.agree.network")}>
-          {chainName(config.chain)} <span className="ah-meta ah-meta--exact">· {opened.domain.chainId}</span>
+          {chainName(config.chain)}{" "}
+          <Proof>
+            <span className="ah-meta ah-meta--exact">· {opened.domain.chainId}</span>
+          </Proof>
         </Row>
-        <Row label={t("give.agree.contract")}>
-          <span className="ah-meta ah-meta--exact" title={core}>
-            {shortAddress(core)}
-          </span>
-        </Row>
-        <Row label={t("give.agree.hand")}>{t("give.agree.handNumber", { n: opened.hand.handId.toString() })}</Row>
+        {signedHere ? signed : <Proof>{signed}</Proof>}
         <Row label={t("give.agree.claim")}>{claimLine}</Row>
         <Row label={t("give.agree.lands")}>
           <Identity address={landing.payee} full />
         </Row>
-        <Row label={t("give.agree.confirms")}>{t(by)}</Row>
+        {/* How the answer is confirmed is a matter of keys: the lens's. */}
+        <Proof>
+          <Row label={t("give.agree.confirms")}>{t(by)}</Row>
+        </Proof>
       </dl>
       {landing.flagged ? <p className="ah-note m-0 mb-2">{t(`give.agree.flagged.${landing.flagged}`)}</p> : null}
     </div>
@@ -501,6 +536,7 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
   const entry = useEntry(phase.entryKey);
   const delivery = deliveryState(inbox, relayCount(), entry);
   const [showQr, setShowQr] = useState(false);
+  const thanked = useThankedMe(opened, result.giveHash);
   const give = result.signedGive.give;
   const sig = signatureKind(result.signedGive.giverSig);
   const lensLines = [
@@ -519,10 +555,21 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
   return (
     <div className="flex flex-col gap-7" data-signer={give.signer} data-payee={give.payee}>
       <div className="flex flex-col gap-3">
-        <h2 className="m-0 text-[length:var(--fs-card-title-lg)] font-extrabold leading-tight tracking-[-0.02em]">{t("give.done.title")}</h2>
-        <p className="ah-label m-0 flex flex-wrap items-center gap-2">
-          {t("give.done.checked")} <Mark kind="checked" source={<span className="ah-meta ah-meta--exact">{lensLines[1]}</span>} />
-        </p>
+        {/* Once delivered, the delivered line is the headline of the calm view; a second one would only repeat it. */}
+        <Proof calm={delivery === "delivered" ? null : <h2 className="m-0 text-[length:var(--fs-card-title-lg)] font-extrabold leading-tight tracking-[-0.02em]">{t("give.done.title")}</h2>}>
+          <h2 className="m-0 text-[length:var(--fs-card-title-lg)] font-extrabold leading-tight tracking-[-0.02em]">{t("give.done.title")}</h2>
+        </Proof>
+        {thanked ? (
+          <p className="ah-note m-0 flex items-center gap-3 text-[length:var(--fs-body-lg)] font-bold" data-testid={TID.give.thanked} role="status">
+            <GestureEmoji kind="bow" size={40} />
+            {t("give.thanked")}
+          </p>
+        ) : null}
+        <Proof>
+          <p className="ah-label m-0 flex flex-wrap items-center gap-2">
+            {t("give.done.checked")} <Mark kind="checked" source={<span className="ah-meta ah-meta--exact">{lensLines[1]}</span>} />
+          </p>
+        </Proof>
         {result.setup ? (
           <p className="ah-note m-0" data-testid={TID.give.setupBand}>
             {t("give.setup")}
@@ -533,7 +580,7 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
       {delivery === "delivered" && entry ? (
         <div className="flex flex-col gap-2">
           <p className="m-0 text-[length:var(--fs-body-lg)] font-bold" data-testid={TID.give.delivered} data-value={`${entry.acks}/${entry.of}`} role="status">
-            {t(entry.of === 1 ? "give.delivered.one" : "give.delivered.many", { acks: entry.acks, of: entry.of })}
+            <Proof calm={t("give.delivered.calm")}>{t(entry.of === 1 ? "give.delivered.one" : "give.delivered.many", { acks: entry.acks, of: entry.of })}</Proof>
           </p>
           <Disclose label={t("give.relay.what")}>
             <p className="ah-label m-0">{t("give.relay.body")}</p>
@@ -558,11 +605,15 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
       )}
 
       <div className="flex flex-col gap-3">
-        <span className="ah-field__label">{t("give.answer.label")}</span>
+        <span className="ah-field__label">
+          <Proof calm={t("give.answer.label.calm")}>{t("give.answer.label")}</Proof>
+        </span>
         <div data-testid={TID.give.copy} data-value={result.address}>
           <CopyRow value={result.address} shareText={shareText(phase.words, result.address)} />
         </div>
-        <p className="ah-label ah-label--dim m-0">{t("give.answer.copyHint")}</p>
+        <Proof>
+          <p className="ah-label ah-label--dim m-0">{t("give.answer.copyHint")}</p>
+        </Proof>
         <div className="flex flex-wrap gap-3">
           <QuietButton compact data-testid={TID.give.qr} aria-expanded={showQr} onClick={() => setShowQr((open) => !open)}>
             {t("common.word.showQr")}
@@ -576,7 +627,11 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
 
       <div className="flex flex-col gap-2 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-4">
         <p className="m-0 flex flex-wrap items-baseline gap-2">
-          {t("give.waiting", { payee: shortAddress(phase.payee) })}
+          {thanked ? (
+            t("give.waiting.thanked")
+          ) : (
+            <Proof calm={t("give.waiting.calm")}>{t("give.waiting", { payee: shortAddress(phase.payee) })}</Proof>
+          )}
         </p>
         <Identity address={phase.payee} full />
         <QuietButton compact className="self-start" data-testid={TID.give.toWaiting} onClick={() => navigate("/waiting")}>
@@ -595,6 +650,32 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
       </Disclose>
     </div>
   );
+}
+
+/**
+ * Whether the asker thanked this very answer: the Hand is closed and the Give Core keeps for its
+ * thanks is this one. Read again on every block while the tab is open, so a helper hears the news
+ * in plain words without the lens.
+ */
+function useThankedMe(opened: OpenedAddress, giveHash: Hex): boolean {
+  const core = opened.domain.verifyingContract;
+  const chainId = opened.domain.chainId;
+  const handId = opened.hand.handId;
+  const read = useHand(core, handId, chainId);
+  const closed = (read.data?.view.closedAt ?? 0) !== 0;
+  const [mine, setMine] = useState(false);
+  useEffect(() => {
+    if (!closed) return;
+    let live = true;
+    readThank(clientOf(chainId), core, handId).then(
+      (stored) => live && setMine(stored.giveHash.toLowerCase() === giveHash.toLowerCase()),
+      () => undefined, // read again with the next block's close
+    );
+    return () => {
+      live = false;
+    };
+  }, [closed, chainId, core, handId, giveHash]);
+  return mine;
 }
 
 function Thread({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }>; opened: OpenedAddress; inbox: Hex | undefined }) {

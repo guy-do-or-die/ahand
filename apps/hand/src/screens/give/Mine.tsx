@@ -3,7 +3,7 @@ import type { OutboxEntry } from "@ahand/deliver";
 import { config } from "../../config";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, QuietButton, minute, useLang } from "../../ui";
+import { CopyRow, Proof, QuietButton, minute, useLang } from "../../ui";
 import { Line, Section } from "../my/parts";
 import { relayCount, retryNow, useMyAnswers } from "./deliver";
 import { deliveryState } from "./flow";
@@ -44,7 +44,9 @@ function MyAnswer({ entry }: { entry: OutboxEntry }) {
   return (
     <li className="ah-card flex flex-col gap-4 p-4 md:p-5" data-testid={TID.my.answerMine} data-value={envelope.giveLink} data-delivery={delivery} data-acks={`${entry.acks}/${entry.of}`}>
       <div className="flex flex-col gap-1">
-        <span className="ah-meta ah-exact">{t("my.mine.hand", { id: hand.handId })}</span>
+        <Proof>
+          <span className="ah-meta ah-exact">{t("my.mine.hand", { id: hand.handId })}</span>
+        </Proof>
         {envelope.text ? (
           <p className="m-0 whitespace-pre-wrap break-words text-[length:var(--fs-body-lg)] font-semibold leading-snug">“{envelope.text}”</p>
         ) : (
@@ -54,7 +56,9 @@ function MyAnswer({ entry }: { entry: OutboxEntry }) {
       </div>
 
       {delivery === "delivered" ? (
-        <Line>{t("my.mine.delivered", { acks: entry.acks, of: entry.of })}</Line>
+        <Line>
+          <Proof calm={t("my.mine.delivered.calm")}>{t("my.mine.delivered", { acks: entry.acks, of: entry.of })}</Proof>
+        </Line>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
           <Line>{t("my.mine.waiting")}</Line>

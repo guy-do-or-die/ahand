@@ -7,7 +7,7 @@ import { config } from "../../config";
 import { t } from "../../i18n";
 import { navigate } from "../../router";
 import { TID } from "../../testids";
-import { Mark, QuietButton, ReceiptTable } from "../../ui";
+import { Mark, Proof, QuietButton, ReceiptTable } from "../../ui";
 import { laterPlan, proofPathOf } from "./held";
 import { OnExplorer } from "../../shell/OnExplorer";
 
@@ -63,20 +63,24 @@ export function Closed({ core, handId, raiser, closedAt, state, decimals }: Clos
         {receipt.status === "read" ? (
           <>
             <ReceiptTable rows={receipt.rows} decimals={decimals} />
-            <span className="flex flex-wrap items-center gap-2">
-              <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{`block ${receipt.endedBlock} · tx ${receipt.rows[0]!.log.transactionHash}`}</span>} />
-              <OnExplorer tx={receipt.rows[0]!.log.transactionHash} />
-            </span>
+            <Proof>
+              <span className="flex flex-wrap items-center gap-2">
+                <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{`block ${receipt.endedBlock} · tx ${receipt.rows[0]!.log.transactionHash}`}</span>} />
+                <OnExplorer tx={receipt.rows[0]!.log.transactionHash} />
+              </span>
+            </Proof>
           </>
         ) : null}
         {receipt.status === "failed" ? <p className="ah-label m-0">{t("hand.receipt.failed")}</p> : null}
-        <a
-          href={proofPathOf(config.chain.id, core, handId, config.cores.canonical)}
-          className="ah-label inline-flex min-h-[44px] items-center self-start font-bold"
-          data-testid={TID.hand.proofLink}
-        >
-          {t("hand.proofLink")}
-        </a>
+        <Proof>
+          <a
+            href={proofPathOf(config.chain.id, core, handId, config.cores.canonical)}
+            className="ah-label inline-flex min-h-[44px] items-center self-start font-bold"
+            data-testid={TID.hand.proofLink}
+          >
+            {t("hand.proofLink")}
+          </a>
+        </Proof>
       </div>
       {ended !== undefined ? <Newer core={core} handId={handId} raiser={raiser} endedBlock={ended} /> : null}
       <p className="ah-label m-0" data-testid={TID.hand.askSender}>
@@ -144,9 +148,11 @@ function Newer({ core, handId, raiser, endedBlock }: { core: Address; handId: bi
           <QuietButton data-testid={TID.hand.newerLook} onClick={() => void run()} className="self-start">
             {t("hand.newer.look")}
           </QuietButton>
-          <p className="ah-meta m-0" data-testid={TID.hand.newerCount} data-value={finder.requests}>
-            {t("hand.newer.meta", { span, n: finder.requests })}
-          </p>
+          <Proof>
+            <p className="ah-meta m-0" data-testid={TID.hand.newerCount} data-value={finder.requests}>
+              {t("hand.newer.meta", { span, n: finder.requests })}
+            </p>
+          </Proof>
         </>
       ) : null}
       {look.status === "reading" ? (

@@ -8,7 +8,7 @@ import { t, useLang } from "../../i18n";
 import { chainName } from "../../i18n/common/chain";
 import type { Mode } from "../../store/db";
 import { TID } from "../../testids";
-import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, QuietButton, Sheet, SwipeButton, TxRail, count, day, money, percent, type MoneyReading, type TxReached } from "../../ui";
+import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, Proof, QuietButton, Sheet, SwipeButton, TxRail, count, day, money, percent, useLens, type MoneyReading, type TxReached } from "../../ui";
 import { ConnectSheet, connectedWallet, useSend, useTypedSigner, useWallet } from "../../wallet";
 import { exactMoney } from "./exact";
 import {
@@ -96,6 +96,7 @@ function splitPoster(poster: string, details: string): { title: string; content:
 
 export default function RaiseScreen() {
   const lang = useLang();
+  const lens = useLens();
   const now = useNow();
   const wallet = useWallet();
   const tx = useSend();
@@ -342,14 +343,16 @@ export default function RaiseScreen() {
           ) : null}
           <p className="ah-label m-0">{t("raise.pending.note")}</p>
           {record.txHash ? (
-            <>
+            <Proof>
               <span className="ah-meta ah-meta--exact break-all">tx {record.txHash}</span>
               <OnExplorer tx={record.txHash} />
-            </>
+            </Proof>
           ) : record.batchId ? (
             <>
               <p className="ah-label m-0">{t("raise.pending.batch")}</p>
-              <span className="ah-meta ah-meta--exact break-all">batch {record.batchId}</span>
+              <Proof>
+                <span className="ah-meta ah-meta--exact break-all">batch {record.batchId}</span>
+              </Proof>
             </>
           ) : null}
           {problem && problem.id !== "raise.error.unknown" ? (
@@ -420,7 +423,8 @@ export default function RaiseScreen() {
           />
           <p className="ah-label m-0 flex flex-wrap justify-between gap-x-4 gap-y-1">
             <span id="raise-what-hint">{t("raise.what.hint")}</span>
-            <span id="raise-what-count" className="ah-meta" data-testid={TID.raise.titleCount} data-value={weighed.title} data-over={titleOver}>
+            {/* The calm view counts only near the limit; the lens always counts. */}
+            <span id="raise-what-count" className="ah-meta" data-testid={TID.raise.titleCount} data-value={weighed.title} data-over={titleOver} hidden={!lens && weighed.title < MAX_TITLE * 0.8}>
               {t("raise.what.count", { n: weighed.title, max: MAX_TITLE })}
             </span>
           </p>
@@ -451,7 +455,7 @@ export default function RaiseScreen() {
           )}
           {showDetails || weighed.details > 0 ? (
             <p className="ah-label m-0 flex justify-end">
-              <span id="raise-details-count" className="ah-meta" data-testid={TID.raise.detailsCount} data-value={weighed.details} data-over={detailsOver}>
+              <span id="raise-details-count" className="ah-meta" data-testid={TID.raise.detailsCount} data-value={weighed.details} data-over={detailsOver} hidden={!lens && weighed.details < MAX_DETAILS * 0.8}>
                 {t("raise.details.count", { n: weighed.details, max: MAX_DETAILS })}
               </span>
             </p>
@@ -483,7 +487,12 @@ export default function RaiseScreen() {
             </p>
           ) : null}
           <p className="ah-label m-0" data-testid={TID.raise.issuerLine}>
-            {TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.issuerTest", { network: chainName(config.chain) }) : t("raise.reward.issuer")) : t("raise.reward.issuerStand")}{" "}
+            {/* That the issuer can freeze an address is for those who check; the calm view says what the money is. */}
+            <Proof
+              calm={TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.calmTest", { network: chainName(config.chain) }) : t("raise.reward.calm")) : t("raise.reward.calmStand")}
+            >
+              {TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.issuerTest", { network: chainName(config.chain) }) : t("raise.reward.issuer")) : t("raise.reward.issuerStand")}
+            </Proof>{" "}
             <a href="/limits" className="underline">
               {t("common.footer.limits")}
             </a>
@@ -532,7 +541,7 @@ export default function RaiseScreen() {
             <span className="ah-label">{t("raise.who.halvesBody")}</span>
           </Disclose>
           <Unfurl mode={mode} host={config.site.replace(/^https?:\/\//, "")} title={title} content={content} money={moneyLine} />
-          {mode === "public" && title ? (
+          {mode === "public" && title && (addressOver || lens) ? (
             <p className={addressOver ? "ah-alert m-0" : "ah-label m-0"} data-testid={TID.raise.size} data-value={weighed.beforeHash} data-over={addressOver ? "true" : "false"}>
               {t("raise.size", { bytes: count(weighed.beforeHash), max: count(MAX_BEFORE_HASH) })}
             </p>
@@ -541,7 +550,7 @@ export default function RaiseScreen() {
         </Part>
 
         {/* 5. Fine-tune */}
-        <Opens label={t("raise.fine.label")} summary={`${percent(minClaimBps, lang)} · ${payoutGasK}`} testId={TID.raise.fineTune}>
+        <Opens label={t("raise.fine.label")} summary={lens ? `${percent(minClaimBps, lang)} · ${payoutGasK}` : t("raise.fine.calm", { pct: percent(minClaimBps, lang) })} testId={TID.raise.fineTune}>
           <div className="flex flex-col gap-2" data-testid={TID.raise.minClaim} data-value={minClaimBps}>
             <span className="ah-field__label">{t("raise.fine.minClaim", { pct: percent(minClaimBps, lang) })}</span>
             <Chips
@@ -553,6 +562,8 @@ export default function RaiseScreen() {
             />
             <span className="ah-label">{t("raise.fine.minClaimWhy")}</span>
           </div>
+          {/* The room for each payout is counted in units of work: the lens's, like Core's names below. */}
+          <Proof>
           <div className="flex flex-col gap-2" data-testid={TID.raise.payoutRoom} data-value={payoutGasK}>
             <span className="ah-field__label">{t("raise.fine.room", { k: String(payoutGasK) })}</span>
             <Chips
@@ -566,6 +577,7 @@ export default function RaiseScreen() {
             {payoutGasK !== 250 ? <span className="ah-label">{t("raise.fine.roomNow", { k: String(payoutGasK), passes: String(passesAt(payoutGasK)) })}</span> : null}
           </div>
           <span className="ah-meta ah-meta--exact">{t("raise.fine.lens.terms", { bps: String(minClaimBps), k: String(payoutGasK) })}</span>
+          </Proof>
         </Opens>
 
         {/* 6. Preview */}
@@ -655,14 +667,18 @@ function Frame({ children }: { children: ReactNode }) {
 }
 
 function Band({ problem, sentence, action }: { problem: Problem; sentence: string; action?: ReactNode }) {
+  // The account a raise was sent from is what the person must connect, so it stands in both
+  // views; any other code is the lens's (ErrorBand).
+  const account = problem.id === "raise.error.otherAccount" ? problem.code : undefined;
   return (
-    <div data-testid={TID.raise.error} data-value={problem.id}>
+    <div data-testid={TID.raise.error} data-value={problem.id} className="flex flex-col gap-2">
       <ErrorBand
         what={sentence}
         {...(problem.nothingSent ? { kept: t("common.error.nothingSent") } : {})}
-        {...(problem.code ? { code: problem.code } : {})}
+        {...(problem.code && !account ? { code: problem.code } : {})}
         {...(action ? { action } : {})}
       />
+      {account ? <p className="ah-meta ah-meta--exact m-0 break-all">{account}</p> : null}
     </div>
   );
 }
@@ -712,6 +728,8 @@ function KeysCard({ ask, onDone, raiser }: { ask: { twice: boolean; answer: (yes
     <Sheet label={t("raise.keys.title")} onClose={() => answer(false)}>
       <div className="flex flex-col gap-4" data-testid={TID.raise.keysCard} data-twice={ask.twice}>
         <p className="m-0 text-[length:var(--fs-body-lg)] leading-[1.5]">{t("raise.keys.body")}</p>
+        {/* The warning stays in both views: it is what keeps the confirmation from being phished. */}
+        <p className="ah-label m-0">{t("raise.keys.warn")}</p>
         {ask.twice ? <p className="ah-note m-0">{t("raise.keys.twice")}</p> : null}
         <Disclose label={t("raise.keys.what")}>
           <span className="ah-meta ah-meta--exact" data-testid={TID.raise.keysWhat}>

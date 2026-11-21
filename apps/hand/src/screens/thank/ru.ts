@@ -3,12 +3,12 @@ import type en from "./en";
 // The thank screen's words in Russian: the same keys as en.ts, checked by the type. Speaks as «ты».
 const ru: Record<keyof typeof en, string> = {
   "thank.title": "Поблагодарить.",
-  "thank.lead": "Когда кто-то может помочь, его ответ приходит сюда. Вставь его — контракт проверит его раньше всего остального.",
+  "thank.lead": "Когда кто-то может помочь, его ответ приходит сюда. Вставь его — он будет проверен раньше всего остального.",
   "thank.input.label": "Что тебе прислали",
   "thank.input.placeholder": "https://…/#…",
   "thank.input.hint": "Адрес, который заканчивается на #… — из сообщения или из «Моих рук».",
   "thank.open": "Проверить",
-  "thank.again": "Проверить другой",
+  "thank.again": "Проверить другой ответ",
   "thank.checking": "Проверяем этот ответ у контракта…",
 
   "thank.error.notGive": "Это ссылка самой руки, а не ответ на неё. Открой её с главной страницы.",
@@ -19,7 +19,7 @@ const ru: Record<keyof typeof en, string> = {
   "thank.error.closed": "Эта рука уже закрыта.",
   "thank.error.thankedOther": "За эту руку уже поблагодарили — за другой ответ.",
 
-  "thank.checked": "Контракт проверил этот ответ: путь сходится, и помощник его подтвердил.",
+  "thank.checked": "Ответ проверен: все, кто передавал, учтены, и помощник его подтвердил.",
   "thank.lens.checked": "checkGive · eth_call · блок {block} · ok",
   "thank.lens.checkedSetup": "checkGive через forwarder, с настройкой аккаунта · блок {block} · ok",
   "thank.lens.giveHash": "giveHash {hash}",
@@ -51,18 +51,18 @@ const ru: Record<keyof typeof en, string> = {
   "thank.lens.setupRuns": "Настройка идёт через {forwarder} · не от твоего имени",
 
   "thank.predicted.title": "Кто сколько получит",
-  "thank.predicted.note": "Посчитано здесь — по пути и по награде, которая сейчас лежит в контракте.",
+  "thank.predicted.note": "Посчитано здесь — по тому, кто передавал, и по награде, которая есть сейчас.",
   "thank.predicted.passed": "Передали дальше",
   "thank.predicted.helper": "Помогли",
   "thank.predicted.formula": "как считается",
   "thank.predicted.total": "Вся награда",
   "thank.predicted.waitsIfBlocked":
-    "Если выплата не сможет пройти, она подождёт в контракте, пока её не заберёт тот, кому она причитается, — или кто угодно не доставит её на этот адрес.",
+    "Если выплата не может пройти, она хранится, пока её не заберёт тот, кому она причитается, или пока кто-нибудь не доставит её ему.",
   "thank.noReward": "У этой руки нет награды, так что спасибо не переводит денег. Оно закрывает руку и записывает, кто помог.",
   "thank.lens.shakeFormula": "{reward} × {bps} ÷ 10 000 = {amount}",
   "thank.lens.giveFormula": "{reward} − {paid} = {amount} · claim {bps} bps",
 
-  "thank.warning": "Спасибо заплатит всем на этом пути. Отменить нельзя.",
+  "thank.warning": "Спасибо — и помощник, и все, кто передавал, получат свою долю. Отменить нельзя.",
   "thank.warning.noReward": "Спасибо закроет эту руку навсегда. Отменить нельзя.",
   "thank.swipe": "Сказать спасибо",
   "thank.connect": "Чтобы сказать спасибо, подключи аккаунт, который поднял эту руку.",
@@ -77,6 +77,9 @@ const ru: Record<keyof typeof en, string> = {
   "thank.done.before": "За эту руку уже поблагодарили — за этот ответ. Все выплаты — прямо из сети.",
   "thank.left": "{amount} ушло из контракта на {payee}",
   "thank.waiting": "{amount} ждёт {payee}",
+  "thank.done.calm": "Спасибо сказано. Вот все выплаты.",
+  "thank.done.before.calm": "За эту руку уже поблагодарили — за этот ответ. Вот все выплаты.",
+  "thank.waiting.calm": "{amount} хранится, пока его не заберёт тот, кому оно причитается.",
   "thank.waiting.why":
     "Выплата не смогла пройти, поэтому она ждёт в контракте. Тот, кому она причитается, может её забрать, или кто угодно может её доставить.",
   "thank.noMoney": "Денег не двигалось: у этой руки не было награды.",
@@ -85,6 +88,8 @@ const ru: Record<keyof typeof en, string> = {
 
   "thank.spent": "Спасибо стоило около ${usd} · цены на {date}",
   "thank.spent.steps": "Оба шага вместе стоили около ${usd} · цены на {date}",
+  "thank.spent.calm": "Спасибо стоило около ${usd}",
+  "thank.spent.steps.calm": "Оба шага вместе стоили около ${usd}",
   "thank.spent.reading": "Читаем из сети, сколько это стоило…",
   "thank.spent.unread": "Сейчас не удалось прочитать из сети, сколько это стоило.",
   "thank.lens.tx": "Транзакция",

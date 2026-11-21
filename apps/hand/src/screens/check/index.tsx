@@ -32,7 +32,7 @@ import { t } from "../../i18n";
 import { TID } from "../../testids";
 import { ccipReadIsHere } from "../../chain/ccip";
 import { addressOf, openedLink } from "../../store/memory";
-import { AskerText, ErrorBand, Mark, QuietButton, count, day, minute, percent, shortAddress, useLang, type Lang } from "../../ui";
+import { ProofPage, AskerText, ErrorBand, Mark, QuietButton, count, day, minute, percent, shortAddress, useLang, type Lang } from "../../ui";
 import { agree, answerName, canStillThank, coreSentences, handNow, hereAnswer, standingOf, stepKey, type CoreAnswer, type HandNow, type HereAnswer, type Standing } from "./model";
 import { readOffline, type OfflineReading, type OfflineWords } from "./offline";
 import { outsideLength, rulerOf, splitPasted, type Ruler } from "./ruler";
@@ -335,7 +335,20 @@ function CoreSaid({ core, give, lang }: { core: Extract<Core, { state: "done" }>
 
 /* ──────────────────────────────────────────────────────────── the screen ── */
 
+/**
+ * The check of any link is itself the proof a person came to see, so its evidence is drawn whatever the lens
+ * says (`ProofPage`): each mark and disclosure one tap away, and all of them open under the lens.
+ * The calm view only keeps the way here out of ordinary screens.
+ */
 export default function CheckScreen() {
+  return (
+    <ProofPage>
+      <CheckScreenBody />
+    </ProofPage>
+  );
+}
+
+function CheckScreenBody() {
   const lang = useLang();
   const box = useRef<HTMLTextAreaElement>(null);
   const [measured, setMeasured] = useState<Measured | undefined>();

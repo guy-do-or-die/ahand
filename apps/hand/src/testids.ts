@@ -256,6 +256,7 @@ export const TID = {
     noForwarder: "give-no-forwarder",
     checking: "give-checking",
     delivered: "give-delivered",
+    thanked: "give-thanked", // the asker thanked this very answer
     fallback: "give-fallback",
     copy: "give-copy",
     qr: "give-qr",

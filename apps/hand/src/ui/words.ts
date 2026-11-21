@@ -46,6 +46,8 @@ const EN = {
     todo: "not yet",
     localTag: "Local stand-in",
     localWhy: "This local network has no Ethereum behind it. Here these two steps mean 1 and 2 blocks later.",
+    /** The calm view's one sentence for each step (the lens shows the four steps instead). */
+    calm: ["Sending…", "It went through. Making it final…", "It went through. Almost final…", "Done. It can't be undone."] as readonly string[],
   },
   disclose: { show: "show", hide: "hide" },
   deal: {
@@ -147,10 +149,13 @@ const EN = {
     accountShare: "Your share lands here.",
     connect: "Connect a wallet",
     connectHint: "Or choose one of the two ways below. Neither needs one.",
+    connectEmail: "Get paid to an email account",
+    connectEmailHint: "A code comes to your email and an account is made for you. Already use crypto? Choose one of the ways below.",
     address: "An address I have",
     addressLabel: "The address",
     addressHint: "Paste any address. An exchange deposit address is fine.",
     oneTime: "A one-time key confirms your answer here and is thrown away.",
+    addressCalm: "The money goes to the address you pasted.",
     keepKey: "Keep this answer's key",
     keepKeyHint: "A small file. Future receipts would belong to it.",
     fresh: "I have none — make one",
@@ -166,6 +171,8 @@ const EN = {
     line: (base: string, ethereum: string) => `costs about $${base} on Base · $${ethereum} on Ethereum`,
     asOf: (date: string) => `prices of ${date}`,
     how: "how this is counted",
+    /** The calm view's line: only the fee on the network this site uses. */
+    calm: (base: string) => `sending it costs about $${base}`,
   },
   qr: {
     alt: "A code that carries this link",
@@ -214,6 +221,7 @@ const RU: Words = {
     todo: "ещё нет",
     localTag: "Локальная замена",
     localWhy: "За этой локальной сетью нет Ethereum. Здесь эти два шага значат: на 1 и на 2 блока позже.",
+    calm: ["Отправляем…", "Прошло. Закрепляем…", "Прошло. Почти закреплено…", "Готово. Отменить это уже нельзя."],
   },
   disclose: { show: "показать", hide: "скрыть" },
   deal: {
@@ -303,12 +311,15 @@ const RU: Words = {
     accountShare: "Твоя доля придёт сюда.",
     connect: "Подключить кошелёк",
     connectHint: "Или выбери способ ниже — для него ничего подключать не нужно.",
+    connectEmail: "Получить деньги на аккаунт по почте",
+    connectEmailHint: "На почту придёт код, и для тебя создастся аккаунт. Уже пользуешься криптой? Выбери способ ниже.",
     address: "Адрес у меня есть",
     addressLabel: "Адрес",
     addressHint: "Вставь любой адрес. Адрес пополнения на бирже тоже подойдёт.",
     oneTime: "Твой ответ подтвердит одноразовый ключ прямо здесь, после этого он выбрасывается.",
+    addressCalm: "Деньги придут на адрес, который ты вставил.",
     keepKey: "Сохранить ключ этого ответа",
-    keepKeyHint: "Небольшой файл. Будущие квитанции принадлежали бы ему.",
+    keepKeyHint: "Небольшой файл. По нему потом можно будет забрать квитанции этого ответа.",
     fresh: "Адреса нет — создать новый",
     freshWarn:
       "Эти 12 слов — единственный ключ к адресу. Запиши их, прежде чем идти дальше: мы их не храним. По ним адрес откроется в любом криптоприложении. Чтобы потом перевести деньги дальше, понадобится немного ETH.",
@@ -322,6 +333,7 @@ const RU: Words = {
     line: (base: string, ethereum: string) => `стоит около $${base} на Base · $${ethereum} на Ethereum`,
     asOf: (date: string) => `цены на ${date}`,
     how: "как это посчитано",
+    calm: (base: string) => `отправка стоит около $${base}`,
   },
   qr: {
     alt: "Код, в котором лежит эта ссылка",

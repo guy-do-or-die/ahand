@@ -12,6 +12,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 import { digitsOf, quietDevServer, type SeedRun } from "../lib/about-pages/helpers";
+import { lensOn } from "../lib/lens";
 import { readStand, seed } from "../lib/stand";
 
 test.describe.configure({ mode: "serial" });
@@ -49,17 +50,24 @@ test("the landing says what this is, turns each gesture over to Core's own call,
   const gestures = page.getByTestId("landing-gesture");
   await expect(gestures).toHaveCount(3);
   await expect(gestures.nth(0)).toHaveAttribute("data-value", "raise");
+  // The calm view: each gesture is its sentence, and nothing turns over to Core's call.
+  await expect(gestures.nth(0)).toContainText("Ask, and lock a reward");
+  await expect(page.getByRole("button", { name: /Ask, and lock a reward/ })).toHaveCount(0);
+  await expect(page.locator("pre")).toHaveCount(0);
 
+  // Under the lens every card stands turned to Core's call, and each still turns back and over.
+  await lensOn(page);
   const raise = gestures.nth(0);
-  const front = raise.getByRole("button", { name: /Ask, and lock a reward/ });
-  await expect(front).toHaveAttribute("aria-expanded", "false");
-  await front.click();
   await expect(raise).toHaveAttribute("data-open", "true");
   await expect(raise.locator("pre")).toContainText("raise(token, reward, expiry, rootKey, payoutGasK, minClaimBps, dataHash)");
   await expect(gestures.nth(1).locator("pre")).toContainText("checkRoute(handId, signedShakes)");
   await expect(gestures.nth(2).locator("pre")).toContainText("thank(handId, signedShakes, signedGive, dataHash)");
   await raise.getByRole("button", { name: /Turn it back/ }).click();
   await expect(raise).toHaveAttribute("data-open", "false");
+  const front = raise.getByRole("button", { name: /Ask, and lock a reward/ });
+  await expect(front).toHaveAttribute("aria-expanded", "false");
+  await front.click();
+  await expect(raise).toHaveAttribute("data-open", "true");
 
   await expect(page.getByTestId("landing-my")).toHaveAttribute("href", "/my");
   await expect(page.getByTestId("landing-without-us")).toHaveAttribute("href", "/without-us");
@@ -146,6 +154,9 @@ test("“What it can't promise” has exactly sixteen entries in English and in 
 
 test("“About these defaults” marks every row as not the project owner's, with its row number", async ({ page }) => {
   await page.goto("/defaults");
+  // The row numbers and exact values are the record's, so they stand under the lens.
+  await expect(page.getByTestId("defaults-row").first()).not.toContainText(/D-\d+/);
+  await lensOn(page);
   const rows = page.getByTestId("defaults-row");
   await expect(rows.first()).toBeVisible();
   const count = await rows.count();
@@ -173,7 +184,8 @@ for (const path of ["/", "/limits", "/defaults"]) {
       await page.goto(path);
       if (lang === "ru") await toRussian(page);
       await expect(page.locator(`[data-screen]`).first()).toBeVisible();
-      if (path === "/") await page.getByTestId("landing-gesture").nth(1).getByRole("button").first().click();
+      // Under the lens the gesture cards stand turned to Core's calls, so axe reads their backs too.
+      if (path === "/") await lensOn(page);
       // The screen itself; the shell's header and footer are the shell's own (see docs/build-notes/about-pages.md).
       const results = await new AxeBuilder({ page }).include("#main").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"]).analyze();
       const bad = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
@@ -190,9 +202,9 @@ test("the landing shows the three gestures before the paste row, each card as ta
   const first = (await gestures.first().boundingBox())!;
   expect((await input.boundingBox())!.y).toBeGreaterThan(((await gestures.last().boundingBox())!).y);
   await expect(page.getByText("Got a link? Paste it")).toBeVisible();
-  // The raise card's front is one short sentence: it is shorter than its back, which turns in on a press.
+  // The raise card's front is one short sentence: it is shorter than its back, which the lens turns in.
   const front = first.height;
-  await gestures.first().getByRole("button").first().click();
+  await lensOn(page);
   await expect(gestures.first()).toHaveAttribute("data-open", "true");
   await page.waitForTimeout(500);
   expect(front).toBeLessThan(((await gestures.first().boundingBox())!).height);
@@ -228,5 +240,6 @@ test("/core and /defaults write Russian numbers and units on the Russian page (F
   await expect(page.locator("[data-screen]")).toContainText("фабрика развёртывания (CREATE2) по фиксированному адресу");
   await page.goto("/defaults");
   await toRussian(page);
+  await lensOn(page);
   await expect(page.locator('[data-testid="defaults-row"][data-key="d26b"]')).toContainText("expiry = время блока + 30 дн.");
 });

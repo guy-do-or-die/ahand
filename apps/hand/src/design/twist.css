@@ -487,6 +487,28 @@
 .ah-receipt--flips .ah-receipt__row--highlight .ah-receipt__what {
   font-weight: var(--fw-medium);
 }
+/* The calm view (lens off): the rows stand still, and who got what is said in the human voice,
+   with no address and no dashed underline that would promise a back to turn to. */
+.ah-receipt:not(.ah-receipt--flips) td.ah-receipt__cell {
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.ah-receipt:not(.ah-receipt--flips) .ah-receipt__what,
+.ah-receipt:not(.ah-receipt--flips) tfoot th {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+}
+.ah-receipt:not(.ah-receipt--flips) .ah-receipt__what::first-letter,
+.ah-receipt:not(.ah-receipt--flips) tfoot th::first-letter {
+  text-transform: uppercase;
+}
 
 /* ── The marker sweep ────────────────────────────────────────────────── */
 /* A marker stroke runs along the foot of the row, left to right, and stays there. It never

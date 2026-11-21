@@ -8,7 +8,7 @@ import type { InboxRecord } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
 import { t } from "../../i18n";
-import { ChainRail, Mark, QuietButton, SwipeButton, count, minute, money, percent, railHandsOf, shortAddress, useLang, useLens, type RailHand } from "../../ui";
+import { ChainRail, Mark, Proof, QuietButton, SwipeButton, count, minute, money, percent, railHandsOf, shortAddress, useLang, useLens, type RailHand } from "../../ui";
 import { handPath } from "../give/Mine";
 import { useThanksOnWay, type AnswerRead, type ThankOnWay } from "./hooks";
 import { reply, threadOf, useInboxVersion } from "./inbox";
@@ -57,7 +57,9 @@ export function AnswerCard(props: {
             {t("my.answer.words")}: {t("my.answer.quoted", { words: read.record.words })}
           </p>
         ) : null}
-        <p className="ah-meta ah-meta--dim m-0">{t("my.lens.firstSeen", { time: firstSeen })}</p>
+        <Proof>
+          <p className="ah-meta ah-meta--dim m-0">{t("my.lens.firstSeen", { time: firstSeen })}</p>
+        </Proof>
       </article>
     );
   }
@@ -87,7 +89,7 @@ export function AnswerCard(props: {
             <div key={index} className="flex items-baseline justify-between gap-3 border-b border-[var(--ink-a10)] py-1">
               <dt className="min-w-0 text-[length:var(--fs-body-sm)]">
                 {row.role === "helper" ? t("my.answer.helper") : t("my.answer.passer")}
-                {row.payee ? <span className="ah-exact ah-meta ml-2">{shortAddress(row.payee)}</span> : null}
+                {row.payee && lens ? <span className="ah-exact ah-meta ml-2">{shortAddress(row.payee)}</span> : null}
               </dt>
               <dd className="m-0 shrink-0 text-right font-bold tabular-nums">
                 {row.amount > 0n ? (
@@ -95,7 +97,7 @@ export function AnswerCard(props: {
                 ) : (
                   <span className="ah-label ah-label--dim">{row.role === "helper" ? t("my.answer.thanksOnly") : t("my.answer.keepsNothing")}</span>
                 )}
-                <span className="ah-meta ml-2">{percent(row.bps, lang)}</span>
+                {lens ? <span className="ah-meta ml-2">{percent(row.bps, lang)}</span> : null}
               </dd>
             </div>
           ))}
@@ -108,7 +110,9 @@ export function AnswerCard(props: {
         {lens ? <span className="ah-meta ah-meta--exact">{t("my.lens.giveHash", { hash: `${judged.giveHash.slice(0, 10)}…${judged.giveHash.slice(-6)}` })}</span> : null}
       </div>
       {judged.needsSetup ? <Line>{t("my.answer.setup")}</Line> : null}
-      <p className="ah-meta ah-meta--dim m-0">{t("my.lens.firstSeen", { time: firstSeen })}</p>
+      <Proof>
+        <p className="ah-meta ah-meta--dim m-0">{t("my.lens.firstSeen", { time: firstSeen })}</p>
+      </Proof>
 
       {open ? (
         <SwipeButton gesture="bow" variant="amber" compact data-testid={TID.my.answerThank} onClick={thank}>
@@ -172,7 +176,13 @@ function Thread({ handKey, ref_, secret, peer }: { handKey: string; ref_: HandRe
           {t("my.reply.send")}
         </QuietButton>
         <span className="ah-label ah-label--dim" role="status">
-          {state.status === "sent" ? t("my.reply.sent", { acks: state.acks, of: state.of }) : state.status === "failed" ? t("my.reply.failed") : t("my.reply.hint")}
+          {state.status === "sent" ? (
+            <Proof calm={t("my.reply.sent.calm")}>{t("my.reply.sent", { acks: state.acks, of: state.of })}</Proof>
+          ) : state.status === "failed" ? (
+            t("my.reply.failed")
+          ) : (
+            t("my.reply.hint")
+          )}
         </span>
       </div>
     </div>

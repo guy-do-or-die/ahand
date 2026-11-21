@@ -20,6 +20,7 @@ import { expect, test, type Page, type Request } from "@playwright/test";
 import { getAddress, type Address, type Hex } from "viem";
 
 import { account, pickDevAccount } from "../lib/accounts";
+import { lensOn } from "../lib/lens";
 import { balanceOf, pauseBlocks, pending, resumeBlocks, rpc, type Rpc } from "../lib/rpc";
 import { readStand, runProgram, seed, standSlot, type StandInfo } from "../lib/stand";
 
@@ -130,6 +131,8 @@ function runCast(line: string): void {
 }
 
 test("a pasted address shows what waits for it, read only, with the sentence for a friend", async ({ page }) => {
+  // The way to do it without us and the On chain marks stand under the lens.
+  await lensOn(page);
   watchLogs(page);
   const { token, payee } = blocked.pending;
   const onChain = await pending(chain, stand.core, token, payee);
@@ -191,24 +194,24 @@ test("another account may Deliver but not take it out; while the payee is blocke
   await expect(error).toHaveAttribute("data-value", "token");
   await expect(error).toContainText("The token won't move this money to this address right now.");
   await expect(error).toContainText("The money stays waiting; nothing was lost.");
-  await expect(row(page, token).getByTestId("waiting-issuer")).toHaveAttribute("href", "/limits");
+  // Why a token can refuse (its issuer's power) is for those who check: under the lens.
+  await expect(row(page, token).getByTestId("waiting-issuer")).toHaveCount(0);
   await expect(deliver).toBeDisabled();
-  // The token's own answer is exact data: not on the human layer, one tap away, and open under the lens.
+  // The token's own answer is exact data: not in the calm view at all, and open under the lens.
   await expect(error).not.toContainText(/BLACKLISTED|reverted/i);
-  const said = error.getByRole("button", { name: "What the token said" });
-  await expect(said).toHaveAttribute("aria-expanded", "false");
-  await said.click();
-  await expect(said).toHaveAttribute("aria-expanded", "true");
-  await expect(error).toContainText("BLACKLISTED");
-  await said.click();
-  await expect(error).not.toContainText("BLACKLISTED");
+  await expect(error.getByRole("button", { name: "What the token said" })).toHaveCount(0);
   await page.locator("h1").click();
   await page.keyboard.press("?");
+  const said = error.getByRole("button", { name: "What the token said" });
+  await expect(said).toHaveAttribute("aria-expanded", "true");
   await expect(error).toContainText("BLACKLISTED");
+  await expect(row(page, token).getByTestId("waiting-issuer")).toHaveAttribute("href", "/limits");
   expect(await pending(chain, stand.core, token, payee)).toBe(before);
 });
 
 test("after the unblock command, account 5 presses Deliver, the reloaded tab holds the visitor's Deliver while the send is on its way, and the money lands at the payee", async ({ page }) => {
+  // The way to do it without us and the On chain marks stand under the lens.
+  await lensOn(page);
   watchLogs(page);
   const { token, payee } = blocked.pending;
   runCast(blocked.unblock.cast);
@@ -271,6 +274,8 @@ test("a visitor who turns out to be the payee is offered Take it out after conne
 });
 
 test("the payee connected takes it out to another address; the money lands there", async ({ page }) => {
+  // The way to do it without us and the On chain marks stand under the lens.
+  await lensOn(page);
   watchLogs(page);
   const { token, payee } = own;
   const elsewhere = getAddress(account(9).address);
@@ -293,8 +298,8 @@ test("the payee connected takes it out to another address; the money lands there
   const takeOut = page.getByTestId("waiting-take-out");
   await expect(row(page, token).getByTestId("kit-cost-line")).toContainText("costs about");
   await expect(takeOut).toBeEnabled();
-  // The cast line opens under "Do it without us" and never pushes the phone page sideways.
-  await row(page, token).getByTestId("kit-without-us").getByRole("button").click();
+  // Under the lens the cast line stands open under "Do it without us" and never pushes the phone page sideways.
+  await expect(row(page, token).getByTestId("kit-without-us").getByRole("button", { name: "Do it without us" })).toHaveAttribute("aria-expanded", "true");
   await expect(row(page, token).getByTestId("kit-without-us")).toContainText("cast send");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await takeOut.click();

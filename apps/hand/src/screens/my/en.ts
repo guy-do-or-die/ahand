@@ -15,6 +15,7 @@ const en = {
   "my.addedWhy": "Added by its number: its words are not on this device.",
   "my.floor": "If you thank a helper, they get at least {floor} of {reward}",
   "my.noReward": "No reward: a thank-you only",
+  "my.paidOut": "{reward} paid out",
   "my.open": "Open",
   "my.otherAccount": "Raised by another account on this device.",
 
@@ -30,6 +31,7 @@ const en = {
   "my.mine.noWords": "Sent without words.",
   "my.mine.sent": "Sent from this device {time}",
   "my.mine.delivered": "Delivered to {acks} of {of, plural, one {# relay} other {# relays}}.",
+  "my.mine.delivered.calm": "Sent to the asker.",
   "my.mine.waiting": "Not delivered yet. While any page of this site is open, this device tries again.",
 
   "my.unlock": "Unlock links and replies",
@@ -58,7 +60,7 @@ const en = {
   "my.hand.back": "All my hands",
   "my.hand.notHere": "This hand is not in this device's list.",
   "my.hand.notHereWhy": "Add it by its number if you raised it, or open the link you saved.",
-  "my.hand.keptWords": "Your words, as this device keeps them. They are checked against the contract once you unlock.",
+  "my.hand.keptWords": "Your words, as this device keeps them. They are checked once you unlock.",
   "my.hand.wordsMismatch": "The words kept here don't match what the contract keeps, so the link is shown without them.",
 
   "my.link.show": "Show the link again",
@@ -79,6 +81,7 @@ const en = {
   "my.answers.noKey": "This device doesn't hold this hand's reply key, so it can't read its answers.",
   "my.answers.nonePasted": "No answers pasted here yet",
   "my.answers.listening": "Listening for answers through {n, plural, one {# relay} other {# relays}} while this page is open.",
+  "my.answers.listening.calm": "Waiting for answers while this page is open.",
   "my.answers.noRelay": "This site has no relay set up, so answers can't arrive here. A helper can send theirs back the way the link came; paste it to say thanks.",
   "my.answers.none": "Nothing has arrived yet.",
   "my.answers.checking": "Checking this answer with the contract…",
@@ -103,6 +106,7 @@ const en = {
   "my.reply.hint": "They see it in their tab.",
   "my.reply.send": "Send",
   "my.reply.sent": "Delivered to {acks} of {of, plural, one {# relay} other {# relays}}.",
+  "my.reply.sent.calm": "Sent to the helper.",
   "my.reply.failed": "No relay took it. Nothing was lost: try again, or write to them another way.",
   "my.reply.you": "You",
   "my.reply.them": "Them",

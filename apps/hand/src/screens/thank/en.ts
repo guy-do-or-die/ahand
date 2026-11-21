@@ -2,7 +2,7 @@
 // Keys with a `lens` segment are the specialist layer: Core's own names in mono are allowed there.
 const en = {
   "thank.title": "Thank.",
-  "thank.lead": "When someone can help, what they send back comes here. Paste it, and the contract checks it before anything else.",
+  "thank.lead": "When someone can help, what they send back comes here. Paste it, and it is checked before anything else.",
   "thank.input.label": "What came back to you",
   "thank.input.placeholder": "https://…/#…",
   "thank.input.hint": "An address that ends in #… — from a message, or from My hands.",
@@ -20,7 +20,7 @@ const en = {
   "thank.error.thankedOther": "This hand was already thanked for another answer.",
 
   // Step 2 passed
-  "thank.checked": "The contract checked this answer: the route adds up and the helper confirmed it.",
+  "thank.checked": "This answer checks out: everyone who passed it on is counted, and the helper confirmed it.",
   "thank.lens.checked": "checkGive · eth_call · block {block} · ok",
   "thank.lens.checkedSetup": "checkGive through the forwarder, setup counted in · block {block} · ok",
   "thank.lens.giveHash": "giveHash {hash}",
@@ -59,19 +59,19 @@ const en = {
 
   // Who gets what
   "thank.predicted.title": "Who gets what",
-  "thank.predicted.note": "Worked out here from the route and the reward the contract holds now.",
+  "thank.predicted.note": "Worked out here from who passed it on and the reward held now.",
   "thank.predicted.passed": "Passed it on",
   "thank.predicted.helper": "Helped",
   "thank.predicted.formula": "how it's counted",
   "thank.predicted.total": "The whole reward",
   "thank.predicted.waitsIfBlocked":
-    "If a payout can't move, it waits in the contract until whoever it belongs to takes it out — or anyone delivers it to that address.",
+    "If a payment can't get through, it is held until whoever it belongs to takes it, or anyone delivers it to them.",
   "thank.noReward": "This hand has no reward, so saying thanks moves no money. It closes the hand and records who helped.",
   "thank.lens.shakeFormula": "{reward} × {bps} ÷ 10 000 = {amount}",
   "thank.lens.giveFormula": "{reward} − {paid} = {amount} · claim {bps} bps",
 
   // The action
-  "thank.warning": "Saying thanks pays everyone on this route. It can't be undone.",
+  "thank.warning": "Saying thanks pays the helper and everyone who passed it on. It can't be undone.",
   "thank.warning.noReward": "Saying thanks closes this hand for good. It can't be undone.",
   "thank.swipe": "Say thanks",
   "thank.connect": "To say thanks, connect the account that raised this hand.",
@@ -89,6 +89,9 @@ const en = {
   "thank.done.before": "This hand was thanked for this answer. Here's every payout — straight from the chain.",
   "thank.left": "{amount} left the contract for {payee}",
   "thank.waiting": "{amount} is waiting for {payee}",
+  "thank.done.calm": "Thanked. Here is every payout.",
+  "thank.done.before.calm": "This hand was already thanked for this answer. Here is every payout.",
+  "thank.waiting.calm": "{amount} is held until the one it belongs to takes it.",
   "thank.waiting.why": "Their payout couldn't move, so it waits in the contract. They can take it out, or anyone can deliver it to them.",
   "thank.noMoney": "No money moved: this hand had no reward.",
   "thank.lens.events": "What the chain recorded",
@@ -97,6 +100,8 @@ const en = {
   // What it cost, from the receipt (the contract takes nothing; this went to the network)
   "thank.spent": "Saying thanks cost about ${usd} · prices of {date}",
   "thank.spent.steps": "Both steps together cost about ${usd} · prices of {date}",
+  "thank.spent.calm": "Saying thanks cost about ${usd}",
+  "thank.spent.steps.calm": "Both steps together cost about ${usd}",
   "thank.spent.reading": "Reading what it cost from the network…",
   "thank.spent.unread": "Couldn't read what it cost from the network just now.",
   "thank.lens.tx": "The transaction",

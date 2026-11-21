@@ -17,6 +17,7 @@ import { isAddressEqual, zeroHash, type Address } from "viem";
 
 import { account, pickDevAccount } from "./lib/accounts";
 import { compose, copied, swipe } from "./lib/feat-raise/raise";
+import { lensOn } from "./lib/lens";
 import { balanceOf, hands, rpc, thanks } from "./lib/rpc";
 import { readStand, tokenOf } from "./lib/stand";
 
@@ -28,6 +29,8 @@ async function person(browser: Browser): Promise<{ context: BrowserContext; page
   const page = await context.newPage();
   // Leaving /raise before "I saved the link" asks first (beforeunload): this person agrees.
   page.on("dialog", (dialog) => void dialog.accept());
+  // This loop reads each payout's payee, which stands under the lens.
+  await lensOn(page);
   return { context, page };
 }
 
@@ -110,6 +113,10 @@ test("raise, pass on, answer and thank, each through its screen, and the money l
   const helperRow = rows.find((row) => isAddressEqual(row.payee as Address, helper));
   expect(helperRow?.kind).toBe("paid");
   expect((await balanceOf(chain, usd, helper)) - helperBefore).toBe(BigInt(helperRow!.amount));
+
+  // 6. The helper's tab, still open, hears it in plain words: this answer was thanked.
+  await expect(giver.page.getByTestId("give-thanked")).toBeVisible({ timeout: 30_000 });
+  await expect(giver.page.getByTestId("give-thanked")).toContainText("The asker thanked you for this answer.");
 
   for (const one of [asker, holder, giver]) await one.context.close();
 });

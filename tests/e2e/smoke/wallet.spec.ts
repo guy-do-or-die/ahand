@@ -110,6 +110,11 @@ test("once connected, the control says 'Use another account', never 'Connect a w
   await expect(connect).toHaveText("Connect a wallet");
   const first = await connectAs(page, 1);
   await expect(page.getByTestId("wallet-connected")).toHaveAttribute("data-value", first);
+  // The person's own account is how they know which one they use: its short address stands in
+  // the calm view too (the lens is off here), never "someone".
+  await expect(page.locator("html")).not.toHaveAttribute("data-lens", "on");
+  await expect(page.getByTestId("wallet-connected")).toContainText(`${first.slice(0, 6)}…${first.slice(-4)}`);
+  await expect(page.getByTestId("wallet-connected")).not.toContainText("someone");
   await expect(page.getByRole("button", { name: "Disconnect" })).toBeVisible();
   await expect(connect).toHaveText("Use another account");
   await expect(page.getByRole("button", { name: "Connect a wallet" })).toHaveCount(0);
@@ -157,7 +162,11 @@ test("an approve goes Sent → In a block → the two further states, and the al
   // Sent may pass between two renders on a 1 s chain; In a block, safe and final are each shown.
   expect(seen.filter((s) => s !== "sent")).toEqual(["in-block", "safe", "final"]);
   expect(["sent", "in-block"]).toContain(seen[0]!);
-  // Both further steps carry the LOCAL STAND-IN tag on a chain with no Ethereum behind it.
+  // The calm view says it in one sentence; under the lens both further steps carry the LOCAL
+  // STAND-IN tag on a chain with no Ethereum behind it.
+  await expect(rail).toContainText("Done. It can't be undone.");
+  await expect(rail.locator(".ah-tx__local")).toHaveCount(0);
+  await page.getByTestId("shell-lens").click();
   await expect(rail.locator(".ah-tx__local")).toBeVisible();
 
   const hash = (await page.getByTestId("dev-wallet-hash").first().textContent())!.trim() as Hex;

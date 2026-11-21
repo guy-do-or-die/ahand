@@ -2,13 +2,14 @@ import { useId, useState, type ReactNode } from "react";
 
 import { clsx } from "../lib/clsx";
 import { useLens } from "./ambient";
+import { useShown } from "./Proof";
 
 export interface DiscloseProps {
   /** The toggle's words, set in mono with a dashed underline. */
   label: string;
   /** A short fact beside the label, shown while closed and open. */
   summary?: string;
-  /** Open from the start, lens or not. */
+  /** Open from the start; under the lens every Disclose stands open anyway. */
   defaultOpen?: boolean;
   /** The evidence: mono lines, marks, a command. */
   children: ReactNode;
@@ -16,14 +17,17 @@ export interface DiscloseProps {
 }
 
 /**
- * A plain sentence first, the evidence one tap away. The toggle opens what stands behind the
- * sentence above it. When the lens is on, every Disclose stands open in place; the layout
- * does not change otherwise.
+ * A plain sentence first, the evidence behind it. A Disclose is proof, so it stands only under
+ * the lens, and there it stands open in place, as every Disclose always did under the lens
+ * (UX-SPEC §6); in the calm view the sentence above it is all there is. On a page that is itself
+ * the proof (the passport, `ProofPage`) it is drawn closed, one tap away, as it always was.
  */
 export function Disclose({ label, summary, defaultOpen = false, children, className }: DiscloseProps) {
   const lens = useLens();
+  const shown = useShown();
   const [own, setOwn] = useState(defaultOpen);
   const id = useId();
+  if (!shown) return null;
   const open = lens || own;
   return (
     <div className={clsx("flex flex-col items-start", className)}>

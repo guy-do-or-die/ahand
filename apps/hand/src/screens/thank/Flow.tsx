@@ -7,7 +7,7 @@ import { clientOf, useChainStatus, useCost, useHand, useNow } from "../../chain"
 import { t, useLang } from "../../i18n";
 import { chainName } from "../../i18n/common/chain";
 import { TID } from "../../testids";
-import { ChainRail, CostLine, DealCard, dealDescriptionOf, ErrorBand, Mark, QuietButton, SwipeButton, TxRail, minute, percent, railHandsOf, shortAddress, type RailHand } from "../../ui";
+import { ChainRail, CostLine, DealCard, dealDescriptionOf, ErrorBand, Mark, Proof, QuietButton, SwipeButton, TxRail, minute, percent, railHandsOf, shortAddress, type RailHand } from "../../ui";
 import { canBatch, ConnectButton, connectedWallet, thankedProbe, useSend, useWallet, type Intent, type SendResult } from "../../wallet";
 import { keepIntent, recheck, type Checked } from "./check";
 import { handLogsOf, landedFlags, payeeFindings, payeeRefusedIn, predictPayouts, verifyThanked, type Payout } from "./model";
@@ -373,8 +373,10 @@ export function ThankFlow({ checked, onAnother }: { checked: Checked; onAnother:
               {t("thank.twoSteps")}
             </p>
           ) : null}
-          <span className="ah-meta ah-meta--exact break-all">{t("thank.lens.factory", { factory: setup.factory })}</span>
-          <span className="ah-meta ah-meta--exact break-all">{t("thank.lens.setupRuns", { forwarder: setup.forwarder })}</span>
+          <Proof>
+            <span className="ah-meta ah-meta--exact break-all">{t("thank.lens.factory", { factory: setup.factory })}</span>
+            <span className="ah-meta ah-meta--exact break-all">{t("thank.lens.setupRuns", { forwarder: setup.forwarder })}</span>
+          </Proof>
         </div>
       ) : null}
 

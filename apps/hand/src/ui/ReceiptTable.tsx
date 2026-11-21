@@ -2,7 +2,7 @@ import type { ReceiptRow } from "@ahand/sdk";
 import { zeroAddress } from "viem";
 
 import { clsx } from "../lib/clsx";
-import { useLang, type Lang } from "./ambient";
+import { useLang, useLens, type Lang } from "./ambient";
 import { Flip, useTwistWords, type TwistWords } from "./Flip";
 import { count, money, shortAddress } from "./format";
 import { Mark } from "./Mark";
@@ -45,11 +45,15 @@ function label(line: ReceiptLine, words: Words): string {
  * The twist (UX-SPEC §3): each row is a flip card whose back is its formula with the real
  * numbers and its events (name, block, transaction). With `landed`, the marker sweeps the rows
  * in order as their flags turn true, and rests under the helper's chip while 🙏 bows.
+ *
+ * The payees' addresses and the turning rows are proof: the calm view (lens off) says who in
+ * words and how much, and the rows stay still.
  */
 export function ReceiptTable({ rows, landed, decimals, caption, className }: ReceiptTableProps) {
   const words = useWords();
   const twist = useTwistWords();
   const lang = useLang();
+  const lens = useLens();
   const { lines, total } = receiptLines(rows);
   // Cut to cents when the rows still add up to the total; every digit when they would not (M-4).
   const written = receiptAmounts(
@@ -62,7 +66,7 @@ export function ReceiptTable({ rows, landed, decimals, caption, className }: Rec
   if (lines.length === 0) return null;
 
   return (
-    <table className={clsx("ah-receipt ah-receipt--flips", className)} data-sweep={sweep ? sweepSummary(sweep) : undefined}>
+    <table className={clsx("ah-receipt", lens && "ah-receipt--flips", className)} data-sweep={sweep ? sweepSummary(sweep) : undefined}>
       <caption className="sr-only">{caption ?? words.receipt.caption}</caption>
       <tbody>
         {lines.map((line, index) => {
@@ -72,7 +76,7 @@ export function ReceiptTable({ rows, landed, decimals, caption, className }: Rec
           const amount = line.amount !== undefined && line.amount > 0n ? written.rows[index] : undefined;
           const what = label(line, words);
           // Core logs a pass that kept nothing with the zero address as its payee: nobody to name.
-          const payee = line.payee && line.payee !== zeroAddress ? line.payee : undefined;
+          const payee = lens && line.payee && line.payee !== zeroAddress ? line.payee : undefined;
           const state: SweepState | undefined = sweep?.[index];
           const front = (
             <span className="ah-receipt__line">
@@ -118,7 +122,7 @@ export function ReceiptTable({ rows, landed, decimals, caption, className }: Rec
               className={clsx(helper && "ah-receipt__row--highlight", index === lines.length - 1 && "ah-receipt__row--pretotal")}
             >
               <td colSpan={2} className="ah-receipt__cell">
-                <Flip variant="row" front={front} backLabel={twist.backOfRow} back={() => <RowBack line={line} rows={rows} total={total} decimals={decimals} lang={lang} words={twist} />} />
+                {lens ? <Flip variant="row" front={front} backLabel={twist.backOfRow} back={() => <RowBack line={line} rows={rows} total={total} decimals={decimals} lang={lang} words={twist} />} /> : front}
               </td>
             </tr>
           );

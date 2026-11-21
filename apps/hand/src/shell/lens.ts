@@ -4,8 +4,8 @@ import { setPref } from "../store/db";
 
 /**
  * The lens (UX-SPEC §6): one switch that opens every disclosure in place, so the evidence under
- * each sentence shows without changing the layout. The header's 🔍 and the `?` key flip it; the
- * choice is kept in `prefs` on this device. While it is on, <html> carries `data-lens="on"` for
+ * each sentence shows without changing the layout. The footer's switch beside the theme switch
+ * and the `?` key flip it; the choice is kept in `prefs` on this device. While it is on, <html> carries `data-lens="on"` for
  * styles, and `useLens()` re-renders whoever reads it (Disclose, the Deal card's lens lines).
  */
 
@@ -30,10 +30,22 @@ export function lensOn(): boolean {
   return on;
 }
 
-/** Turns the lens on or off and remembers it on this device. */
+/**
+ * The writes of the choice, one after another: two flips in quick succession are two IndexedDB
+ * transactions, and without the queue the first could commit after the second, bringing back a
+ * choice the person had already undone.
+ */
+let saving: Promise<void> = Promise.resolve();
+
+/** Turns the lens on or off and remembers it on this device; the last choice is the one kept. */
 export function setLens(next: boolean): void {
   apply(next);
-  void setPref("lens", next).catch(() => undefined);
+  saving = saving.then(() => setPref("lens", next)).catch(() => undefined);
+}
+
+/** Resolves once every choice made so far is written (for tests and for leaving the page). */
+export function lensSaved(): Promise<void> {
+  return saving;
 }
 
 export function toggleLens(): void {

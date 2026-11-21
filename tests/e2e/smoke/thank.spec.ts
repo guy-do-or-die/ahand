@@ -17,6 +17,7 @@ import { formatEther, getAddress, isAddressEqual, zeroHash, type Address, type H
 
 import { account, pickDevAccount } from "../lib/accounts";
 import { craft, passedAndGiven, setBlocked } from "../lib/feat-thank/fixtures";
+import { lensOn } from "../lib/lens";
 import { balanceOf, code, hands, pending, rpc, thanks, type Rpc } from "../lib/rpc";
 import { readStand, seed, standSlot, tokenOf, type StandInfo } from "../lib/stand";
 
@@ -45,6 +46,12 @@ test.beforeAll(() => {
   usd = tokenOf(stand, "usd").address;
   blacklist = tokenOf(stand, "blacklist").address;
   run = seed<SeedRun>(standSlot(), ["give", "resigned", "undeployed", "noReward"]);
+});
+
+// This file reads the thanks' evidence (each payout and its payee, the formulas, the events), all
+// of which stands under the lens; the calm view of the same screens is smoke/lens.spec.ts's.
+test.beforeEach(async ({ page }) => {
+  await lensOn(page);
 });
 
 test.afterAll(async () => {
@@ -86,8 +93,8 @@ async function payouts(page: Page) {
 }
 
 const FINE_PRINT = {
-  en: "If a payout can't move, it waits in the contract until whoever it belongs to takes it out — or anyone delivers it to that address.",
-  ru: "Если выплата не сможет пройти, она подождёт в контракте, пока её не заберёт тот, кому она причитается, — или кто угодно не доставит её на этот адрес.",
+  en: "If a payment can't get through, it is held until whoever it belongs to takes it, or anyone delivers it to them.",
+  ru: "Если выплата не может пройти, она хранится, пока её не заберёт тот, кому она причитается, или пока кто-нибудь не доставит её ему.",
 };
 
 /** The fine print under "who gets what": the human voice (sentence case, not mono), and no owner in it. */
@@ -178,7 +185,7 @@ test("the give fixture: Core's check, the predicted table, the thanks, and a rec
     ["passed", getAddress(holder), "1500000"],
     ["helped", getAddress(give.giver), "28500000"],
   ]);
-  await expect(page.getByTestId("thank-warning")).toHaveText("Saying thanks pays everyone on this route. It can't be undone.");
+  await expect(page.getByTestId("thank-warning")).toHaveText("Saying thanks pays the helper and everyone who passed it on. It can't be undone.");
   // Each row opens its formula.
   await page.getByTestId("thank-predicted-row").first().getByRole("button", { name: /how it's counted/ }).click();
   await expect(page.getByTestId("thank-predicted-row").first()).toContainText("30000000 × 500 ÷ 10 000 = 1500000");

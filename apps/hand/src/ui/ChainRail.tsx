@@ -8,7 +8,7 @@ import { Flip, useReducedMotion, useTwistWords } from "./Flip";
 import { count, money, percent, shortAddress } from "./format";
 import { GiveBack } from "./GiveBack";
 import { coreAnswer, Exact, Fact, ProofBody, ShakeBack, useProof } from "./ShakeBack";
-import { useLang } from "./ambient";
+import { useLang, useLens } from "./ambient";
 import { useWords } from "./words";
 import { TID } from "../testids";
 
@@ -83,6 +83,9 @@ function showYou(list: HTMLElement, smooth: boolean): void {
  * pass's back its Shake, the helper's back its Give, each checked when it turns. One hand is
  * turned at a time, and its back opens under the rail, so the rail itself never moves; when
  * the hand is turned back, the rail scrolls to the viewer's chip.
+ *
+ * The turning and the addresses are proof: in the calm view (lens off) the hands are named in
+ * words ("the asker", "someone", or a proved name) and do not turn.
  */
 export type { LeftOut, RailHand } from "./rail";
 
@@ -90,8 +93,9 @@ export function ChainRail({ hands, route, you = true, next = you, caption = true
   const words = useWords();
   const twist = useTwistWords();
   const reduced = useReducedMotion();
+  const lens = useLens();
   const soFar = words.rail.count(hands.filter((hand) => !hand.dropped).length);
-  const flips = routeFits(hands, route);
+  const flips = lens && routeFits(hands, route);
   const places = placesOf(hands);
   const list = useRef<HTMLOListElement>(null);
   /** The hand now turned over, by its place on the rail. */
@@ -116,8 +120,10 @@ export function ChainRail({ hands, route, you = true, next = you, caption = true
         {hands.map((hand, index) => {
           const named = hand.name ? (
             <span className="ah-rail__name ah-rail__name--human">{hand.name}</span>
-          ) : hand.address ? (
+          ) : hand.address && lens ? (
             <span className="ah-rail__name ah-exact">{shortAddress(hand.address)}</span>
+          ) : hand.role === "asker" ? (
+            <span className="ah-rail__name ah-rail__name--human">{words.rail.asker}</span>
           ) : (
             <span className="ah-rail__name ah-rail__name--human">{words.rail.someone}</span>
           );

@@ -163,7 +163,7 @@
   margin-top: 6px;
   letter-spacing: var(--track-mono);
   text-transform: uppercase;
-  color: var(--ink-a50);
+  color: var(--ink-quiet);
 }
 .proof-evidence dd {
   margin: 0;

@@ -40,6 +40,17 @@ function GestureCard({ gesture }: { gesture: Gesture }) {
     // The side that was pressed turns away; the hand that pressed it lands on the other side.
     requestAnimationFrame(() => (to ? back : front).current?.focus({ preventScroll: true }));
   };
+  // Core's call on the back is proof: in the calm view the card is its sentence and does not turn.
+  if (!lens) {
+    return (
+      <li className="lp-flip" data-open={false} data-testid={TID.landing.gesture} data-value={gesture}>
+        <div className="lp-flip__face lp-flip__front">
+          <GestureEmoji kind={KIND[gesture]} className="lp-flip__emoji" />
+          <span className="text-[length:var(--fs-card-title)] font-extrabold leading-[1.15] tracking-[-0.015em]">{t(`landing.${gesture}.say`)}</span>
+        </div>
+      </li>
+    );
+  }
   return (
     <li className="lp-flip" data-open={open} data-testid={TID.landing.gesture} data-value={gesture}>
       <button ref={front} type="button" className="lp-flip__face lp-flip__front" aria-expanded={open} aria-controls={backId} onClick={() => turn(!open)}>

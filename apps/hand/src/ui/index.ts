@@ -23,6 +23,7 @@ export { Identity, type IdentityProps } from "./Identity";
 export { LandPicker, LandSheet, type LandPickerProps, type LandSheetProps } from "./LandSheet";
 export { Logo } from "./Logo";
 export { Mark, type MarkKind, type MarkProps } from "./Mark";
+export { Proof, ProofPage, useShown, type ProofProps } from "./Proof";
 export { MetaLine } from "./MetaLine";
 export { MoneyInput, type MoneyInputProps } from "./MoneyInput";
 export { Qr, type QrProps } from "./Qr";

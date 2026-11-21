@@ -5,7 +5,7 @@ import { clientOf } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { Disclose, count, day, minute } from "../../ui";
+import { Disclose, Proof, count, day, minute } from "../../ui";
 import { spentOf, totalSpent, usdOfWei, type Spent } from "./model";
 
 /** One transaction's cost, and the time of the block that holds it once that block was read. */
@@ -78,7 +78,8 @@ export function ThankSpent({ sent, inHand, chainId }: { sent: readonly Hex[]; in
   return (
     <div className="flex flex-col" data-testid={TID.thank.spent} data-status="read" data-count={rows.length} data-gas-used={total.gasUsed.toString()} data-fee={total.fee.toString()}>
       <p className="ah-label m-0" data-testid={TID.thank.spentSentence}>
-        {t(steps ? "thank.spent.steps" : "thank.spent", { usd: usd(total.fee), date })}
+        {/* The price snapshot's date is the lens's, like the estimate's before sending. */}
+        <Proof calm={t(steps ? "thank.spent.steps.calm" : "thank.spent.calm", { usd: usd(total.fee) })}>{t(steps ? "thank.spent.steps" : "thank.spent", { usd: usd(total.fee), date })}</Proof>
       </p>
       <Disclose label={t("thank.lens.tx")}>
         {rows.map((row, index) => (

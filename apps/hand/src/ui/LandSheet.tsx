@@ -6,6 +6,7 @@ import { AddressInput } from "./AddressInput";
 import { Identity } from "./Identity";
 import { payeeOf, readAddress, type AddressReading, type PayeeContext } from "./judge";
 import { makeWords, type FreshWords, type Landing } from "./land";
+import { Proof } from "./Proof";
 import { QuietButton } from "./QuietButton";
 import { Sheet } from "./Sheet";
 import { SwipeButton } from "./SwipeButton";
@@ -23,6 +24,11 @@ export interface LandPickerProps {
   account?: Address;
   /** Opens the screen's own way of connecting. The kit knows nothing about wallets. */
   onConnect: () => void;
+  /**
+   * The screen's way of connecting offers email (a build with Privy): the connect choice then
+   * says so, since someone with no crypto app would not press "Connect a wallet".
+   */
+  email?: boolean;
   /** This Hand's Core, asker and token, for the SDK's `payeeProblem`. */
   ctx: PayeeContext;
   /** An address to start the "An address I have" field with. */
@@ -49,7 +55,7 @@ export interface LandPickerProps {
  *
  * A key made in the browser is never the default: with no connected account, nothing is chosen.
  */
-export function LandPicker({ purpose, account, onConnect, ctx, initialAddress = "", onChange, onWaiting }: LandPickerProps) {
+export function LandPicker({ purpose, account, onConnect, email = false, ctx, initialAddress = "", onChange, onWaiting }: LandPickerProps) {
   const words = useWords().land;
   const name = useId();
   const [choice, setChoice] = useState<Choice | undefined>(account ? "account" : undefined);
@@ -133,9 +139,9 @@ export function LandPicker({ purpose, account, onConnect, ctx, initialAddress = 
         </div>
       ) : (
         <div className="ah-stack">
-          <QuietButton onClick={onConnect}>{words.connect}</QuietButton>
+          <QuietButton onClick={onConnect}>{email ? words.connectEmail : words.connect}</QuietButton>
           <p className="ah-label" style={{ margin: 0 }}>
-            {words.connectHint}
+            {email ? words.connectEmailHint : words.connectHint}
           </p>
         </div>
       )}
@@ -147,16 +153,19 @@ export function LandPicker({ purpose, account, onConnect, ctx, initialAddress = 
             <AddressInput label={words.addressLabel} ctx={ctx} initial={initialAddress} hint={words.addressHint} onReading={setReading} />
             {purpose === "give" ? (
               <>
-                <p className="ah-label" style={{ margin: 0 }}>
-                  {words.oneTime}
-                </p>
-                <label className="ah-check">
-                  <input type="checkbox" checked={keep} onChange={(event) => setKeep(event.target.checked)} />
-                  <span>
-                    {words.keepKey}
-                    <span className="ah-label block">{words.keepKeyHint}</span>
-                  </span>
-                </label>
+                {/* How the answer is confirmed is the lens's; the calm view says where the money goes. */}
+                <Proof calm={<p className="ah-label" style={{ margin: 0 }}>{words.addressCalm}</p>}>
+                  <p className="ah-label" style={{ margin: 0 }}>
+                    {words.oneTime}
+                  </p>
+                  <label className="ah-check">
+                    <input type="checkbox" checked={keep} onChange={(event) => setKeep(event.target.checked)} />
+                    <span>
+                      {words.keepKey}
+                      <span className="ah-label block">{words.keepKeyHint}</span>
+                    </span>
+                  </label>
+                </Proof>
               </>
             ) : null}
           </div>

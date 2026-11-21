@@ -70,7 +70,7 @@ const BANNED_RU: [string, RegExp][] = [
 
 const ALWAYS_ALLOWED = [/connect a wallet/gi, /подключить кошел[её]к/gi];
 const ALLOWED_BY_KEY: [RegExp, RegExp[]][] = [
-  [/^common\.footer$/, [/\bno fee\b/gi, /без комиссии/gi]],
+  [/^common\.footer(\.calm)?$/, [/\bno fee\b/gi, /без комиссии/gi]],
   [/^waiting\./, [/\bsafe\b/gi, /в безопасности/gi]],
 ];
 

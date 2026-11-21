@@ -5,7 +5,7 @@ import { config as app } from "../config";
 import { t } from "../i18n";
 import { chainName } from "../i18n/common/chain";
 import { TID } from "../testids";
-import { ErrorBand, Identity, QuietButton, Sheet } from "../ui";
+import { ErrorBand, Identity, Proof, QuietButton, Sheet } from "../ui";
 import { clsx } from "../lib/clsx";
 import { privyPhase, watchPrivyPhase } from "./privy";
 import { connectWallet, disconnectWallet, foundOptions, optionAddress, useWallet, useWalletOptions, type WalletOption } from "./state";
@@ -63,7 +63,7 @@ function Option({ option, address, busy, onPick }: { option: WalletOption; addre
         {option.icon ? <img src={option.icon} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-[var(--r-control)]" /> : <Initial name={title} {...(dev ? { mark: option.devWho === "not-set-up" ? "6" : String(option.devWho) } : {})} />}
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-[length:var(--fs-card-title-sm)] font-bold leading-tight">{title}</span>
-          {address ? <Identity address={address} /> : null}
+          {address ? <Identity address={address} own /> : null}
           {dev && option.devRole === "entropy" ? <span className="ah-tag self-start">{words.dev.entropyTag}</span> : null}
           {dev && option.devRole === "unset" ? (
             <>
@@ -137,7 +137,10 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
               <Initial name={words.email.action} mark="@" />
               <span className="text-[length:var(--fs-card-title-sm)] font-bold leading-tight">{words.email.action}</span>
             </button>
-            <p className="ah-label ah-label--dim m-0">{words.email.note}</p>
+            {/* Who keeps the key is for those who check; the calm view says what will happen. */}
+            <p className="ah-label ah-label--dim m-0">
+              <Proof calm={words.email.calm}>{words.email.note}</Proof>
+            </p>
           </section>
         ) : null}
 
@@ -194,7 +197,7 @@ export function ConnectSheet({ onClose, onConnected }: ConnectSheetProps) {
         ) : null}
         {wallet.status === "connected" && wallet.address ? (
           <p className="ah-label m-0 flex flex-wrap items-baseline gap-2">
-            {words.connected}: <Identity address={wallet.address} />
+            {words.connected}: <Identity address={wallet.address} own />
           </p>
         ) : null}
       </div>
@@ -234,7 +237,7 @@ export function ConnectButton({ className, onConnected }: { className?: string; 
       {wallet.status === "connected" && wallet.address ? (
         <>
           <span className="ah-label flex flex-wrap items-baseline gap-2" data-testid={TID.wallet.connected} data-value={wallet.address}>
-            {words.connected}: <Identity address={wallet.address} />
+            {words.connected}: <Identity address={wallet.address} own />
           </span>
           <QuietButton compact variant="text" onClick={() => void disconnectWallet()}>
             {words.disconnect}

@@ -142,12 +142,14 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
   const closedOn = closedAt ? day(closedAt, lang, timeZone) : until;
   // Core rounds every pass's share down and leaves the dust to the helper: the least is the ceiling (M-1).
   const floor = claimBps !== undefined ? atLeast(reward, claimBps) : undefined;
-  // Only a Hand with a number was read from the chain; a preview has no source to open.
+  // Only a Hand with a number was read from the chain; a preview has no source to open. In the
+  // calm view (lens off) no figure opens: the amounts and dates are plain words there.
   const onChain = handId !== undefined;
-  const showReward = onChain && (lens || rewardOpen);
-  const showExpiry = onChain && (lens || expiryOpen);
+  const figures = onChain && lens;
+  const showReward = figures && (lens || rewardOpen);
+  const showExpiry = figures && (lens || expiryOpen);
   // A closed Hand whose closing second did not come along says the day and opens nothing.
-  const closedSource = onChain && closedAt ? closedAt : undefined;
+  const closedSource = figures && closedAt ? closedAt : undefined;
   const showClosed = closedSource !== undefined && (lens || closedOpen);
   const showFloor = lens || floorOpen;
 
@@ -189,7 +191,7 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
           {funded ? (
             <>
               {words.reward[0]}
-              {onChain ? (
+              {figures ? (
                 <button type="button" className="ah-figure ah-marker" aria-expanded={showReward} aria-controls={showReward ? rewardId : undefined} onClick={() => setRewardOpen(!showReward)}>
                   {amount}
                 </button>
@@ -205,7 +207,7 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
             <>
               {" · "}
               {when[0]}
-              {onChain ? (
+              {figures ? (
                 <button type="button" className="ah-figure" aria-expanded={showExpiry} aria-controls={showExpiry ? expiryId : undefined} onClick={() => setExpiryOpen(!showExpiry)}>
                   {until}
                 </button>
@@ -279,9 +281,13 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
             <div className="ah-deal__row">
               <dt>{ifHelp}</dt>
               <dd data-open={showFloor}>
-                <button type="button" className="ah-figure" aria-expanded={showFloor} aria-controls={showFloor ? floorId : undefined} onClick={() => setFloorOpen(!showFloor)}>
-                  {floorText}
-                </button>
+                {lens ? (
+                  <button type="button" className="ah-figure" aria-expanded={showFloor} aria-controls={showFloor ? floorId : undefined} onClick={() => setFloorOpen(!showFloor)}>
+                    {floorText}
+                  </button>
+                ) : (
+                  floorText
+                )}
                 {showFloor ? (
                   <div id={floorId} className="ah-evidence">
                     <span className="ah-label">{own ? own.floorWhy : words.floorWhy}</span>
@@ -308,10 +314,13 @@ function Card({ state, description, reward, decimals, expiry, closedAt, claimBps
 
       {children}
 
-      <div className="ah-deal__foot" data-raiser={raiser ? "known" : "later"}>
-        <span className="ah-label">{own ? own.askedBy : words.askedBy}</span>
-        {raiser ? <Identity address={raiser} name={raiserName} /> : <span className="ah-label">{words.askedByLater}</span>}
-      </div>
+      {/* On the asker's own screens the calm view needs no row saying the hand is their own. */}
+      {own && raiser && !lens ? null : (
+        <div className="ah-deal__foot" data-raiser={raiser ? "known" : "later"}>
+          <span className="ah-label">{own ? own.askedBy : words.askedBy}</span>
+          {raiser ? <Identity address={raiser} name={raiserName} /> : <span className="ah-label">{words.askedByLater}</span>}
+        </div>
+      )}
       {lens && block ? (
         <p className="ah-meta">
           {words.networkTime} · {blockLine} · {minute(block.timestamp, lang, timeZone)}

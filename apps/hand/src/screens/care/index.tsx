@@ -9,7 +9,7 @@ import { chainName } from "../../i18n/common/chain";
 import type { ScreenProps } from "../../routes";
 import { handKey } from "../../store/db";
 import { TID } from "../../testids";
-import { AskerText, CopyRow, CostLine, DealCard, dealDescriptionOf, Disclose, ErrorBand, MoneyInput, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
+import { AskerText, CopyRow, CostLine, DealCard, dealDescriptionOf, Disclose, ErrorBand, MoneyInput, Proof, QuietButton, SwipeButton, TxRail, day, money, type DealDescription, type MoneyReading, type TxReached } from "../../ui";
 import { approvalProbe, ConnectButton, extendedProbe, fundedProbe, useKeptSend, useWallet, type KeptSend, type SendResult } from "../../wallet";
 import { exactMoney } from "../raise/exact";
 import { UnlockBar } from "../my/parts";
@@ -515,14 +515,19 @@ function InFlight({ kept, action }: { kept: KeptSend; action: "fund" | "extend" 
 
 function WithoutUs({ calls }: { calls: Call[] }) {
   return (
-    <div data-testid={TID.kit.withoutUs}>
-      <Disclose label={t("common.footer.withoutUs")}>
-        <span className="ah-label">{t("care.lens.callsLead")}</span>
-        {calls.map((call, index) => (
-          <CopyRow key={index} value={castLine(call, { rpc: RPC })} display={castLine(call, { rpc: "$RPC" })} />
-        ))}
-      </Disclose>
-    </div>
+    <Proof>
+      <div data-testid={TID.kit.withoutUs}>
+        <Disclose label={t("common.footer.withoutUs")}>
+          <span className="ah-label">{t("care.lens.callsLead")}</span>
+          {/* A track that may shrink, so a long line never pushes a phone's page sideways. */}
+          <div className="grid w-full grid-cols-[minmax(0,1fr)] gap-2">
+            {calls.map((call, index) => (
+              <CopyRow key={index} value={castLine(call, { rpc: RPC })} display={castLine(call, { rpc: "$RPC" })} />
+            ))}
+          </div>
+        </Disclose>
+      </div>
+    </Proof>
   );
 }
 
@@ -547,7 +552,9 @@ function Section({ title, lead, children }: { title: string; lead: string; child
 function Title({ id }: { id: bigint }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="ah-meta">✋ {t("care.kicker", { id: id.toString() })}</span>
+      <span className="ah-meta">
+        ✋ <Proof calm={t("care.kicker.calm")}>{t("care.kicker", { id: id.toString() })}</Proof>
+      </span>
       <h1 className="m-0 text-[length:var(--fs-title-m)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title)]">{t("care.title")}</h1>
     </div>
   );

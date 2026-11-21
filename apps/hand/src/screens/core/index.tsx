@@ -6,7 +6,7 @@ import { clientOf } from "../../chain";
 import { config, PREVIEWS } from "../../config";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, ErrorBand, Mark, count, useLang } from "../../ui";
+import { ProofPage, CopyRow, ErrorBand, Mark, count, useLang } from "../../ui";
 import { capDays, derive, paidPassesAtWorst, readServedBuild, reproduceLine, type ServedBuild } from "./facts";
 import { LIMIT_NUMBERS } from "./limits";
 import "./core.css";
@@ -57,7 +57,20 @@ function Row({ name, children }: { name: string; children: ReactNode }) {
   );
 }
 
+/**
+ * This page about the contract is itself the proof a person came to see, so its evidence is drawn whatever the lens
+ * says (`ProofPage`): each mark and disclosure one tap away, and all of them open under the lens.
+ * The calm view only keeps the way here out of ordinary screens.
+ */
 export default function CoreScreen() {
+  return (
+    <ProofPage>
+      <CoreScreenBody />
+    </ProofPage>
+  );
+}
+
+function CoreScreenBody() {
   useLang();
   const [chain, setChain] = useState<Read<ChainRead>>({ state: "reading" });
   const [build, setBuild] = useState<Read<ServedBuild>>({ state: "reading" });

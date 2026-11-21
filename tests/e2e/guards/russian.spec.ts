@@ -93,7 +93,8 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   await expect(asker.locator("html")).toHaveAttribute("lang", "ru");
   await expect(asker.getByTestId("shell-main")).toContainText("Кого или что ищешь?");
   await expect(asker.getByTestId("raise-swipe")).toContainText("Поднять руку");
-  await expect(asker.getByTestId("raise-issuer-line")).toContainText("может заморозить адрес — тогда деньги подождут в контракте.");
+  // The calm view says what the money is; that an issuer can freeze an address is the lens's.
+  await expect(asker.getByTestId("raise-issuer-line")).toContainText("Награда в тестовых долларах.");
   await compose(asker, { title: "Кто одолжит палатку на выходные?", details: "На двоих, верну в понедельник.", reward: "20" });
   await noEnglish(asker, "/raise");
   await swipe(asker, 1);
@@ -138,7 +139,9 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   await pickDevAccount(helper, 4);
   await expect(helper.getByTestId("give-swipe")).toContainText("Отправить ответ");
   await helper.getByTestId("give-swipe").click();
-  await expect(helper.getByTestId("give-delivered")).toHaveText("Доставлено на 1 из 1 реле.", { timeout: 30_000 });
+  // The calm view says it plainly; how many relays took it is the lens's (data-value keeps the count).
+  await expect(helper.getByTestId("give-delivered")).toHaveText("Отправлено автору.", { timeout: 30_000 });
+  await expect(helper.getByTestId("give-delivered")).toHaveAttribute("data-value", "1/1");
   await noEnglish(helper, "/give, delivered");
   const given = (await helper.getByTestId("give-copy").getAttribute("data-value"))!;
 
@@ -149,12 +152,12 @@ test("raise, open, pass on, help and thank in Russian: UX-SPEC's sentences, and 
   await expect(asker.getByTestId("thank-predicted")).toBeVisible({ timeout: 30_000 });
   if (!(await asker.getByTestId("wallet-connected").isVisible())) await pickDevAccount(asker, 1);
   await expect(asker.getByTestId("wallet-connected")).toHaveAttribute("data-value", account(1).address);
-  await expect(asker.getByTestId("thank-warning")).toHaveText("Спасибо заплатит всем на этом пути. Отменить нельзя.");
+  await expect(asker.getByTestId("thank-warning")).toHaveText("Спасибо — и помощник, и все, кто передавал, получат свою долю. Отменить нельзя.");
   await expect(asker.getByTestId("thank-swipe")).toContainText("Сказать спасибо");
   await expect(asker.getByTestId("thank-swipe")).toBeEnabled({ timeout: 20_000 });
   await noEnglish(asker, "/thank");
   await asker.getByTestId("thank-swipe").click();
-  await expect(asker.getByTestId("thank-done")).toContainText("Спасибо сказано. Все выплаты — прямо из сети.", { timeout: 45_000 });
+  await expect(asker.getByTestId("thank-done")).toContainText("Спасибо сказано. Вот все выплаты.", { timeout: 45_000 });
   await noEnglish(asker, "/thank, thanked");
   expect((await hands(chain, stand.core, handId)).closedAt).toBeGreaterThan(0);
 

@@ -10,7 +10,7 @@ import { handKey, type HandRecord } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { TID } from "../../testids";
 import { proofPathOf } from "../hand/held";
-import { CopyRow, DealCard, dealDescriptionOf, Mark, QuietButton, shortAddress, useLens, type DealDescription } from "../../ui";
+import { CopyRow, DealCard, dealDescriptionOf, Mark, Proof, QuietButton, shortAddress, useLens, type DealDescription } from "../../ui";
 import { ConnectButton, useWallet } from "../../wallet";
 import { AnswerCard } from "./Answer";
 import { useAnswers, useInboxSight, useMyHand, useSecrets } from "./hooks";
@@ -92,10 +92,13 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
       )}
 
       {view && core ? (
-        // The Hand's passport, where its record and receipt check themselves (UX-SPEC §10.1, FINDINGS E-6).
-        <a href={proofPathOf(chainId, core, handId, config.cores.canonical)} className="ah-label inline-flex min-h-[44px] items-center self-start font-bold" data-testid={TID.my.proofLink}>
-          {t("hand.proofLink")}
-        </a>
+        // The Hand's passport, where its record and receipt check themselves (UX-SPEC §10.1, FINDINGS E-6):
+        // a way into the proof, so only under the lens.
+        <Proof>
+          <a href={proofPathOf(chainId, core, handId, config.cores.canonical)} className="ah-label inline-flex min-h-[44px] items-center self-start font-bold" data-testid={TID.my.proofLink}>
+            {t("hand.proofLink")}
+          </a>
+        </Proof>
       ) : null}
 
       {view && wantsCare(state, left) ? (
@@ -147,7 +150,8 @@ export default function HandPage({ chainId, handId }: { chainId: number; handId:
         <Section title={t("my.answers.title")} testId={TID.my.answers} state={sight}>
           {answersLines(sight, answers.length, readOf(key)?.read ?? 0).map((line) => (
             <Line key={line.id} dim={line.id === "my.answers.listening"}>
-              {t(line.id, line.values)}
+              {/* How many relays carry the answers is the lens's; the calm view says that it waits. */}
+              {line.id === "my.answers.listening" ? <Proof calm={t("my.answers.listening.calm")}>{t(line.id, line.values)}</Proof> : t(line.id, line.values)}
             </Line>
           ))}
           {answers.map((answer) => (
@@ -274,10 +278,12 @@ function ShowLink({
         <div className="flex flex-col gap-2" data-testid={TID.my.linkRow} data-value={shown.address} data-words={shown.words}>
           <Line>{shown.words === "attached" ? t("my.link.here") : t("my.link.bare")}</Line>
           <CopyRow value={shown.address} />
-          <div className="flex flex-wrap items-center gap-2">
-            <Mark kind="checked" />
-            <span className="ah-label ah-label--dim">{t("my.link.keyOk")}</span>
-          </div>
+          <Proof>
+            <div className="flex flex-wrap items-center gap-2">
+              <Mark kind="checked" />
+              <span className="ah-label ah-label--dim">{t("my.link.keyOk")}</span>
+            </div>
+          </Proof>
           {shown.words === "mismatch" ? <Line dim>{t("my.hand.wordsMismatch")}</Line> : null}
           <Line dim>{t("common.tabOnly")}</Line>
         </div>

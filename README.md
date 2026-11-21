@@ -71,6 +71,7 @@ The browser suites run against a stand that is up, always from the root with `ST
 
 - `tests/e2e/smoke/` (one spec per screen) and `tests/e2e/guards/` (fail closed, the clock, secrets, accessibility, Russian);
 - `tests/e2e/first-loop.spec.ts` (four people, one loop through the screens), `tests/e2e/life.spec.ts` (the whole life of a Hand), `tests/e2e/clock.spec.ts` and `tests/e2e/drill.spec.ts` (every server off, money still moves);
+- `tests/e2e/lens-shots.spec.ts` is not a check either: a screenshot run of the calm view and the lens (every key screen with the lens off and on, English at 1440 and 390 px, Russian for the main steps), skipped unless `LENS_SHOTS` names the folder to write into.
 - `tests/e2e/shots.spec.ts` is not a check but the screenshot run: 29 tests, about 9 minutes, 215 pictures (every screen in both themes, both languages, 390 and 1280 px) written over `tests/e2e/shots/`, which is git-ignored. A bare `bunx playwright test` runs it too; name the suites you want.
 
 What ran, with counts and times, is in [`docs/evidence.md`](docs/evidence.md).

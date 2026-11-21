@@ -18,6 +18,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 
 import { account, pickDevAccount } from "./lib/accounts";
 import { fixtureOf, quiet, seedFixtures, visit, type SeedRun } from "./guards/lib/guard";
+import { lensOn } from "./lib/lens";
 import { readStand, seed, standSlot } from "./lib/stand";
 
 const stand = readStand();
@@ -166,6 +167,8 @@ test("the flip's back: a pass on a two-pass Hand, turned over, with Core's answe
         const { context, page } = await person(browser, width, theme, lang);
         try {
           await visit(page, two.address);
+          // The twist is proof: hands turn over only under the lens.
+          await lensOn(page);
           const rail = page.getByTestId("hand-rail");
           await expect(rail.locator("[data-flippable]")).toHaveAttribute("data-flippable", "true", { timeout: 15_000 });
           const card = rail.getByTestId("twist-flip").nth(1);

@@ -7,7 +7,7 @@ import { t, useLang } from "../../i18n";
 import { navigate } from "../../router";
 import { remember, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { CopyRow, DealCard, ErrorBand, Identity, LandSheet, Mark, Qr, QuietButton, SwipeButton, money, percent, shortAddress, type Landing } from "../../ui";
+import { CopyRow, DealCard, ErrorBand, Identity, LandSheet, Mark, Proof, Qr, QuietButton, SwipeButton, money, percent, shortAddress, type Landing } from "../../ui";
 import { ConnectSheet, useWallet } from "../../wallet";
 import { failureOf, keepMax, makePass, pathOf, shareOf, KEEP_STEP, type Failure, type Held, type Made } from "../hand/held";
 import { Unreachable } from "../hand/Unreachable";
@@ -246,6 +246,7 @@ function Pass({ opened, onRetry }: { opened: OpenedAddress; onRetry: () => void 
           purpose="share"
           {...(wallet.address ? { account: wallet.address } : {})}
           onConnect={() => setSheet("connect")}
+          email={config.privy !== undefined}
           ctx={ctx}
           {...(landing?.choice === "address" ? { initialAddress: landing.payee } : {})}
           onDone={(next) => {
@@ -268,6 +269,7 @@ function MadeView({ made, decimals, reward }: { made: Made; decimals: number; re
   const lang = useLang();
   const [qr, setQr] = useState(false);
   const { readBack } = made;
+  const sharePct = `${percent(readBack.keptBps, lang)}${reward > 0n ? ` (${money(shareOf(reward, readBack.keptBps), decimals, lang)})` : ""}`;
   const see = () => {
     const path = pathOf(made.address.slice(0, made.address.indexOf("#")));
     if (made.shape === "bare" || !path) navigate("/", { state: { view: "hand" } });
@@ -287,9 +289,12 @@ function MadeView({ made, decimals, reward }: { made: Made; decimals: number; re
       {qr ? <Qr value={made.qr} /> : null}
       <div className="flex flex-col gap-2" data-testid={TID.pass.readBack} data-payee={readBack.payee ?? ""} data-bps={readBack.keptBps} data-shakes={readBack.shakes}>
         <p className="m-0 text-[length:var(--fs-body-lg)] font-bold leading-snug">
-          {readBack.payee
-            ? t("pass.readBack.share", { payee: shortAddress(readBack.payee), pct: `${percent(readBack.keptBps, lang)}${reward > 0n ? ` (${money(shareOf(reward, readBack.keptBps), decimals, lang)})` : ""}` })
-            : t("pass.readBack.none")}
+          {readBack.payee ? (
+            // The calm view says whose share it is in words; the address it pays is the lens's.
+            <Proof calm={t("pass.readBack.calm", { pct: sharePct })}>{t("pass.readBack.share", { payee: shortAddress(readBack.payee), pct: sharePct })}</Proof>
+          ) : (
+            t("pass.readBack.none")
+          )}
         </p>
         <span className="flex flex-wrap items-center gap-2">
           <Mark

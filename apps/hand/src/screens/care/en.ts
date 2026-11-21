@@ -2,9 +2,10 @@
 const en = {
   "care.title": "Care for this hand.",
   "care.kicker": "Hand {id}",
+  "care.kicker.calm": "Your hand",
   "care.words": "The words of a hand travel with its link. This page reads only what the network keeps.",
   "care.words.device": "Your words, as this device keeps them. They match what the contract keeps.",
-  "care.words.deviceUnchecked": "Your words, as this device keeps them. They are checked against the contract once you unlock.",
+  "care.words.deviceUnchecked": "Your words, as this device keeps them. They are checked once you unlock.",
   "care.words.deviceMismatch": "The words kept on this device don't match what the contract keeps, so the card shows only what the network keeps.",
   "care.back": "Back to this hand",
   "care.who": "Only the account that raised this hand can add to it or keep it open. Anyone can make a reminder.",

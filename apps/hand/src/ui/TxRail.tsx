@@ -1,5 +1,6 @@
 import { TID } from "../testids";
 import { clsx } from "../lib/clsx";
+import { useLens } from "./ambient";
 import { Disclose } from "./Disclose";
 import { useWords } from "./words";
 
@@ -28,10 +29,29 @@ const ORDER: readonly TxReached[] = ["sent", "in-block", "safe", "final"];
  * A step that is behind is an ink dot, the one reached is amber, the ones ahead are hollow;
  * each also says "done", "now" or "not yet" to a screen reader, so the state is never told by
  * colour alone.
+ *
+ * That is the lens's view. The calm view says the same progress as one plain sentence ("It went
+ * through. Making it final…"), with the offline line under it as ever.
  */
 export function TxRail({ reached, local = false, offline = false, className }: TxRailProps) {
   const words = useWords();
+  const lens = useLens();
   const at = ORDER.indexOf(reached);
+  const offlineLine = offline ? (
+    <p className="ah-note m-0" role="status" data-testid={TID.kit.txOffline}>
+      {words.deal.noClock}
+    </p>
+  ) : null;
+  if (!lens) {
+    return (
+      <div className={clsx("ah-stack", className)}>
+        <p className="ah-label m-0" role="status" data-reached={reached}>
+          {words.tx.calm[at]}
+        </p>
+        {offlineLine}
+      </div>
+    );
+  }
   return (
     <div className={clsx("ah-stack", className)}>
       <ol className="ah-tx" aria-label={words.tx.label}>
@@ -61,11 +81,7 @@ export function TxRail({ reached, local = false, offline = false, className }: T
           </li>
         ) : null}
       </ol>
-      {offline ? (
-        <p className="ah-note m-0" role="status" data-testid={TID.kit.txOffline}>
-          {words.deal.noClock}
-        </p>
-      ) : null}
+      {offlineLine}
       {local ? (
         <Disclose label={words.tx.localTag}>
           <span className="ah-label">{words.tx.localWhy}</span>

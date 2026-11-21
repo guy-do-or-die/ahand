@@ -4,7 +4,7 @@ import type en from "./en";
 // «В безопасности» stands only in waiting.safe.
 const ru: Record<keyof typeof en, string> = {
   "waiting.title": "Деньги, которые ждут адресата.",
-  "waiting.intro": "Если деньги не смогли дойти до адреса, когда руку поблагодарили или вернули, они ждут в контракте. Отсюда их можно забрать или доставить.",
+  "waiting.intro": "Если деньги не смогли дойти до адреса, когда руку поблагодарили или вернули, они хранятся, пока это не станет возможно. Отсюда их можно забрать или доставить.",
 
   "waiting.look.label": "Чьи деньги? Вставь любой адрес, чтобы посмотреть",
   "waiting.look.go": "Посмотреть",
@@ -39,7 +39,7 @@ const ru: Record<keyof typeof en, string> = {
   "waiting.issuer": "Почему токен может отказать? Его эмитент может заморозить адрес, и тогда деньги ждут.",
   "waiting.failed": "Не получилось.",
 
-  "waiting.done": "{amount} ушло из контракта на адрес ниже.",
+  "waiting.done": "Отправлено: {amount} пришло на адрес ниже.",
   "waiting.done.to": "Пришли на",
 
   "waiting.withoutUs": "Сделать без нас",
@@ -48,11 +48,11 @@ const ru: Record<keyof typeof en, string> = {
 
   "waiting.events.heading": "Из рук, которые знает это устройство",
   "waiting.events.reading": "Читаем, что оставили эти руки…",
-  "waiting.events.noHands": "Это устройство пока не знает ни одной руки. Суммы выше — из самого контракта.",
+  "waiting.events.noHands": "Это устройство пока не знает ни одной руки. Суммы выше прочитаны прямо из открытой записи.",
   "waiting.events.none": "Ни одна рука, которую знает это устройство, не оставила денег для этого адреса.",
   "waiting.events.hand": "Рука {hand}",
   "waiting.events.waited": "Стало ждать здесь: {amount}",
-  "waiting.events.took": "Ушло из контракта: {amount}",
+  "waiting.events.took": "Забрано: {amount}",
 
   "waiting.lens.perToken": "Ждущие деньги считаются по токену и адресу, а не по руке: pending(token, payee).",
   "waiting.lens.view": "pending({token}, {payee}) = {amount} · блок {block}",

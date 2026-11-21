@@ -25,6 +25,7 @@ import { bytesToHex, getAddress, zeroHash, type Address, type Hex } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
 import { account, NOT_SET_UP, pickDevAccount } from "../lib/accounts";
+import { lensOn } from "../lib/lens";
 import { storageText } from "../lib/feat-give/storage";
 import { readStand, runProgram, seed, standSlot, startService, stopService } from "../lib/stand";
 
@@ -129,17 +130,25 @@ test("a pasted payee and no wallet: a one-time key confirms, Core accepts, deliv
 
   await page.getByRole("radio", { name: "An address I have" }).check();
   await page.getByLabel("The address").fill(PASTED);
-  await page.getByRole("checkbox", { name: /Keep this answer's key/ }).check();
   const card = page.getByTestId("give-agree").locator("[data-payee]");
   await expect(card).toHaveAttribute("data-payee", PASTED);
   await expect(page.getByTestId("give-agree")).toContainText("Local test network");
-  await expect(page.getByTestId("give-agree")).toContainText(`number ${hand.handId}`);
+  // The contract and the hand's number are exact data, and who confirms is a matter of keys: the
+  // lens's, not the calm view's, which says only where the money goes.
+  await expect(page.getByTestId("give-agree")).not.toContainText(`number ${hand.handId}`);
+  await expect(page.getByTestId("give-agree")).not.toContainText("Who confirms it");
+  await expect(page.getByText("The money goes to the address you pasted.")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /Keep this answer's key/ })).toHaveCount(0);
   await expect(page.getByTestId("give-agree")).toContainText(/100% of the reward — \$[0-9.,]+ today/);
+  // Keeping the one-time key is for those who check: the lens shows the choice.
+  await lensOn(page);
+  await page.getByRole("checkbox", { name: /Keep this answer's key/ }).check();
+  await expect(page.getByTestId("give-agree")).toContainText("Who confirms it");
 
   const download = page.waitForEvent("download");
   await page.getByTestId("give-swipe").click();
   const file = JSON.parse(readFileSync((await (await download).path())!, "utf8")) as { address: Address; privateKey: Hex };
-  await expect(page.getByTestId("give-delivered")).toHaveText("Delivered to 1 of 1 relay.", { timeout: 20_000 });
+  await expect(page.getByTestId("give-delivered")).toHaveAttribute("data-value", "1/1", { timeout: 20_000 });
   const address = await produced(page);
 
   // The Give inside the link: the one-time key confirmed it, the pasted address receives, dataHash 0.
@@ -206,7 +215,7 @@ test("dev account 4 as the wallet: it confirms and receives", async ({ page }) =
   const me = account(4).address;
   await expect(page.getByTestId("give-agree").locator("[data-payee]")).toHaveAttribute("data-payee", me);
   await page.getByTestId("give-swipe").click();
-  await expect(page.getByTestId("give-delivered")).toHaveText("Delivered to 1 of 1 relay.", { timeout: 20_000 });
+  await expect(page.getByTestId("give-delivered")).toHaveAttribute("data-value", "1/1", { timeout: 20_000 });
   const address = await produced(page);
   const give = asker<GiveOf>(["give-of", address]);
   expectZeroDataHash(give);
@@ -260,7 +269,7 @@ test("I have none: twelve words shown once, the swipe off until they are written
   await expect(page.getByTestId("give-agree").locator("[data-payee]")).toHaveAttribute("data-payee", made.address);
   await expect(page.getByTestId("give-swipe")).toBeEnabled();
   await page.getByTestId("give-swipe").click();
-  await expect(page.getByTestId("give-delivered")).toHaveText("Delivered to 1 of 1 relay.", { timeout: 20_000 });
+  await expect(page.getByTestId("give-delivered")).toHaveAttribute("data-value", "1/1", { timeout: 20_000 });
   const address = await produced(page);
   await expect(page.getByTestId("land-words")).toHaveCount(0);
 
@@ -300,7 +309,7 @@ test("with the relay stopped: the fallback sentence and a copyable give address;
 
     startService(slot, "relay");
     // No press: the outbox retries on its own while the page is open.
-    await expect(page.getByTestId("give-delivered")).toHaveText("Delivered to 1 of 1 relay.", { timeout: 40_000 });
+    await expect(page.getByTestId("give-delivered")).toHaveAttribute("data-value", "1/1", { timeout: 40_000 });
     const arrived = craft<{ ok: boolean; envelopes: { kind: string; giveLink: string }[] }>(["deliver-listen", "--n", String(hand.n), "--wait", "8000"]);
     expect(arrived.ok).toBe(true);
     expect(arrived.envelopes[0]!.giveLink).toBe(address);

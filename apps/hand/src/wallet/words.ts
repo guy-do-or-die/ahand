@@ -26,6 +26,7 @@ const EN = {
   email: {
     heading: "No crypto app? Use your email",
     action: "Continue with email",
+    calm: "We'll email you a code. No app needed.",
     note: "A code comes to your email, and an account is made for you on this network. Privy keeps its key; this site never sees it.",
     opening: "Opening the email step…",
     unavailable: "Email can't be reached right now. You can still connect a crypto app from this browser.",
@@ -62,6 +63,8 @@ const RU: WalletWords = {
   email: {
     heading: "Нет криптоприложения? Войди по почте",
     action: "Продолжить с почтой",
+    // Privy's window is in English apart from its title: say in Russian what it will ask for.
+    calm: "Пришлём код на почту, никаких приложений не нужно. Окно входа будет на английском: сначала поле для почты, потом шестизначный код из письма.",
     note: "На почту придёт код, и для тебя создастся аккаунт в этой сети. Его ключ хранит Privy; этот сайт его не видит.",
     opening: "Открываем вход по почте…",
     unavailable: "Вход по почте сейчас недоступен. Можно подключить криптоприложение из этого браузера.",

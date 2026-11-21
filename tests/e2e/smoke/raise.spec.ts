@@ -277,7 +277,12 @@ test("the compose state: one level-one heading bound to its field, the asker in 
   await page.getByTestId("dev-account-2").click();
   const card = page.getByTestId("raise-keys-card");
   await expect(card).toBeVisible();
+  // The exact message is proof: the calm view leaves it to the wallet's own screen, the lens shows it.
   const toggle = card.getByRole("button", { name: "What exactly you are confirming" });
+  await expect(toggle).toHaveCount(0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("?");
+  await expect(page.locator("html")).toHaveAttribute("data-lens", "on");
   const width = page.viewportSize()!.width;
   const box = (await toggle.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);

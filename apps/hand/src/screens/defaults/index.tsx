@@ -1,7 +1,7 @@
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { percent, shortAddress } from "../../ui";
+import { Proof, percent, shortAddress } from "../../ui";
 
 /**
  * "About these defaults" (UX-SPEC §11): one row for each choice in the experiment's table of
@@ -60,11 +60,14 @@ export default function DefaultsScreen() {
       <ul className="m-0 flex list-none flex-col gap-4 p-0">
         {ROWS.map((row, index) => (
           <li key={row.key} id={ROWS.findIndex((other) => other.number === row.number) === index ? row.number : undefined} data-testid={TID.about.default} data-value={row.number} data-key={row.key} className="ah-card flex flex-col gap-2 p-5">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="inline-flex items-center rounded-[var(--r-chip)] border-[1.5px] border-[color:var(--ink)] bg-[color:var(--amber)] px-2 py-[1px] font-mono text-[length:var(--fs-mono-md)] font-medium text-[color:var(--on-amber)]">
-                <span className="sr-only">{t("defaults.row")} </span>
-                {row.number}
-              </span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 empty:hidden">
+              {/* The decision's number and its exact value are the record's: the lens's. */}
+              <Proof>
+                <span className="inline-flex items-center rounded-[var(--r-chip)] border-[1.5px] border-[color:var(--ink)] bg-[color:var(--amber)] px-2 py-[1px] font-mono text-[length:var(--fs-mono-md)] font-medium text-[color:var(--on-amber)]">
+                  <span className="sr-only">{t("defaults.row")} </span>
+                  {row.number}
+                </span>
+              </Proof>
               {row.owner ? (
                 <span className="inline-flex items-center rounded-[var(--r-chip)] border-[1.5px] border-dashed border-[color:var(--ink-a30)] px-2 py-[1px] text-[length:var(--fs-body-xs)] font-medium">
                   {t("defaults.open")}
@@ -73,7 +76,9 @@ export default function DefaultsScreen() {
             </div>
             <h2 className="m-0 text-[length:var(--fs-card-title)] font-extrabold leading-[1.15] tracking-[-0.015em]">{t(`defaults.${row.key}.title`, values)}</h2>
             <p className="m-0 text-[length:var(--fs-body-md)] leading-[1.45]">{t(`defaults.${row.key}.body`, values)}</p>
-            <p className="ah-meta ah-meta--exact m-0">{typeof row.value === "string" ? row.value : t(`defaults.value.${row.value.key}`, values)}</p>
+            <Proof>
+              <p className="ah-meta ah-meta--exact m-0">{typeof row.value === "string" ? row.value : t(`defaults.value.${row.value.key}`, values)}</p>
+            </Proof>
             <p className="m-0 border-t border-dashed border-[color:var(--ink-a30)] pt-2 text-[length:var(--fs-body-xs)] font-semibold">{t("defaults.chosen")}</p>
           </li>
         ))}

@@ -176,7 +176,7 @@ test("the raiser's own device: /care shows the kept words framed as this device'
   const words = page.getByTestId("care-words");
   await expect(words).toHaveAttribute("data-value", "unknown", { timeout: 20_000 });
   await expect(words).toContainText(title);
-  await expect(words).toContainText("Your words, as this device keeps them. They are checked against the contract once you unlock.");
+  await expect(words).toContainText("Your words, as this device keeps them. They are checked once you unlock.");
   await expect(page.getByTestId("kit-deal-card")).not.toContainText(title);
   await shot(page, "care-words-locked-390-en");
 

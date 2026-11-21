@@ -13,6 +13,7 @@ import { erc20Abi, type Address } from "viem";
 import { account, pickDevAccount } from "../lib/accounts";
 import { craft, cutRpc, getLogsCount, logRequests, quietDevServer, type SeedRun } from "../lib/feat-hand/helpers";
 import { hands, rpc, type Rpc } from "../lib/rpc";
+import { lensOn } from "../lib/lens";
 import { readStand, seed, tokenOf } from "../lib/stand";
 
 test.describe.configure({ mode: "serial" });
@@ -80,7 +81,8 @@ test("the fresh hand opens with no account, passes at 0%, and the next person se
   const readBack = page.getByTestId("pass-read-back");
   await expect(readBack).toHaveAttribute("data-bps", "0");
   await expect(readBack).toHaveAttribute("data-payee", "");
-  await expect(readBack).toContainText("checked here", { ignoreCase: true });
+  // The read-back is said in words; its "checked here" mark is the lens's.
+  await expect(readBack).not.toContainText("checked here", { ignoreCase: true });
   const next = await newAddress(page);
   expect(next.startsWith(`${stand.site}/${run.chainId}/${unlisted.handId}?d=`)).toBe(true);
 
@@ -143,6 +145,9 @@ test("a 10% share lands at a pasted address, read back from the new link; Core's
   expect(opened.route).toEqual([expect.objectContaining({ payee: payee, keptBps: 1000 })]);
   const other = await openElsewhere(browser, next);
   await expect(other.getByTestId("hand-rail")).toHaveAttribute("data-value", "2");
+  // The calm view names the pass "someone"; the lens shows the address it named.
+  await expect(other.getByTestId("hand-rail")).toContainText("someone");
+  await lensOn(other);
   await expect(other.getByTestId("hand-rail")).toContainText(`${payee.slice(0, 6)}…${payee.slice(-4)}`);
   await other.context().close();
 });
@@ -206,6 +211,8 @@ test("a lost description still passes; a damaged link, another Core and a newer 
 });
 
 test("past its end by the network's clock (the browser's two years behind) it reads Time's up, and account 3 sends it back", async ({ page }) => {
+  // The proof, the count of requests and the evidence under the card stand under the lens.
+  await lensOn(page);
   const expired = fixture("expired");
   await page.clock.setFixedTime(new Date(Date.now() - 2 * 365 * 86_400_000));
   const usd = tokenOf(stand, "usd");
@@ -236,6 +243,8 @@ test("past its end by the network's clock (the browser's two years behind) it re
 });
 
 test("a refunded hand looks for a newer one by the same asker with exactly the requests it announced; a found hand opens with no actions", async ({ page }) => {
+  // The proof, the count of requests and the evidence under the card stand under the lens.
+  await lensOn(page);
   const refunded = fixture("refunded");
   await page.goto(refunded.address);
   await expect(page.getByTestId("hand-closed")).toHaveAttribute("data-value", "refunded");
@@ -343,7 +352,8 @@ test("the network fails as a dark link opens: the link is kept and said so, the 
   await expect(band).toHaveAttribute("data-held", "true");
   await expect(band).toContainText("Can't reach the network right now.");
   await expect(band).toContainText("Your link is still open in this tab; nothing was sent.");
-  await expect(band).toContainText("NETWORK");
+  // The code NETWORK is the lens's; the calm view says the sentence and what was kept.
+  await expect(band).not.toContainText("NETWORK");
   await expect(band).toContainText("This link lives in this tab only.");
   await expect(page.locator("body")).not.toContainText(/ContractFunction|HttpRequest|Error\b/);
   // Not a verdict: no refusal, and nothing that sends the person away from their link.
@@ -453,7 +463,9 @@ test("on a phone both actions of an open hand are on the first screen, in Englis
     await expect(page.getByTestId("hand-action-bar")).toBeVisible();
 
     // A control focused by keyboard under the bar's place is scrolled clear of it.
-    // (On a shorter screen, where that control starts out below the bar's top edge.)
+    // (On a shorter screen, where that control starts out below the bar's top edge.) The control
+    // is the evidence's own toggle, which stands under the lens.
+    await lensOn(page);
     await page.setViewportSize({ width: 390, height: 640 });
     await page.evaluate(() => window.scrollTo(0, 0));
     const proof = page.getByRole("button", { name: lang === "en" ? "What this link proves" : "Что доказывает эта ссылка" });
@@ -496,7 +508,9 @@ test("while the network can't be reached the card claims nothing, says the block
   const restore = await cutRpc(page, stand.rpc);
   // The watcher gives a read 4 s and one retry: well inside 20 s (FINDINGS E-5).
   await expect(page.getByTestId("hand-offline")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("hand-offline")).toContainText(/^Can't reach the network right now\. This was read at block \d+ and may have changed\.$/);
+  // The calm view says it may have changed; the block it was read at stands in data-value and under the lens.
+  await expect(page.getByTestId("hand-offline")).toHaveText("Can't reach the network right now. What you see here may have changed since.");
+  await expect(page.getByTestId("hand-offline")).toHaveAttribute("data-value", /^\d+$/);
   await expect(card).not.toHaveAttribute("data-state", "open");
   await expect(card).not.toContainText("open until");
   await expect(page.getByTestId("hand-pass")).toBeDisabled();
@@ -517,7 +531,7 @@ test("a link opened while the network is down says NETWORK and that the link is 
   const error = page.getByTestId("hand-unreachable");
   await expect(error).toHaveAttribute("data-code", "NETWORK", { timeout: 20_000 });
   await expect(page.getByTestId("hand-error")).toHaveCount(0);
-  await expect(error).toContainText("NETWORK");
+  await expect(error).not.toContainText("NETWORK");
   await expect(error).toContainText("Can't reach the network right now. Your link is still open in this tab; nothing was sent.");
   await expect(error).not.toContainText("ContractFunctionExecutionError");
   await restore();
@@ -528,6 +542,8 @@ test("a link opened while the network is down says NETWORK and that the link is 
 });
 
 test("every Hand leads to its proof: a thanked one under its receipt with no count beside it; an open one at the end of what its link proves, and to /check with nothing in the address", async ({ page }) => {
+  // The proof, the count of requests and the evidence under the card stand under the lens.
+  await lensOn(page);
   const thanked = fixture("thanked");
   await page.goto(thanked.address);
   await expect(page.getByTestId("hand-closed")).toHaveAttribute("data-value", "thanked");

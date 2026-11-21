@@ -17,6 +17,7 @@ import { foundry } from "viem/chains";
 
 import { account } from "../lib/accounts";
 import { craft, quietDevServer } from "../lib/feat-hand/helpers";
+import { lensOn } from "../lib/lens";
 import { hands, rpc } from "../lib/rpc";
 import { readStand, runProgram } from "../lib/stand";
 
@@ -51,7 +52,9 @@ test("the Hand view's rail flags the pass that kept a share for the asker's own 
   await expect(flagged.getByTestId("kit-rail-flag")).toHaveText("the asker's own address");
   // The asker's own hand is not flagged; only the pass is.
   await expect(rail.locator('[data-role="asker"][data-flag]')).toHaveCount(0);
-  // Its back says why, before its proof.
+  // The flag stands in the calm view; the hand turns over only under the lens, and its back says
+  // why, before its proof.
+  await lensOn(page);
   await flagged.getByRole("button").first().click();
   await expect(rail.locator(".ah-back__flag")).toContainText("This pass named the asker's own address");
 });

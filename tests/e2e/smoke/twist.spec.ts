@@ -11,6 +11,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { isAddressEqual, type Address } from "viem";
 
 import { quietDevServer } from "../lib/feat-hand/helpers";
+import { lensOn } from "../lib/lens";
 import { rpc, type Rpc } from "../lib/rpc";
 import { readStand, seed } from "../lib/stand";
 
@@ -35,8 +36,10 @@ test.beforeAll(() => {
   fixtures = seed<{ fixtures: Record<string, Fixture> }>(undefined, ["twoPasses", "thanked", "unlisted"]).fixtures;
 });
 
-test.beforeEach(async ({ context }) => {
+// The twist is proof: hands and receipt rows turn over only under the lens.
+test.beforeEach(async ({ context, page }) => {
   await quietDevServer(context, stand.site!);
+  await lensOn(page);
 });
 
 const fixture = (name: string): Fixture => {
@@ -46,7 +49,8 @@ const fixture = (name: string): Fixture => {
 };
 
 async function gallery(page: Page, query = "?theme=light"): Promise<Locator> {
-  await page.goto(`/gallery.html${query}`);
+  // The twist is proof: the gallery turns hands over only with its lens on.
+  await page.goto(`/gallery.html${query}&lens=on`);
   const flip = page.locator('[data-kit="Flip"]').first();
   // The routes are signed in the page when it opens.
   await expect(flip.locator('[data-case="twist-route"] [data-testid="twist-flip-front"]')).toHaveCount(4);

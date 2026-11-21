@@ -18,6 +18,7 @@ import {
   ErrorBand,
   Identity,
   Mark,
+  Proof,
   QuietButton,
   SwipeButton,
   TxRail,
@@ -168,32 +169,37 @@ function FailureBand({ failure, said }: { failure: Failure; said?: string }) {
   );
 }
 
+/** Why a token can refuse: the issuer's power, for those who check. The refusal itself always stands. */
 function IssuerLine() {
   return (
-    <a href="/limits" className="ah-label ah-label--dim underline decoration-dashed underline-offset-4" data-testid={TID.waiting.issuer}>
-      {t("waiting.issuer")}
-    </a>
+    <Proof>
+      <a href="/limits" className="ah-label ah-label--dim underline decoration-dashed underline-offset-4" data-testid={TID.waiting.issuer}>
+        {t("waiting.issuer")}
+      </a>
+    </Proof>
   );
 }
 
 function WithoutUs({ call }: { call: ReturnType<typeof withdrawCall> }) {
   return (
-    <div data-testid={TID.kit.withoutUs}>
-      <Disclose label={t("waiting.withoutUs")}>
-        <span className="ah-label m-0 normal-case">{t("waiting.withoutUs.body")}</span>
-        {/* The whole line is copied; on screen it is shortened so it never pushes the page sideways (the calldata stands in full below). */}
-        <div className="grid w-full grid-cols-[minmax(0,1fr)]">
-          <CopyRow value={castLine(call, RPC ? { rpc: RPC } : {})} display={`cast send ${shortAddress(call.to)} ${call.data.slice(0, 10)}…`} />
-        </div>
-        <span className="ah-meta">{t("waiting.lens.calldata")}</span>
-        <code className="ah-meta ah-meta--exact break-all">
-          {call.to} · {call.data}
-        </code>
-        <a href="/without-us" className="ah-label underline decoration-dashed underline-offset-4">
-          {t("waiting.withoutUs.more")}
-        </a>
-      </Disclose>
-    </div>
+    <Proof>
+      <div data-testid={TID.kit.withoutUs}>
+        <Disclose label={t("waiting.withoutUs")}>
+          <span className="ah-label m-0 normal-case">{t("waiting.withoutUs.body")}</span>
+          {/* The whole line is copied; on screen it is shortened so it never pushes the page sideways (the calldata stands in full below). */}
+          <div className="grid w-full grid-cols-[minmax(0,1fr)]">
+            <CopyRow value={castLine(call, RPC ? { rpc: RPC } : {})} display={`cast send ${shortAddress(call.to)} ${call.data.slice(0, 10)}…`} />
+          </div>
+          <span className="ah-meta">{t("waiting.lens.calldata")}</span>
+          <code className="ah-meta ah-meta--exact break-all">
+            {call.to} · {call.data}
+          </code>
+          <a href="/without-us" className="ah-label underline decoration-dashed underline-offset-4">
+            {t("waiting.withoutUs.more")}
+          </a>
+        </Disclose>
+      </div>
+    </Proof>
   );
 }
 
@@ -448,12 +454,16 @@ function Known({ payee, done }: { payee: Address; done: Done[] }) {
               return (
                 <li key={`${log.transactionHash}:${log.logIndex}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--ink-a15)] py-2" data-event="Pending" data-hand={hand.toString()} data-amount={amount.toString()}>
                   <span className="flex flex-col">
-                    <span className="ah-meta">{t("waiting.events.hand", { hand: hand.toString() })}</span>
+                    <Proof>
+                      <span className="ah-meta">{t("waiting.events.hand", { hand: hand.toString() })}</span>
+                    </Proof>
                     <span className="ah-label m-0">{t("waiting.events.waited", { amount: token ? amountOf(token, amount, lang) : amount.toString() })}</span>
                   </span>
                   <span className="flex flex-wrap items-center gap-2">
                     <Mark kind="waiting" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.pending", { block: count(log.blockNumber), index: log.logIndex, tx: log.transactionHash })}</span>} />
-                    <OnExplorer tx={log.transactionHash} />
+                    <Proof>
+                      <OnExplorer tx={log.transactionHash} />
+                    </Proof>
                   </span>
                 </li>
               );
@@ -466,7 +476,9 @@ function Known({ payee, done }: { payee: Address; done: Done[] }) {
               <span className="ah-label m-0">{t("waiting.events.took", { amount: token ? amountOf(token, event.amount, lang) : event.amount.toString() })}</span>
               <span className="flex flex-wrap items-center gap-2">
                 <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.withdrawn", { block: count(event.blockNumber), index: event.logIndex, tx: event.transactionHash })}</span>} />
-                <OnExplorer tx={event.transactionHash} />
+                <Proof>
+                  <OnExplorer tx={event.transactionHash} />
+                </Proof>
               </span>
             </li>
           );
@@ -588,7 +600,9 @@ export default function WaitingScreen() {
                     <span className="ah-meta">{t("waiting.done.to")}</span>
                     <Identity address={event.to} full />
                     <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{t("waiting.lens.withdrawn", { block: count(event.blockNumber), index: event.logIndex, tx: event.transactionHash })}</span>} />
-                    <OnExplorer tx={event.transactionHash} />
+                    <Proof>
+                  <OnExplorer tx={event.transactionHash} />
+                </Proof>
                   </div>
                 );
               })}

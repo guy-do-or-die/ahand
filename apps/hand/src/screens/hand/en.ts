@@ -60,6 +60,7 @@ const en = {
 
   // The network, while the page shows a Hand (FINDINGS E-5, F2): said instead of "open".
   "hand.offline": "Can't reach the network right now. This was read at block {n} and may have changed.",
+  "hand.offline.calm": "Can't reach the network right now. What you see here may have changed since.",
   "hand.offline.opening": "Can't reach the network right now. Your link is still open in this tab; nothing was sent.",
   "hand.retry": "Try again",
 

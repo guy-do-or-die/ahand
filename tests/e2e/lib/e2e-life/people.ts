@@ -18,6 +18,7 @@ import type { Browser, BrowserContext, Page, Request } from "@playwright/test";
 import { decodeEventLog, isAddressEqual, type Address, type Hex } from "viem";
 
 import { quietDevServer } from "../feat-hand/helpers";
+import { lensOn } from "../lens";
 import { coreAbi, type Rpc } from "../rpc";
 import type { StandInfo } from "../stand";
 
@@ -148,6 +149,9 @@ export async function person(browser: Browser, name: string, stand: StandInfo): 
   const page = await context.newPage();
   // Leaving /raise before "I saved the link" asks first (beforeunload): this person agrees.
   page.on("dialog", (dialog) => void dialog.accept());
+  // The life reads every piece of evidence (each payout's payee, the rail's four steps, the
+  // events), so each person keeps the lens on, as a careful person on this device would.
+  await lensOn(page);
   return { name, context, page, sent, offHost, watch, errors };
 }
 

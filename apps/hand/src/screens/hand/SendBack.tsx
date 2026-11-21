@@ -8,7 +8,7 @@ import { t } from "../../i18n";
 import { chainName } from "../../i18n/common/chain";
 import { handKey } from "../../store/db";
 import { TID } from "../../testids";
-import { CostLine, Disclose, ErrorBand, Mark, SwipeButton, TxRail } from "../../ui";
+import { CostLine, Disclose, ErrorBand, Mark, Proof, SwipeButton, TxRail } from "../../ui";
 import { ConnectButton, refundedProbe, useKeptSend, useWallet, type SendResult } from "../../wallet";
 import { OnExplorer } from "../../shell/OnExplorer";
 
@@ -51,7 +51,9 @@ export function SendBack({ core, handId, funded }: { core: Address; handId: bigi
         <p className="m-0 flex flex-wrap items-center gap-2 font-bold" data-testid={TID.hand.wentBack}>
           {t(funded ? "hand.sendBack.done" : "hand.sendBack.doneNoReward")}
           <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{`block ${result.receipt.blockNumber} · tx ${result.receipt.transactionHash}`}</span>} />
-          <OnExplorer tx={result.receipt.transactionHash} />
+          <Proof>
+            <OnExplorer tx={result.receipt.transactionHash} />
+          </Proof>
         </p>
       ) : (
         <>

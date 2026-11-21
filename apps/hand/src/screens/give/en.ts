@@ -19,7 +19,7 @@ const en = {
   "give.words.ask": "Say what you can do. If they thank you, you get at least {amount}.",
   "give.words.askNoReward": "Say what you can do. This hand carries no reward: a thank-you only.",
   "give.words.placeholder": "For example: I know a flat like that and the owner; I can introduce you this week.",
-  "give.words.meta": "Your words go to the asker by message, not onto the chain.",
+  "give.words.meta": "Only the asker sees your words; they are never made public.",
   "give.words.count": "{n} of {max} characters",
   "give.land.noReward": "There is no reward now. If the asker adds one before thanking, it lands here.",
 
@@ -75,6 +75,7 @@ const en = {
   "give.retry": "Try again now",
   "give.answer.label": "Your answer, as a link",
   "give.answer.copyHint": "Copy it as it is: the address stands on its own line.",
+  "give.answer.label.calm": "If the asker can't see your answer, send them this link",
   "give.keyFile": "The key file is saved. Keep it with your other keys: future receipts would belong to it.",
 
   "give.thread.title": "Messages",
@@ -87,6 +88,10 @@ const en = {
   "give.thread.send": "Send",
   "give.thread.noInbox": "This hand doesn't say where to write, so there are no messages here. Your answer travels by the link above.",
   "give.waiting": "If they thank you, the money lands at {payee}.",
+  "give.waiting.calm": "If they thank you, the money lands at this address:",
+  "give.waiting.thanked": "Your share was sent to this address. If it couldn't arrive, it waits for you here:",
+  "give.delivered.calm": "Sent to the asker.",
+  "give.thanked": "The asker thanked you for this answer. Your share went to your address.",
   "give.waiting.go": "See what waits for this address",
 
   "give.lens.heading": "What was checked",

@@ -9,7 +9,7 @@ import { chainName } from "../../i18n/common/chain";
 import { navigate } from "../../router";
 import { bookOf, forHand, handKey, put, type HandRecord, type PassedRecord } from "../../store/db";
 import { TID } from "../../testids";
-import { CopyRow, Mark, QuietButton, RewardBar, SwipeButton, day, money, useLang, useLens } from "../../ui";
+import { CopyRow, Mark, Proof, QuietButton, RewardBar, SwipeButton, day, money, useLang, useLens } from "../../ui";
 import { ConnectButton, resume, useWallet } from "../../wallet";
 import { onItsWay, resumeRaise, type RaiseContext } from "../raise/flow";
 import { listChanged, useAnswers, useInboxSight, useMyHands, usePassed, useSecrets } from "./hooks";
@@ -166,15 +166,24 @@ function ListItem({ record, account }: { record: HandRecord; account: Address | 
   const left = view ? secondsLeft(view.expiry, now?.timestamp) : undefined;
   const href = `/my/${record.chainId}/${handId}`;
   const other = account && record.raiser.toLowerCase() !== account.toLowerCase();
+  // A closed Hand has nothing left to do: its card says only how it ended, not the floor a
+  // helper would get or that answers wait to be checked.
+  const closed = state === "thanked" || state === "refunded";
 
   return (
     <li className="ah-card flex flex-col gap-3 p-4 md:p-5" data-testid={TID.my.item} data-value={key} data-state={state ?? "unknown"}>
       <a href={href} className="flex flex-col gap-1 text-[var(--ink)] no-underline">
-        <span className="ah-meta ah-exact">#{handId.toString()}</span>
+        <Proof>
+          <span className="ah-meta ah-exact">#{handId.toString()}</span>
+        </Proof>
         <span className="text-[length:var(--fs-card-title-lg)] font-extrabold leading-tight tracking-[-0.02em]">{record.title || t("my.added", { id: handId.toString() })}</span>
       </a>
       {!record.title ? <Line dim>{t("my.addedWhy")}</Line> : null}
-      {view ? (
+      {view && closed ? (
+        state === "thanked" && view.reward > 0n ? (
+          <span className="ah-label">{t("my.paidOut", { reward: money(view.reward, decimals, lang) })}</span>
+        ) : null
+      ) : view ? (
         view.reward > 0n ? (
           <div className="flex flex-col gap-2">
             <RewardBar
@@ -191,7 +200,7 @@ function ListItem({ record, account }: { record: HandRecord; account: Address | 
       ) : null}
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[length:var(--fs-body-sm)] font-semibold">
         {view ? <StateLine state={state} expiry={view.expiry} closedAt={view.closedAt} funded={view.reward > 0n} /> : null}
-        <span data-testid={TID.my.answerCount} data-value={answered} data-state={sight}>
+        <span data-testid={TID.my.answerCount} data-value={answered} data-state={sight} hidden={closed}>
           {t(count.id, count.values)}
         </span>
       </div>

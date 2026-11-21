@@ -6,7 +6,7 @@ import { stampSeed } from "../../store/db";
 import { rememberText } from "../../store/memory";
 import { t } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, ErrorBand, GestureEmoji, Mark, Qr, QuietButton, shortAddress, TxRail, type TxReached } from "../../ui";
+import { CopyRow, Disclose, ErrorBand, GestureEmoji, Mark, Proof, Qr, QuietButton, shortAddress, TxRail, type TxReached } from "../../ui";
 import { saved, type Up } from "./flow";
 import { OnExplorer } from "../../shell/OnExplorer";
 
@@ -117,10 +117,12 @@ export function Share({ up, reached, local, chainId, txHash, blockNumber, onShow
               <p className="ah-label m-0">{t("raise.share.qrNote")}</p>
             </div>
           ) : null}
-          <p className="ah-label m-0 flex flex-wrap items-center gap-2">
-            <span>{t("raise.share.checked", { id: handId })}</span>
-            <Mark kind="checked" source={<span className="ah-meta ah-meta--exact">{t("raise.share.lens.size", { bytes: written.linkBytes, shape: written.shape, qrBytes: written.qrBytes })}</span>} />
-          </p>
+          <Proof>
+            <p className="ah-label m-0 flex flex-wrap items-center gap-2">
+              <span>{t("raise.share.checked", { id: handId })}</span>
+              <Mark kind="checked" source={<span className="ah-meta ah-meta--exact">{t("raise.share.lens.size", { bytes: written.linkBytes, shape: written.shape, qrBytes: written.qrBytes })}</span>} />
+            </p>
+          </Proof>
           {!locked ? <p className="ah-label ah-label--dim m-0">{t("raise.share.tabOnly")}</p> : null}
         </div>
       ) : onShow ? (

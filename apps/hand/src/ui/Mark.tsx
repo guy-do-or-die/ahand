@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 
 import { clsx } from "../lib/clsx";
 import { useLens } from "./ambient";
+import { useShown } from "./Proof";
 import { useWords } from "./words";
 
 export type MarkKind = "checked" | "chain" | "waiting";
@@ -30,13 +31,19 @@ const GLYPH: Record<MarkKind, string> = { checked: "✓", chain: "⛓️", waiti
  * The three marks, which never look alike: an ink outline, an ink fill, a dashed outline.
  * Each carries its words, so the state is never told by shape or colour alone. A mark with a
  * source is a button that opens it underneath; the lens opens every one.
+ *
+ * "Checked here" and "On chain" say how a claim is known, which is proof: they stand only under
+ * the lens. "Waiting" says where money is, so it stays in the calm view too, as a plain tag
+ * that opens nothing until the lens is on.
  */
 export function Mark({ kind, source, opens, className }: MarkProps) {
   const words = useWords();
   const lens = useLens();
+  const shown = useShown();
   const [own, setOwn] = useState(false);
   const id = useId();
   const open = lens || own;
+  if (!shown && kind !== "waiting") return null;
   const face = (
     <>
       <span aria-hidden="true" className="ah-mark__glyph">
@@ -46,6 +53,7 @@ export function Mark({ kind, source, opens, className }: MarkProps) {
     </>
   );
 
+  if (!shown) return <span className={clsx("ah-mark", `ah-mark--${kind}`, className)}>{face}</span>;
   if (opens) {
     return (
       <button

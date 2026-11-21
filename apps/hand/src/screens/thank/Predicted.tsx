@@ -2,7 +2,7 @@ import type { ThankGas } from "@ahand/sdk";
 
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { Disclose, Mark, count, percent, receiptAmounts, shortAddress, useLens, useWords } from "../../ui";
+import { Disclose, Mark, Proof, count, percent, receiptAmounts, shortAddress, useLens, useWords } from "../../ui";
 import { namesNoOne, type Payout } from "./model";
 
 /**
@@ -57,8 +57,10 @@ export function Predicted({ payouts, decimals, noReward, gas }: { payouts: Payou
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="min-w-0">
                     <span className="font-semibold">{t(helper ? "thank.predicted.helper" : "thank.predicted.passed")}</span>
-                    {nobody ? null : <span className="ah-exact ml-2 text-[length:var(--fs-mono-md)]">{shortAddress(payout.payee)}</span>}
-                    {payout.bps > 0 ? <span className="ah-meta ml-2">{percent(payout.bps, lang)}</span> : null}
+                    <Proof>
+                      {nobody ? null : <span className="ah-exact ml-2 text-[length:var(--fs-mono-md)]">{shortAddress(payout.payee)}</span>}
+                      {payout.bps > 0 ? <span className="ah-meta ml-2">{percent(payout.bps, lang)}</span> : null}
+                    </Proof>
                   </span>
                   {nothing ? (
                     <span className="ah-label shrink-0">{kept}</span>

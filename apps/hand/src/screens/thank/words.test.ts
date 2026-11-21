@@ -17,10 +17,10 @@ describe("thank words", () => {
 
   test("the fine print under who gets what says who can take a waiting payout out, and that anyone can deliver it", () => {
     expect(en["thank.predicted.waitsIfBlocked"]).toBe(
-      "If a payout can't move, it waits in the contract until whoever it belongs to takes it out — or anyone delivers it to that address.",
+      "If a payment can't get through, it is held until whoever it belongs to takes it, or anyone delivers it to them.",
     );
     expect(ru["thank.predicted.waitsIfBlocked"]).toBe(
-      "Если выплата не сможет пройти, она подождёт в контракте, пока её не заберёт тот, кому она причитается, — или кто угодно не доставит её на этот адрес.",
+      "Если выплата не может пройти, она хранится, пока её не заберёт тот, кому она причитается, или пока кто-нибудь не доставит её ему.",
     );
   });
 
@@ -29,6 +29,10 @@ describe("thank words", () => {
       expect(catalogue["thank.spent"]).toContain("{usd}");
       expect(catalogue["thank.spent"]).toContain("{date}");
       expect(catalogue["thank.spent.steps"]).toContain("{usd}");
+      // The calm view's sentences leave the price snapshot's date to the lens.
+      expect(catalogue["thank.spent.calm"]).toContain("{usd}");
+      expect(catalogue["thank.spent.calm"]).not.toContain("{date}");
+      expect(catalogue["thank.spent.steps.calm"]).not.toContain("{date}");
       for (const key of ["thank.lens.tx", "thank.lens.tx.hash", "thank.lens.tx.from", "thank.lens.tx.block", "thank.lens.tx.gas", "thank.lens.tx.fee"]) {
         expect(catalogue[key]).toBeTruthy();
       }

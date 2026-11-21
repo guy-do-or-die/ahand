@@ -24,6 +24,9 @@ const en = {
   "raise.reward.issuer": "Held in USDC. Its issuer can freeze addresses; then that money waits.",
   "raise.reward.issuerTest": "Held in test USDC on {network}: it is worth nothing. Its issuer can freeze addresses; then that money waits.",
   "raise.reward.issuerStand": "Held in test dollars, standing in for USDC. USDC's issuer can freeze addresses; then that money waits.",
+  "raise.reward.calm": "Held in USDC.",
+  "raise.reward.calmTest": "Held in test USDC on {network}: it is worth nothing.",
+  "raise.reward.calmStand": "Held in test dollars.",
   "raise.reward.lens.token": "Token {address} · {decimals} decimals, read from the token",
 
   // 3. Open until
@@ -56,6 +59,7 @@ const en = {
 
   // 5. Fine-tune
   "raise.fine.label": "Fine-tune",
+  "raise.fine.calm": "the helper gets at least {pct}",
   "raise.fine.minClaim": "The helper gets at least {pct}",
   "raise.fine.minClaimWhy": "Whoever passes it on can keep a share only out of what is above this.",
   "raise.fine.room": "Room for each payout: {k}",
@@ -77,12 +81,13 @@ const en = {
   "raise.steps.allow": "1 of 2: allow",
   "raise.steps.raise2": "2 of 2: raise",
   "raise.steps.raise": "Raise",
-  "raise.steps.tried": "The call is tried against the network before anything is sent.",
+  "raise.steps.tried": "Before anything is sent, we check that it will go through.",
 
   // The keys card
   "raise.keys.title": "Your link",
-  "raise.keys.body": "One confirmation makes this hand's link from your account, so there is no key for you to keep. Confirm it only here: a site that gets the same confirmation could rebuild your links and read replies to you. It could not take the reward.",
-  "raise.keys.twice": "The first time on this device it asks twice. Checking that your account answers the same way twice.",
+  "raise.keys.body": "Confirm once, so this device can bring your link and the answers to you back later. There is no key for you to keep, and this confirmation can't move money.",
+  "raise.keys.warn": "Confirm it only on this site: another site that got the same confirmation could rebuild your links and read replies to you. It could not take the reward.",
+  "raise.keys.twice": "The first time on this device it asks twice, to check that your account answers the same way both times.",
   "raise.keys.confirm": "Confirm",
   "raise.keys.back": "Not now",
   "raise.keys.what": "What exactly you are confirming",

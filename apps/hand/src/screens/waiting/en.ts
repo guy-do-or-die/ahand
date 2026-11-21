@@ -3,7 +3,7 @@
 // Keys with a `lens` segment are the specialist layer: Core's own names, in mono.
 const en = {
   "waiting.title": "Money waiting for an address.",
-  "waiting.intro": "When money can't reach its address at the moment a hand is thanked or sent back, it waits in the contract. From here it can be taken out, or delivered.",
+  "waiting.intro": "When money can't reach its address at the moment a hand is thanked or sent back, it is held until it can. From here it can be taken out, or delivered.",
 
   // Whose money
   "waiting.look.label": "Whose money? Paste any address to look",
@@ -45,7 +45,7 @@ const en = {
   "waiting.failed": "It didn't go through.",
 
   // After it went
-  "waiting.done": "{amount} left the contract for the address below.",
+  "waiting.done": "Sent: {amount} reached the address below.",
   "waiting.done.to": "Landed at",
 
   // Do it without us
@@ -56,11 +56,11 @@ const en = {
   // Hands this device knows
   "waiting.events.heading": "From hands this device knows",
   "waiting.events.reading": "Reading what those hands left…",
-  "waiting.events.noHands": "This device knows no hands yet. The amounts above come from the contract itself.",
+  "waiting.events.noHands": "This device knows no hands yet. The amounts above are read from the public record itself.",
   "waiting.events.none": "No hand this device knows left money waiting for this address.",
   "waiting.events.hand": "Hand {hand}",
   "waiting.events.waited": "{amount} started waiting here",
-  "waiting.events.took": "{amount} left the contract",
+  "waiting.events.took": "{amount} taken out",
 
   // The lens: Core's own names
   "waiting.lens.perToken": "Waiting money is counted per token and address, not per hand: pending(token, payee).",

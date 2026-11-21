@@ -219,7 +219,8 @@ test("a give in the inbox is an answer only after Core's checkGive; a broken one
   const reply = "Thank you! Is it quiet in the mornings?";
   await answer.getByTestId("my-reply-input").fill(reply);
   await answer.getByTestId("my-reply-send").click();
-  await expect(answer.getByRole("status")).toContainText("Delivered to 1 of 1 relay.");
+  // The calm view says it went; how many relays took it is the lens's.
+  await expect(answer.getByRole("status")).toContainText("Sent to the helper.");
   const heard = craft<{ ok: boolean; envelopes: { kind: string; text?: string; replyTo: string; hand: { handId: string } }[] }>("deliver-listen", "--secret", sent.chatSecret, "--wait", "8000");
   expect(heard.ok).toBe(true);
   expect(heard.envelopes).toContainEqual(expect.objectContaining({ kind: "note", text: reply, replyTo: mine.inbox, hand: expect.objectContaining({ handId: mine.handId }) }));

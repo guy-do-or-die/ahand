@@ -4,7 +4,7 @@ import type { Hex, TransactionReceipt } from "viem";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, GestureEmoji, Mark, ReceiptTable, count, money, receiptAmounts, shortAddress } from "../../ui";
+import { CopyRow, Disclose, GestureEmoji, Mark, Proof, ReceiptTable, count, money, receiptAmounts, shortAddress, useLens } from "../../ui";
 import { ThankSpent } from "./Spent";
 import { OnExplorer } from "../../shell/OnExplorer";
 
@@ -41,6 +41,7 @@ export function ThankReceipt({
   handId: bigint;
 }) {
   const lang = useLang();
+  const lens = useLens();
   const payouts = receipt.rows.map((row, index) => ({ row, index })).filter(({ row }) => row.eventName === "Paid" || row.eventName === "Pending");
   const block = receipt.rows[0]?.log.blockNumber;
   // Each payout as the receipt writes it: in cents, or every digit where cents would hide some (M-4).
@@ -56,7 +57,7 @@ export function ThankReceipt({
     <section className="flex flex-col gap-4" data-testid={TID.thank.done} data-hash={hash}>
       <p className="m-0 flex items-start gap-3 text-[length:var(--fs-title-m)] font-extrabold leading-[1.08] tracking-[-0.03em]">
         <GestureEmoji kind="bow" className="shrink-0" />
-        <span>{t(before ? "thank.done.before" : "thank.done")}</span>
+        <span>{t(before ? (lens ? "thank.done.before" : "thank.done.before.calm") : lens ? "thank.done" : "thank.done.calm")}</span>
       </p>
 
       <div data-testid={TID.thank.receipt} data-landed={landed ? landed.map(String).join(",") : ""}>
@@ -72,6 +73,9 @@ export function ThankReceipt({
           {payouts.map(({ row, index }, at) => {
             const waiting = row.eventName === "Pending";
             const amount = written.rows[at]!;
+            // The table above already says who got what; in the calm view a payout stands here
+            // again only when it waits, because then someone has something left to do.
+            if (!lens && !waiting) return null;
             return (
               <li
                 key={index}
@@ -84,9 +88,11 @@ export function ThankReceipt({
               >
                 <span className="flex flex-wrap items-center gap-2 font-semibold">
                   {waiting ? <Mark kind="waiting" /> : <Mark kind="chain" source={<span className="ah-meta ah-meta--exact">{t("thank.lens.event", { event: row.eventName, block: count(row.log.blockNumber), index: row.log.logIndex })}</span>} />}
-                  <span>{t(waiting ? "thank.waiting" : "thank.left", { amount, payee: shortAddress(row.payee ?? "") })}</span>
+                  <span>{lens ? t(waiting ? "thank.waiting" : "thank.left", { amount, payee: shortAddress(row.payee ?? "") }) : t("thank.waiting.calm", { amount })}</span>
                 </span>
-                <span className="ah-meta ah-meta--exact break-all">{row.payee}</span>
+                <Proof>
+                  <span className="ah-meta ah-meta--exact break-all">{row.payee}</span>
+                </Proof>
                 {waiting ? <span className="ah-label">{t("thank.waiting.why")}</span> : null}
               </li>
             );
@@ -94,7 +100,11 @@ export function ThankReceipt({
         </ul>
       )}
 
-      {hash ? <OnExplorer tx={hash} /> : null}
+      {hash ? (
+        <Proof>
+          <OnExplorer tx={hash} />
+        </Proof>
+      ) : null}
 
       <ThankSpent sent={sent} {...(inHand ? { inHand } : {})} chainId={chainId} />
 
@@ -111,9 +121,11 @@ export function ThankReceipt({
         </ol>
       </Disclose>
 
-      <a className="ah-quiet self-start no-underline" href={`/${chainId}/${handId.toString()}/proof`} data-testid={TID.thank.proof}>
-        {t("thank.proof")}
-      </a>
+      <Proof>
+        <a className="ah-quiet self-start no-underline" href={`/${chainId}/${handId.toString()}/proof`} data-testid={TID.thank.proof}>
+          {t("thank.proof")}
+        </a>
+      </Proof>
     </section>
   );
 }
@@ -122,16 +134,21 @@ export function ThankReceipt({
 export function WithoutUs({ calls }: { calls: Call[] }) {
   const rpc = config.chain.rpcUrls[0];
   return (
-    <div data-testid={TID.thank.withoutUs}>
-      <Disclose label={t("thank.withoutUs")}>
-        <p className="ah-label m-0">{t("thank.withoutUs.lead")}</p>
-        {calls.map((call, index) => (
-          <CopyRow key={index} value={castLine(call, rpc ? { rpc } : {})} display={`${index + 1}. ${castLine(call, { rpc: "$RPC" }).slice(0, 72)}…`} />
-        ))}
-        <a className="ah-label" href="/without-us">
-          {t("thank.withoutUs.page")}
-        </a>
-      </Disclose>
-    </div>
+    <Proof>
+      <div data-testid={TID.thank.withoutUs}>
+        <Disclose label={t("thank.withoutUs")}>
+          <p className="ah-label m-0">{t("thank.withoutUs.lead")}</p>
+          {/* A track that may shrink, so a long line never pushes a phone's page sideways. */}
+          <div className="grid w-full grid-cols-[minmax(0,1fr)] gap-2">
+            {calls.map((call, index) => (
+              <CopyRow key={index} value={castLine(call, rpc ? { rpc } : {})} display={`${index + 1}. ${castLine(call, { rpc: "$RPC" }).slice(0, 72)}…`} />
+            ))}
+          </div>
+          <a className="ah-label" href="/without-us">
+            {t("thank.withoutUs.page")}
+          </a>
+        </Disclose>
+      </div>
+    </Proof>
   );
 }

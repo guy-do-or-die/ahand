@@ -190,20 +190,22 @@ test("the rail flags a pass at the asker's own address and crosses out a holder 
   await expect(dropped.locator("ol")).toHaveAttribute("aria-label", "3 hands so far.");
 });
 
-test("a figure opens to its source, and the lens opens them all", async ({ page }) => {
+test("a figure is plain words in the calm view, and the lens opens every source", async ({ page }) => {
   await open(page);
   const card = panel(page, "light").locator('[data-case="open"] .ah-deal');
+  // The calm view (the owner, 2026-11-21): the amount and the floor are words, nothing opens.
+  await expect(card).toContainText("$40 reward");
+  await expect(card).toContainText("at least $28");
   await expect(card).not.toContainText("hands(12).reward");
-  await card.getByRole("button", { name: "$40" }).click();
-  await expect(card).toContainText("hands(12).reward = 40000000");
-  await expect(card.locator(".ah-mark--chain")).toBeVisible();
-  await card.getByRole("button", { name: "at least $28" }).click();
-  // M-1: Core rounds each pass's share down, so the helper's least is the ceiling.
-  await expect(card).toContainText("⌈40 × 7000 / 10 000⌉ = 28");
+  await expect(card.getByRole("button", { name: "$40" })).toHaveCount(0);
+  await expect(card.locator(".ah-mark")).toHaveCount(0);
 
   await open(page, "?lens=on");
   const lensed = panel(page, "dark").locator('[data-case="open"] .ah-deal');
   await expect(lensed).toContainText("hands(12).reward = 40000000");
+  await expect(lensed.locator(".ah-mark--chain").first()).toBeVisible();
+  // M-1: Core rounds each pass's share down, so the helper's least is the ceiling.
+  await expect(lensed).toContainText("⌈40 × 7000 / 10 000⌉ = 28");
   await expect(lensed).toContainText("hands(12).expiry = 1797768000");
   await expect(lensed).toContainText("Network time · block 1 234 · 20 Nov 14:02");
   await expect(panel(page, "dark").locator('[data-case="thanked"] .ah-deal')).toContainText("hands(12).closedAt = 1796299200");
@@ -214,54 +216,42 @@ test("a figure opens to its source, and the lens opens them all", async ({ page 
   await expect(preview.locator(".ah-mark--chain")).toHaveCount(0);
 });
 
-test("a date on the Deal card opens to the second Core keeps, in the reader's zone and in UTC", async ({ page }) => {
+test("under the lens a date on the Deal card stands with the second Core keeps, in the reader's zone and in UTC", async ({ page }) => {
   await open(page);
+  const calm = panel(page, "light");
+  await expect(calm.locator('[data-case="open"] .ah-deal')).not.toContainText("hands(12).expiry");
+  await expect(calm.locator('[data-case="thanked"] .ah-deal')).not.toContainText("closedAt");
+  await expect(calm.locator('[data-case="thanked"] .ah-deal').getByRole("button", { name: "On chain" })).toHaveCount(0);
+
+  await open(page, "?lens=on");
   const side = panel(page, "light");
   const card = (id: string) => side.locator(`[data-case="${id}"] .ah-deal`);
   const source = (id: string, field: "expiry" | "closedAt") => card(id).locator(`[data-source="${field}"]`);
 
   // Open: "open until 20 Dec" is hands(12).expiry. The gallery's reader is in UTC: one line.
-  await expect(card("open")).not.toContainText("hands(12).expiry");
-  await card("open").getByRole("button", { name: "20 Dec", exact: true }).click();
   await expect(source("open", "expiry")).toContainText("hands(12).expiry = 1797768000");
   await expect(source("open", "expiry")).toContainText("20 Dec 2026, 12:00:00 UTC");
   await expect(source("open", "expiry").locator(".ah-mark--chain")).toBeVisible();
   await expect(source("open", "expiry")).toContainText("block 1 234");
-  await card("open").getByRole("button", { name: "20 Dec", exact: true }).click();
-  await expect(source("open", "expiry")).toHaveCount(0);
 
   // A reader elsewhere gets their own zone first, then UTC.
-  await card("zone").getByRole("button", { name: "20 Dec", exact: true }).click();
   await expect(source("zone", "expiry").locator(".ah-meta--exact")).toHaveText(["hands(12).expiry = 1797768000", "20 Dec 2026, 16:00:00 GMT+4", "20 Dec 2026, 12:00:00 UTC"]);
 
   // Time's up, and no block yet: the same field behind "was open until" and "until".
-  await card("expired").getByRole("button", { name: "20 Dec", exact: true }).click();
   await expect(source("expired", "expiry")).toContainText("hands(12).expiry = 1797768000");
-  await card("no-clock").getByRole("button", { name: "20 Dec", exact: true }).click();
   await expect(source("no-clock", "expiry")).toContainText("hands(12).expiry = 1797768000");
   await expect(source("no-clock", "expiry")).not.toContainText("block");
 
-  // Closed: "Thanked on 3 Dec." is hands(12).closedAt, and the chain mark beside it opens the same.
+  // Closed: "Thanked on 3 Dec." is hands(12).closedAt, and the chain mark beside it says it is open.
   const thanked = card("thanked");
-  const mark = thanked.locator(".ah-deal__closed").getByRole("button", { name: "On chain" });
-  await expect(mark).toHaveAttribute("aria-expanded", "false");
-  await expect(thanked).not.toContainText("closedAt");
-  await thanked.getByRole("button", { name: "3 Dec", exact: true }).click();
+  await expect(thanked.locator(".ah-deal__closed").getByRole("button", { name: "On chain" })).toHaveAttribute("aria-expanded", "true");
   await expect(source("thanked", "closedAt").locator(".ah-meta--exact")).toHaveText(["hands(12).closedAt = 1796299200", "3 Dec 2026, 12:00:00 UTC"]);
   await expect(source("thanked", "closedAt")).toContainText("block 1 234");
-  await expect(mark).toHaveAttribute("aria-expanded", "true");
-  await mark.click();
-  await expect(source("thanked", "closedAt")).toHaveCount(0);
-  await mark.click();
-  await expect(source("thanked", "closedAt")).toContainText("hands(12).closedAt = 1796299200");
-
-  await card("refunded").getByRole("button", { name: "21 Dec", exact: true }).click();
   await expect(source("refunded", "closedAt")).toContainText("hands(12).closedAt = 1797854400");
 
   // In Russian the dates are written the Russian way; Core's names stay as they are.
-  await open(page, "?lang=ru");
+  await open(page, "?lang=ru&lens=on");
   const ru = panel(page, "light").locator('[data-case="zone"] .ah-deal');
-  await ru.getByRole("button", { name: "20 дек", exact: true }).click();
   await expect(ru.locator('[data-source="expiry"] .ah-meta--exact')).toHaveText(["hands(12).expiry = 1797768000", "20 дек. 2026 г., 16:00:00 GMT+4", "20 дек. 2026 г., 12:00:00 UTC"]);
 });
 
@@ -275,7 +265,9 @@ test("Cyrillic headlines are drawn in Onest, Latin ones in Schibsted Grotesk", a
   expect(russian.some((family) => /Onest/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
   expect(russian.every((family) => /Onest|Schibsted/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
 
-  // Mono in Russian is still IBM Plex Mono, whose Cyrillic is self-hosted too.
+  // Mono in Russian is still IBM Plex Mono, whose Cyrillic is self-hosted too (a mark is proof:
+  // it stands under the lens).
+  await open(page, "?lang=ru&lens=on");
   const mono = await fontsDrawn(page, '[data-panel="light"] [data-kit="Mark"] .ah-mark--checked');
   expect(mono.some((family) => /IBM Plex Mono/i.test(family)), `drawn with: ${mono.join(", ")}`).toBe(true);
 

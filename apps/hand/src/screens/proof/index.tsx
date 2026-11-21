@@ -8,7 +8,7 @@ import { t } from "../../i18n";
 import { navigate } from "../../router";
 import type { ScreenProps } from "../../routes";
 import { TID } from "../../testids";
-import { CopyRow, Disclose, ErrorBand, Mark, QuietButton, count, day, money, moneyExact, receiptAmounts, shortAddress, useLang, type Lang } from "../../ui";
+import { ProofPage, CopyRow, Disclose, ErrorBand, Mark, QuietButton, count, day, money, moneyExact, receiptAmounts, shortAddress, useLang, type Lang } from "../../ui";
 import { reproduceLine } from "../core/facts";
 import {
   amountOfCheck,
@@ -319,7 +319,20 @@ function Line({ check, record, facts, section, shown, lang, exact }: { check: Ch
 
 /* ──────────────────────────────────────────────────────────── the screen ── */
 
+/**
+ * The passport is itself the proof a person came to see, so its evidence is drawn whatever the lens
+ * says (`ProofPage`): each mark and disclosure one tap away, and all of them open under the lens.
+ * The calm view only keeps the way here out of ordinary screens.
+ */
 export default function ProofScreen({ params }: ScreenProps) {
+  return (
+    <ProofPage>
+      <ProofScreenBody params={params} />
+    </ProofPage>
+  );
+}
+
+function ProofScreenBody({ params }: ScreenProps) {
   const lang = useLang();
   const chainId = Number(params.chain);
   const handId = BigInt(params.hand ?? "0");
