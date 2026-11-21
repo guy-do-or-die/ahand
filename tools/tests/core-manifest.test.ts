@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -46,6 +46,9 @@ describe("core-check", () => {
 
   test("without a deployment file it checks the address this tree derives", () => {
     if (existsSync(join(REPO, "contracts/deployments/31337.json"))) return; // another run's file decides then
+    // A stand that is up (this run's or another agent's in the same tree) leaves its slot's file,
+    // and core-check then takes that one instead: the case this test is about cannot happen.
+    if (readdirSync(join(REPO, "contracts/deployments")).some((name) => /^31337-slot\d\.json$/.test(name))) return;
     const run = cli("core-check", "--rpc", chain.rpc);
     expect(run.status).toBe(0);
     expect(run.stdout).toContain("no deployment file for chain 31337");
