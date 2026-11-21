@@ -30,7 +30,8 @@ import { readStand, REPO_ROOT, runProgram, seed, standFile, standSlot, startServ
 
 test.describe.configure({ mode: "serial" });
 
-const SHOTS = "/home/guy_do_or_die/workspace/ahand/knowledge/plan/research/2026-11-20-experiment/shots/build/drill";
+/** Screenshots go under AHAND_SHOTS_DIR, by default output/shots in the clone (ignored by git). */
+const SHOTS = join(process.env.AHAND_SHOTS_DIR ?? join(REPO_ROOT, "output", "shots"), "build/drill");
 
 interface Fixture {
   handId: string;

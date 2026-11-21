@@ -65,8 +65,7 @@ function LangSwitch() {
 /**
  * The lens switch, beside the theme switch and drawn exactly like it (ui/ThemeToggle.tsx): a bare
  * 16px ink glyph in a 44×44 box, no word, no rim, no fill, no padding, the same colour and cursor.
- * The owner on 2026-11-21: «ты можешь еще переверстать саму кнопку, чтоб аккуратно было, как
- * переключение темы?» ("can you redo the button itself so it is neat, like the theme switch?").
+ * Decided by the owner on 2026-11-21: the lens switch is drawn like the theme switch.
  * The first build had the word "Proof" beside the glyph and an amber fill when pressed.
  *
  * No emoji (those are kept for the gestures). On and off differ by shape, not only by colour, the
@@ -137,12 +136,8 @@ export function Header() {
  * address keeps its case (mono is exact data; the style sets the rest in capitals).
  *
  * The first build's line was "Unaudited · Core {core} · No owner · No fee" (the calm view without
- * the address). The owner on 2026-11-21: «и заодним другой мусор из подвала убрать про контракт
- * (можно под лупой оставить, но тож хз), no audit (мы, что, этим типа гордимся?), no owner, no
- * fees... нахуя это там?» ("and while at it take the other junk about the contract out of the
- * footer (it can stay under the lens, but I'm not sure either), no audit (what, are we proud of
- * that?), no owner, no fees... why is that there?"). So the three facts are gone from both views
- * and only Core's address stays, under the lens. The warning is not lost: /limits ends with
+ * the address). Decided by the owner on 2026-11-21: the footer drops "Unaudited", "No owner" and
+ * "No fee" from both views, and only Core's address stays, under the lens. The warning is not lost: /limits ends with
  * "Unaudited" in full (`limits.unaudited.say`), and /core says it again (`core.unaudited`).
  */
 function CoreLine({ core }: { core: string }) {

@@ -127,8 +127,8 @@ describe("fileServe: the one line that serves this file's folder", () => {
 });
 
 describe("the footer's words", () => {
-  // The owner had "Unaudited · No owner · No fee" taken out of the app's footer on 2026-11-21 and,
-  // asked about this page's own copy of it, answered «Убрать и там».
+  // Decided by the owner on 2026-11-21: "Unaudited · No owner · No fee" leaves the app's footer
+  // and this page's footer too.
   test("the old line is gone from the page and from both languages", async () => {
     const { say } = await import("./words");
     const main = await Bun.file(new URL("./main.ts", import.meta.url)).text();

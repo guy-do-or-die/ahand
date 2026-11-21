@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /**
- * The calm view and the lens (the owner, 2026-11-21: "far too noisy for ordinary people", hide
- * it all under the lens). With the lens off, the kit draws plain words: no marks of how a claim
+ * The calm view and the lens (decided by the owner on 2026-11-21: the evidence is hidden under
+ * the lens). With the lens off, the kit draws plain words: no marks of how a claim
  * is known, no Core field names, no block numbers, no short addresses, no disclosures. With it
  * on, every piece of that evidence stands where it stood. What a person needs to act safely
  * stays in both: the whole address money lands at, the asker's-words warning, an error's

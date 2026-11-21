@@ -1,6 +1,6 @@
 # evidence: the last run, the screenshots and the report
 
-Wave 7, 2026-11-20, 10:22–10:52 (Yerevan). Slots 0 and 9; package test ports 20000–20049. No code
+Wave 7, 2026-11-20, 10:22–10:52 (UTC+4). Slots 0 and 9; package test ports 20000–20049. No code
 of earlier waves was changed.
 
 ## What I built

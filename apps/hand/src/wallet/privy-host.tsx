@@ -34,9 +34,8 @@ import { PrivyUnavailableError, setPrivyPhase, type PrivyHost, type PrivyLoginMe
  *     header would cut the pop-up off, and its extension is found by EIP-6963 anyway.
  *   - a wallet Privy keeps is made on first entry for anyone without one (`users-without-wallets`):
  *     whoever comes with a crypto wallet gets none.
- *   - Privy's own confirmation windows follow the lens (`showWalletUIs: look.lens`): the owner on
- *     2026-11-21, asked whether they are needed, «в режиме лупы можно демонстрировать»
- *     (docs/defaults.md question 10). With the lens on, a wallet Privy keeps (email, social,
+ *   - Privy's own confirmation windows follow the lens (`showWalletUIs: look.lens`), as decided by
+ *     the owner on 2026-11-21 (docs/defaults.md question 10). With the lens on, a wallet Privy keeps (email, social,
  *     passkey) shows Privy's window for every signature and transaction, so a person who checks
  *     sees what is signed in Privy's words; for a transaction that window also waits for the
  *     receipt and hands the hash back only at its "All Done", so the app's rail stays on "asking"
@@ -215,7 +214,7 @@ export function privyClientConfig(chain: ChainConfig, look: PrivyLook): PrivyCli
     supportedChains: [viemChain],
     embeddedWallets: {
       ethereum: { createOnLogin: "users-without-wallets" },
-      // The owner, 2026-11-21: Privy's windows in the lens only. Read by Privy at each request (its
+      // Decided by the owner on 2026-11-21: Privy's windows in the lens only. Read by Privy at each request (its
       // `isHeadlessSigning`), so the window that comes is the lens's of that moment.
       showWalletUIs: look.lens,
     },

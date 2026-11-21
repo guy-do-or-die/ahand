@@ -8,9 +8,9 @@ import { GESTURE_EMOJI, GESTURE_KEYFRAMES, GestureEmoji, type GestureKind } from
 import { SwipeButton } from "./SwipeButton";
 
 /**
- * The gesture emoji move (the owner, 2026-11-21: "the emoji stopped moving"). Each gesture idles
- * with its own keyframes, the swipe buttons use the same class set, and reduced motion still
- * stops everything. The browser half of this (computed animation-name on the real screens) is
+ * The gesture emoji move (fixed on 2026-11-21 after the owner reported that they had stopped).
+ * Each gesture idles with its own keyframes, the swipe buttons use the same class set, and reduced
+ * motion still stops everything. The browser half of this (computed animation-name on the real screens) is
  * tests/e2e/smoke/gesture.spec.ts.
  */
 

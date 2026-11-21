@@ -1,6 +1,7 @@
 /**
- * The gesture emoji move (the owner, 2026-11-21: "the emoji stopped moving"; UX-SPEC §2: the
- * gesture on the main action and in the hero idles, reduced motion stops everything). Each place
+ * The gesture emoji move (fixed on 2026-11-21 after the owner reported that they had stopped;
+ * UX-SPEC §2: the gesture on the main action and in the hero idles, reduced motion stops
+ * everything). Each place
  * where a gesture is the hero of the moment is read in a real browser: the computed
  * animation-name is that gesture's own keyframes, the emoji's transform really changes over
  * time, and under emulated reduced motion the animation is "none".

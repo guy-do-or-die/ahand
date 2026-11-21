@@ -7,7 +7,8 @@
  * Every Hand here is this file's own, raised by account 1 through the craft tool (the SDK), so the
  * file passes in any order on one stand. Each send is made on the screen with the dev wallet and
  * checked on the chain afterwards: hands(id).reward and hands(id).expiry. Time comes from the
- * chain only. Set CARE_PRINT_SHOTS=1 to keep screenshots in the experiment's shots folder.
+ * chain only. Set CARE_PRINT_SHOTS=1 to keep screenshots under AHAND_SHOTS_DIR (output/shots by
+ * default).
  */
 import { expect, test } from "@playwright/test";
 

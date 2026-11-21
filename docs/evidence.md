@@ -13,7 +13,7 @@ this package: `docs/evidence.md`, `docs/build-notes/evidence.md`, `tests/e2e/sho
 
 From a clean state: `stand.ts down --all`, then `infra/stand/.run` and `apps/hand/dist` deleted,
 then every command below once, in this order, from the worktree root, between 10:22 and 10:40
-(Yerevan). Slot 0 for the stand, slot 9 for the clock test. The package suites ran with their
+(UTC+4). Slot 0 for the stand, slot 9 for the clock test. The package suites ran with their
 test ports moved into 20000–20049 (`SELFTEST_PORT=20000 RELAY_TEST_PORTS=20010-20014
 DELIVER_TEST_PORTS=20015-20024 TOOLS_TEST_PORT_BASE=20025 STAND_STATIC_TEST_PORT=20040
 FIXTURES_TEST_PORT=20042 STAND_TEST_SLOTS=0,9`). Foundry is `~/.foundry/bin` 1.8.6, Bun 1.4.4,

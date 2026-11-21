@@ -1,7 +1,7 @@
 /**
  * Helpers of the care and print smokes and of the clock test (tests/e2e/smoke/care.spec.ts,
  * tests/e2e/clock.spec.ts): open a page as a dev account, read Core's cap, run the craft tool,
- * read a downloaded calendar file, and keep screenshots in the experiment's shots folder.
+ * read a downloaded calendar file, and keep screenshots under AHAND_SHOTS_DIR.
  */
 import { mkdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -12,16 +12,16 @@ import type { Address } from "viem";
 import { pickDevAccount } from "../accounts";
 import { devicePut, handKey } from "../feat-my/store";
 import type { Rpc } from "../rpc";
-import { runProgram, standSlot } from "../stand";
+import { REPO_ROOT, runProgram, standSlot } from "../stand";
 
 export const DAY = 86_400;
 export const MARGIN = 600;
 export const USD = 1_000_000n;
 
-/** The shots of this package, in the experiment's folder in the vault. */
-const EXPERIMENT = "/home/guy_do_or_die/workspace/ahand/knowledge/plan/research/2026-11-20-experiment/shots";
-/** CARE_PRINT_SHOTS=1 keeps them in the build's folder; CARE_PRINT_SHOTS=<sub/path> in that folder of the experiment's shots. */
-export const SHOTS = join(EXPERIMENT, !process.env.CARE_PRINT_SHOTS || process.env.CARE_PRINT_SHOTS === "1" ? "build/care-print" : process.env.CARE_PRINT_SHOTS);
+/** The shots of this package: AHAND_SHOTS_DIR, by default output/shots in the clone (ignored by git). */
+const SHOTS_DIR = process.env.AHAND_SHOTS_DIR ?? join(REPO_ROOT, "output", "shots");
+/** CARE_PRINT_SHOTS=1 keeps them in the build's folder; CARE_PRINT_SHOTS=<sub/path> in that folder of the shots. */
+export const SHOTS = join(SHOTS_DIR, !process.env.CARE_PRINT_SHOTS || process.env.CARE_PRINT_SHOTS === "1" ? "build/care-print" : process.env.CARE_PRINT_SHOTS);
 
 export async function shot(page: Page, name: string): Promise<void> {
   if (!process.env.CARE_PRINT_SHOTS || process.env.CARE_PRINT_SHOTS.includes("..")) return;

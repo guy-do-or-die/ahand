@@ -9,14 +9,10 @@ import { privyReturning } from "./wallet/privy-mark";
  * An opened link carried across one social login (docs/defaults.md question 11, option b; the one
  * exception to D-39). Google, Apple and X through Privy send the person to the provider and back
  * by a fresh load of the same address (Privy 3.51.3 calls `window.location.assign`), and a fresh
- * load forgets a link that lives only in this tab's memory (store/memory.ts). The owner on
- * 2026-11-21, asked whether to carry it across that trip in this tab's `sessionStorage` and erase
- * it on return: «ну, надо, да. нужно предоставлять возможность хоть какими-то удобствами
- * пользоваться. это пожже всё можно сделать настраиваемым (как и многие другие предпочтения юзера)
- * и хранить в дата рекордс ENS зашифрованными , например...» ("well, yes, we need to. We have to let
- * people use at least some conveniences. All of this can later be made configurable (like many of
- * the user's other preferences) and kept encrypted in ENS data records, for example..."). The later
- * idea is a note for later, not built.
+ * load forgets a link that lives only in this tab's memory (store/memory.ts). Decided by the
+ * owner on 2026-11-21 (option b): carry it across that trip in this tab's `sessionStorage` and
+ * erase it on return. A per-person setting kept encrypted in ENS data records is a note for later,
+ * not built.
  *
  * How narrow it is:
  *

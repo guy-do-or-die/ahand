@@ -12,10 +12,8 @@ import common from "../i18n/common/en";
 import ru from "../i18n/common/ru";
 
 /**
- * The footer as the owner had it redone on 2026-11-21: «ты можешь еще переверстать саму кнопку,
- * чтоб аккуратно было, как переключение темы? и заодним другой мусор из подвала убрать про
- * контракт (можно под лупой оставить, но тож хз), no audit (мы, что, этим типа гордимся?), no
- * owner, no fees... нахуя это там?». The lens switch is a bare glyph like the theme switch, with
+ * The footer as decided by the owner on 2026-11-21: the footer keeps only the links and the two
+ * switches. The lens switch is a bare glyph like the theme switch, with
  * no word shown and its name kept; the "Unaudited · No owner · No fee" line is gone from both
  * views; under the lens a quiet "Core 0x65ac…2309" links to /core, and off the lens there is no
  * Core line at all. The browser half is tests/e2e/smoke/lens.spec.ts.

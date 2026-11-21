@@ -37,7 +37,7 @@ Core's own names (`HAND`, `SHAKE`, `GIVE`, `handId`, `claimBps`, `payee` and the
 ## Words that need a reason
 
 - **safe / в безопасности**: only in "Your money is safe where it is." on /waiting (UX-SPEC §9).
-- **fee / комиссия**: only in the lens copy of Core's accepted limits ("fee-switching tokens", "no fee"). The footer's "No fee" / «Без комиссии» was removed with its line on 2026-11-21 (the owner: "no fees... нахуя это там?"; [app](app.md)).
+- **fee / комиссия**: only in the lens copy of Core's accepted limits ("fee-switching tokens", "no fee"). The footer's "No fee" / «Без комиссии» was removed with its line on 2026-11-21 (the owner's decision; [app](app.md)).
 - **got / received / получил**: never for `Paid`, on any screen that shows paid amounts (brief 02, duty 19). Paid money "left the contract"; a token that takes a cut may deliver less. The headline after a thank and the printed receipt say "every payout" / «все выплаты». `review-1.test.ts` fails on these words in the thank, proof, print, hand, my, waiting, check and care catalogues.
 - **guarantee, secure, trustless, instantly, every cent, $0**: not used. A hand with no reward says "No reward: a thank-you only".
 - **Unaudited / Без аудита**: always this word, never "audited".

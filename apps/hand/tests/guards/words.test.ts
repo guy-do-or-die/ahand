@@ -17,8 +17,8 @@ import { SRC } from "./files";
  * (`common.lens.cap`, `proof.lens.gas`), where Core's own names stand in mono, and the local-only
  * dev wallet page. Allowed phrases: "Connect a wallet" / «Подключить кошелёк» anywhere; "safe" /
  * «в безопасности» only on /waiting (PLAN, feat-waiting). The footer's "No fee" / «Без комиссии»
- * was allowed too until the owner had the footer's line taken out on 2026-11-21 ("no fees...
- * нахуя это там?"); with it went its allowance, so "fee" is banned on the whole human layer.
+ * was allowed too until the footer's line was removed (decided by the owner on 2026-11-21); with
+ * it went its allowance, so "fee" is banned on the whole human layer.
  */
 
 interface Place {

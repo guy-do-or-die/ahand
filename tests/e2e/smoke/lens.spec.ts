@@ -48,8 +48,8 @@ test("a Hand opens calm: plain words and the actions, none of the chain's machin
   for (const evidence of EVIDENCE) expect(text).not.toMatch(evidence);
   // The rail names people in words and nothing on it turns over.
   await expect(page.getByTestId("twist-flip")).toHaveCount(0);
-  // The footer has no Core line and none of the old "Unaudited · No owner · No fee" (the owner,
-  // 2026-11-21: «no audit (мы, что, этим типа гордимся?), no owner, no fees... нахуя это там?»).
+  // The footer has no Core line and none of the old "Unaudited · No owner · No fee" (removed by
+  // the owner's decision of 2026-11-21).
   // "Unaudited" is said in full on /limits.
   await expect(page.getByTestId("shell-footer-core")).toHaveCount(0);
   await expect(page.getByTestId("shell-footer")).not.toContainText(/unaudited|no owner|no fee|0x/i);
@@ -65,7 +65,7 @@ test("the lens switch stands beside the theme switch, drawn alike (a bare glyph,
   await expect(lens).toHaveAttribute("aria-pressed", "false");
   await expect(lens).toHaveAttribute("aria-keyshortcuts", "?");
   await expect(lens).toHaveAttribute("title", /\?/);
-  // The owner, 2026-11-21: «переверстать саму кнопку, чтоб аккуратно было, как переключение темы».
+  // Decided by the owner on 2026-11-21: the lens switch is a bare glyph, drawn like the theme switch.
   expect((await lens.innerText()).trim()).toBe("");
   const look = (button: typeof lens) =>
     button.evaluate((node) => {
