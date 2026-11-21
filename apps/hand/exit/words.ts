@@ -128,7 +128,6 @@ const en = {
 
   "foot.core": "Core {core} · chain {chain}",
   "foot.build": "Built from commit {commit}",
-  "foot.plain": "Unaudited · No owner · No fee",
   "foot.script": "The same, from a clone: contracts/exit/ahand.sh",
 } as const;
 
@@ -254,7 +253,6 @@ const ru: Record<WordKey, string> = {
 
   "foot.core": "Core {core} · сеть {chain}",
   "foot.build": "Собрано из коммита {commit}",
-  "foot.plain": "Без аудита · Без владельца · Без комиссии",
   "foot.script": "То же из клона репозитория: contracts/exit/ahand.sh",
 };
 

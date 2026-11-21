@@ -924,7 +924,6 @@ function footer(): HTMLElement {
     { class: "x-foot" },
     h("p", { class: "x-mono x-exact", style: "font-size:var(--fs-mono-sm)" }, T("foot.core", { core: config.cores.canonical ?? "—", chain: `${config.chain.id} · ${config.chain.name}` })),
     deployment?.commit ? h("p", { class: "x-mono" }, T("foot.build", { commit: deployment.commit.slice(0, 12) })) : null,
-    h("p", { class: "x-mono" }, T("foot.plain")),
     h("p", { class: "x-mono", style: "text-transform:none" }, T("foot.script")),
   );
 }

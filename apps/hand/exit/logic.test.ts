@@ -125,3 +125,15 @@ describe("fileServe: the one line that serves this file's folder", () => {
     expect(fileServe("http://127.0.0.1:18300/exit.html", 8000)).toBeUndefined();
   });
 });
+
+describe("the footer's words", () => {
+  // The owner had "Unaudited · No owner · No fee" taken out of the app's footer on 2026-11-21 and,
+  // asked about this page's own copy of it, answered «Убрать и там».
+  test("the old line is gone from the page and from both languages", async () => {
+    const { say } = await import("./words");
+    const main = await Bun.file(new URL("./main.ts", import.meta.url)).text();
+    expect(main).not.toContain("foot.plain");
+    // `say` gives the key back when no sentence exists for it.
+    for (const lang of ["en", "ru"] as const) expect(say(lang, "foot.plain" as never)).toBe("foot.plain");
+  });
+});
