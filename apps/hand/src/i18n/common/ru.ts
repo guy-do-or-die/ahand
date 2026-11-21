@@ -5,7 +5,6 @@ import type en from "./en";
 
 const ru: Record<keyof typeof en, string> = {
   // ── Оболочка (UX-SPEC §6) ─────────────────────────────────────────────
-  "common.notBuilt": "Ещё не собрано",
   "common.ribbon": "Локальная тестовая сеть · Тестовые доллары",
   "common.ribbon.testnet": "{network} · Тестовые доллары",
   "common.chain.31337": "Локальная тестовая сеть",
@@ -20,7 +19,6 @@ const ru: Record<keyof typeof en, string> = {
   "common.language.ru": "Русский",
   "common.lensToggle": "Показать доказательства",
   "common.lensHint": "Доказательства: откуда взялась каждая цифра — для тех, кто хочет проверить. Клавиша ? тоже их показывает и прячет.",
-  "common.theme": "Сменить тему",
   "common.home": "aHand: на главную",
   "common.skip": "Перейти к содержанию",
   "common.loading": "Загрузка…",
@@ -35,65 +33,29 @@ const ru: Record<keyof typeof en, string> = {
   "common.gallery": "Открываем галерею компонентов…",
 
   // ── Словарь (UX-SPEC §5) ──────────────────────────────────────────────
-  "common.word.hand": "рука",
-  "common.word.raise": "Поднять руку",
-  "common.word.reward": "награда",
   "common.word.passOn": "Передать дальше",
-  "common.word.keepShare": "Оставить себе долю",
-  "common.word.help": "Помочь",
   "common.word.canHelp": "Могу помочь",
-  "common.word.thank": "Поблагодарить",
-  "common.word.sayThanks": "Сказать спасибо",
-  "common.word.goesBack": "вернётся",
   "common.word.sendBack": "Вернуть",
-  "common.word.openUntil": "открыта до {date}",
-  "common.word.waitingForYou": "Ждёт тебя",
-  "common.word.takeOut": "Забрать",
-  "common.word.deliver": "Доставить",
-  "common.word.payee": "Куда придут деньги",
-  "common.word.raiser": "автор",
-  "common.word.someone": "Кто-то",
   "common.word.public": "Открытая",
   "common.word.unlisted": "По ссылке",
   "common.word.dark": "Тёмная",
-  "common.word.cost": "стоит около {amount}",
-  "common.word.connect": "Подключить кошелёк",
   "common.word.myHands": "Мои руки",
-  "common.word.copy": "Копировать",
-  "common.word.copied": "Скопировано",
   "common.word.showQr": "Показать QR",
-  "common.word.print": "Напечатать",
-  "common.word.close": "Закрыть",
   "common.word.back": "Назад",
 
-  // ── Три отметки ───────────────────────────────────────────────────────
-  "common.mark.checked": "Проверено здесь",
-  "common.mark.onChain": "В сети",
-  "common.mark.waiting": "Ждёт",
+  // ── Названия токенов и тестовые деньги ────────────────────────────────
   "common.token.usd": "Тестовые доллары",
   "common.token.blacklist": "Тестовые доллары, которые могут заблокировать",
   "common.token.usdc.test": "Тестовые USDC",
   "common.faucets": "В сети {network} тестовые деньги бесплатные:",
   "common.explorer": "Открыть на {host}",
 
-  // ── Четыре состояния отправки ─────────────────────────────────────────
-  "common.tx.sent": "Отправлено",
-  "common.tx.inBlock": "В блоке",
-  "common.tx.recorded": "Записано в Ethereum",
-  "common.tx.final": "Окончательно",
-  "common.tx.standIn": "Локальная замена",
-  "common.tx.standInWhy": "В этой локальной сети эти два шага значат: на один и на два блока позже.",
-
   // ── Состояния руки ────────────────────────────────────────────────────
-  "common.state.open": "Открыта",
   "common.state.expired": "Срок вышел",
   "common.state.thanked": "Спасибо сказано {date}",
   "common.state.refunded": "Награда вернулась {date}",
   "common.state.closed": "Эта рука закрыта.",
-  "common.state.wentBack": "Награда вернулась.",
-  "common.state.lost": "Описание не дошло вместе со ссылкой. Спроси у того, кто её прислал.",
   "common.state.checking": "Проверяем ссылку…",
-  "common.state.noReward": "Без награды: только спасибо",
 
   // ── Время (UX-SPEC §15) ───────────────────────────────────────────────
   "common.time.offline": "Сеть сейчас недоступна.",
@@ -101,9 +63,7 @@ const ru: Record<keyof typeof en, string> = {
   "common.noCore.body": "Его адрес известен заранее, ещё до того, как контракт куда-то поставлен, и в этой сети по этому адресу пока ничего нет. Пока его там нет, здесь нельзя ни поднять руку, ни передать её дальше, ни поблагодарить, и деньги никуда не двигаются.",
   "common.noCore.more": "Что проверяется об этом контракте",
   "common.noCore.retry": "Проверить ещё раз",
-  "common.lens.networkTime": "Время сети · Блок {block} · {time}",
   "common.lens.cap": "Предел 180 д · минус 10 мин, чтобы не опоздать",
-  "common.lens.deviceTime": "Впервые на этом устройстве {time}",
   "common.lens.core": "Core {core}",
 
   // ── Общие строки ошибок ───────────────────────────────────────────────
@@ -118,7 +78,6 @@ const ru: Record<keyof typeof en, string> = {
   "common.send.unknown": "Пока неизвестно, ушло ли это. Не нажимай ещё раз: экран сам проверяет и скажет, когда станет ясно.",
   "common.send.dropped": "Не прошло: с твоего аккаунта ничего не ушло. Можно попробовать снова.",
   "common.send.inFlight": "Уже отправлено с этого устройства и в пути. Второй раз ничего не отправится.",
-  "common.send.landed": "Всё-таки прошло.",
   "common.send.stopWaiting": "Перестать ждать",
   "common.send.stopWaitingNote": "Экран просто перестанет ждать. Ничего не отправится и ничего не отменится: это ещё может пройти, а при следующем заходе экран проверит снова.",
 

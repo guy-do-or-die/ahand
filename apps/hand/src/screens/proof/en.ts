@@ -7,7 +7,6 @@ const en = {
   "proof.meta": "Chain {chain} · Core {core} · Hand {hand}",
   "proof.loading": "Reading the hand from the chain…",
   "proof.tally": "{ok, plural, one {# check holds} other {# checks hold}} · {nc, plural, =0 {nothing left unchecked} one {# can't be checked here} other {# can't be checked here}} · {fail, plural, =0 {no findings} one {# finding} other {# findings}}",
-  "proof.open": "Open",
   "proof.openHand": "Open this hand",
 
   // The eleven parts of the timeline.

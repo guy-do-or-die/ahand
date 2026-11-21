@@ -2,7 +2,6 @@
 // `landing.hero.line` marks the amber words with *…*, as the brand cover does.
 // Keys with a `lens` segment stand on the back of a card, beside Core's own names, in mono.
 const en = {
-  "landing.title": "Raise a hand. Your people take it from there.",
   "landing.hero.lead": "Raise a hand.",
   "landing.hero.line": "*Your people* take it from there.",
   "landing.lead":

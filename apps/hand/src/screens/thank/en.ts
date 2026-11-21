@@ -15,7 +15,6 @@ const en = {
   "thank.error.noForwarder":
     "The helper's account isn't set up on this network yet, and this site has no way to set it up without acting in your name. Ask the helper to answer again from an address they already use.",
   "thank.error.checkFailed": "The contract couldn't check this. Nothing was sent.",
-  "thank.error.notRaiser": "Only the account that raised this hand can say thanks. Connect that one.",
   "thank.error.closed": "This hand is already closed.",
   "thank.error.thankedOther": "This hand was already thanked for another answer.",
 
@@ -34,7 +33,6 @@ const en = {
   "thank.resigned.noShare": "kept nothing",
   "thank.resigned.anyway": "Thank this route anyway",
   "thank.resigned.overridden": "You chose to thank this route anyway.",
-  "thank.resigned.earlier": "Seen earlier on this device: {time}",
   "thank.branch": "Another answer came for this hand by a different route. Both routes are fair; you choose which one to thank.",
 
   // Payees
@@ -75,12 +73,10 @@ const en = {
   "thank.warning.noReward": "Saying thanks closes this hand for good. It can't be undone.",
   "thank.swipe": "Say thanks",
   "thank.connect": "To say thanks, connect the account that raised this hand.",
-  "thank.costRefused": "The contract would refuse this now:",
   "thank.costChecking": "Working out what it costs…",
   "thank.step": "Step {step} of {of}",
   "thank.step.setup": "Setting up the helper's account",
   "thank.step.thanks": "Saying thanks",
-  "thank.step.waiting": "Waiting for the network…",
 
   // After
   // Never "who got what": Paid is what left the contract, and a token that takes its own cut
@@ -123,7 +119,6 @@ const en = {
   "thank.reverted": "The network refused it.",
   "thank.reverted.kept": "The reward is still in the contract; only the cost of trying was spent.",
   "thank.firstStepOnly": "The helper's account is set up; the thanks didn't go. Only the first step's cost was spent.",
-  "thank.resumed": "A thanks for this answer was sent from this device. Following it…",
   "thank.onWay": "A thanks sent from this device is on its way: hand {id}. Nothing is sent again.",
   "thank.onWay.done": "That thanks went through: hand {id}.",
   "thank.onWay.open": "See what was sent to whom",

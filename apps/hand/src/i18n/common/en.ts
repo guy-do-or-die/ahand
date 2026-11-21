@@ -2,7 +2,7 @@
 // has the same keys, which its type and the key-parity guard check.
 //
 // Families:
-//   common.*        the shell, the vocabulary, the marks, states, time and the shared error lines
+//   common.*        the shell, the vocabulary, token names, states, time and the shared error lines
 //   common.lens.*   the specialist layer (mono, Core's own names allowed; exempt from the banned words)
 //   common.chain.<id>  a network this catalogue has a name for (chain.ts; any other chain shows the
 //                   name its configuration gives)
@@ -10,12 +10,13 @@
 //                   link.no-canonical (messageIdOf in packages/sdk/src/errors.ts)
 //   core.<Error>    each of Core's refusals, and the three OpenZeppelin errors that can reach a caller
 //
-// Mono lines (the ribbon, the footer, the marks, the TxRail) are written in sentence case here;
-// the mono style sets them in capitals.
+// Mono lines (the ribbon, the footer's Core line) are written in sentence case here; the mono
+// style sets them in capitals. The marks, the TxRail and the kit's own words live in ui/words.ts.
+//
+// Every key here is used somewhere: tests/guards/keys-used.test.ts fails on a key nothing reads.
 
 const en = {
   // ── The shell (UX-SPEC §6) ────────────────────────────────────────────
-  "common.notBuilt": "Not built yet",
   "common.ribbon": "Local test network · Test dollars",
   "common.ribbon.testnet": "{network} · Test dollars",
   "common.chain.31337": "Local test network",
@@ -30,7 +31,6 @@ const en = {
   "common.language.ru": "Русский",
   "common.lensToggle": "Show the proof",
   "common.lensHint": "The proof: where each figure comes from, for whoever wants to check. The ? key shows and hides it too.",
-  "common.theme": "Switch theme",
   "common.home": "aHand: back to the start",
   "common.skip": "Skip to the content",
   "common.loading": "Loading…",
@@ -45,65 +45,29 @@ const en = {
   "common.gallery": "Opening the component gallery…",
 
   // ── Vocabulary (UX-SPEC §5): one concept, one word ────────────────────
-  "common.word.hand": "hand",
-  "common.word.raise": "Raise a hand",
-  "common.word.reward": "reward",
   "common.word.passOn": "Pass it on",
-  "common.word.keepShare": "Keep a share",
-  "common.word.help": "Help",
   "common.word.canHelp": "I can help",
-  "common.word.thank": "Thank",
-  "common.word.sayThanks": "Say thanks",
-  "common.word.goesBack": "goes back",
   "common.word.sendBack": "Send it back",
-  "common.word.openUntil": "open until {date}",
-  "common.word.waitingForYou": "Waiting for you",
-  "common.word.takeOut": "Take it out",
-  "common.word.deliver": "Deliver",
-  "common.word.payee": "Where the money lands",
-  "common.word.raiser": "the asker",
-  "common.word.someone": "Someone",
   "common.word.public": "Public",
   "common.word.unlisted": "Unlisted",
   "common.word.dark": "Dark",
-  "common.word.cost": "costs about {amount}",
-  "common.word.connect": "Connect a wallet",
   "common.word.myHands": "My hands",
-  "common.word.copy": "Copy",
-  "common.word.copied": "Copied",
   "common.word.showQr": "Show QR",
-  "common.word.print": "Print",
-  "common.word.close": "Close",
   "common.word.back": "Back",
 
-  // ── The three marks (UX-SPEC §2) ──────────────────────────────────────
-  "common.mark.checked": "Checked here",
-  "common.mark.onChain": "On chain",
-  "common.mark.waiting": "Waiting",
+  // ── Token names and test money ────────────────────────────────────────
   "common.token.usd": "Test dollars",
   "common.token.blacklist": "Test dollars that can block",
   "common.token.usdc.test": "Test USDC",
   "common.faucets": "Test money is free on {network}:",
   "common.explorer": "Open on {host}",
 
-  // ── The four states of a send (TxRail, ARCHITECTURE §7) ────────────────
-  "common.tx.sent": "Sent",
-  "common.tx.inBlock": "In a block",
-  "common.tx.recorded": "Recorded on Ethereum",
-  "common.tx.final": "Final",
-  "common.tx.standIn": "Local stand-in",
-  "common.tx.standInWhy": "On this local network these two steps mean one and two blocks later.",
-
   // ── States of a hand (UX-SPEC §4, §8) ─────────────────────────────────
-  "common.state.open": "Open",
   "common.state.expired": "Time's up",
   "common.state.thanked": "Thanked on {date}",
   "common.state.refunded": "The reward went back on {date}",
   "common.state.closed": "This hand is closed.",
-  "common.state.wentBack": "The reward went back.",
-  "common.state.lost": "The description didn't arrive with this link. Ask whoever sent it.",
   "common.state.checking": "Checking the link…",
-  "common.state.noReward": "No reward: a thank-you only",
 
   // ── Time (UX-SPEC §15) ────────────────────────────────────────────────
   "common.time.offline": "Can't reach the network right now.",
@@ -111,9 +75,7 @@ const en = {
   "common.noCore.body": "Its address is known before it is put anywhere, and on this network nothing is at that address yet. Until it is, nothing can be raised, passed or thanked here, and no money moves.",
   "common.noCore.more": "What is checked about this contract",
   "common.noCore.retry": "Check again",
-  "common.lens.networkTime": "Network time · Block {block} · {time}",
   "common.lens.cap": "Cap 180 d · less 10 min, so it can't arrive too late",
-  "common.lens.deviceTime": "First seen on this device {time}",
   // The footer's line under the lens only (shell/Shell.tsx CoreLine, the owner's 2026-11-21 decision);
   // "Unaudited" lives in full on /limits (limits.unaudited.say) and /core.
   "common.lens.core": "Core {core}",
@@ -131,7 +93,6 @@ const en = {
   "common.send.unknown": "It isn't known yet whether this went out. Don't press again: this screen is checking and will say when it knows.",
   "common.send.dropped": "It didn't go through: nothing left your account. You can try again.",
   "common.send.inFlight": "Already sent from this device and on its way. Nothing is sent a second time.",
-  "common.send.landed": "It went through after all.",
   "common.send.stopWaiting": "Stop waiting",
   "common.send.stopWaitingNote": "This only stops the screen from waiting. It sends nothing and cancels nothing: it may still go through, and the next visit checks again.",
 

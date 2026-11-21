@@ -8,7 +8,6 @@ const ru: Record<keyof typeof en, string> = {
   "proof.meta": "Сеть {chain} · Core {core} · Рука {hand}",
   "proof.loading": "Читаем руку из сети…",
   "proof.tally": "{ok, plural, one {# проверка сходится} few {# проверки сходятся} many {# проверок сходятся} other {# проверки сходятся}} · {nc, plural, =0 {непроверенного нет} one {# нельзя проверить здесь} few {# нельзя проверить здесь} many {# нельзя проверить здесь} other {# нельзя проверить здесь}} · {fail, plural, =0 {расхождений нет} one {# расхождение} few {# расхождения} many {# расхождений} other {# расхождения}}",
-  "proof.open": "Открыть",
   "proof.openHand": "Открыть эту руку",
 
   "proof.section.core": "Этот контракт",

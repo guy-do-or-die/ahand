@@ -49,7 +49,6 @@ const en = {
   "care.reminder.alarm": "Hand {id} closes in {n, plural, one {# day} other {# days}}.",
 
   "care.steps.why": "Tried first: if the contract would refuse, you see why before anything is sent.",
-  "care.lens.calls": "Do it without us",
   "care.lens.callsLead": "The same call from a terminal, with any key you choose:",
 };
 

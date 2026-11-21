@@ -51,7 +51,6 @@ const ru: Record<keyof typeof en, string> = {
   "care.reminder.alarm": "Рука {id} закроется через {n, plural, one {# день} few {# дня} many {# дней} other {# дня}}.",
 
   "care.steps.why": "Сначала пробуем: если контракт откажет, ты увидишь почему, ещё до отправки.",
-  "care.lens.calls": "Сделать без нас",
   "care.lens.callsLead": "Тот же вызов из терминала, с любым ключом на твой выбор:",
 };
 

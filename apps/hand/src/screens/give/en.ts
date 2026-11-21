@@ -50,7 +50,6 @@ const en = {
   "give.check.here": "Checking it here, in Core's order",
   "give.check.core": "Asking the contract itself",
   "give.check.write": "Writing your answer",
-  "give.check.deliver": "Sending it to the asker",
 
   "give.setup": "Your account isn't set up on this network yet. That's fine: it gets set up when the asker thanks you.",
   "give.noForwarder":

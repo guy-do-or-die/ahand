@@ -49,7 +49,6 @@ const ru: Record<keyof typeof en, string> = {
   "give.check.here": "Проверяем здесь, в порядке Core",
   "give.check.core": "Спрашиваем сам контракт",
   "give.check.write": "Записываем твой ответ",
-  "give.check.deliver": "Отправляем автору",
 
   "give.setup": "Твой аккаунт в этой сети ещё не настроен. Это не страшно: его настроит спасибо автора.",
   "give.noForwarder":

@@ -2,7 +2,6 @@ import type en from "./en";
 
 // The landing screen's words in Russian: the same keys as en.ts, checked by the type. «Ты» throughout.
 const ru: Record<keyof typeof en, string> = {
-  "landing.title": "Подними руку. Дальше — твои люди.",
   "landing.hero.lead": "Подними руку.",
   "landing.hero.line": "Дальше — *твои люди*.",
   "landing.lead":
