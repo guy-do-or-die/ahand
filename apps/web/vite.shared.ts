@@ -28,6 +28,13 @@ export const configFile = fromRoot(process.env.AHAND_CONFIG || "src/config/confi
 export const outDir = fromRoot(process.env.AHAND_OUT_DIR || "dist");
 export const cacheDir = fromRoot(process.env.AHAND_VITE_CACHE || "node_modules/.vite");
 export const conditions = [...defaultClientConditions];
+/**
+ * The browsers both builds write their stylesheets for: ones that phones still run. With Vite's
+ * default targets the minifier rewrites every width condition as a range (`width>=1000px`), which
+ * Safari before 16.4 does not read, and it then drops the whole rule: the layout for a wide
+ * screen, and the one-column rules of the raise screen with it.
+ */
+export const cssTarget = ["safari15.4", "ios15.4", "chrome100", "firefox102"];
 export const workspaceAlias = [
   { find: /^@ahand\/card\/Card$/, replacement: resolve(here, "../../packages/card/src/Card.tsx") },
   { find: /^@ahand\/(sdk|abi|deliver|card)$/, replacement: resolve(here, "../../packages/$1/src/index.ts") },

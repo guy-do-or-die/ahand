@@ -694,8 +694,8 @@ html:has(.ah-sided--paged) {
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in srgb, var(--paper) 62%, transparent) 32%,
-      color-mix(in srgb, var(--paper) 86%, transparent) 68%,
+      rgb(var(--paper-rgb) / 0.62) 32%,
+      rgb(var(--paper-rgb) / 0.86) 68%,
       var(--paper)
     );
   }
@@ -838,8 +838,8 @@ html:has(.ah-sided--paged) body {
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in srgb, var(--paper) 62%, transparent) 32%,
-      color-mix(in srgb, var(--paper) 86%, transparent) 68%,
+      rgb(var(--paper-rgb) / 0.62) 32%,
+      rgb(var(--paper-rgb) / 0.86) 68%,
       var(--paper)
     );
   }

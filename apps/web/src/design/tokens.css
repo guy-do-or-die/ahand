@@ -11,6 +11,12 @@
   --ah-raw-ink: #101014;
   --ah-raw-paper: #fafaf7;
   --ah-raw-amber: #f5b841;
+  /* The same three as channels, for every see-through step below: `rgb(R G B / a)` is read by
+     every browser a phone still runs, where `color-mix()` is not (Safari before 16.2 drops it, and
+     a step then falls back to the solid colour: quiet text turns loud, a tone turns into a slab). */
+  --ah-raw-ink-rgb: 16 16 20;
+  --ah-raw-paper-rgb: 250 250 247;
+  --ah-raw-amber-rgb: 245 184 65;
   --ah-raw-card: #ffffff;
   --ah-raw-surface-dark: #17171c;
   /* A fill's two answers: under the pointer and under a press (the swipe button). Ink has room to
@@ -29,6 +35,8 @@
 [data-theme="light"] {
   --ink: var(--ah-raw-ink);
   --paper: var(--ah-raw-paper);
+  --ink-rgb: var(--ah-raw-ink-rgb);
+  --paper-rgb: var(--ah-raw-paper-rgb);
   --card: var(--ah-raw-card);
   --ink-hover: var(--ah-raw-ink-hover);
   --ink-press: var(--ah-raw-ink-press);
@@ -37,6 +45,8 @@
 [data-theme="dark"] {
   --ink: var(--ah-raw-paper);
   --paper: var(--ah-raw-ink);
+  --ink-rgb: var(--ah-raw-paper-rgb);
+  --paper-rgb: var(--ah-raw-ink-rgb);
   --card: var(--ah-raw-surface-dark);
   --ink-hover: var(--ah-raw-paper-hover);
   --ink-press: var(--ah-raw-paper-press);
@@ -51,6 +61,8 @@
   :root:not([data-theme="light"]) {
     --ink: var(--ah-raw-paper);
     --paper: var(--ah-raw-ink);
+    --ink-rgb: var(--ah-raw-paper-rgb);
+    --paper-rgb: var(--ah-raw-ink-rgb);
     --card: var(--ah-raw-surface-dark);
     --ink-hover: var(--ah-raw-paper-hover);
     --ink-press: var(--ah-raw-paper-press);
@@ -75,39 +87,40 @@
      "always as fill/chip/bar with ink text on it"; amber never inverts). */
   --on-amber: var(--ah-raw-ink);
   /* Modal scrim is always dark, both themes (mock 14: rgba(16,16,20,.45)). */
-  --scrim: color-mix(in srgb, var(--ah-raw-ink) 45%, transparent);
+  --scrim: rgb(var(--ah-raw-ink-rgb) / 0.45);
 
   /* Ink-opacity ladder — exact alpha steps used in the mock files.
-     (README rounds the first step to .04; mocks use .035 — mock kept.) */
-  --ink-a035: color-mix(in srgb, var(--ink) 3.5%, transparent);
-  --ink-a08: color-mix(in srgb, var(--ink) 8%, transparent);
-  --ink-a10: color-mix(in srgb, var(--ink) 10%, transparent);
-  --ink-a12: color-mix(in srgb, var(--ink) 12%, transparent);
-  --ink-a15: color-mix(in srgb, var(--ink) 15%, transparent);
-  --ink-a16: color-mix(in srgb, var(--ink) 16%, transparent);
-  --ink-a20: color-mix(in srgb, var(--ink) 20%, transparent);
-  --ink-a25: color-mix(in srgb, var(--ink) 25%, transparent);
-  --ink-a30: color-mix(in srgb, var(--ink) 30%, transparent);
-  --ink-a40: color-mix(in srgb, var(--ink) 40%, transparent);
-  --ink-a45: color-mix(in srgb, var(--ink) 45%, transparent);
-  --ink-a50: color-mix(in srgb, var(--ink) 50%, transparent);
-  --ink-a55: color-mix(in srgb, var(--ink) 55%, transparent);
-  --ink-a60: color-mix(in srgb, var(--ink) 60%, transparent);
-  --ink-a65: color-mix(in srgb, var(--ink) 65%, transparent);
-  --ink-a70: color-mix(in srgb, var(--ink) 70%, transparent);
-  --ink-a80: color-mix(in srgb, var(--ink) 80%, transparent);
+     (README rounds the first step to .04; mocks use .035 — mock kept.)
+     Written over the theme's channels, never with color-mix(): see the raw palette. */
+  --ink-a035: rgb(var(--ink-rgb) / 0.035);
+  --ink-a08: rgb(var(--ink-rgb) / 0.08);
+  --ink-a10: rgb(var(--ink-rgb) / 0.1);
+  --ink-a12: rgb(var(--ink-rgb) / 0.12);
+  --ink-a15: rgb(var(--ink-rgb) / 0.15);
+  --ink-a16: rgb(var(--ink-rgb) / 0.16);
+  --ink-a20: rgb(var(--ink-rgb) / 0.2);
+  --ink-a25: rgb(var(--ink-rgb) / 0.25);
+  --ink-a30: rgb(var(--ink-rgb) / 0.3);
+  --ink-a40: rgb(var(--ink-rgb) / 0.4);
+  --ink-a45: rgb(var(--ink-rgb) / 0.45);
+  --ink-a50: rgb(var(--ink-rgb) / 0.5);
+  --ink-a55: rgb(var(--ink-rgb) / 0.55);
+  --ink-a60: rgb(var(--ink-rgb) / 0.6);
+  --ink-a65: rgb(var(--ink-rgb) / 0.65);
+  --ink-a70: rgb(var(--ink-rgb) / 0.7);
+  --ink-a80: rgb(var(--ink-rgb) / 0.8);
 
   /* Paper-opacity ladder (text/hairlines on ink fills) — mock-exact. */
-  --paper-a12: color-mix(in srgb, var(--paper) 12%, transparent);
-  --paper-a16: color-mix(in srgb, var(--paper) 16%, transparent);
-  --paper-a20: color-mix(in srgb, var(--paper) 20%, transparent);
-  --paper-a30: color-mix(in srgb, var(--paper) 30%, transparent);
-  --paper-a50: color-mix(in srgb, var(--paper) 50%, transparent);
-  --paper-a75: color-mix(in srgb, var(--paper) 75%, transparent);
-  --paper-a85: color-mix(in srgb, var(--paper) 85%, transparent);
+  --paper-a12: rgb(var(--paper-rgb) / 0.12);
+  --paper-a16: rgb(var(--paper-rgb) / 0.16);
+  --paper-a20: rgb(var(--paper-rgb) / 0.2);
+  --paper-a30: rgb(var(--paper-rgb) / 0.3);
+  --paper-a50: rgb(var(--paper-rgb) / 0.5);
+  --paper-a75: rgb(var(--paper-rgb) / 0.75);
+  --paper-a85: rgb(var(--paper-rgb) / 0.85);
 
   /* Amber tint (chips/badges) */
-  --amber-a30: color-mix(in srgb, var(--amber) 30%, transparent);
+  --amber-a30: rgb(var(--ah-raw-amber-rgb) / 0.3);
 
   /* Tailwind v4 bridge — re-declared here (unlayered) so utilities like
      `text-ink/60` resolve against the nearest [data-theme] ancestor. */

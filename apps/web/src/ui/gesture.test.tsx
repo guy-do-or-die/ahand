@@ -127,12 +127,14 @@ describe("the swipe button's fill", () => {
       expect(stops.length).toBeGreaterThan(10);
       for (const stop of stops) expect(stop).toMatch(/calc\(100% - var\(--swipe-(from|hand)\)/);
       // The curve only thins: no stop is more opaque than the one before it.
-      const alphas = stops.slice(1).map((stop) => (stop.trim().startsWith("transparent") ? 0 : Number(stop.match(/var\(--ink\) ([0-9.]+)%, transparent\)/)![1])));
+      const alphas = stops.slice(1).map((stop) => (stop.trim().startsWith("transparent") ? 0 : Number(stop.match(/rgb\(var\(--ink-rgb\) \/ ([0-9.]+)\)/)![1])));
       expect(alphas).toEqual([...alphas].sort((a, b) => b - a));
       expect(alphas.at(-1)).toBe(0);
     }
+    // No stop is made with color-mix(): a browser without it would drop the whole mask and leave a hard edge.
+    for (const declarations of [base, amber]) expect(declarations).not.toContain("color-mix(");
     // Amber keeps 22% of itself where the hand begins.
-    expect(amber).toMatch(/color-mix\(in srgb, var\(--ink\) 2\d\.\d%, transparent\) calc\(100% - var\(--swipe-from\) \+ \(var\(--swipe-from\) - var\(--swipe-hand\)\) \* (0\.9\d+|1\.0+)\)/);
+    expect(amber).toMatch(/rgb\(var\(--ink-rgb\) \/ 0\.2\d+\) calc\(100% - var\(--swipe-from\) \+ \(var\(--swipe-from\) - var\(--swipe-hand\)\) \* (0\.9\d+|1\.0+)\)/);
   });
 
   test("a narrow or small button moves the anchors, never the curve", () => {

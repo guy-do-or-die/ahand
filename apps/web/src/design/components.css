@@ -52,17 +52,17 @@
   --swipe-mask: linear-gradient(
     90deg,
     var(--ink) calc(100% - var(--swipe-from)),
-    color-mix(in srgb, var(--ink) 99.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.0833),
-    color-mix(in srgb, var(--ink) 96.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.1667),
-    color-mix(in srgb, var(--ink) 89.6%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.2500),
-    color-mix(in srgb, var(--ink) 79.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.3333),
-    color-mix(in srgb, var(--ink) 65.3%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.4167),
-    color-mix(in srgb, var(--ink) 50.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.5000),
-    color-mix(in srgb, var(--ink) 34.7%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.5833),
-    color-mix(in srgb, var(--ink) 21.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.6667),
-    color-mix(in srgb, var(--ink) 10.4%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.7500),
-    color-mix(in srgb, var(--ink) 3.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.8333),
-    color-mix(in srgb, var(--ink) 0.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.9167),
+    rgb(var(--ink-rgb) / 0.995) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.0833),
+    rgb(var(--ink-rgb) / 0.965) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.1667),
+    rgb(var(--ink-rgb) / 0.896) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.2500),
+    rgb(var(--ink-rgb) / 0.79) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.3333),
+    rgb(var(--ink-rgb) / 0.653) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.4167),
+    rgb(var(--ink-rgb) / 0.5) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.5000),
+    rgb(var(--ink-rgb) / 0.347) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.5833),
+    rgb(var(--ink-rgb) / 0.21) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.6667),
+    rgb(var(--ink-rgb) / 0.104) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.7500),
+    rgb(var(--ink-rgb) / 0.035) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.8333),
+    rgb(var(--ink-rgb) / 0.005) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.9167),
     transparent calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 1.0000)
   );
 }
@@ -90,19 +90,19 @@
   --swipe-mask: linear-gradient(
     90deg,
     var(--ink) calc(100% - var(--swipe-from)),
-    color-mix(in srgb, var(--ink) 99.7%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.1082),
-    color-mix(in srgb, var(--ink) 97.7%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.2165),
-    color-mix(in srgb, var(--ink) 93.1%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.3247),
-    color-mix(in srgb, var(--ink) 85.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.4329),
-    color-mix(in srgb, var(--ink) 75.4%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.5411),
-    color-mix(in srgb, var(--ink) 63.2%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.6494),
-    color-mix(in srgb, var(--ink) 50.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.7576),
-    color-mix(in srgb, var(--ink) 36.8%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.8658),
-    color-mix(in srgb, var(--ink) 24.6%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.9740),
-    color-mix(in srgb, var(--ink) 14.5%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.1597),
-    color-mix(in srgb, var(--ink) 6.9%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.3697),
-    color-mix(in srgb, var(--ink) 2.3%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.5798),
-    color-mix(in srgb, var(--ink) 0.3%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.7899),
+    rgb(var(--ink-rgb) / 0.997) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.1082),
+    rgb(var(--ink-rgb) / 0.977) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.2165),
+    rgb(var(--ink-rgb) / 0.931) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.3247),
+    rgb(var(--ink-rgb) / 0.855) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.4329),
+    rgb(var(--ink-rgb) / 0.754) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.5411),
+    rgb(var(--ink-rgb) / 0.632) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.6494),
+    rgb(var(--ink-rgb) / 0.5) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.7576),
+    rgb(var(--ink-rgb) / 0.368) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.8658),
+    rgb(var(--ink-rgb) / 0.246) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.9740),
+    rgb(var(--ink-rgb) / 0.145) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.1597),
+    rgb(var(--ink-rgb) / 0.069) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.3697),
+    rgb(var(--ink-rgb) / 0.023) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.5798),
+    rgb(var(--ink-rgb) / 0.003) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.7899),
     transparent calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 1.0000)
   );
 }
@@ -674,6 +674,13 @@
   color: var(--ink);
   caret-color: var(--amber);
   resize: none;
+}
+/* A hint in an empty field is half-tone ink in every field, written here as a token: the reset
+   beneath sets it with color-mix(), which a browser without it reads as the full colour, and a
+   hint then looks like something already typed. */
+::placeholder {
+  color: var(--ink-a50);
+  opacity: 1;
 }
 .ah-input::placeholder {
   color: var(--ink-a45);

@@ -374,7 +374,10 @@ test("/raise's preview writes its date in UTC, as the card does: where the reade
 });
 
 test("/raise on a wide screen: the examples and the action stand beside the sections in a box no taller than the window, the strip has no item for them, and the next section comes up in shade as on a phone", async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, hasTouch: false, isMobile: false, deviceScaleFactor: 1 });
+  // The reader's clock is set to UTC: east or west of it, at some hours, the chat preview gains a line
+  // saying that a preview counts the day in UTC, and on a window this short that line alone
+  // decides whether the page's example begins on the screen. The layout is what is measured here.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, hasTouch: false, isMobile: false, deviceScaleFactor: 1, timezoneId: "UTC" });
   const page = await context.newPage();
   await page.goto("/raise");
   const strip = page.getByTestId("raise-nav");

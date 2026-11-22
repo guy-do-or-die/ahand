@@ -301,14 +301,14 @@ function CoreLine({ core }: { core: string }) {
 
 export function Footer() {
   const core = config.cores.canonical ?? config.cores.trusted.find((c) => c.chainId === config.chain.id)!.core;
-  const link = "inline-flex min-h-11 items-center text-ink/70 underline decoration-ink/30 decoration-dashed decoration-[1.5px] underline-offset-[5px] hover:text-ink";
+  const link = "inline-flex min-h-11 items-center text-[color:var(--ink-a70)] underline decoration-[color:var(--ink-a30)] decoration-dashed decoration-[1.5px] underline-offset-[5px] hover:text-ink";
   // Core's line is the lens's alone: off the lens the footer is the two links and the two switches.
   // It stands beside the switches, in room the footer already has, so turning the lens on and off
   // moves nothing: in one row with them on a wide screen, and under them on a narrow one, where
   // its place is kept while the lens is off.
   const lens = useLens();
   return (
-    <footer data-testid={TID.shell.footer} className="mt-10 border-t border-solid border-ink/10 px-4 pb-6 pt-4 sm:px-6 md:px-10">
+    <footer data-testid={TID.shell.footer} className="mt-10 border-t border-solid border-[color:var(--ink-a10)] px-4 pb-6 pt-4 sm:px-6 md:px-10">
       <div className="flex items-start gap-x-5">
         <nav aria-label={t("common.footer.nav")} className="flex flex-1 flex-wrap gap-x-5 text-[length:var(--fs-body-sm)]">
           <a href="/without-us" data-testid={TID.shell.footerWithoutUs} className={link}>
@@ -329,7 +329,7 @@ export function Footer() {
             <a
               href="/core"
               data-testid={TID.shell.footerCore}
-              className={`${MONO} inline-flex min-h-11 items-center text-[length:var(--fs-mono-sm)] leading-[1.6] text-ink/60 no-underline hover:text-ink lg:order-1`}
+              className={`${MONO} inline-flex min-h-11 items-center text-[length:var(--fs-mono-sm)] leading-[1.6] text-[color:var(--ink-a60)] no-underline hover:text-ink lg:order-1`}
             >
               <CoreLine core={core} />
             </a>

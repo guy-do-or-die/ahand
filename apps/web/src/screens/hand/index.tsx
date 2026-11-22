@@ -380,7 +380,7 @@ function ActionBar({ left, off }: { left: number; off: boolean }) {
   return (
     <div
       ref={bar}
-      className="sticky bottom-0 z-10 -mx-6 mt-8 border-0 border-t border-solid border-ink/15 bg-paper px-4 pt-5 pb-[max(12px,env(safe-area-inset-bottom))]"
+      className="sticky bottom-0 z-10 -mx-6 mt-8 border-0 border-t border-solid border-[color:var(--ink-a15)] bg-paper px-4 pt-5 pb-[max(12px,env(safe-area-inset-bottom))]"
       data-testid={TID.hand.actionBar}
     >
       <div className="grid grid-cols-2 gap-2">

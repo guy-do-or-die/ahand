@@ -127,7 +127,27 @@ test("the lens shows the evidence where it stood, stays on after a reload, and ?
     await expect(core).toBeVisible();
   }
 
-  // Kept on this device: the next page opens with the lens on.
+  // Kept on this device: the next page opens with the lens on. The choice is written to the
+  // device's store one flip after another, so the six flips above are waited out before leaving.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<unknown>((resolve) => {
+            const open = indexedDB.open("ahand");
+            open.onerror = () => resolve(undefined);
+            open.onsuccess = () => {
+              const read = open.result.transaction("prefs").objectStore("prefs").get("lens");
+              read.onsuccess = () => {
+                open.result.close();
+                resolve(read.result);
+              };
+              read.onerror = () => resolve(undefined);
+            };
+          }),
+      ),
+    )
+    .toBe(true);
   await page.goto("/raise", { waitUntil: "networkidle" });
   await expect(page.locator("html")).toHaveAttribute("data-lens", "on");
 

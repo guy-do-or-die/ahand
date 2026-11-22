@@ -4,9 +4,14 @@ import { code, filesUnder, hits, source } from "./files";
 
 /**
  * The colour guard: five raw colour values, and only in design/tokens.css and
- * design/tokens.ts. Everywhere else a colour is a token (`var(--ink)`, `text-ink/50`,
- * `color-mix(… var(--ink) …)`). Caught: hex colours, and rgb()/hsl()/hwb()/lab()/oklch() written
+ * design/tokens.ts. Everywhere else a colour is a token (`var(--ink)`, `var(--ink-a60)`,
+ * `rgb(var(--ink-rgb) / 0.5)`). Caught: hex colours, and rgb()/hsl()/hwb()/lab()/oklch() written
  * with numbers.
+ *
+ * A see-through colour is never made with color-mix(), in a stylesheet or by a utility's opacity
+ * modifier (a theme colour, a slash and a number): Safari before 16.2 has no color-mix(), the
+ * build then leaves it the solid colour, and quiet text turns loud, a tone turns into a slab and
+ * a fade into a hard edge. The steps are tokens over the theme's channels instead.
  */
 
 const TOKEN_FILES = new Set(["design/tokens.css", "design/tokens.ts"]);
@@ -23,6 +28,24 @@ describe("colour: raw values live in the token files only", () => {
 
   test("no rgb(), hsl() or other colour function with raw numbers outside the token files", () => {
     expect(files.flatMap((file) => hits(file, file.endsWith(".css") ? source(file) : code(file), FUNCTION))).toEqual([]);
+  });
+
+  test("no color-mix() in a stylesheet and no opacity modifier on a theme colour in markup", () => {
+    const MIX = /color-mix\(/;
+    const MODIFIER = /\b(?:text|bg|border|decoration|ring|outline|fill|stroke|divide|from|to|via|placeholder|caret|accent|shadow)-(?:ink|paper|amber|card|gold)\/\d/;
+    const all = filesUnder("", /\.(ts|tsx|css)$/);
+    // Comments are dropped: this file and the token file say the function's name to explain the rule.
+    const body = (file: string) => (file.endsWith(".css") ? source(file).replace(/\/\*[\s\S]*?\*\//g, "") : code(file));
+    expect(all.filter((file) => !file.endsWith(".test.ts") && !file.endsWith(".test.tsx")).flatMap((file) => [...hits(file, body(file), MIX), ...hits(file, body(file), MODIFIER)])).toEqual([]);
+  });
+
+  test("each raw colour and its channels are the same colour", () => {
+    const tokens = source("design/tokens.css");
+    for (const name of ["ink", "paper", "amber"]) {
+      const hex = tokens.match(new RegExp(`--ah-raw-${name}: #([0-9a-f]{6});`))![1]!;
+      const channels = tokens.match(new RegExp(`--ah-raw-${name}-rgb: (\\d+) (\\d+) (\\d+);`))!.slice(1).map(Number);
+      expect(channels).toEqual([0, 2, 4].map((at) => parseInt(hex.slice(at, at + 2), 16)));
+    }
   });
 
   test("the patterns catch colours and spare addresses and ids", () => {
