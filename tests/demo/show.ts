@@ -10,8 +10,8 @@
  *   bun run show --list                       # every scenario id
  *
  * Options: --speed N (pace, 1 by default), --paused (wait for Step or Play), --slot N (a stand
- * slot; the first free one otherwise, never 9), --keep (leave the stand up). Ports come from
- * STAND_PORT_BASE (47000 when unset, far from the owner's 5170–5173 and from 3000). A scenario that
+ * slot; the first free one from 1 to 8 otherwise), --keep (leave the stand up). Ports come from
+ * STAND_PORT_BASE (47000 when unset, so the default layout's ports and 3000 stay free). A scenario that
  * runs on the stand only; the fork and the site keep their own commands (README, Targets).
  */
 import { spawnSync } from "node:child_process";
@@ -52,7 +52,7 @@ const bun = process.execPath;
 
 async function freeSlot(): Promise<number> {
   if (value("--slot") !== undefined) return Number(value("--slot"));
-  // Slot 9 is the owner's live stand's number; never take it, even on another port base.
+  // Slot 9 is left for a long-lived local stand; never take it, even on another port base.
   for (let slot = 1; slot <= 8; slot++) {
     process.env.STAND_PORT_BASE = env.STAND_PORT_BASE;
     if ((await slotInUse(slot)).length === 0) return slot;

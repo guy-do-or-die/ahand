@@ -7,7 +7,7 @@
  *
  * To hold the "Sent" state long enough to look at, block production is paused while the raise is
  * in the pool and resumed afterwards. The raiser's allowance is set from the test side first, so
- * the raise is one step. Dev account 2 raises (account 1 belongs to the life spec).
+ * the raise is one step. Dev account 2 raises (account 1 belongs to the life scenario, tests/demo/scenarios/life.ts).
  */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";

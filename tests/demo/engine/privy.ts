@@ -1,6 +1,6 @@
 /**
  * Privy test accounts (Privy's dashboard, "Test accounts"): an email of the form
- * test-XXXX@privy.io with a fixed code, in the dev Privy app only. Their codes live outside Git in
+ * test-XXXX@privy.io with a fixed code, in a development Privy app only. Their codes live outside Git in
  * ~/.config/ahand-demo/privy-test.json (0600; DEMO_PRIVY_FILE overrides), with the address of the
  * wallet Privy made on the first sign-in. The engine reads them in the test process and types
  * them into Privy's window the way a person would; it never prints them.

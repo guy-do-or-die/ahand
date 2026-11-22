@@ -6,7 +6,7 @@ export default defineScenario({
   title: "Time's up: a stranger sends the reward back",
   story:
     "Nina raises a hand for 7 days with 5 test dollars. Nobody helps. A week and a day later Vic, a stranger with a wallet, opens the link, sees Time's up and sends the reward back. Nina has all of it again, and Vic paid only gas.",
-  covers: ["U12", "U17", "UX §8.2"],
+  covers: ["uc:no-disputes", "uc:permissionless", "flow:hand-view"],
   targets: ["stand", "fork"],
   tags: ["expiry", "refund", "permissionless", "clock"],
   personas: {

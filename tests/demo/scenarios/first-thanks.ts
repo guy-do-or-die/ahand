@@ -9,7 +9,7 @@ export default defineScenario({
   titleRu: "Поднять руку, передать с долей, ответить, поблагодарить",
   storyRu:
     "Нине нужна лестница. Она поднимает руку с наградой 20 тестовых долларов и отправляет ссылку Алексу. У Алекса нет кошелька: он передаёт ссылку дальше и оставляет себе 10% на адрес, который вставляет. Гина открывает ссылку Алекса и отвечает со своим кошельком, Нина благодарит её: одна транзакция платит и Гине, и Алексу.",
-  covers: ["U1", "U4", "U28", "UX §7.2", "UX §8.4", "UX §8.5", "UX §7.5"],
+  covers: ["uc:chain", "uc:household", "uc:walletless-pass", "flow:raise", "flow:pass-on", "flow:give", "flow:thank"],
   targets: ["stand", "fork", "site"],
   tags: ["core-loop", "unlisted", "walletless-pass"],
   personas: {

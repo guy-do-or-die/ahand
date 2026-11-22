@@ -80,6 +80,13 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # The demo engine's catalogue is its scenarios', and the atlas has a place for every route of
+      # the app: both read source files only, no stand and no browser.
+      - name: Demo catalogue and atlas routes
+        run: |
+          bun run check:catalogue
+          bun run check:atlas
+
       # packages/abi/src/generated.ts holds Core's ABI and the deployment records: @wagmi/cli
       # regenerates it from the build above and contracts/deployments, and it must equal the commit.
       - name: ABI package matches the build
@@ -204,11 +211,6 @@ jobs:
         working-directory: contracts
         run: '"$FOUNDRY_BIN/forge" build'
 
-      - name: The catalogue is the scenarios', the atlas has every route
-        run: |
-          bun tests/demo/catalogue.ts --check
-          bun tests/demo/atlas.ts --check-routes
-
       - name: Stand up
         run: bun infra/stand/stand.ts up --slot 0
 
@@ -228,8 +230,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: scenarios-failed
-          path: |
-            tests/demo/test-results/
-            tests/demo/report/
+          # The HTML report holds every failed scenario's trace, screenshots and videos already.
+          path: tests/demo/report/
           retention-days: 14
 

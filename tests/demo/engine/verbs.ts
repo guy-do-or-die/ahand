@@ -41,6 +41,8 @@ export interface Notes {
   answer?: Locator;
   /** A Hand's end before Care moved it. */
   expiryBefore?: { hand: string; expiry: number };
+  /** The words each helper gave, by persona key (for the thread's own side). */
+  gave: Record<string, string>;
 }
 
 export interface Ctx {
@@ -270,6 +272,7 @@ export async function run(ctx: Ctx, who: Actor | undefined, action: Action): Pro
     case "give": {
       const actor = who!;
       const { page } = actor;
+      ctx.notes.gave[actor.key] = action.words;
       await press(ctx, page.getByTestId(TID.hand.help));
       await expect(page).toHaveURL(/\/give$/);
       await type(ctx, page.getByTestId(TID.give.words), action.words);
@@ -313,6 +316,8 @@ export async function run(ctx: Ctx, who: Actor | undefined, action: Action): Pro
       await expect(unlock).toHaveAttribute("data-value", "unlocked", { timeout: 30_000 });
       const answer = action.words ? page.getByTestId(TID.my.answer).filter({ hasText: action.words }) : page.getByTestId(TID.my.answer);
       await expect(answer).toHaveCount(1, { timeout: 30_000 });
+      // `total`: how many answers the page shows in all (an extra or doubled card is caught).
+      if (action.total !== undefined) await expect(page.getByTestId(TID.my.answer), "answers on My hands").toHaveCount(action.total);
       await ctx.director.point(answer);
       ctx.notes.answer = answer;
       return ctx.director.beat(1_000);

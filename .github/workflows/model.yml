@@ -1,5 +1,4 @@
-# NOTE: this workflow has never run (written 2026-11-21 on a machine without GitHub Actions; the
-# same commands were run there by hand on a stand slot).
+# NOTE: this workflow has not run on GitHub yet; the same command was run by hand.
 #
 # The Hand model's paths (tests/demo/model) played as scenarios on a fresh stand. Nightly: one
 # shortest path to every end of a Hand (36 scenarios, about 12 minutes). By hand: any mode, and
@@ -7,6 +6,8 @@
 # workflow it needs no secret and touches no public chain.
 name: model
 
+# GitHub runs a schedule only from the default branch's copy of this file, against that branch:
+# the nightly run tests main, and starts once this file is on main. On other branches, run it by hand.
 on:
   schedule:
     - cron: "30 2 * * *"
@@ -90,9 +91,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: model-paths
-          path: |
-            tests/demo/test-results/
-            tests/demo/report/
+          # The HTML report holds every failed path's trace, screenshots and videos already.
+          path: tests/demo/report/
           retention-days: 7
 
       - name: Down

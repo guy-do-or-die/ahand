@@ -11,7 +11,7 @@
 //   core.<Error>    each of Core's refusals, and the three OpenZeppelin errors that can reach a caller
 //
 // Mono lines (the ribbon, the footer's Core line) are written in sentence case here; the mono
-// style sets them in capitals. The marks, the TxRail and the kit's own words live in ui/words.ts.
+// style sets them in capitals. The marks, the TxRail and the kit's own words live in ui/words.data.ts.
 //
 // Every key here is used somewhere: tests/guards/keys-used.test.ts fails on a key nothing reads.
 

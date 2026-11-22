@@ -18,7 +18,8 @@ import { join } from "node:path";
  * - Private record ids: a capital letter group from a private working document's numbering
  *   followed by a dash and a number, such as the letter R, a dash and 3 (the groups are listed at
  *   PRIVATE_ID; capitals only, and only standing as a word of their own). A finding's id is caught
- *   with or without the dash: F, then one to three digits, standing alone. No public file defines
+ *   with or without the dash: F, then one to three digits, standing alone; a private use case's as
+ *   U and one or two digits, and a private UX spec's sections as "UX" and the section sign. No public file defines
  *   them, so they point at nothing a reader can open. A function key's name standing alone would
  *   be caught too, so a line that needs one names the key in words.
  *
@@ -40,11 +41,12 @@ const PROFANITY = new RegExp(`(?:${ANYWHERE.join("|")})|(?<![\\u0430-\\u044f\\u0
 const HOME = /\/(?:home|Users)\/[^\s/"'`]+/;
 
 /**
- * A private record id: R, D, M, IN, U, C, A, W, O, L or F, a dash and a number, or F and one to
- * three digits with no dash (a finding's id), standing as a word of its own: a letter group inside
+ * A private record id: R, D, M, IN, U, C, A, W, O, L or F, a dash and a number, F and one to three
+ * digits with no dash (a finding's id), U and one or two digits with no dash (a private list of use
+ * cases), standing as a word of its own; or a section of a private UX spec ("UX" and the section sign): a letter group inside
  * a longer name (the end of SHA), a hex number (0xF1) and a colour (#F00) are not one.
  */
-const PRIVATE_ID = /(?<![\w#-])(?:(?:R|D|M|IN|U|C|A|W|O|L|F)-\d+|F\d{1,3})(?![\w-])/;
+const PRIVATE_ID = /(?<![\w#+-])(?:(?:R|D|M|IN|U|C|A|W|O|L|F)-\d+|F\d{1,3}|U\d{1,2})(?![\w-])|UX ?\u00a7/u;
 
 /** The only home paths allowed, by file: each is synthetic or the CI runner's. */
 const HOME_ALLOWED: Record<string, string[]> = {

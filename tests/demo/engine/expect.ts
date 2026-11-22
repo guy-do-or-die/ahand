@@ -78,10 +78,15 @@ async function check(ctx: Ctx, actor: Actor | undefined, e: Expectation, base: M
     const one = locator.first();
     await expect(one, e.see).toBeVisible({ timeout: 30_000 });
     if (words) await expect(one, `${e.see} says`).toContainText(words, { timeout: 20_000 });
+    if (e.exact && (words || e.text)) await expect(one, `${e.see} says exactly`).toHaveText(words ?? world.resolve(e.text!), { timeout: 20_000 });
     if (e.notSays) await expect(one, `${e.see} does not say`).not.toContainText(phrase(e.notSays));
     for (const [name, value] of Object.entries(e.attr ?? {})) await expect(one, `${e.see} ${name}`).toHaveAttribute(name, world.resolve(value), { timeout: 30_000 });
     if (e.enabled === true) await expect(one, `${e.see} enabled`).toBeEnabled({ timeout: 20_000 });
     if (e.enabled === false) await expect(one, `${e.see} disabled`).toBeDisabled({ timeout: 20_000 });
+    return;
+  }
+  if ("sdk" in e) {
+    expect(world.opened(e.sdk).state, `the SDK reads ${e.sdk}`).toBe(e.state);
     return;
   }
   if ("open" in e) {
@@ -244,6 +249,8 @@ async function named(ctx: Ctx, actor: Actor, name: NamedCheck, arg: string | und
       const thread = page.getByTestId(TID.give.thread);
       await expect(thread.locator('[data-from="asker"]'), "the asker's reply in the helper's tab").toContainText(arg!, { timeout: 30_000 });
       await expect(thread.locator('[data-from="you"]').first()).toBeVisible();
+      const own = notes.gave[actor!.key];
+      if (own) await expect(thread.locator('[data-from="you"]').first(), "the helper's own words in the thread").toContainText(own);
       return;
     }
   }

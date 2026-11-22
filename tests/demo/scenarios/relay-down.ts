@@ -6,7 +6,7 @@ export default defineScenario({
   title: "The relay is down: the answer goes back by hand, and the thank still pays",
   story:
     "Nina raises a hand and Alex passes it on. Then the stand's relay goes down. Gina answers; her page says it could not reach the asker and asks her to send the answer back to whoever sent her the link. The address travels back by hand, Nina pastes it on Thank, and Gina is paid. No server was needed for the money.",
-  covers: ["U18", "UX §8.5", "UX §7.5"],
+  covers: ["uc:exit", "flow:give", "flow:thank"],
   targets: ["stand"],
   tags: ["fault", "relay", "exit"],
   watch: ["no-fragment-after-load"],

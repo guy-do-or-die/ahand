@@ -17,7 +17,7 @@ import { FORK_WALLET_NAME, injectForkWallet } from "../../e2e/lib/fork/key-walle
 import { BURNER_CHAIN_ID, burnerAddresses } from "./burners";
 import { BURNER_WALLET_NAME, injectBurner } from "./signer";
 import { approveInPrivy, privyAddress, privyWindow, signInPrivy } from "./privy";
-import type { WalletSpec } from "./scenario";
+import type { Scenario, WalletSpec } from "./scenario";
 import type { World } from "./world";
 
 export interface WalletKind<S extends WalletSpec = WalletSpec> {
@@ -140,4 +140,17 @@ export function walletOnTarget(spec: WalletSpec, target: "stand" | "fork" | "sit
 
 export function walletOf<S extends WalletSpec>(spec: S): WalletKind<S> {
   return WALLETS[spec.kind] as unknown as WalletKind<S>;
+}
+
+/**
+ * Why a scenario cannot be played with burners (DEMO_WALLETS=burner on a fork, or a branch site),
+ * or undefined when it can. The SDK and seed steps act as anvil's account 1 (craft.ts, seed.ts), so
+ * a Hand they raise is not the burner persona's to thank; an injected key outside 1–5 has no burner.
+ */
+export function burnerUnfit(scenario: Scenario): string | undefined {
+  const sdk = scenario.steps.find((step) => step.do === "raise-sdk" || step.do === "pass-sdk" || step.do === "give-sdk" || step.do === "seed");
+  if (sdk) return `its "${sdk.do}" step acts as anvil's account 1, not as a burner`;
+  const odd = Object.values(scenario.personas).find((p) => p.wallet.kind === "injected" && (p.wallet.account < 1 || p.wallet.account > 5));
+  if (odd) return `${odd.name}'s injected key ${odd.wallet.kind === "injected" ? odd.wallet.account : ""} has no burner`;
+  return undefined;
 }

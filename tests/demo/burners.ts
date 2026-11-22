@@ -7,7 +7,7 @@
  *   bun tests/demo/burners.ts need                  what each burner needs to play every site scenario once
  *
  * Keys stay in ~/.config/ahand-demo/burners.json (0600) and are never printed. Fund them from the
- * faucets the app lists (Circle for USDC, Base's list for ETH): that is the owner's step.
+ * faucets the app lists (Circle for USDC, Base's list for ETH), once, by hand.
  */
 import { createPublicClient, erc20Abi, formatEther, formatUnits, http, type Address } from "viem";
 import { baseSepolia } from "viem/chains";

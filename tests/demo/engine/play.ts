@@ -83,7 +83,7 @@ export async function play(written: Scenario, browser: Browser, info: TestInfo):
       cast.push({ persona, context, page });
     }
 
-    const ctx: Ctx = { world, director, actors, notes: { rail: [], predicted: [] }, form: async () => {} };
+    const ctx: Ctx = { world, director, actors, notes: { rail: [], predicted: [], gave: {} }, form: async () => {} };
     const captions = scenario.steps.map((step) => captionIn(step, step.who ? scenario.personas[step.who]!.name : undefined, captionOf));
     await director.stage(browser, cast, [...captions, DIRECTOR_WORDS.checks]);
     const pages = cast.map((c) => c.page);
@@ -127,9 +127,17 @@ export async function play(written: Scenario, browser: Browser, info: TestInfo):
     failed = false;
     if (domOn()) info.annotations.push({ type: "dom", description: saveDom(written.id, world.stand.site ?? "", Object.fromEntries(Object.entries(dom).map(([k, d]) => [k, { ...d, name: nameIn(d.name), role: roleIn(d.role) }])), marks) });
   } finally {
-    await world.restore();
-    for (const one of cast) await one.context.close().catch(() => undefined);
-    if (video && !keepVideo && !failed) for (const key of Object.keys(scenario.personas)) rmSync(info.outputPath(`video-${key}`), { recursive: true, force: true });
+    // The stand gets back what the faults took, and every window closes, whatever fails on the way.
+    let restoreErrors: Error[] = [];
+    try {
+      restoreErrors = await world.restore();
+    } finally {
+      for (const one of cast) await one.context.close().catch(() => undefined);
+      await director.close();
+      if (video && !keepVideo && !failed) for (const key of Object.keys(scenario.personas)) rmSync(info.outputPath(`video-${key}`), { recursive: true, force: true });
+    }
+    // The scenario's own error stands; a failed restore fails a scenario that passed.
+    if (!failed && restoreErrors.length) throw new AggregateError(restoreErrors, `the stand was not given back: ${restoreErrors.map((e) => e.message).join("; ")}`);
   }
 }
 

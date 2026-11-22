@@ -85,6 +85,8 @@ export type Expectation =
       /** A sentence it must not hold. */
       notSays?: WordKey;
       text?: string;
+      /** With `says` or `text`: the element's whole text is exactly that, not only contains it. */
+      exact?: boolean;
       attr?: Record<string, string>;
       count?: number;
       /** Enabled (true) or disabled (false), for a control. */
@@ -94,6 +96,8 @@ export type Expectation =
   | { open: WordKey; on?: string }
   /** Core's state of a Hand and the terms it holds. */
   | { hand: string; state?: "open" | "thanked" | "refunded" | "expired"; reward?: string; minClaimBps?: number; token?: Token; raiser?: string; givenBy?: string }
+  /** The SDK's own reading of a Hand's state through an address a step carried (its `open`, as an app reads it). */
+  | { sdk: string; state: "open" | "thanked" | "refunded" | "expired" }
   /** Core's own checkRoute on an address a step carried: each pass's payee (`@name` or null) and kept share. */
   | { route: string; is: { payee: string | null; keptBps: number }[] }
   /** Core's own checkGive on a give address a step carried. */
@@ -195,7 +199,7 @@ export type Action =
    */
   | { do: "give"; words: string; payee?: Payee; as?: string; delivery?: "relay" | "by-hand" }
   /** The asker opens /my on the device that raised, unlocks, and waits for the answer (the one with `words`, or the only one). */
-  | { do: "read-answers"; hand: string; words?: string }
+  | { do: "read-answers"; hand: string; words?: string; total?: number }
   /** The asker replies to the answer open on /my. */
   | { do: "reply"; words: string }
   /**
@@ -273,7 +277,7 @@ export interface Scenario {
   /** The title and story in Russian, for a show with DEMO_LANG=ru. */
   titleRu?: string;
   storyRu?: string;
-  /** Use-case ids it covers: U1…U28 and the screen flows UX §…, as scenarios/use-cases.ts names them. */
+  /** Use-case ids it covers ("uc:…", "flow:…"), as scenarios/use-cases.ts names them. */
   covers: string[];
   /** Targets it can run on. A scenario with clock jumps or faults cannot run on a public network. */
   targets: ("stand" | "fork" | "site")[];

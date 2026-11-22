@@ -1,7 +1,7 @@
 import { useLang, type Lang } from "../ui/ambient";
 
 /**
- * The wallet layer's own words, in English and Russian, kept like the kit's (`ui/words.ts`): RU is
+ * The wallet layer's own words, in English and Russian, kept like the kit's (`ui/words.data.ts`): RU is
  * typed by EN, so a sentence missing in one language does not compile, and words.test.ts checks
  * the banned words on the human layer. "Wallet" appears only in "Connect a wallet".
  * `dev` is the local-only test accounts' section: a specialist's layer that names what it is.

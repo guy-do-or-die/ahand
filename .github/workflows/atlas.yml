@@ -1,20 +1,34 @@
-# NOTE: this workflow has never run (written 2026-11-22 on a machine without GitHub Actions; the
-# same command was run there by hand).
+# NOTE: this workflow has not run on GitHub yet; the same command was run by hand.
 #
 # The branch's atlas: every screen of the app in every state the stand's seed makes, in Russian and
 # English, light and dark, lens off and on, phone and desktop (tests/demo/atlas.ts), on a fresh
 # stand. It needs no secret and touches no public chain; the pictures and the page are kept as the
-# run's artifact "atlas" for 14 days. The run fails when a picture could not be taken, and
-# `bun run check` (job check) fails when the app has a route the atlas does not show.
+# run's artifact "atlas" for 14 days. The run fails when a picture could not be taken; the check
+# workflow (atlas.ts --check-routes, no stand needed) fails when the app has a route the atlas does
+# not show.
 name: atlas
 
 on:
   push:
-    branches: ["exp/**", "main"]
+    branches: ["next", "main", "exp/**"]
+    paths:
+      - "apps/web/**"
+      - "packages/**"
+      - "contracts/src/**"
+      - "infra/stand/**"
+      - "infra/relay/**"
+      - "tests/demo/**"
+      - "package.json"
+      - "bun.lock"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A newer push of the same branch replaces a run still going: each takes half an hour or more.
+concurrency:
+  group: atlas-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   atlas:
@@ -70,5 +84,8 @@ jobs:
         if: always()
         with:
           name: atlas
-          path: tests/demo/.gallery/
+          path: tests/demo/.atlas/
+          # The folder's name starts with a dot, which upload-artifact skips unless told.
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 14

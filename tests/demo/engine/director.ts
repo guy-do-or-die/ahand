@@ -222,6 +222,12 @@ export class Director {
   }
 
   /** Rings the element, waits a beat, then lets the verb press it. */
+  /** Closes the director's own window (a show of several scenarios opens one per scenario). */
+  async close(): Promise<void> {
+    await this.panel?.context().close().catch(() => undefined);
+    this.panel = undefined;
+  }
+
   async point(locator: Locator): Promise<void> {
     if (!this.options.on) return;
     // Only what is on screen now: an element that went away (a sheet closing after a pick) must

@@ -32,6 +32,8 @@ const chosen = onStand.filter((s) => !only || only.includes(s.id));
 const env: Record<string, string> = { ...(process.env as Record<string, string>), STAND_PORT_BASE: process.env.STAND_PORT_BASE ?? "47000", DEMO_LANG: lang };
 const bun = process.execPath;
 const run = (command: string, args: string[], extra: Record<string, string> = {}) => spawnSync(command, args, { cwd: REPO, env: { ...env, ...extra }, stdio: "inherit" }).status ?? 1;
+/** What went wrong in this run; the page is still written, then the run fails. */
+const failures: string[] = [];
 const videoName = (id: string) => `${id}.${lang}.mp4`;
 
 async function record(): Promise<void> {
@@ -41,8 +43,9 @@ async function record(): Promise<void> {
   if (slot < 0) throw new Error("no free stand slot from 1 to 8");
   if (run(bun, ["infra/stand/stand.ts", "up", "--slot", String(slot)]) !== 0) throw new Error("the stand did not come up");
   const output = join(REPO, "tests/demo/test-results", `gallery-${lang}`);
+  let played = 1;
   try {
-    run(bun, ["x", "playwright", "test", "-c", "playwright.demo.config.ts", "tests/demo/scenarios.spec.ts", "--output", output, "--reporter", "list"], {
+    played = run(bun, ["x", "playwright", "test", "-c", "playwright.demo.config.ts", "tests/demo/scenarios.spec.ts", "--output", output, "--reporter", "list"], {
       DEMO: "1",
       DEMO_HEADLESS: "1",
       DEMO_VIDEO: "1",
@@ -55,6 +58,7 @@ async function record(): Promise<void> {
   } finally {
     run(bun, ["infra/stand/stand.ts", "down", "--slot", String(slot)]);
   }
+  if (played !== 0) failures.push(`a scenario failed (Playwright exited ${played}): see tests/demo/report`);
   // Each test's folder starts with "scenarios-<id>-": stitch its phones into one video.
   mkdirSync(join(OUT, "videos"), { recursive: true });
   const folders = existsSync(output) ? readdirSync(output).map((n) => join(output, n)).filter((p) => statSync(p).isDirectory()) : [];
@@ -63,9 +67,13 @@ async function record(): Promise<void> {
     const folder = folders.find((f) => existsSync(join(f, "scenario.id")) && readFileSync(join(f, "scenario.id"), "utf8").trim() === s.id);
     if (!folder) {
       console.log(`gallery: no video for ${s.id} (it failed or was skipped)`);
+      failures.push(`no video for ${s.id}`);
       continue;
     }
-    if (run(bun, ["tests/demo/stitch.ts", folder, join(OUT, "videos", videoName(s.id))]) !== 0) console.log(`gallery: stitching ${s.id} failed`);
+    if (run(bun, ["tests/demo/stitch.ts", folder, join(OUT, "videos", videoName(s.id))]) !== 0) {
+      console.log(`gallery: stitching ${s.id} failed`);
+      failures.push(`stitching ${s.id}`);
+    }
   }
 }
 
@@ -124,3 +132,7 @@ if (!argv.includes("--page-only")) await record();
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, lang === "ru" ? "ru.html" : "index.html"), page());
 console.log(`gallery: ${join(OUT, lang === "ru" ? "ru.html" : "index.html")} (${readdirSync(join(OUT, "videos")).filter((f) => f.endsWith(`.${lang}.mp4`)).length} videos)`);
+if (failures.length) {
+  console.error(`gallery: ${failures.length} problem(s):\n  ${failures.join("\n  ")}`);
+  process.exit(1);
+}

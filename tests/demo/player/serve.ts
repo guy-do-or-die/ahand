@@ -5,7 +5,7 @@
  * Every other path is a file of the app's build (its /assets: fonts, styles, images), as the
  * recordings name them relative to the site, the way a branch's site would serve them.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, normalize, resolve } from "node:path";
 
@@ -13,7 +13,19 @@ const require = createRequire(import.meta.url);
 const replay = dirname(require.resolve("@rrweb/replay"));
 const DOM = resolve(import.meta.dirname, "../.run/dom");
 const arg = (name: string) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : undefined);
-const DIST = resolve(arg("--dist") ?? join(import.meta.dirname, "../../../infra/stand/.run/5/dist"));
+/** A build of the app for the recordings' fonts, styles and images: --dist, else the newest stand slot's. */
+function newestDist(): string | undefined {
+  const runs = resolve(import.meta.dirname, "../../../infra/stand/.run");
+  if (!existsSync(runs)) return undefined;
+  return readdirSync(runs)
+    .map((slot) => join(runs, slot, "dist"))
+    .filter((dist) => existsSync(join(dist, "build.json")))
+    .sort((a, b) => statSync(join(b, "build.json")).mtimeMs - statSync(join(a, "build.json")).mtimeMs)[0];
+}
+const DIST = resolve(arg("--dist") ?? newestDist() ?? "");
+if (!existsSync(join(DIST, "index.html"))) {
+  console.warn(`player: no build of the app at "${DIST}": the recordings will play without their fonts, styles and images. Bring a stand up (bun infra/stand/stand.ts up --slot N) or pass --dist <a build>.`);
+}
 const port = Number(process.argv.includes("--port") ? process.argv[process.argv.indexOf("--port") + 1] : 47190);
 const files: Record<string, string> = {
   "/": join(import.meta.dirname, "index.html"),

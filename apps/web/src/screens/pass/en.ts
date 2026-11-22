@@ -1,5 +1,5 @@
 // The pass screen's words in English. Keys are dotted ids; ru.ts has the
-// same keys. "Where should your share land?" and its three choices are the kit's (ui/words.ts).
+// same keys. "Where should your share land?" and its three choices are the kit's (ui/words.data.ts).
 const en = {
   "pass.title": "Pass it on",
   "pass.lead": "Keep a little for yourself, or pass it all on.",

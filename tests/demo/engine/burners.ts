@@ -2,7 +2,7 @@
  * The engine's burner keys for Base Sepolia (DEMO_TARGET=site, and the fork, where they are funded
  * by anvil): made here, kept outside the repository in ~/.config/ahand-demo/burners.json (mode
  * 0600; DEMO_BURNERS_FILE moves it), never printed. They exist for test money on chain 84532 and
- * nothing else: the burner wallet refuses any other chain. Never the owner's keys.
+ * nothing else: the burner wallet refuses any other chain. No one's own keys are ever used.
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";

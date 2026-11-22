@@ -98,6 +98,7 @@ export function describe(e: Expectation): string {
     if (e.enabled !== undefined) parts.push(e.enabled ? "enabled" : "disabled");
     return `screen${e.on ? ` of ${e.on}` : ""}: ${parts.join(", ")}`;
   }
+  if ("sdk" in e) return `the SDK reads ${e.sdk} as ${e.state}`;
   if ("open" in e) return `opens “${e.open}”`;
   if ("hand" in e) return `Core: Hand "${e.hand}" ${Object.entries(e).filter(([k]) => k !== "hand").map(([k, v]) => `${k} ${v}`).join(", ")}`;
   if ("route" in e) return `Core's checkRoute on ${e.route}: ${e.is.length ? e.is.map((r) => `${r.payee ?? "nobody"} keeps ${r.keptBps / 100}%`).join(", then ") : "no passes"}`;

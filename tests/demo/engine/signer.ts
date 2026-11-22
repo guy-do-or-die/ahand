@@ -41,11 +41,14 @@ export async function injectBurner(context: BrowserContext, rpcUrl: string, n: n
         const [from, json] = params as [string, string];
         if (from.toLowerCase() !== account.address.toLowerCase()) throw Object.assign(new Error("not this account"), { code: 4100 });
         const typed = JSON.parse(json) as TypedDataDefinition & { domain?: { chainId?: number | string } };
-        if (typed.domain?.chainId !== undefined && Number(typed.domain.chainId) !== BURNER_CHAIN_ID) throw Object.assign(new Error("a burner signs for Base Sepolia only"), { code: 4100 });
+        // Typed data with no chain in its domain could be replayed on any chain: refused, as a careful wallet does.
+        if (typed.domain?.chainId === undefined || Number(typed.domain.chainId) !== BURNER_CHAIN_ID) throw Object.assign(new Error("a burner signs typed data for Base Sepolia only"), { code: 4100 });
         return account.signTypedData(typed);
       }
       case "eth_sendTransaction": {
-        const [tx] = params as [{ to: Address; data?: Hex; value?: Hex; gas?: Hex }];
+        const [tx] = params as [{ from?: string; to: Address; data?: Hex; value?: Hex; gas?: Hex }];
+        // A page asking to send from another account gets an error, as from a real wallet, not this account's transaction.
+        if (tx.from !== undefined && tx.from.toLowerCase() !== account.address.toLowerCase()) throw Object.assign(new Error("not this account"), { code: 4100 });
         return signer.sendTransaction({ to: tx.to, ...(tx.data ? { data: tx.data } : {}), value: tx.value ? BigInt(tx.value) : 0n, ...(tx.gas ? { gas: BigInt(tx.gas) } : {}) });
       }
       case "personal_sign":

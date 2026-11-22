@@ -6,8 +6,8 @@
  * goes through the craft tool in a child process, as the e2e suite does.
  *
  *   DEMO_TARGET=stand (default)  infra/stand/.run/<STAND_SLOT>/stand.json, as the e2e suite reads it
- *   DEMO_TARGET=fork             not wired yet (plan step 3: the fork kit)
- *   DEMO_TARGET=site             not wired yet (plan step 3: burner wallets)
+ *   DEMO_TARGET=fork             tests/demo/.run/fork/stand.json, written by tests/demo/fork.ts
+ *   DEMO_TARGET=site             DEMO_SITE, a branch site on Base Sepolia (target.ts)
  */
 import { join } from "node:path";
 
@@ -235,8 +235,20 @@ export class World {
   }
 
   /** Starts again whatever a step stopped and unblocks what it blocked; called whatever happened. */
-  async restore(): Promise<void> {
-    for (const service of [...this.stopped]) this.service(service, true);
-    for (const address of [...this.blocked]) await this.block(address, false).catch(() => undefined);
+  /**
+   * Gives back what fault steps took: stopped services start, blocked addresses are unblocked.
+   * Each is tried whatever the one before did; the errors come back together.
+   */
+  async restore(): Promise<Error[]> {
+    const errors: Error[] = [];
+    for (const service of [...this.stopped]) {
+      try {
+        this.service(service, true);
+      } catch (error) {
+        errors.push(new Error(`starting the ${service} again: ${(error as Error).message}`));
+      }
+    }
+    for (const address of [...this.blocked]) await this.block(address, false).catch((error: Error) => errors.push(new Error(`unblocking ${address}: ${error.message}`)));
+    return errors;
   }
 }

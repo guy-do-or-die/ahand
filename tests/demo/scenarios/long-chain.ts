@@ -24,7 +24,7 @@ export function longChain(holders: number, visibility: Visibility) {
     id: `long-chain-${holders}-${visibility}`,
     title: `${holders} walletless holders pass a ${visibility} hand at 0%; the helper gets it all`,
     story: `Generated: ${holders} people pass the link on and keep nothing; the helper receives the whole reward.`,
-    covers: ["U1", "U10", ...(visibility === "dark" ? ["U13"] : [])],
+    covers: ["uc:chain", "uc:long-route", ...(visibility === "dark" ? ["uc:dark"] : [])],
     targets: ["stand", "fork", "site"],
     tags: ["generated", "route-length", visibility],
     personas,

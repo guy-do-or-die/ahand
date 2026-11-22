@@ -11,7 +11,7 @@ export const privyEmail = defineScenario({
   title: "A helper with no crypto app signs in by email (Privy) and gets paid",
   story:
     "Nina raises 20 test dollars for a lost cat and sends the link to Gina. Gina has no crypto app: on Give she presses Log in to get paid, types her email in Privy's window and the code it sends, and Privy makes her a wallet. Her answer is signed by it without a window of its own. Nina thanks it, and the 20 land in Gina's Privy wallet.",
-  covers: ["U15", "UX §8.4"],
+  covers: ["uc:smart-wallets", "flow:pass-on"],
   targets: ["fork"],
   tags: ["privy", "email", "walletless-helper"],
   personas: {

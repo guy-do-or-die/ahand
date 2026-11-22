@@ -6,8 +6,7 @@ const REPLY = "Thank you! Saturday at ten, by the cathedral?";
 const BOOK = "Read 'The Dispossessed'; it is about exactly this.";
 
 /**
- * The whole life of a Hand through the screens (was tests/e2e/life.spec.ts, PLAN wave 5): nine
- * parts in the order of the brief, every part ending on Core's views, the transaction's own
+ * The whole life of a Hand through the screens (was the e2e suite's life spec): nine parts, every part ending on Core's views, the transaction's own
  * events, Core's checkRoute and checkGive, or balances at fresh addresses (they start at zero, so
  * amounts are exact). Nobody hands anything to anybody but the addresses a person would copy.
  */
@@ -16,7 +15,7 @@ export default defineScenario({
   title: "The whole life: pass at 0% and 10%, help, reply, thank, waiting money delivered, time's up, no reward",
   story:
     "Nina raises a ladder hand. Alice passes it for nothing, Bob keeps 10% for an address he pastes, Gina helps with a pasted address, and Nina replies and thanks: Bob gets 5, Gina 45. A second hand in the token that can block: Alice's share waits while her address is blocked, and Dora, a stranger, delivers it once it is unblocked. A third hand runs out of time and Vic sends it back. A fourth carries no reward and pays nothing. No browser reaches anything but this machine.",
-  covers: ["U1", "U4", "U8", "U12", "U16", "U17", "U28", "UX §7.2", "UX §7.3", "UX §7.5", "UX §8.2", "UX §8.4", "UX §8.5", "UX §9"],
+  covers: ["uc:chain", "uc:household", "uc:zero-reward", "uc:no-disputes", "uc:blocking-token", "uc:permissionless", "uc:walletless-pass", "flow:raise", "flow:my-hands", "flow:thank", "flow:hand-view", "flow:pass-on", "flow:give", "flow:waiting"],
   targets: ["stand"],
   tags: ["life", "core-loop", "refund", "blocked-payee", "zero-reward", "clock"],
   watch: ["local-only", "no-errors", "no-fragment-after-load"],
@@ -44,6 +43,7 @@ export default defineScenario({
       expect: [
         { see: "raise.up", says: "raise.up" },
         { assert: "raise-rail-four-states" },
+        { sdk: "ladder", state: "open" },
         { link: "ladder", shape: "unlisted" },
         // The SDK opens the raised address and Core's checkRoute takes its empty route.
         { route: "ladder", is: [] },
@@ -105,7 +105,7 @@ export default defineScenario({
       ],
     },
     // 5. Nina unlocks My hands, reads Gina's words, replies and thanks; the receipt is the prediction and the chain.
-    { who: "nina", do: "read-answers", hand: "ladder", words: WORDS, expect: [{ assert: "answer-is-the-give", arg: "gina-give" }] },
+    { who: "nina", do: "read-answers", hand: "ladder", words: WORDS, total: 1, expect: [{ assert: "answer-is-the-give", arg: "gina-give" }] },
     { who: "nina", do: "reply", words: REPLY },
     {
       who: "nina",
@@ -128,10 +128,11 @@ export default defineScenario({
         { balance: "@gina-pay", is: "45" },
         { balance: "@nina", change: "0" },
         { hand: "ladder", state: "thanked", givenBy: "gina-give" },
+        { sdk: "ladder", state: "thanked" },
       ],
     },
     // 6. Gina's tab shows the reply.
-    { who: "gina", do: "look", caption: "Gina's tab shows Nina's reply", expect: [{ assert: "reply-reached-helper", arg: REPLY }, { see: "give.thread", text: WORDS }, { balance: "@gina-pay", is: "45" }] },
+    { who: "gina", do: "look", caption: "Gina's tab shows Nina's reply", expect: [{ assert: "reply-reached-helper", arg: REPLY }, { see: "give.thread", text: WORDS }, { see: "give.thanked", says: "give.thanked" }, { balance: "@gina-pay", is: "45" }] },
     // 7. A hand in the token that can block: the blocked share waits; unblocked, a stranger delivers it.
     { who: "nina", do: "raise-sdk", token: "blacklist", reward: "20", title: "Who can find me a used cargo bike?", as: "bike" },
     { who: "alice", do: "open", link: "bike" },
@@ -171,7 +172,7 @@ export default defineScenario({
     { who: "nina", do: "raise", title: "Who has a spare tent for one night?", reward: "5", days: 7, as: "tent", expect: [{ balance: "@nina", change: "-5" }] },
     { who: "vic", do: "open", link: "tent", expect: [{ see: "hand.dealCard", attr: { "data-state": "open" } }, { see: "hand.timesUp", count: 0 }] },
     // The browsers keep this machine's clock (40 days behind the chain); only the chain moves, and the view follows it without a reload.
-    { do: "clock", days: 8, expect: [{ see: "hand.dealCard", on: "vic", attr: { "data-state": "expired" } }, { hand: "tent", state: "expired" }] },
+    { do: "clock", days: 8, expect: [{ see: "hand.dealCard", on: "vic", attr: { "data-state": "expired" } }, { hand: "tent", state: "expired" }, { sdk: "tent", state: "expired" }] },
     {
       who: "vic",
       do: "look",

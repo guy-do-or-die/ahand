@@ -1,19 +1,31 @@
-# NOTE: this workflow has never run (written 2026-11-21 on a machine without GitHub Actions; the
-# same command was run there by hand).
+# NOTE: this workflow has not run on GitHub yet; the same command was run by hand.
 #
 # The branch's gallery: every stand scenario recorded on a fresh stand, its phones stitched side by
 # side, and one static page (tests/demo/gallery.ts) in English and Russian. It needs no secret and
 # touches no public chain; the page and videos are kept as the run's artifact "gallery" for 14 days.
-# Where the page is published for each branch is the owner's choice (README of tests/demo).
 name: gallery
 
 on:
   push:
-    branches: ["exp/**", "main"]
+    branches: ["next", "main", "exp/**"]
+    paths:
+      - "apps/web/**"
+      - "packages/**"
+      - "contracts/src/**"
+      - "infra/stand/**"
+      - "infra/relay/**"
+      - "tests/demo/**"
+      - "package.json"
+      - "bun.lock"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A newer push of the same branch replaces a run still going: each takes half an hour or more.
+concurrency:
+  group: gallery-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   gallery:
@@ -76,4 +88,7 @@ jobs:
         with:
           name: gallery
           path: tests/demo/.gallery/
+          # The folder's name starts with a dot, which upload-artifact skips unless told.
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 14

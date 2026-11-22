@@ -217,7 +217,7 @@ export const TICK_MS = 140;
 
 // ── Words ──────────────────────────────────────────────────────────────────
 //
-// The twist's own words live in twist-words.ts, the kit's catalogue for them, beside ui/words.ts.
+// The twist's own words live in twist-words.ts, the kit's catalogue for them, beside ui/words.data.ts.
 
 export { TWIST_WORDS, type TwistWords } from "./twist-words";
 

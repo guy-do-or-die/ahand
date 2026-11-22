@@ -8,7 +8,7 @@ import { code, filesUnder, SRC } from "./files";
 /**
  * The used-keys guard (code review of 2026-11-22): every key of every Lingui catalogue
  * (i18n/common and each screens/<name>/en.ts and ru.ts) is read somewhere. The review found keys
- * no screen used, left behind when words moved to ui/words.ts, and they had drifted from the live
+ * no screen used, left behind when words moved to ui/words.ts (now ui/words.data.ts), and they had drifted from the live
  * words; a key nobody reads is a sentence nobody checks.
  *
  * A key is read when it stands as a whole string literal ("raise.title", 'raise.title' or
@@ -24,7 +24,7 @@ import { code, filesUnder, SRC } from "./files";
  * It also reads the other way: an id written whole in a t() call is a key some catalogue has.
  * Lingui renders an unknown id as the id itself, and nothing else catches it: t() takes any string.
  *
- * The localization structure itself (several word systems: the Lingui catalogues, ui/words.ts,
+ * The localization structure itself (several word systems: the Lingui catalogues, ui/words.data.ts,
  * exit/words.ts and the view server's own words; and only English and Russian) will get its own review later.
  * This guard only keeps the catalogues free of dead keys until then.
  */

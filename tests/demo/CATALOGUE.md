@@ -8,44 +8,44 @@ Play one: `DEMO=1 DEMO_ONLY=<id> STAND_SLOT=<n> bunx playwright test -c playwrig
 
 | Use case | | Covered by | Planned |
 |---|---|---|---|
-| U1 Human seeks human through a chain (flagship) | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [long-chain-3-dark](#long-chain-3-dark), [long-chain-2-public](#long-chain-2-public) |  |
-| U2 Hiring / recruiting | ✅ | [hiring](#hiring) |  |
-| U3 Lost-and-found: a QR tag as a bearer link, dark, zero reward | ✅ | [lost-and-found-tag](#lost-and-found-tag) |  |
-| U4 Household services: $8–150, short expiry | ✅ | [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper) |  |
-| U5 Agents as hops, raisers, givers (ERC-1271) | ⚙️ Core/SDK |  |  |
-| U6 Apps as hops with a disclosed margin | ✅ | [app-hop-margin](#app-hop-margin) |  |
-| U7 Contract raisers, pools, DAOs | ⚙️ Core/SDK |  |  |
-| U8 Zero-reward asks | ✅ | [life](#life), [zero-reward](#zero-reward), [lost-and-found-tag](#lost-and-found-tag) |  |
-| U9 Any ERC-20 token | — not built |  |  |
-| U10 Long routes | ✅ | [long-chain-3-dark](#long-chain-3-dark), [long-chain-2-public](#long-chain-2-public), [hiring](#hiring), [route-full](#route-full) |  |
-| U11 Exactly one Give: several winners means several Hands | ✅ | [branching](#branching) |  |
-| U12 No disputes: the raiser decides; anyone refunds after expiry | ✅ | [life](#life), [times-up-send-back](#times-up-send-back) |  |
-| U13 Private / dark asks, anonymous hops | ✅ | [long-chain-3-dark](#long-chain-3-dark), [reload-forgets](#reload-forgets), [lost-and-found-tag](#lost-and-found-tag) |  |
-| U14 Public boards and catalogues | — not built |  |  |
-| U15 Smart-contract wallets (Safe, Privy, 7702) | ✅ | [not-set-up-helper](#not-set-up-helper), [entropy-signer](#entropy-signer), [privy-email](#privy-email) | give-words-survive-social-login, privy-passkey |
-| U16 Hostile or pausing tokens: a blocked payee waits | ✅ | [life](#life), [blocked-payee-waits](#blocked-payee-waits), [take-out](#take-out) |  |
-| U17 Permissionless finalization: strangers refund and deliver | ✅ | [life](#life), [times-up-send-back](#times-up-send-back), [blocked-payee-waits](#blocked-payee-waits) |  |
-| U18 Exit / recovery with the site, relay or indexer down | ✅ | [relay-down](#relay-down), [site-down-exit](#site-down-exit) |  |
-| U19 Signals, badges, voting interpreters | — not built |  |  |
-| U20 Down / negative statement | — not built |  |  |
-| U21 EAS-timestamped Give | — not built |  |  |
-| U22 Relayed thank / auto-reclaim | — not built |  |  |
-| U23 Paymaster / self-paid gas | — not built |  |  |
-| U24 Curated charity allowlist | — not built |  |  |
-| U25 Chain fork / cross-core replay | ⚙️ Core/SDK |  |  |
-| U26 Leaked capability key, truncated route: branching | ✅ | [branching](#branching), [resigned-route](#resigned-route) |  |
-| U27 Cross-language SDK signing | ⚙️ Core/SDK |  |  |
-| U28 Walletless paid pass | ✅ | [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [hiring](#hiring) |  |
-| UX §7.2 Raise: compose, steps, keys card, share | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [zero-reward](#zero-reward), [entropy-signer](#entropy-signer) |  |
-| UX §7.3 My hands: unlock, answers, rebuild on another device | ✅ | [first-loop](#first-loop), [life](#life), [branching](#branching), [rebuild-other-device](#rebuild-other-device) |  |
-| UX §7.4 Care: add to the reward, extend | ✅ | [care-fund-extend](#care-fund-extend) |  |
-| UX §7.5 Thank: verdict, re-signed route, predicted receipt | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [relay-down](#relay-down), [zero-reward](#zero-reward), [resigned-route](#resigned-route), [not-set-up-helper](#not-set-up-helper) | answers-on-a-new-device |
-| UX §8.2 Hand view: time's up, send back | ✅ | [life](#life), [times-up-send-back](#times-up-send-back), [reload-forgets](#reload-forgets), [offline-rpc](#offline-rpc) |  |
-| UX §8.4 Pass on: share, payee, darker | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [privy-email](#privy-email) | give-words-survive-social-login |
-| UX §8.5 Give: payee choices, delivery, thread | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [relay-down](#relay-down) |  |
-| UX §9 Waiting: take out, deliver for someone else | ✅ | [life](#life), [blocked-payee-waits](#blocked-payee-waits), [take-out](#take-out) |  |
-| UX §10 Proof passport and check any link | ✅ | [proof-and-check](#proof-and-check), [public-pages](#public-pages) |  |
-| UX §11 Print, limits, defaults, without us | ✅ | [lost-and-found-tag](#lost-and-found-tag), [public-pages](#public-pages) |  |
+| uc:chain Human seeks human through a chain (flagship) | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [long-chain-3-dark](#long-chain-3-dark), [long-chain-2-public](#long-chain-2-public) |  |
+| uc:hiring Hiring / recruiting | ✅ | [hiring](#hiring) |  |
+| uc:lost-and-found Lost-and-found: a QR tag as a bearer link, dark, zero reward | ✅ | [lost-and-found-tag](#lost-and-found-tag) |  |
+| uc:household Household services: $8–150, short expiry | ✅ | [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper) |  |
+| uc:agents Agents as hops, raisers, givers (ERC-1271) | ⚙️ Core/SDK |  |  |
+| uc:app-hop Apps as hops with a disclosed margin | ✅ | [app-hop-margin](#app-hop-margin) |  |
+| uc:contract-raisers Contract raisers, pools, DAOs | ⚙️ Core/SDK |  |  |
+| uc:zero-reward Zero-reward asks | ✅ | [life](#life), [zero-reward](#zero-reward), [lost-and-found-tag](#lost-and-found-tag) |  |
+| uc:any-token Any ERC-20 token | — not built |  |  |
+| uc:long-route Long routes | ✅ | [long-chain-3-dark](#long-chain-3-dark), [long-chain-2-public](#long-chain-2-public), [hiring](#hiring), [route-full](#route-full) |  |
+| uc:one-give Exactly one Give: several winners means several Hands | ✅ | [branching](#branching) |  |
+| uc:no-disputes No disputes: the raiser decides; anyone refunds after expiry | ✅ | [life](#life), [times-up-send-back](#times-up-send-back) |  |
+| uc:dark Private / dark asks, anonymous hops | ✅ | [long-chain-3-dark](#long-chain-3-dark), [reload-forgets](#reload-forgets), [lost-and-found-tag](#lost-and-found-tag) |  |
+| uc:boards Public boards and catalogues | — not built |  |  |
+| uc:smart-wallets Smart-contract wallets (Safe, Privy, 7702) | ✅ | [not-set-up-helper](#not-set-up-helper), [entropy-signer](#entropy-signer), [privy-email](#privy-email) | give-words-survive-social-login, privy-passkey |
+| uc:blocking-token Hostile or pausing tokens: a blocked payee waits | ✅ | [life](#life), [blocked-payee-waits](#blocked-payee-waits), [take-out](#take-out) |  |
+| uc:permissionless Permissionless finalization: strangers refund and deliver | ✅ | [life](#life), [times-up-send-back](#times-up-send-back), [blocked-payee-waits](#blocked-payee-waits) |  |
+| uc:exit Exit / recovery with the site, relay or indexer down | ✅ | [relay-down](#relay-down), [site-down-exit](#site-down-exit) |  |
+| uc:signals Signals, badges, voting interpreters | — not built |  |  |
+| uc:negative Down / negative statement | — not built |  |  |
+| uc:eas EAS-timestamped Give | — not built |  |  |
+| uc:relayed-thank Relayed thank / auto-reclaim | — not built |  |  |
+| uc:paymaster Paymaster / self-paid gas | — not built |  |  |
+| uc:charity Curated charity allowlist | — not built |  |  |
+| uc:replay Chain fork / cross-core replay | ⚙️ Core/SDK |  |  |
+| uc:branching Leaked capability key, truncated route: branching | ✅ | [branching](#branching), [resigned-route](#resigned-route) |  |
+| uc:cross-language Cross-language SDK signing | ⚙️ Core/SDK |  |  |
+| uc:walletless-pass Walletless paid pass | ✅ | [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [hiring](#hiring) |  |
+| flow:raise Raise: compose, steps, keys card, share | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [zero-reward](#zero-reward), [entropy-signer](#entropy-signer) |  |
+| flow:my-hands My hands: unlock, answers, rebuild on another device | ✅ | [first-loop](#first-loop), [life](#life), [branching](#branching), [rebuild-other-device](#rebuild-other-device) | answers-on-a-new-device |
+| flow:care Care: add to the reward, extend | ✅ | [care-fund-extend](#care-fund-extend) |  |
+| flow:thank Thank: verdict, re-signed route, predicted receipt | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [relay-down](#relay-down), [zero-reward](#zero-reward), [resigned-route](#resigned-route), [not-set-up-helper](#not-set-up-helper) |  |
+| flow:hand-view Hand view: time's up, send back | ✅ | [life](#life), [times-up-send-back](#times-up-send-back), [reload-forgets](#reload-forgets), [offline-rpc](#offline-rpc) |  |
+| flow:pass-on Pass on: share, payee, darker | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [privy-email](#privy-email) | give-words-survive-social-login |
+| flow:give Give: payee choices, delivery, thread | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [relay-down](#relay-down) |  |
+| flow:waiting Waiting: take out, deliver for someone else | ✅ | [life](#life), [blocked-payee-waits](#blocked-payee-waits), [take-out](#take-out) |  |
+| flow:proof Proof passport and check any link | ✅ | [proof-and-check](#proof-and-check), [public-pages](#public-pages) |  |
+| flow:about-pages Print, limits, defaults, without us | ✅ | [lost-and-found-tag](#lost-and-found-tag), [public-pages](#public-pages) |  |
 
 ✅ a scenario shows it · 📝 planned · ⬜ no scenario yet · ⚙️ tested below the browser only · — no screen for it
 
@@ -117,7 +117,7 @@ Ends of a Hand (state, passes, answers, top-ups, extensions): **4 of 36** reache
 
 Nina raises 50 test dollars. Alex, with no wallet, passes the link on for nothing. Gina answers with her wallet, and Nina thanks her from My hands: all 50 land at Gina's address.
 
-Runs on: stand, fork, site · covers: U1, UX §7.2, UX §7.3, UX §8.4, UX §8.5, UX §7.5 · tags: core-loop, gate
+Runs on: stand, fork, site · covers: uc:chain, flow:raise, flow:my-hands, flow:pass-on, flow:give, flow:thank · tags: core-loop, gate
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -142,8 +142,12 @@ Runs on: stand, fork, site · covers: U1, UX §7.2, UX §7.3, UX §8.4, UX §8.5
    - before the swipe: screen: `thank.cost` shows, says kit.cost.line
    - Core: Hand "ladder" state thanked
    - the transaction: payouts 50 paid to @gina
+   - screen: 1 × `thank.payout`
    - screen: `thank.payout` shows, data-kind=paid, data-payee=@gina, data-amount=50000000
+   - receipt-is-prediction
    - balance of @gina: changes by 50
+8. Gina's tab, still open, hears that her answer was thanked
+   - screen: `give.thanked` shows, says give.thanked
 
 Checked on the chain at the end:
 
@@ -156,7 +160,7 @@ Checked on the chain at the end:
 
 Nina raises a ladder hand. Alice passes it for nothing, Bob keeps 10% for an address he pastes, Gina helps with a pasted address, and Nina replies and thanks: Bob gets 5, Gina 45. A second hand in the token that can block: Alice's share waits while her address is blocked, and Dora, a stranger, delivers it once it is unblocked. A third hand runs out of time and Vic sends it back. A fourth carries no reward and pays nothing. No browser reaches anything but this machine.
 
-Runs on: stand · covers: U1, U4, U8, U12, U16, U17, U28, UX §7.2, UX §7.3, UX §7.5, UX §8.2, UX §8.4, UX §8.5, UX §9 · tags: life, core-loop, refund, blocked-payee, zero-reward, clock
+Runs on: stand · covers: uc:chain, uc:household, uc:zero-reward, uc:no-disputes, uc:blocking-token, uc:permissionless, uc:walletless-pass, flow:raise, flow:my-hands, flow:thank, flow:hand-view, flow:pass-on, flow:give, flow:waiting · tags: life, core-loop, refund, blocked-payee, zero-reward, clock
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -171,6 +175,7 @@ Runs on: stand · covers: U1, U4, U8, U12, U16, U17, U28, UX §7.2, UX §7.3, UX
    - before the swipe: screen: `raise.minClaim` shows, data-value=7000
    - screen: `raise.up` shows, says raise.up
    - raise-rail-four-states
+   - the SDK reads ladder as open
    - the address of ladder has the unlisted shape
    - Core's checkRoute on ladder: no passes
    - Core: Hand "ladder" state open, reward 50, minClaimBps 7000, token usd, raiser @nina
@@ -210,9 +215,11 @@ Runs on: stand · covers: U1, U4, U8, U12, U16, U17, U28, UX §7.2, UX §7.3, UX
    - balance of @gina-pay: is 45
    - balance of @nina: changes by 0
    - Core: Hand "ladder" state thanked, givenBy gina-give
+   - the SDK reads ladder as thanked
 11. Gina's tab shows Nina's reply
    - reply-reached-helper (Thank you! Saturday at ten, by the cathe…)
    - screen: `give.thread` shows, “I have a three-metre ladder near the boulevard; text me and I'll bring it.”
+   - screen: `give.thanked` shows, says give.thanked
    - balance of @gina-pay: is 45
 12. Nina raises a hand in the token that can block through the SDK: “Who can find me a used cargo bike?”, 20 test dollars
 13. Alice opens the link
@@ -244,6 +251,7 @@ Runs on: stand · covers: U1, U4, U8, U12, U16, U17, U28, UX §7.2, UX §7.3, UX
 23. The network's clock moves 8 days ahead
    - screen of vic: `hand.dealCard` shows, data-state=expired
    - Core: Hand "tent" state expired
+   - the SDK reads tent as expired
 24. Vic's page says Time's up: anyone can send the reward back
    - screen: `hand.dealCard` shows, says kit.deal.timeUp
    - screen: `hand.dealCard` shows, says kit.deal.sendBack
@@ -294,7 +302,7 @@ Every persona's browser: local-only, no-errors, no-fragment-after-load.
 
 Nina needs a ladder. She raises a hand with 20 test dollars and sends the link to Alex. Alex has no wallet; he passes it on and keeps 10% for himself, paid to an address he pastes. Gina opens Alex's link, answers with her wallet, and Nina thanks her: one transaction pays Gina and Alex.
 
-Runs on: stand, fork, site · covers: U1, U4, U28, UX §7.2, UX §8.4, UX §8.5, UX §7.5 · tags: core-loop, unlisted, walletless-pass
+Runs on: stand, fork, site · covers: uc:chain, uc:household, uc:walletless-pass, flow:raise, flow:pass-on, flow:give, flow:thank · tags: core-loop, unlisted, walletless-pass
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -322,7 +330,7 @@ Checked on the chain at the end:
 
 As first-thanks, but Gina's wallet is announced to the page through EIP-6963 and signs in the test process, as on a fork or a branch site.
 
-Runs on: stand, fork · covers: U1, U4, U28, UX §7.2, UX §8.4, UX §8.5, UX §7.5 · tags: core-loop, wallet-kind
+Runs on: stand, fork · covers: uc:chain, uc:household, uc:walletless-pass, flow:raise, flow:pass-on, flow:give, flow:thank · tags: core-loop, wallet-kind
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -350,7 +358,7 @@ Checked on the chain at the end:
 
 Nina raises a hand for 7 days with 5 test dollars. Nobody helps. A week and a day later Vic, a stranger with a wallet, opens the link, sees Time's up and sends the reward back. Nina has all of it again, and Vic paid only gas.
 
-Runs on: stand, fork · covers: U12, U17, UX §8.2 · tags: expiry, refund, permissionless, clock
+Runs on: stand, fork · covers: uc:no-disputes, uc:permissionless, flow:hand-view · tags: expiry, refund, permissionless, clock
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -373,7 +381,7 @@ Checked on the chain at the end:
 
 Generated: 3 people pass the link on and keep nothing; the helper receives the whole reward.
 
-Runs on: stand, fork, site · covers: U1, U10, U13 · tags: generated, route-length, dark
+Runs on: stand, fork, site · covers: uc:chain, uc:long-route, uc:dark · tags: generated, route-length, dark
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -405,7 +413,7 @@ Checked on the chain at the end:
 
 Generated: 2 people pass the link on and keep nothing; the helper receives the whole reward.
 
-Runs on: stand, fork, site · covers: U1, U10 · tags: generated, route-length, public
+Runs on: stand, fork, site · covers: uc:chain, uc:long-route · tags: generated, route-length, public
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -434,7 +442,7 @@ Checked on the chain at the end:
 
 Nina raises a hand and Alex passes it on. Then the stand's relay goes down. Gina answers; her page says it could not reach the asker and asks her to send the answer back to whoever sent her the link. The address travels back by hand, Nina pastes it on Thank, and Gina is paid. No server was needed for the money.
 
-Runs on: stand · covers: U18, UX §8.5, UX §7.5 · tags: fault, relay, exit
+Runs on: stand · covers: uc:exit, flow:give, flow:thank · tags: fault, relay, exit
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -469,7 +477,7 @@ Every persona's browser: no-fragment-after-load.
 
 Nina asks for a book tip with no reward: one transaction, no approve. Alex passes it on (there is no share to keep), Gina answers, and Nina's thank records the answer and pays nothing.
 
-Runs on: stand, fork, site · covers: U8, UX §7.2, UX §7.5 · tags: zero-reward
+Runs on: stand, fork, site · covers: uc:zero-reward, flow:raise, flow:thank · tags: zero-reward
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -506,7 +514,7 @@ Checked on the chain at the end:
 
 Nina sends her link to Alex and to Bea. Each passes it on: Alex for nothing, Bea keeping 5%. Gina answers through Alex's branch, Hana through Bea's. Nina sees two answers and thanks Gina's: Gina gets everything, Bea's branch nothing, and the Hand is closed for Hana's answer.
 
-Runs on: stand, fork, site · covers: U11, U26, UX §7.3 · tags: branching, one-give
+Runs on: stand, fork, site · covers: uc:one-give, uc:branching, flow:my-hands · tags: branching, one-give
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -548,7 +556,7 @@ Checked on the chain at the end:
 
 Nina looks for a senior engineer with 50 test dollars. Alex and Bea each keep 5% as they pass it on, Cem keeps 10%; Gina knows the candidate. Nina's thank pays all four in one transaction: 2.5, 2.5, 5 and 40.
 
-Runs on: stand, fork, site · covers: U2, U10, U28 · tags: shares, route-length
+Runs on: stand, fork, site · covers: uc:hiring, uc:long-route, uc:walletless-pass · tags: shares, route-length
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -588,7 +596,7 @@ Checked on the chain at the end:
 
 A board app, Boardly, is a hop like any person: it passes Nina's link on keeping 2.5%, which the next person sees on the rail. Gina answers; the thank pays Boardly 0.5 and Gina 19.5.
 
-Runs on: stand, fork, site · covers: U6 · tags: shares, app
+Runs on: stand, fork, site · covers: uc:app-hop · tags: shares, app
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -617,7 +625,7 @@ Checked on the chain at the end:
 
 A Hand in the test token that can block addresses. Alex keeps 10% for an address the token blocks before the thank. The thank does not fail: Alex's 2 wait in Core and Gina is paid. When the token unblocks the address, Dora, a stranger, delivers what waits, and it lands at Alex's address, never anywhere else.
 
-Runs on: stand · covers: U16, U17, UX §9 · tags: blocked-payee, pending, permissionless
+Runs on: stand · covers: uc:blocking-token, uc:permissionless, flow:waiting · tags: blocked-payee, pending, permissionless
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -655,7 +663,7 @@ Checked on the chain at the end:
 
 Alex keeps 10% for his own wallet as he passes Nina's link on, in the token that can block. The token blocks Alex before the thank, so his 2 wait in Core. Alex does not wait for the token: on Waiting he takes them out to another address of his, which the token does not block.
 
-Runs on: stand · covers: U16, UX §9 · tags: pending, take-out, blocked-payee
+Runs on: stand · covers: uc:blocking-token, flow:waiting · tags: pending, take-out, blocked-payee
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -690,7 +698,7 @@ Checked on the chain at the end:
 
 Nina's hand gets no answer in the first days. On Care she adds 10 test dollars to the reward (every link already out there stays good) and keeps it open 30 days longer. Vic opens the same Care page: only the account that raised a hand can do that.
 
-Runs on: stand, fork, site · covers: UX §7.4 · tags: care, fund, extend
+Runs on: stand, fork, site · covers: flow:care · tags: care, fund, extend
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -721,7 +729,7 @@ Checked on the chain at the end:
 
 Nina's hand was passed by A (keeping 5%) and B (keeping 5%), and the helper answered. Then A signed a shorter route straight to the helper, leaving B out, and the helper answered again. Nina saw the first answer on this device, so Thank shows the second as re-signed and names B; nothing can be sent until Nina ticks that she knows B is left out. She thanks it anyway: A gets 4, the helper 76, B nothing.
 
-Runs on: stand, fork · covers: U26, UX §7.5 · tags: resigned, branching
+Runs on: stand, fork · covers: uc:branching, flow:thank · tags: resigned, branching
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -749,7 +757,7 @@ Checked on the chain at the end:
 
 Gina answers from a smart account that has no code on this network yet (ERC-6492). Core accepts her answer with its setup. Nina's Thank says so: two steps, the first sets up Gina's account, the second says thanks, with one swipe. Afterwards the account exists and holds the reward.
 
-Runs on: stand · covers: U15, UX §7.5 · tags: erc-6492, smart-account
+Runs on: stand · covers: uc:smart-wallets, flow:thank · tags: erc-6492, smart-account
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -779,7 +787,7 @@ Checked on the chain at the end:
 
 Vic's wallet signs differently every time (passkeys, MPC and many smart wallets do). The app cannot rebuild Vic's link later, so after the raise it keeps a locked copy and asks Vic to save the link. Vic copies it and ticks I saved the link; the copy on the device is gone, and the link Vic saved opens the Hand.
 
-Runs on: stand · covers: UX §7.2, U15 · tags: signer, locked-copy
+Runs on: stand · covers: flow:raise, uc:smart-wallets · tags: signer, locked-copy
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -802,7 +810,7 @@ Checked on the chain at the end:
 
 Nina raised on her laptop. On her phone, with the same wallet, she enters the laptop's device code and the Hand's number: My hands rebuilds the link (without its words, which are never on the chain), and it opens the Hand.
 
-Runs on: stand, fork, site · covers: UX §7.3 · tags: devices, my-hands
+Runs on: stand, fork, site · covers: flow:my-hands · tags: devices, my-hands
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -826,7 +834,7 @@ Checked on the chain at the end:
 
 Alex opens Nina's link: the page says the link lives in this tab only. He reloads anyway. The unlisted Hand still shows its public face, but passing on and helping need the link again; a dark one shows nothing at all.
 
-Runs on: stand, fork, site · covers: UX §8.2, U13 · tags: reload, dark
+Runs on: stand, fork, site · covers: flow:hand-view, uc:dark · tags: reload, dark
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -857,7 +865,7 @@ Checked on the chain at the end:
 
 Alex has Nina's Hand open when his network drops. The page says when it last read the chain and that things may have changed, and it greys out passing on and helping. When the network is back, the Hand is open again without a reload.
 
-Runs on: stand, fork, site · covers: UX §8.2 · tags: offline, fail-closed
+Runs on: stand, fork, site · covers: flow:hand-view · tags: offline, fail-closed
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -886,7 +894,7 @@ Checked on the chain at the end:
 
 After Nina thanked Gina, Sam, who took no part, opens the Hand's passport: every line checks against Core, and the giveHash matches. Then he pastes Gina's answer on Check and sees, step by step, what Core says of it.
 
-Runs on: stand, fork, site · covers: UX §10 · tags: proof, check, evidence
+Runs on: stand, fork, site · covers: flow:proof · tags: proof, check, evidence
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -918,7 +926,7 @@ Checked on the chain at the end:
 
 Nina's Hand is raised with a high payout gas setting, so few passes fit one thank. The link travels until the route is full. Gina, at the end of it, reads that it can't go further; passing on is greyed out, helping is not. She helps, and Nina's thank fits.
 
-Runs on: stand, fork · covers: U10 · tags: route-length, gas
+Runs on: stand, fork · covers: uc:long-route · tags: route-length, gas
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -946,7 +954,7 @@ Checked on the chain at the end:
 
 Nina prints a dark Hand with no reward as a small tag for her keys. Fred finds the keys, scans the tag (the link opens the Hand; nothing about it was ever public) and answers with an address he pastes. Nina thanks him.
 
-Runs on: stand, fork, site · covers: U3, U8, U13, UX §11 · tags: dark, print, zero-reward
+Runs on: stand, fork, site · covers: uc:lost-and-found, uc:zero-reward, uc:dark, flow:about-pages · tags: dark, print, zero-reward
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -973,7 +981,7 @@ Checked on the chain at the end:
 
 Nina's Hand was answered. Then the site goes down. Nina opens exit.html, the one-file page she saved, straight from disk with her wallet; she pastes Gina's answer and thanks. Gina is paid without the site.
 
-Runs on: stand · covers: U18 · tags: exit, fault, site
+Runs on: stand · covers: uc:exit · tags: exit, fault, site
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -1003,7 +1011,7 @@ Checked on the chain at the end:
 
 Sam has no wallet and no link. He opens the page about the contract, which names the Core this site trusts, and the passport of the first Hand on this network, which checks itself against Core. Nothing is sent, so this runs on any target, a branch site included, with no test money.
 
-Runs on: stand, fork, site · covers: UX §10, UX §11 · tags: read-only, evidence
+Runs on: stand, fork, site · covers: flow:proof, flow:about-pages · tags: read-only, evidence
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -1024,7 +1032,7 @@ Checked on the chain at the end:
 
 Nina raises 20 test dollars for a lost cat and sends the link to Gina. Gina has no crypto app: on Give she presses Log in to get paid, types her email in Privy's window and the code it sends, and Privy makes her a wallet. Her answer is signed by it without a window of its own. Nina thanks it, and the 20 land in Gina's Privy wallet.
 
-Runs on: fork · covers: U15, UX §8.4 · tags: privy, email, walletless-helper
+Runs on: fork · covers: uc:smart-wallets, flow:pass-on · tags: privy, email, walletless-helper
 
 | Persona | Role | Wallet |
 |---|---|---|
@@ -1044,6 +1052,6 @@ Checked on the chain at the end:
 
 ## Planned
 
-- **answers-on-a-new-device**: On a fresh browser the asker adds her Hand by number: the page says this device holds no reply key, and the device code brings the answers back (UX §7.5). Waits for a verb for My hands' add-by-number. The reply key comes from the raiser's master with this device's book (IndexedDB, screens/my/session.ts), so a Hand added by number on a fresh browser cannot read its answers and says so; rebuild-other-device shows the way back through the device code.
-- **give-words-survive-social-login**: A helper types the answer, then logs in with a social account from Give; back on Give, the words are still there (U15, UX §8.4). Waits for a social login the engine can drive (Privy's test accounts are email only; X needs a real account). On exp-e2e.ahand.in (21 Nov, X login from "Log in to get paid") the answer came back empty after the OAuth round trip while the Hand and the wallet were kept: today the scenario would fail, as the raise form is kept across a social login and the give words are not.
-- **privy-passkey**: A helper signs in to Privy with a passkey from a virtual authenticator (CDP WebAuthn) on Base Sepolia (U15). Waits for privy-email's wallet kind (privy-test) with a passkey instead of the email; passkeys are on in the dev Privy app since 21 Nov, but whether Privy's window accepts a CDP virtual authenticator is not checked yet. No Apple scenario: Apple sign-in needs the project's own Apple OAuth credentials.
+- **answers-on-a-new-device**: On a fresh browser the asker adds her Hand by number: the page says this device holds no reply key, and the device code brings the answers back (flow:my-hands). Waits for a verb for My hands' add-by-number. The reply key comes from the raiser's master with this device's book (IndexedDB, screens/my/session.ts), so a Hand added by number on a fresh browser cannot read its answers and says so; rebuild-other-device shows the way back through the device code.
+- **give-words-survive-social-login**: A helper types the answer, then logs in with a social account from Give; back on Give, the words are still there (uc:smart-wallets, flow:pass-on). Waits for a social login the engine can drive (Privy's test accounts sign in by email only; a social account needs a real one).
+- **privy-passkey**: A helper signs in to Privy with a passkey from a virtual authenticator (CDP WebAuthn) on Base Sepolia (uc:smart-wallets). Waits for privy-email's wallet kind (privy-test) with a passkey instead of the email, and whether Privy's window accepts a CDP virtual authenticator.

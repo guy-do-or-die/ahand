@@ -98,15 +98,19 @@ Chromium only; the first time, `bunx playwright install chromium`.
 ```sh
 STAND_SLOT=3 bunx playwright test tests/e2e/smoke                # one file per screen and flow
 STAND_SLOT=3 bunx playwright test tests/e2e/guards               # a11y, fail-closed, hygiene, Russian, the wall clock
-STAND_SLOT=3 bunx playwright test tests/e2e/life.spec.ts         # a Hand's whole life
 STAND_BASE_URL=http://127.0.0.1:18330 bunx playwright test ...   # any served build instead of a slot
 ```
 
 The site comes from the slot's `stand.json`, so a stand on `STAND_PORT_BASE` needs nothing more.
 The default project is `phone` (390×844); `--project desk` adds 1280×800. Each spec file that needs a chain seeds its
-own fixtures and names the slot or the URL it was written for in its header. Also there: `first-loop.spec.ts`,
+own fixtures and names the slot or the URL it was written for in its header. Also there:
 `clock.spec.ts`, `drill.spec.ts`, `shots.spec.ts` and `lens-shots.spec.ts` (screenshots), and
 `bun tests/e2e/fork/run.ts`, which proves the public test build on a local fork of Base Sepolia.
+
+User scenarios, a Hand's whole life and the first loop among them, are played by the demo engine
+in `tests/demo` (its README): several people at once in the browser, the same scenario as a test, a
+live show (`bun run show <scenario>`, `--ru` in Russian) and an entry of `tests/demo/CATALOGUE.md`;
+`bun tests/demo/atlas.ts` pictures every screen in every seeded state.
 
 ## Where to read on
 
@@ -123,5 +127,5 @@ own fixtures and names the slot or the URL it was written for in its header. Als
 The contracts (`contracts`), the SDK (`packages/sdk`), the ABI package (`packages/abi`), the delivery
 package (`packages/deliver`) and the command-line tools (`tools`) are under the MIT licence. The web
 app (`apps/web`), the view server (`apps/view`), the preview card (`packages/card`), the local stand
-(`infra/stand`) and the test relay (`infra/relay`) are under the GNU Affero General Public License,
-version 3 only (AGPL-3.0-only); each of them carries its `LICENSE` file.
+(`infra/stand`), the test relay (`infra/relay`) and the demo engine (`tests/demo`) are under the GNU
+Affero General Public License, version 3 only (AGPL-3.0-only); each of them carries its `LICENSE` file.

@@ -1,7 +1,7 @@
 /**
  * The shared UI kit. A screen imports from here and from nowhere deeper.
  * Words and language: every component that speaks takes its language from <html lang> (or the
- * nearest <Ambient>) and its sentences from ui/words.ts. The lens: <html data-lens="on">.
+ * nearest <Ambient>) and its sentences from ui/words.data.ts. The lens: <html data-lens="on">.
  */
 export { Ambient, useLang, useLens, type AmbientValue, type Lang } from "./ambient";
 export { WORDS, useWords, wordsOf, type Words } from "./words";

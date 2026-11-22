@@ -21,7 +21,9 @@ bun run show --list
 
 The gallery: every stand scenario recorded and one static page with its video, story, people,
 steps and checks, in `tests/demo/.gallery/` (`index.html`, `ru.html`, `videos/`); the `gallery`
-workflow builds it for every push of a branch and keeps it as the run's artifact:
+workflow builds it for pushes to next, main and exp/** that touch the app, Core, the stand or the
+engine (a newer push replaces a run still going) and keeps it as the run's artifact; the run fails
+when a scenario or a video failed:
 
 ```bash
 bun tests/demo/gallery.ts --ru        # about 25 minutes for every scenario; --only a,b for some
@@ -44,14 +46,14 @@ and dark, the lens off and on, phone (390) and desktop (1280): 41 states, 656 pi
 same screen live on the stand, which stays up for that (`--down` takes it down). Nothing in it is
 mocked: Core made every state. `--only thank,hand` shoots those screens again and keeps the rest;
 `--langs`, `--themes`, `--lens`, `--widths` narrow the matrix. It stays whole as the app grows:
-`bun run check` runs `atlas.ts --check-routes`, which fails when the app has a route the atlas
-does not show and does not name a reason for (NOT_IN_ATLAS); a run fails when a picture could not
-be taken; the `atlas` workflow rebuilds it for every push of a branch, as an artifact. Serve the folder to look at it (the pictures are
-relative): `python3 -m http.server -d tests/demo/.atlas`.
+`bun run check` and the check workflow run `atlas.ts --check-routes` (no stand), which fails when
+a route of the app has no card and no reason (NOT_IN_ATLAS), or a card shows a screen that is no
+longer a route; a run fails when a picture could not be taken; the `atlas` workflow rebuilds it
+like the gallery, as an artifact. Serve the folder to look at it (the pictures are relative): `python3 -m http.server -d tests/demo/.atlas`.
 
 ## Run
 
-Bring a stand up on a free slot (never slot 9 or ports 5170–5173: the owner's live stand):
+Bring a stand up on a free slot (slot 9 is left for a long-lived local stand, and the engine never takes it):
 
 ```bash
 STAND_PORT_BASE=47000 bun infra/stand/stand.ts up --slot 5
@@ -63,10 +65,11 @@ Every scenario, headless (25 scenarios, about 6 minutes):
 STAND_PORT_BASE=47000 STAND_SLOT=5 bunx playwright test -c playwright.demo.config.ts
 ```
 
-As CI runs it (`.github/workflows/check.yml`, job `scenarios`): a fresh stand, the catalogue
-check, every scenario with `CI=1` (a trace only for a failed scenario) and
-`DEMO_VIDEO=on-failure` (every persona's video kept only for a failed scenario), then the stand
-down; on failure the job uploads `tests/demo/test-results/` and the HTML report:
+As CI runs it (`.github/workflows/check.yml`: the catalogue and atlas-route checks in the main
+job, no stand; job `scenarios`): a fresh stand, every scenario with `CI=1` (a trace only for a
+failed scenario, and the run stops after three failures) and `DEMO_VIDEO=on-failure` (every
+persona's video kept only for a failed scenario), then the stand down; on failure the job uploads
+the HTML report, which holds the traces, screenshots and videos:
 
 ```bash
 bun tests/demo/catalogue.ts --check
@@ -102,7 +105,7 @@ bun tests/demo/stitch.ts tests/demo/test-results/slot-5/<the test's folder>
 | `DEMO_LANG=ru` | the show in Russian |
 | `DEMO_TARGET` | `stand` (default), `fork` or `site` (see Targets) |
 | `DEMO_SITE` | with `site`: the branch site's origin, e.g. `https://exp-e2e.ahand.in` |
-| `DEMO_WALLETS=burner` | with `fork`: burners instead of anvil's keys, to rehearse a site run |
+| `DEMO_WALLETS=burner` | with `fork`: burners instead of anvil's keys, to rehearse a site run (scenarios whose SDK or seed steps act as anvil's account 1 are skipped, with the reason) |
 | `DEMO_PRIVY_FILE` | another file of Privy test accounts |
 | `DEMO_ACTION_TITLES=1` | show Playwright's action titles ("Click getByTestId(…)") |
 | `DEMO_TRACE=0` | no trace (on by default) |
@@ -173,7 +176,7 @@ closes once; a link is passed on and answered while the Hand is open. Its contex
 
 ```bash
 DEMO_MODEL=gaps STAND_PORT_BASE=47000 STAND_SLOT=5 bunx playwright test -c playwright.demo.config.ts tests/demo/model.spec.ts      # ends no scenario reaches
-DEMO_MODEL=shortest …   # every end (36), what .github/workflows/model.yml runs nightly
+DEMO_MODEL=shortest …   # every end (36), what .github/workflows/model.yml runs nightly (from main only, as GitHub schedules)
 DEMO_MODEL=simple DEMO_MODEL_K=6 …   # every path of at most 6 events, in every order
 ```
 
@@ -222,9 +225,9 @@ and its reading in `traceOf` (`paths.ts`).
   `no-fragment-after-load`.
 - **Faults** (`block`, `service`) are undone after the scenario whatever happens.
 
-`scenarios/life.ts` and `scenarios/first-loop.ts` play the stories of `tests/e2e/life.spec.ts` and
-`tests/e2e/first-loop.spec.ts` with every check those make (and a few more); CATALOGUE.md lists
-each step with its checks in plain words.
+`scenarios/life.ts` and `scenarios/first-loop.ts` replaced the e2e suite's life and first-loop
+specs with every check those made (and a few more); CATALOGUE.md lists each step with its checks
+in plain words.
 
 ## Layout
 
@@ -255,3 +258,8 @@ Write a `defineScenario({...})` in `scenarios/`, add it to `scenarios/index.ts`,
 `bun tests/demo/catalogue.ts`. A new verb is one case in `engine/verbs.ts` and one member of
 `Action`; a new check is one member of `Expectation` (or a named check); a new wallet kind is one
 entry in `WALLETS`.
+
+## Licence
+
+The demo engine is under the GNU Affero General Public License, version 3 only (AGPL-3.0-only),
+like the app and the stand it drives: see `LICENSE` here.

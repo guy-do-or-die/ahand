@@ -128,7 +128,6 @@ function cards(s: Seeded): Card[] {
     plain("print", "/print", "empty", "пусто"),
     plain("check", "/check", "empty", "пусто"),
     plain("core", "/core", "the contract", "контракт"),
-    plain("limits", "/limits", "what it can't promise", "чего aHand не обещает"),
     plain("defaults", "/defaults", "the defaults", "настройки по умолчанию"),
     plain("without-us", "/without-us", "without the site", "без сайта"),
     plain("not-found", "/no/such/place", "no such page", "нет такой страницы"),
@@ -146,16 +145,29 @@ const NOT_IN_ATLAS: Record<string, string> = {
   "dev-wallet": "the local builds' test wallet, not a screen people see",
 };
 
+/** Atlas screens that are not routes of the app, with the reason. */
+const NOT_A_ROUTE: Record<string, string> = { exit: "exit.html, a file of the build that works without the site" };
+
 export function routeGaps(screens: string[]): string[] {
   const text = readFileSync(join(REPO, "apps/web/src/routes.ts"), "utf8");
   const routes = [...new Set([...text.matchAll(/name: "([a-z-]+)"/g)].map((m) => m[1]!))];
-  const gaps = routes.filter((r) => !screens.includes(r) && !(r in NOT_IN_ATLAS)).map((r) => `route "${r}" has no screen in the atlas (tests/demo/atlas.ts cards) and no reason in NOT_IN_ATLAS`);
+  const gaps = routes.filter((r) => !screens.includes(r) && !(r in NOT_IN_ATLAS)).map((r) => `route "${r}" has no card in the atlas (tests/demo/atlas.ts cards) and no reason in NOT_IN_ATLAS`);
   for (const r of Object.keys(NOT_IN_ATLAS)) if (!routes.includes(r)) gaps.push(`NOT_IN_ATLAS names "${r}", which is no longer a route`);
+  // And the other way: a card for a screen the app no longer has would picture its not-found page.
+  for (const x of screens) if (!routes.includes(x) && !(x in NOT_A_ROUTE)) gaps.push(`the atlas has a card for "${x}", which is no longer a route of the app`);
   return gaps;
 }
 
-/** The screens the atlas has cards for, without a stand (the cards' screen names). */
-export const ATLAS_SCREENS = ["landing", "raise", "hand", "pass", "give", "thank", "proof", "waiting", "care", "my", "print", "check", "core", "limits", "defaults", "without-us", "not-found", "exit"];
+/**
+ * The screens the atlas has cards for, read from the cards themselves without a stand: the cards
+ * are built over a stand-in seed whose every value is a placeholder (nothing is visited).
+ */
+function screensOfCards(): string[] {
+  const any: unknown = new Proxy({}, { get: (_t, key) => (key === "pending" ? { payee: "0x0" } : key === Symbol.toPrimitive ? () => "0" : "0") });
+  const standIn = { chainId: 0, site: "http://stand-in.invalid", accounts: any, fixtures: new Proxy({}, { get: () => any }) } as unknown as Seeded;
+  return [...new Set(cards(standIn).map((c) => c.screen))];
+}
+export const ATLAS_SCREENS = screensOfCards();
 
 const slugOf = (c: Card, i: number) => `${String(i).padStart(2, "0")}-${c.screen}-${c.state.en.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`.replace(/-+$/, "");
 
@@ -273,53 +285,56 @@ function draw() {
 `;
 }
 
-{
-  const gaps = routeGaps(ATLAS_SCREENS);
-  if (gaps.length) {
-    console.error(`atlas: ${gaps.join("\n  ")}`);
-    process.exit(1);
-  }
-  if (argv.includes("--check-routes")) {
-    console.log("atlas: every route of the app has a screen in the atlas");
-    process.exit(0);
-  }
-}
+// Run as a script only: importing the file (for its route check) starts nothing.
+if (import.meta.main) await main();
 
-process.env.STAND_PORT_BASE = env.STAND_PORT_BASE;
-let slot = -1;
-for (let n = 1; n <= 8 && slot < 0; n++) if ((await slotInUse(n)).length === 0) slot = n;
-if (slot < 0) throw new Error("no free stand slot from 1 to 8");
-const run = (args: string[]) => spawnSync(bun, args, { cwd: REPO, env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-console.log(`atlas: stand slot ${slot}`);
-if (run(["infra/stand/stand.ts", "up", "--slot", String(slot)]).status !== 0) throw new Error("the stand did not come up");
-try {
-  const seeded = run(["infra/stand/seed.ts", "--slot", String(slot), "--json"]);
-  if (seeded.status !== 0) throw new Error(`seed failed: ${seeded.stderr.slice(-2000)}`);
-  const s = JSON.parse(seeded.stdout) as Seeded;
-  console.log(`atlas: ${Object.keys(s.fixtures).length} fixtures on ${s.site}`);
-  // --only shoots some screens again and keeps the others' pictures.
-  if (!ONLY) rmSync(OUT, { recursive: true, force: true });
-  mkdirSync(OUT, { recursive: true });
-  const browser = await chromium.launch();
-  const rows: { card: Card; slug: string; shots: string[] }[] = [];
-  try {
-    for (const [i, card] of cards(s).entries()) {
-      const slug = slugOf(card, i);
-      const shots = !ONLY || ONLY.includes(card.screen) ? await shoot(browser, s, card, slug) : existsSync(join(OUT, slug)) ? readdirSync(join(OUT, slug)).map((f) => `${slug}/${f}`) : [];
-      rows.push({ card, slug, shots });
-      console.log(`atlas: ${slug} (${shots.length})`);
+async function main(): Promise<void> {
+  {
+    const gaps = routeGaps(ATLAS_SCREENS);
+    if (gaps.length) {
+      console.error(`atlas: ${gaps.join("\n  ")}`);
+      process.exit(1);
     }
-  } finally {
-    await browser.close();
+    if (argv.includes("--check-routes")) {
+      console.log("atlas: every route of the app has a screen in the atlas");
+      process.exit(0);
+    }
   }
-  const missing = ATLAS_SCREENS.filter((x) => !rows.some((r) => r.card.screen === x));
-  if (missing.length) throw new Error(`ATLAS_SCREENS names screens with no card: ${missing.join(", ")}`);
-  writeFileSync(join(OUT, "index.html"), page(s, rows, slot));
-  const expected = WIDTHS.length * LANGS.length * THEMES.length * LENSES.length;
-  const short = rows.filter((r) => (!ONLY || ONLY.includes(r.card.screen)) && r.shots.length < expected);
-  if (short.length) process.exitCode = 1;
-  console.log(`atlas: ${join(OUT, "index.html")}, ${rows.reduce((n, r) => n + r.shots.length, 0)} pictures`);
-} finally {
-  if (argv.includes("--down")) run(["infra/stand/stand.ts", "down", "--slot", String(slot)]);
-  else console.log(`atlas: the stand stays up for the live links: bun infra/stand/stand.ts down --slot ${slot}`);
+
+  process.env.STAND_PORT_BASE = env.STAND_PORT_BASE;
+  let slot = -1;
+  for (let n = 1; n <= 8 && slot < 0; n++) if ((await slotInUse(n)).length === 0) slot = n;
+  if (slot < 0) throw new Error("no free stand slot from 1 to 8");
+  const run = (args: string[]) => spawnSync(bun, args, { cwd: REPO, env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  console.log(`atlas: stand slot ${slot}`);
+  if (run(["infra/stand/stand.ts", "up", "--slot", String(slot)]).status !== 0) throw new Error("the stand did not come up");
+  try {
+    const seeded = run(["infra/stand/seed.ts", "--slot", String(slot), "--json"]);
+    if (seeded.status !== 0) throw new Error(`seed failed: ${seeded.stderr.slice(-2000)}`);
+    const s = JSON.parse(seeded.stdout) as Seeded;
+    console.log(`atlas: ${Object.keys(s.fixtures).length} fixtures on ${s.site}`);
+    // --only shoots some screens again and keeps the others' pictures.
+    if (!ONLY) rmSync(OUT, { recursive: true, force: true });
+    mkdirSync(OUT, { recursive: true });
+    const browser = await chromium.launch();
+    const rows: { card: Card; slug: string; shots: string[] }[] = [];
+    try {
+      for (const [i, card] of cards(s).entries()) {
+        const slug = slugOf(card, i);
+        const shots = !ONLY || ONLY.includes(card.screen) ? await shoot(browser, s, card, slug) : existsSync(join(OUT, slug)) ? readdirSync(join(OUT, slug)).map((f) => `${slug}/${f}`) : [];
+        rows.push({ card, slug, shots });
+        console.log(`atlas: ${slug} (${shots.length})`);
+      }
+    } finally {
+      await browser.close();
+    }
+    writeFileSync(join(OUT, "index.html"), page(s, rows, slot));
+    const expected = WIDTHS.length * LANGS.length * THEMES.length * LENSES.length;
+    const short = rows.filter((r) => (!ONLY || ONLY.includes(r.card.screen)) && r.shots.length < expected);
+    if (short.length) process.exitCode = 1;
+    console.log(`atlas: ${join(OUT, "index.html")}, ${rows.reduce((n, r) => n + r.shots.length, 0)} pictures`);
+  } finally {
+    if (argv.includes("--down")) run(["infra/stand/stand.ts", "down", "--slot", String(slot)]);
+    else console.log(`atlas: the stand stays up for the live links: bun infra/stand/stand.ts down --slot ${slot}`);
+  }
 }
