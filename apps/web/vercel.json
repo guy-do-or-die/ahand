@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "cd ../.. && npx -y bun@1.4.4 install --frozen-lockfile",
-  "buildCommand": "cd ../.. && npx -y bun@1.4.4 apps/web/vercel.ts build",
+  "buildCommand": "cd ../.. && npx -y bun@1.4.4 apps/web/deploy.ts build",
   "outputDirectory": "dist",
   "functions": {
     "api/view.mjs": {

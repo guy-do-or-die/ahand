@@ -128,7 +128,7 @@ export interface AppConfig {
    * Whether a server in front of the site (the view server) writes each page address's link-preview tags.
    * False for a static-only host: every address is /index.html as built, and a chat's preview
    * shows only the site's name. Absent means true. The public test deployment on Vercel says true:
-   * a Vercel Function runs the view server for a Hand's address and its card (apps/web/vercel.ts).
+   * a Vercel Function runs the view server for a Hand's address and its card (apps/web/deploy.ts).
    */
   previews?: boolean;
   /** Logging in through Privy; absent means none (the local stand has none). */

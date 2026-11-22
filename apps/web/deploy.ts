@@ -3,11 +3,11 @@
  * Vercel, against Base Sepolia. The repository's Vercel project has its Root Directory at apps/web,
  * so its settings live in apps/web/vercel.json, which this file writes and checks:
  *
- *   bun apps/web/vercel.ts build   what Vercel's buildCommand runs: builds the app with the
+ *   bun apps/web/deploy.ts build   what Vercel's buildCommand runs: builds the app with the
  *                                   public configuration into apps/web/dist, writes build.json
  *                                   beside it, and fails if apps/web/vercel.json is not exactly
  *                                   what this build needs (a stale exit.html hash would block its script)
- *   bun apps/web/vercel.ts write   builds into a scratch folder and writes apps/web/vercel.json
+ *   bun apps/web/deploy.ts write   builds into a scratch folder and writes apps/web/vercel.json
  *
  * The configuration is apps/web/src/config/base-sepolia.json; once contracts/deployments/84532.json
  * (Core's real deployment) exists, its block, commit and dirty flag are taken in (`publicConfig`),
@@ -137,7 +137,7 @@ export function vercelJson(config: PublicConfig, exitHtml: string) {
     $schema: "https://openapi.vercel.sh/vercel.json",
     framework: null,
     installCommand: `cd ../.. && npx -y bun@${BUN} install --frozen-lockfile`,
-    buildCommand: `cd ../.. && npx -y bun@${BUN} apps/web/vercel.ts build`,
+    buildCommand: `cd ../.. && npx -y bun@${BUN} apps/web/deploy.ts build`,
     outputDirectory: VERCEL_OUT,
     ...(previewsOn(config) ? { functions: { [FUNCTION_ENTRY]: { includeFiles: `${FUNCTION_DIR}/**`, maxDuration: FUNCTION_MAX_SECONDS } } } : {}),
     rewrites: [
@@ -266,8 +266,8 @@ export function viewEnvOf(config: PublicConfig): Record<string, string> {
 
 /** apps/web/api/view.mjs: the function Vercel finds, a thin re-export of the bundle the build makes. */
 export const FUNCTION_SOURCE = `// The Vercel Function of the public test deployment: the view server's link previews for a Hand's address
-// and its card (docs/public-test-deployment.md). Written by \`bun apps/web/vercel.ts write\`;
-// ../view/ is made by the build command (apps/web/vercel.ts buildFunction) before Vercel traces this file.
+// and its card (docs/public-test-deployment.md). Written by \`bun apps/web/deploy.ts write\`;
+// ../view/ is made by the build command (apps/web/deploy.ts buildFunction) before Vercel traces this file.
 export { default } from "../${FUNCTION_DIR}/handler.mjs";
 `;
 
@@ -405,7 +405,7 @@ async function main(argv: string[]): Promise<number> {
     const have = existsSync(VERCEL_JSON) ? readFileSync(VERCEL_JSON, "utf8") : "";
     const stale = Object.entries(functionFiles()).filter(([path, text]) => !existsSync(join(VERCEL_ROOT, path)) || readFileSync(join(VERCEL_ROOT, path), "utf8") !== text);
     if (have !== want || stale.length > 0) {
-      console.error(`vercel: ${have !== want ? "apps/web/vercel.json" : stale.map(([path]) => `apps/web/${path}`).join(", ")} is not what this build needs (its headers or its function would not match the pages). Run: bun apps/web/vercel.ts write`);
+      console.error(`vercel: ${have !== want ? "apps/web/vercel.json" : stale.map(([path]) => `apps/web/${path}`).join(", ")} is not what this build needs (its headers or its function would not match the pages). Run: bun apps/web/deploy.ts write`);
       return 1;
     }
     return 0;
@@ -427,7 +427,7 @@ async function main(argv: string[]): Promise<number> {
     }
     return 0;
   }
-  console.error("usage: bun apps/web/vercel.ts build | write");
+  console.error("usage: bun apps/web/deploy.ts build | write");
   return 2;
 }
 

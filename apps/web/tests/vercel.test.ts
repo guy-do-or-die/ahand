@@ -36,10 +36,10 @@ import {
   VERCEL_ROOT,
   vercelJson,
   writePublicConfig,
-} from "../vercel.ts";
+} from "../deploy.ts";
 
 /**
- * apps/web/vercel.json, the public test deployment's settings (apps/web/vercel.ts): Vercel reads
+ * apps/web/vercel.json, the public test deployment's settings (apps/web/deploy.ts): Vercel reads
  * it before it builds, so its headers are literal. Here a fresh public build is made and the file
  * must be exactly what that build needs: the headers the stand's static server sends for the same
  * configuration, exit.html's own script hash, and routes that Vercel's own route compiler
@@ -107,7 +107,7 @@ test("the site is built with the Bun that CI pins, so bun.lock installs frozen o
 });
 
 describe("apps/web/vercel.json (the public test deployment)", () => {
-  test("is exactly what a fresh public build needs: bun apps/web/vercel.ts write", () => {
+  test("is exactly what a fresh public build needs: bun apps/web/deploy.ts write", () => {
     expect(readFileSync(VERCEL_JSON, "utf8")).toBe(formatJson(expectedVercelJson(dist, configFile)));
   });
 
@@ -115,7 +115,7 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     expect(vercel.framework).toBeNull();
     expect(vercel.outputDirectory).toBe("dist");
     expect(vercel.installCommand).toBe(`cd ../.. && npx -y bun@${BUN} install --frozen-lockfile`);
-    expect(vercel.buildCommand).toBe(`cd ../.. && npx -y bun@${BUN} apps/web/vercel.ts build`);
+    expect(vercel.buildCommand).toBe(`cd ../.. && npx -y bun@${BUN} apps/web/deploy.ts build`);
     expect(config.chain.local).toBe(false);
     expect(existsSync(join(dist, "gallery.html"))).toBe(false);
     const assets = readdirSync(join(dist, "assets"));
@@ -492,4 +492,10 @@ describe("the function as Vercel puts it together: the build's folder, traced, a
     expect(out.page.text).toBe(readFileSync(join(dist, "index.html"), "utf8"));
     expect(out.page.csp).toBe(appOf()["Content-Security-Policy"]);
   }, 120_000);
+});
+
+test("no config file of Vercel's own sits beside vercel.json: Vercel reads vercel.ts as configuration and refuses two", () => {
+  const { readdirSync } = require("node:fs") as typeof import("node:fs");
+  const names = readdirSync(join(import.meta.dir, ".."));
+  expect(names.filter((n) => /^vercel\.(ts|mts|cts|js|mjs|cjs)$/.test(n))).toEqual([]);
 });

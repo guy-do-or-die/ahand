@@ -37,7 +37,7 @@ outputs/
 local/
 .vercel
 
-# The app's public build: the Vercel Function's folder, made by `bun apps/web/vercel.ts build`
+# The app's public build: the Vercel Function's folder, made by `bun apps/web/deploy.ts build`
 # (the view server bundled, index.html, its settings, fonts and resvg)
 apps/web/view/
 # tests/e2e/fork/run.ts deploys Core on a local fork of a public network; that file is never a real deployment

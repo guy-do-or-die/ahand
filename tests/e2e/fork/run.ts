@@ -17,7 +17,7 @@
  *  5. anvil's test accounts 1 to 5 get 1 000 test USDC each (anvil_setStorageAt on Circle's
  *     balance slot, read back with balanceOf);
  *  6. the browser life runs (FORK_PHASE=life), then the SDK's own loop (infra/stand/loop.ts --only usd);
- *  7. link previews: the view server's Vercel Function is built as `bun apps/web/vercel.ts build` builds it,
+ *  7. link previews: the view server's Vercel Function is built as `bun apps/web/deploy.ts build` builds it,
  *     but reading the fork; its files are gathered as Vercel gathers them (@vercel/nft and
  *     includeFiles), copied out alone, and run by Node (FORK_NODE, Node 24 as on Vercel) with a
  *     Request for each shape of a Hand's address raised here through the SDK (unlisted with d,
@@ -40,7 +40,7 @@ import { ANVIL_KEYS, type ChainToken } from "@ahand/sdk/testing";
 
 import { isolate } from "../../../apps/view/src/bidi.ts";
 import { metaOf, raiseHand, unescape, USD, type RaiseChain } from "../../../apps/view/tests/hands.ts";
-import { buildApp, copyFunction, FUNCTION_ENTRY, functionFileList, PUBLIC_CONFIG, stageFunction } from "../../../apps/web/vercel.ts";
+import { buildApp, copyFunction, FUNCTION_ENTRY, functionFileList, PUBLIC_CONFIG, stageFunction } from "../../../apps/web/deploy.ts";
 import { buildRecord } from "../../../tools/manifest.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
