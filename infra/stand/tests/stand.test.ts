@@ -20,6 +20,7 @@ import { parseConfig } from "../../../apps/web/src/config/load.ts";
 import { hashDir } from "../../../tools/manifest.ts";
 import { pathsOf, portsOf, REPO_ROOT } from "../ports.ts";
 import { AHEAD_SECONDS, anvilArgs, assertLocalChain, configOf, parseArgs, processIdentity, slotInUse, standOf, type StandRecord } from "../stand.ts";
+import { appCsp } from "../../../apps/web/csp.ts";
 import { contentSecurityPolicy, inlineScriptHashes, resolvePath, securityHeaders, startStatic } from "../static.ts";
 
 const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
@@ -169,6 +170,16 @@ describe("static server: rule and headers", () => {
     expect(headers["Cross-Origin-Opener-Policy"]).toBe("same-origin");
     expect(headers["Permissions-Policy"]).toBe("camera=(), microphone=(), geolocation=()");
     expect(headers["Content-Security-Policy"]).toContain("connect-src 'self';");
+  });
+
+  test("with Privy, the same header as the app's own policy (apps/web/csp.ts), so Privy's window can load; exit.html never names Privy", () => {
+    const connect = ["http://127.0.0.1:18635", "ws://127.0.0.1:18637"];
+    expect(contentSecurityPolicy(connect, { privy: true })).toBe(appCsp({ rpcUrls: [connect[0]!], relays: [connect[1]!], privy: true }, "header"));
+    expect(contentSecurityPolicy(connect, { privy: false })).toBe(contentSecurityPolicy(connect));
+    const exit = contentSecurityPolicy(connect, { privy: true, anyRpc: true, inline: ["'sha256-x'"] });
+    expect(exit).not.toContain("privy");
+    expect(exit).not.toContain("walletconnect");
+    expect(securityHeaders(connect, { privy: true })["Content-Security-Policy"]).toContain("frame-src https://auth.privy.io");
   });
 
   test("existing files as they are, every other path to index, missing files with an extension 404", () => {

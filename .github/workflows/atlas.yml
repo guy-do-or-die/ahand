@@ -1,0 +1,74 @@
+# NOTE: this workflow has never run (written 2026-11-22 on a machine without GitHub Actions; the
+# same command was run there by hand).
+#
+# The branch's atlas: every screen of the app in every state the stand's seed makes, in Russian and
+# English, light and dark, lens off and on, phone and desktop (tests/demo/atlas.ts), on a fresh
+# stand. It needs no secret and touches no public chain; the pictures and the page are kept as the
+# run's artifact "atlas" for 14 days. The run fails when a picture could not be taken, and
+# `bun run check` (job check) fails when the app has a route the atlas does not show.
+name: atlas
+
+on:
+  push:
+    branches: ["exp/**", "main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  atlas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Every script calls Foundry by path; the runner's home is read here, not written into the file.
+      - name: Where Foundry goes
+        run: echo "FOUNDRY_BIN=$HOME/.foundry/bin" >> "$GITHUB_ENV"
+
+      - name: Contract libraries
+        run: |
+          mkdir -p contracts/lib
+          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+
+      - name: Foundry where the scripts look for it
+        run: |
+          mkdir -p "$FOUNDRY_BIN"
+          for tool in forge cast anvil chisel; do
+            found=$(command -v $tool)
+            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+          done
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build contracts
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
+      - name: Atlas
+        run: bun tests/demo/atlas.ts --down
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas
+          path: tests/demo/.gallery/
+          retention-days: 14

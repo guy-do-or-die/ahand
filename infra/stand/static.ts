@@ -16,11 +16,17 @@
  * shipped code runs and nothing injected does; and exit.html, which takes any RPC address its
  * reader types, may connect to any https address and to this machine.
  *
+ * With a configuration that logs in through Privy (`privy`), the app's pages also name Privy's
+ * sources (apps/web/csp.ts PRIVY_CSP), as the build's own meta tag and face do: two policies both
+ * apply, so a header without them would keep Privy's window from loading. exit.html never gets them.
+ *
  *   bun infra/stand/static.ts --dir <folder> --port <port> [--config <app config.json>] [--host 127.0.0.1]
  */
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
+
+import { PRIVY_CSP } from "../../apps/web/csp.ts";
 
 /** The sha256 sources of the inline scripts of an HTML file, as CSP writes them. */
 export function inlineScriptHashes(html: string): string[] {
@@ -38,6 +44,8 @@ export function inlineScriptHashes(html: string): string[] {
 export interface PageSources {
   inline?: readonly string[];
   anyRpc?: boolean;
+  /** The app logs in through Privy: its sources, except on a page that takes any RPC (exit.html). */
+  privy?: boolean;
 }
 
 /**
@@ -48,15 +56,17 @@ export function contentSecurityPolicy(connect: readonly string[], page: PageSour
   for (const source of connect) {
     if (!/^(https?|wss?):\/\/[A-Za-z0-9.\-:[\]]+\/?$/.test(source)) throw new Error(`not a source for connect-src: ${source}`);
   }
-  const connectSources = [...connect];
+  const privy = page.privy === true && !page.anyRpc;
+  const connectSources = [...connect, ...(privy ? PRIVY_CSP.connect : [])];
   if (page.anyRpc) connectSources.push("https:", "http://127.0.0.1:*", "http://localhost:*");
   return [
     "default-src 'self'",
     ["script-src 'self'", ...(page.inline ?? [])].join(" "),
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    ["img-src 'self' data:", ...(privy ? PRIVY_CSP.img : [])].join(" "),
     page.anyRpc ? "font-src 'self' data:" : "font-src 'self'",
     ["connect-src 'self'", ...new Set(connectSources)].join(" "),
+    ...(privy ? [`frame-src ${PRIVY_CSP.frame.join(" ")}`, `child-src ${PRIVY_CSP.frame.join(" ")}`] : []),
     "worker-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
@@ -118,12 +128,14 @@ export interface StaticOptions {
   hostname?: string;
   /** RPC and relay URLs for connect-src. */
   connect?: readonly string[];
+  /** The app logs in through Privy (its configuration has `privy`). */
+  privy?: boolean;
   log?: (line: string) => void;
 }
 
 /** Starts the server; `stop()` on the result frees the port. */
 export function startStatic(options: StaticOptions) {
-  const headers = securityHeaders(options.connect ?? []);
+  const headers = securityHeaders(options.connect ?? [], { privy: options.privy });
   const log = options.log ?? ((line: string) => console.log(line));
   const answer = (method: string, path: string, status: number, body: BodyInit | null, extra: Record<string, string> = {}) => {
     log(`${method} ${path} ${status}`);
@@ -151,7 +163,7 @@ export function startStatic(options: StaticOptions) {
       if (html) {
         const inline = inlineScriptHashes(readFileSync(found.file, "utf8"));
         const anyRpc = !found.fallback && found.file === resolve(options.dir, "exit.html");
-        if (inline.length > 0 || anyRpc) page["Content-Security-Policy"] = contentSecurityPolicy(options.connect ?? [], { inline, anyRpc });
+        if (inline.length > 0 || anyRpc) page["Content-Security-Policy"] = contentSecurityPolicy(options.connect ?? [], { inline, anyRpc, privy: options.privy });
       }
       const cache = url.pathname.startsWith("/assets/") && !found.fallback ? "public, max-age=31536000, immutable" : "no-cache";
       const type = file.type || "application/octet-stream";
@@ -182,8 +194,9 @@ if (import.meta.main) {
       throw new Error("usage: bun infra/stand/static.ts --dir <folder> --port <port> [--config <config.json>] [--host 127.0.0.1]");
     }
     const configPath = flag(argv, "--config");
-    const connect = configPath ? connectSourcesOf(JSON.parse(readFileSync(configPath, "utf8"))) : [];
-    const server = startStatic({ dir: resolve(dir), port, hostname: flag(argv, "--host"), connect });
+    const config = configPath ? JSON.parse(readFileSync(configPath, "utf8")) : undefined;
+    const connect = config ? connectSourcesOf(config) : [];
+    const server = startStatic({ dir: resolve(dir), port, hostname: flag(argv, "--host"), connect, privy: Boolean(config?.privy) });
     console.log(`static: serving ${resolve(dir)} on http://${server.hostname}:${server.port} (all paths to index.html)`);
     const stop = () => {
       server.stop(true);

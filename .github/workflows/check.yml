@@ -10,7 +10,7 @@
 # tests, and the view server's tests, which read local chains and scripted JSON-RPC nodes on
 # 127.0.0.1 only, the web app's tests, the stand's and the command-line tool's, which start their
 # own anvil and relay on 127.0.0.1, and the app's build. The browser suites (tests/e2e) need a
-# running stand and are run by hand.
+# running stand and are run by hand; the demo engine's scenarios (job scenarios) bring their own.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
 name: check
 
@@ -154,3 +154,82 @@ jobs:
         run: |
           echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
           git diff --exit-code -- contracts/src/AHandCore.sol
+
+  # Every scenario of the demo engine (tests/demo), headless, on a stand the job brings up itself:
+  # an anvil, Core and the test contracts deployed by Deploy.s.sol, the relay, the built app. A
+  # scenario that fails leaves its trace, its screenshots and every persona's video as an
+  # artifact. Like the job above, this has not run on GitHub yet: the same commands were run by
+  # hand on a fresh slot (tests/demo/README.md, "As CI runs it").
+  scenarios:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      FOUNDRY_BIN: /home/runner/.foundry/bin
+      STAND_SLOT: "0"
+      DEMO_VIDEO: on-failure
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Contract libraries
+        run: |
+          mkdir -p contracts/lib
+          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+
+      - name: Foundry where the scripts look for it
+        run: |
+          mkdir -p "$FOUNDRY_BIN"
+          for tool in forge cast anvil chisel; do
+            found=$(command -v $tool)
+            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+          done
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build contracts
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
+      - name: The catalogue is the scenarios', the atlas has every route
+        run: |
+          bun tests/demo/catalogue.ts --check
+          bun tests/demo/atlas.ts --check-routes
+
+      - name: Stand up
+        run: bun infra/stand/stand.ts up --slot 0
+
+      - name: Scenarios
+        run: bunx playwright test -c playwright.demo.config.ts
+
+      - name: Stand logs
+        if: failure()
+        run: tail -n 100 infra/stand/.run/0/logs/* || true
+
+      - name: Down
+        if: always()
+        run: bun infra/stand/stand.ts down --slot 0
+
+      - name: What failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenarios-failed
+          path: |
+            tests/demo/test-results/
+            tests/demo/report/
+          retention-days: 14
+

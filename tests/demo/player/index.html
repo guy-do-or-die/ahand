@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>aHand · сценарий</title>
+<link rel="stylesheet" href="replay.css" />
+<style>
+  :root { --bg: #0f1115; --ink: #e8e8e8; --mute: #9aa0ad; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; padding: 10px 16px; position: sticky; top: 0; background: var(--bg); z-index: 5; flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; }
+  button { font: inherit; background: #222832; color: #fff; border: 1px solid #3a4250; border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+  input[type="range"] { flex: 1; min-width: 160px; }
+  #time { color: var(--mute); font-variant-numeric: tabular-nums; }
+  main { display: flex; gap: 14px; padding: 0 16px 24px; overflow-x: auto; }
+  .phone { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+  .badge { align-self: flex-start; padding: 2px 10px; border-radius: 999px; color: #fff; font-size: 12px; }
+  .screen { width: calc(390px * var(--k)); height: calc(844px * var(--k)); overflow: hidden; border-radius: 14px; background: #fff; position: relative; }
+  .screen .stage { width: 390px; height: 844px; transform: scale(var(--k)); transform-origin: 0 0; }
+  .screen .wait { position: absolute; inset: 0; display: grid; place-items: center; color: #889; background: #15181e; font-size: 13px; }
+  .caption { min-height: 2.8em; max-width: calc(390px * var(--k)); color: var(--ink); font-size: 13px; }
+  .replayer-mouse { display: none; }
+</style>
+<header>
+  <h1 id="title"></h1>
+  <button id="play">▶</button>
+  <input id="seek" type="range" min="0" value="0" step="100" />
+  <span id="time"></span>
+</header>
+<main id="phones"></main>
+<script src="replay.umd.min.js"></script>
+<script>
+  // ?s=<scenario id>: plays tests/demo/.run/dom/<id>/ (steps.json and one events file per persona).
+  const id = new URLSearchParams(location.search).get("s") || "first-thanks";
+  const base = `dom/${id}/`;
+  const k = Math.min(1, (innerHeight - 140) / 844);
+  document.documentElement.style.setProperty("--k", String(k));
+  const Replayer = (window.rrwebReplay || {}).Replayer;
+
+  (async () => {
+    const meta = await (await fetch(base + "steps.json")).json();
+    document.getElementById("title").textContent = id;
+    const phones = [];
+    for (const [key, p] of Object.entries(meta.personas)) {
+      const events = await (await fetch(base + key + ".json")).json();
+      const box = document.createElement("section");
+      box.className = "phone";
+      box.innerHTML = `<span class="badge" style="background:${p.color}">${p.name} · ${p.role}</span><div class="screen"><div class="stage"></div><div class="wait">ещё не открыл ссылку</div></div><div class="caption"></div>`;
+      document.getElementById("phones").append(box);
+      const replayer = new Replayer(events, { root: box.querySelector(".stage"), skipInactive: false, mouseTail: false, showWarning: false, triggerFocus: false });
+      phones.push({ key, replayer, start: events[0].timestamp, end: events[events.length - 1].timestamp, wait: box.querySelector(".wait"), caption: box.querySelector(".caption"), state: "idle" });
+    }
+    const t0 = Math.min(...phones.map((p) => p.start));
+    const total = Math.max(...phones.map((p) => p.end), ...meta.steps.map((s) => s.t)) - t0;
+    const seek = document.getElementById("seek");
+    seek.max = String(total);
+    let at = 0, playing = false, last = 0;
+
+    function show(t, run) {
+      at = Math.max(0, Math.min(total, t));
+      seek.value = String(at);
+      document.getElementById("time").textContent = `${(at / 1000).toFixed(1)} / ${(total / 1000).toFixed(1)} с`;
+      for (const p of phones) {
+        const local = at - (p.start - t0);
+        p.wait.style.display = local < 0 ? "grid" : "none";
+        const want = local < 0 ? "idle" : run ? "play" : "pause";
+        if (want === "idle") { if (p.state !== "idle") p.replayer.pause(0); }
+        else if (want === "play" && p.state !== "play") p.replayer.play(local);
+        else if (want === "pause") p.replayer.pause(local);
+        p.state = want;
+        const mine = meta.steps.filter((s) => s.t - t0 <= at && (!s.who || s.who === p.key));
+        p.caption.textContent = mine.length ? mine[mine.length - 1].caption : "";
+      }
+    }
+    function tick(now) {
+      if (!playing) return;
+      show(at + (now - last), true);
+      last = now;
+      if (at >= total) { playing = false; document.getElementById("play").textContent = "▶"; return; }
+      requestAnimationFrame(tick);
+    }
+    document.getElementById("play").onclick = () => {
+      playing = !playing;
+      document.getElementById("play").textContent = playing ? "❚❚" : "▶";
+      if (playing) { for (const p of phones) p.state = "seek"; last = performance.now(); if (at >= total) at = 0; requestAnimationFrame(tick); }
+      else show(at, false);
+    };
+    seek.oninput = () => { for (const p of phones) p.state = "seek"; show(Number(seek.value), playing); };
+    show(0, false);
+  })();
+</script>
+</html>

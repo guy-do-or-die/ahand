@@ -1,0 +1,100 @@
+# NOTE: this workflow has never run (written 2026-11-21 on a machine without GitHub Actions; the
+# same commands were run there by hand on a stand slot).
+#
+# The Hand model's paths (tests/demo/model) played as scenarios on a fresh stand. Nightly: one
+# shortest path to every end of a Hand (36 scenarios, about 12 minutes). By hand: any mode, and
+# for "simple" every path of at most k events (153 in all, about 50 minutes). Like the check
+# workflow it needs no secret and touches no public chain.
+name: model
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "gaps (ends no written scenario reaches), shortest (every end) or simple (every path)"
+        default: shortest
+        type: choice
+        options: [gaps, shortest, simple]
+      k:
+        description: "simple: at most this many events per path"
+        default: "9"
+
+permissions:
+  contents: read
+
+jobs:
+  paths:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      STAND_SLOT: "0"
+      CI: "1"
+      DEMO_VIDEO: on-failure
+      DEMO_MODEL: ${{ inputs.mode || 'shortest' }}
+      DEMO_MODEL_K: ${{ inputs.k || '9' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Every script calls Foundry by path; the runner's home is read here, not written into the file.
+      - name: Where Foundry goes
+        run: echo "FOUNDRY_BIN=$HOME/.foundry/bin" >> "$GITHUB_ENV"
+
+      - name: Contract libraries
+        run: |
+          mkdir -p contracts/lib
+          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+
+      - name: Foundry where the scripts look for it
+        run: |
+          mkdir -p "$FOUNDRY_BIN"
+          for tool in forge cast anvil chisel; do
+            found=$(command -v $tool)
+            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+          done
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build contracts
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
+      - name: Stand up
+        run: bun infra/stand/stand.ts up --slot 0
+
+      - name: Model paths
+        run: bunx playwright test -c playwright.demo.config.ts tests/demo/model.spec.ts
+
+      - name: Stand logs
+        if: failure()
+        run: tail -n 100 infra/stand/.run/0/logs/* || true
+
+      - name: Report and failed scenarios
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-paths
+          path: |
+            tests/demo/test-results/
+            tests/demo/report/
+          retention-days: 7
+
+      - name: Down
+        if: always()
+        run: bun infra/stand/stand.ts down --slot 0

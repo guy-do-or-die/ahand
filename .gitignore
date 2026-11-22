@@ -46,3 +46,9 @@ contracts/deployments/*-fork.json
 tests/e2e/test-results/
 tests/e2e/playwright-report/
 tests/e2e/shots/
+tests/demo/test-results/
+tests/demo/report/
+tests/demo/.run/
+tests/demo/videos/
+tests/demo/.gallery/
+tests/demo/.atlas/

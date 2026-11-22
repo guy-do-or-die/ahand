@@ -1,0 +1,79 @@
+# NOTE: this workflow has never run (written 2026-11-21 on a machine without GitHub Actions; the
+# same command was run there by hand).
+#
+# The branch's gallery: every stand scenario recorded on a fresh stand, its phones stitched side by
+# side, and one static page (tests/demo/gallery.ts) in English and Russian. It needs no secret and
+# touches no public chain; the page and videos are kept as the run's artifact "gallery" for 14 days.
+# Where the page is published for each branch is the owner's choice (README of tests/demo).
+name: gallery
+
+on:
+  push:
+    branches: ["exp/**", "main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gallery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Every script calls Foundry by path; the runner's home is read here, not written into the file.
+      - name: Where Foundry goes
+        run: echo "FOUNDRY_BIN=$HOME/.foundry/bin" >> "$GITHUB_ENV"
+
+      - name: Contract libraries
+        run: |
+          mkdir -p contracts/lib
+          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+
+      - name: Foundry where the scripts look for it
+        run: |
+          mkdir -p "$FOUNDRY_BIN"
+          for tool in forge cast anvil chisel; do
+            found=$(command -v $tool)
+            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+          done
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build contracts
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
+      - name: ffmpeg
+        run: sudo apt-get install -y ffmpeg
+
+      - name: Gallery, English
+        run: bun tests/demo/gallery.ts
+
+      - name: Gallery, Russian
+        run: bun tests/demo/gallery.ts --ru
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gallery
+          path: tests/demo/.gallery/
+          retention-days: 14
