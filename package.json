@@ -9,7 +9,8 @@
     "packages/abi",
     "packages/sdk",
     "packages/deliver",
-    "infra/relay"
+    "infra/relay",
+    "apps/view"
   ],
   "scripts": {
     "check:core": "echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict",
@@ -18,12 +19,13 @@
     "test:contracts": "cd contracts && ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test",
     "test:vectors": "cd contracts && WRITE_VECTORS=true ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test --match-contract 'SdkVectorsTest|SdkGasTest' && git diff --exit-code -- test/fixtures",
     "test:exit": "bash contracts/exit/selftest.sh",
-    "typecheck": "tsc --noEmit -p packages/sdk && tsc --noEmit -p packages/sdk/tests && tsc --noEmit -p packages/abi && tsc --noEmit -p packages/deliver && tsc --noEmit -p infra/relay",
+    "typecheck": "tsc --noEmit -p packages/sdk && tsc --noEmit -p packages/sdk/tests && tsc --noEmit -p packages/abi && tsc --noEmit -p packages/deliver && tsc --noEmit -p infra/relay && tsc --noEmit -p apps/view",
     "test:sdk": "bun run --cwd packages/sdk test",
     "test:abi": "bun run --cwd packages/abi test",
     "test:deliver": "bun run --cwd packages/deliver test",
     "test:relay": "bun run --cwd infra/relay test",
-    "check": "bun run check:core && bun run typecheck && bun run build:contracts && bun run check:abi && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run test:abi && bun run test:deliver && bun run test:relay && bun run check:core"
+    "test:view": "bun run --cwd apps/view test",
+    "check": "bun run check:core && bun run typecheck && bun run build:contracts && bun run check:abi && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run test:abi && bun run test:deliver && bun run test:relay && bun run test:view && bun run check:core"
   },
   "devDependencies": {
     "@ahand/abi": "workspace:*",

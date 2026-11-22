@@ -3,9 +3,10 @@
 # records, every forge test (unit, invariants, the hostile invariants, the SDK vectors and gas
 # fixtures Core writes, the deployment), the fixtures unchanged after the tests rewrote them from
 # Core, the exit kit's self-test, the typecheck of the SDK, its tests, the ABI package, the delivery
-# package and the test relay, the SDK's tests, which compare it with those fixtures and run it
-# against Core on local chains, the ABI package's tests, and the tests of the delivery package and
-# the test relay, which run on 127.0.0.1 only and contact no public relay.
+# package, the test relay and the view server, the SDK's tests, which compare it with those fixtures
+# and run it against Core on local chains, the ABI package's tests, the tests of the delivery package
+# and the test relay, which run on 127.0.0.1 only and contact no public relay, and the view server's
+# tests, which read local chains and scripted JSON-RPC nodes on 127.0.0.1 only.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
 # The steps of the other packages and of the app join when those parts arrive on this branch.
 name: check
@@ -117,6 +118,11 @@ jobs:
 
       - name: Test relay tests
         run: bun run test:relay
+
+      # The preview server: tags and cards against local chains, its own client against scripted
+      # nodes (one batch, CCIP-Read off, the deadline), the function form, and the server as a program.
+      - name: View server tests
+        run: bun run test:view
 
       - name: Core is still unchanged
         run: |

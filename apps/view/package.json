@@ -1,0 +1,26 @@
+{
+  "name": "@ahand/view",
+  "version": "0.1.0",
+  "description": "The view server: link previews of a Hand for messengers (Open Graph and Twitter tags, a 1200x630 card), and optionally the site's front",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/server.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@ahand/sdk": "workspace:*",
+    "@resvg/resvg-js": "2.6.2",
+    "react": "19.3.1",
+    "satori": "0.63.2",
+    "viem": "2.52.0"
+  },
+  "devDependencies": {
+    "@ahand/abi": "workspace:*",
+    "@types/bun": "1.4.4",
+    "@types/react": "19.3.0",
+    "typescript": "5.9.3"
+  }
+}

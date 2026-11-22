@@ -39,7 +39,7 @@ A link or an address that leaves Core's address out names the canonical Core, `0
 
 The server never receives what stands after `#`; **the code the site serves reads it in your browser, because that is how a link opens.** A dishonest or look-alike site could copy a link or write another payee into a pass. Dark is not encryption. Built by `describeHand` (`packages/sdk/src/describe.ts`, tests "public: …", "unlisted: …", "dark: …" in `describe.test.ts`). A public Hand carries its whole description in `d`, because there is no public index of Hands to read it from. How long `d` may be is the site's limit, not the format's (`PUBLIC_PART_MAX_CHARS`, 8,192 base64url characters, in `@ahand/sdk/app`).
 
-A preview server sees only the part before `#`: it should show a title only after `d` matched the `dataHash` Core keeps (`viewOf` does both), and a generic card for a bare address, a mismatch or a Core it does not trust.
+A preview server sees only the part before `#`: it should show a title only after `d` matched the `dataHash` Core keeps (`viewOf` does both), and a generic card for a bare address, a mismatch or a Core it does not trust. [The view server](view.md) is that server.
 
 ## The description
 
