@@ -19,7 +19,7 @@ import {
 } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
-import { AHandCoreAbi } from "./helpers/built.js";
+import { BuiltCoreAbi } from "./helpers/built.js";
 import {
   CORE_ERRORS_ABI,
   CORE_OWN_ERRORS,
@@ -59,9 +59,9 @@ describe("Core's errors", () => {
     const source = readFileSync(join(REPO_ROOT, "contracts/src/AHandCore.sol"), "utf8");
     const declared = [...source.matchAll(/^\s*error (\w+)\(/gm)].map((match) => match[1]);
     expect(declared).toHaveLength(23);
-    expect(CORE_OWN_ERRORS).toEqual(declared);
+    expect([...CORE_OWN_ERRORS].sort()).toEqual([...declared].sort());
 
-    const built = (AHandCoreAbi as Abi).filter((item): item is AbiError => item.type === "error").map(errorSignature).sort();
+    const built = BuiltCoreAbi.filter((item): item is AbiError => item.type === "error").map(errorSignature).sort();
     expect(built).toHaveLength(26);
     expect(CORE_ERRORS_ABI.map((item) => errorSignature(item as AbiError)).sort()).toEqual(built);
   });
@@ -78,7 +78,7 @@ describe("Core's errors", () => {
       const raw = new BaseError("call failed", { cause: new RawContractError({ data }) });
       expect(decodeCoreError(raw), item.name).toEqual(expected);
       // A revert viem already decoded with Core's ABI, as readContract throws it.
-      const decoded = new ContractFunctionRevertedError({ abi: AHandCoreAbi as Abi, data, functionName: "thank" });
+      const decoded = new ContractFunctionRevertedError({ abi: BuiltCoreAbi, data, functionName: "thank" });
       expect(decodeCoreError(new BaseError("wrapped", { cause: decoded })), item.name).toEqual(expected);
       // An RPC error whose data carries the revert.
       expect(decodeCoreError({ cause: { code: 3, data: { data } } }), item.name).toEqual(expected);

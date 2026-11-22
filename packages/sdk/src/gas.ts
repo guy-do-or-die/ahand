@@ -1,4 +1,5 @@
-import { encodeFunctionData, hexToBytes, parseAbi, zeroHash, type Hex } from "viem";
+import { aHandCoreAbi } from "@ahand/abi";
+import { encodeFunctionData, hexToBytes, zeroHash, type Hex } from "viem";
 
 import type { Hand, SignedGive, SignedShake } from "./types.js";
 
@@ -63,14 +64,6 @@ const KEY_SIGNATURE_BYTES = 96;
 /** The longest route one transaction can carry by its size alone: no longer route can ever be thanked. */
 export const LONGEST_ROUTE = Math.floor((TX_BYTES_LIMIT - TX_ENVELOPE_BYTES - DIRECT_THANK_BYTES) / SHAKE_BYTES);
 
-const THANK_ABI = parseAbi([
-  "struct Shake { address nextKey; address payee; uint16 claimBps; uint16 nextClaimBps; bytes32 dataHash; }",
-  "struct SignedShake { Shake shake; bytes keySig; }",
-  "struct Give { address signer; address payee; uint16 claimBps; bytes32 routeHash; bytes32 dataHash; }",
-  "struct SignedGive { Give give; bytes keySig; bytes giverSig; }",
-  "function thank(uint256 handId, SignedShake[] signedShakes, SignedGive signedGive, bytes32 dataHash)",
-]);
-
 /** The calldata of `thank`; `dataHash` is what the raiser states with it, zero for nothing. */
 export function thankCalldata(
   handId: bigint,
@@ -78,7 +71,7 @@ export function thankCalldata(
   signedGive: SignedGive,
   dataHash: Hex = zeroHash,
 ): Hex {
-  return encodeFunctionData({ abi: THANK_ABI, functionName: "thank", args: [handId, signedShakes, signedGive, dataHash] });
+  return encodeFunctionData({ abi: aHandCoreAbi, functionName: "thank", args: [handId, signedShakes, signedGive, dataHash] });
 }
 
 /** A Shake that keeps a margin is a payout, and so is the Give; a payout of zero costs less, which the count ignores. */

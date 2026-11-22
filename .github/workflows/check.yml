@@ -1,8 +1,10 @@
 # The gate on every push: Core unchanged byte for byte, forge build, the Core recorded on Base
-# Sepolia is the Core this tree builds, every forge test (unit, invariants, the hostile invariants,
-# the SDK vectors and gas fixtures Core writes, the deployment), the fixtures unchanged after the
-# tests rewrote them from Core, the exit kit's self-test, and the SDK: its typecheck and its tests,
-# which compare it with those fixtures and run it against Core on local chains.
+# Sepolia is the Core this tree builds, the ABI package equal to forge's build and to the deployment
+# records, every forge test (unit, invariants, the hostile invariants, the SDK vectors and gas
+# fixtures Core writes, the deployment), the fixtures unchanged after the tests rewrote them from
+# Core, the exit kit's self-test, the typecheck of the SDK, its tests and the ABI package, the SDK's
+# tests, which compare it with those fixtures and run it against Core on local chains, and the ABI
+# package's tests.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
 # The steps of the other packages and of the app join when those parts arrive on this branch.
 name: check
@@ -71,6 +73,11 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # packages/abi/src/generated.ts holds Core's ABI and the deployment records: @wagmi/cli
+      # regenerates it from the build above and contracts/deployments, and it must equal the commit.
+      - name: ABI package matches the build
+        run: bun run check:abi
+
       # Offline, from contracts/deployments/84532.json: keccak256 of the AHandCore built here equals
       # the recorded initcodeHash, and create2(factory, salt, initcodeHash) is the recorded Core. A
       # change to Core's source or build settings would move Core to another address.
@@ -98,6 +105,9 @@ jobs:
       # compare the SDK with the fixtures Core wrote, and start their own anvil from $FOUNDRY_BIN.
       - name: SDK tests
         run: bun run test:sdk
+
+      - name: ABI package tests
+        run: bun run test:abi
 
       - name: Core is still unchanged
         run: |

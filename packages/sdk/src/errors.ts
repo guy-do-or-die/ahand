@@ -1,5 +1,5 @@
-import { decodeErrorResult, isHex, parseAbi, type Hex } from "viem";
-
+import { aHandCoreAbi } from "@ahand/abi";
+import { decodeErrorResult, isHex, type Hex } from "viem";
 
 /**
  * Core's refusals, read out of whatever a call to the chain threw. The message id a screen shows
@@ -10,68 +10,23 @@ import { decodeErrorResult, isHex, parseAbi, type Hex } from "viem";
  * the two `ShortStrings` errors, which only a constructor can raise. All 26 are decoded.
  */
 
-/** Every custom error AHandCore.sol can revert with (its ABI). */
-export type CoreErrorName =
-  | "AnonymousMargin"
-  | "BelowMinClaim"
-  | "Expired"
-  | "ExpiryTooEarly"
-  | "ExpiryTooLate"
-  | "GiverIsRaiser"
-  | "InexactTransfer"
-  | "InvalidClaim"
-  | "InvalidGiverSig"
-  | "InvalidKeySig"
-  | "InvalidRouteHash"
-  | "InvalidShortString"
-  | "MinClaimTooHigh"
-  | "NotCore"
-  | "NotExpired"
-  | "NotOpen"
-  | "NotPayee"
-  | "NotRaised"
-  | "NotRaiser"
-  | "NothingPending"
-  | "Reentered"
-  | "SafeERC20FailedOperation"
-  | "StringTooLong"
-  | "ZeroDestination"
-  | "ZeroPayee"
-  | "ZeroRootKey";
 
-/** Core's errors as declared in AHandCore.sol, in its order, then the three of OpenZeppelin. */
-export const CORE_ERRORS_ABI = parseAbi([
-  "error ExpiryTooEarly()",
-  "error ExpiryTooLate()",
-  "error ZeroRootKey()",
-  "error MinClaimTooHigh()",
-  "error NotOpen()",
-  "error NotRaised()",
-  "error NotRaiser()",
-  "error Expired()",
-  "error GiverIsRaiser()",
-  "error ZeroPayee()",
-  "error InvalidClaim(uint256 position)",
-  "error AnonymousMargin(uint256 position)",
-  "error InvalidKeySig(uint256 position)",
-  "error InvalidRouteHash()",
-  "error BelowMinClaim()",
-  "error InvalidGiverSig()",
-  "error NotExpired()",
-  "error NotPayee()",
-  "error ZeroDestination()",
-  "error NothingPending()",
-  "error InexactTransfer()",
-  "error NotCore()",
-  "error Reentered()",
-  "error SafeERC20FailedOperation(address token)",
-  "error InvalidShortString()",
-  "error StringTooLong(string str)",
-]);
+type CoreAbiItem = (typeof aHandCoreAbi)[number];
 
-/** The names of the 23 errors Core itself declares. */
-export const CORE_OWN_ERRORS: readonly CoreErrorName[] = CORE_ERRORS_ABI.slice(0, 23).map(
-  (item) => item.name as CoreErrorName,
+/** Every custom error AHandCore.sol can revert with: the names of the errors in its ABI. */
+export type CoreErrorName = Extract<CoreAbiItem, { type: "error" }>["name"];
+
+/** Core's 26 errors as forge builds its ABI (`@ahand/abi`), in that ABI's order: by name. */
+export const CORE_ERRORS_ABI = aHandCoreAbi.filter(
+  (item): item is Extract<CoreAbiItem, { type: "error" }> => item.type === "error",
+);
+
+/** The three errors that come from the OpenZeppelin code Core is built on. */
+const OPENZEPPELIN_ERRORS = new Set<string>(["SafeERC20FailedOperation", "InvalidShortString", "StringTooLong"]);
+
+/** The names of the 23 errors Core itself declares, in the ABI's order (by name, not AHandCore.sol's). */
+export const CORE_OWN_ERRORS: readonly CoreErrorName[] = CORE_ERRORS_ABI.map((item) => item.name).filter(
+  (name) => !OPENZEPPELIN_ERRORS.has(name),
 );
 
 /** Core refused, with the position for the errors that name one. */

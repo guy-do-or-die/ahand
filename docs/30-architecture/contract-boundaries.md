@@ -82,4 +82,4 @@ Charity is mandatory, frozen at Raise, and success-only; `reclaim` returns the f
 
 Every change bumps `policyRevision`. Both are prospective only: no admin action can pause or alter an existing Hand, `thank`, `reclaim`, or `withdraw`. Disabling the token or leaving no eligible charity suspends admission of new Raises and nothing else. There is no proxy upgrade, rescue, winner selection, settlement mutation, or retrospective configuration path anywhere in the three contracts. `AHandSignals` and `AHandWitness` have no admin at all.
 
-The current `policyAdmin` address is recorded with the deployment in `packages/abi/src/addresses.base-sepolia.json`; see [Deployment and trust](deployment-and-trust.md).
+The earlier deployment recorded its `policyAdmin` in `packages/abi/src/addresses.base-sepolia.json`, which is gone. The current Core has no admin; its deployment record is `contracts/deployments/84532.json`, exposed by `@ahand/abi` as `DEPLOYMENTS`; see [Deployment and trust](deployment-and-trust.md).

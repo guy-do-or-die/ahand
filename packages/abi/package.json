@@ -1,21 +1,27 @@
 {
   "name": "@ahand/abi",
   "version": "0.1.0",
+  "description": "AHandCore's ABI as forge builds it (via @wagmi/cli), its deployments, and the USDC of each network aHand runs on",
+  "private": true,
+  "license": "MIT",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "source": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "scripts": {
-    "generate": "bun run ./scripts/generate.ts",
-    "build": "tsc"
+    "generate": "bunx --bun wagmi generate",
+    "check": "bun run ./scripts/check.ts",
+    "test": "bun test"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "@types/bun": "1.4.4",
+    "@wagmi/cli": "2.10.1",
+    "typescript": "5.9.3",
+    "viem": "2.52.0"
   }
 }

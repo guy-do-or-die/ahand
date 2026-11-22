@@ -1,0 +1,11 @@
+{
+  // The tests with the SDK they test. They run under Vitest in Node and use Node's own modules
+  // (files, child processes for anvil and forge), which the SDK itself must not: its own
+  // tsconfig.json, without Node's types, keeps src/ free of them.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["../src/**/*", "./**/*"]
+}

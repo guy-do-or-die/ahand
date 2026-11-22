@@ -16,7 +16,7 @@
 
 **Base mainnet deployment has not happened.** Base Sepolia is the only public deployment; mainnet USDC is not the deployed asset anywhere.
 
-`packages/abi/src/addresses.{chain}.json` is the deployment registry: generated alongside the ABIs from forge artifacts, selected by `AHAND_CHAIN`, and consumed by the web app, the seeder, and the subgraph manifest generator. No production value depends on an address hidden only in frontend source.
+`contracts/deployments/<chainId>.json` is the deployment registry, written by `contracts/script/Deploy.s.sol` and exposed by `@ahand/abi` as `DEPLOYMENTS` (the earlier `packages/abi/src/addresses.{chain}.json` files and `AHAND_CHAIN` are gone). No production value depends on an address hidden only in frontend source.
 
 ## Web app services
 

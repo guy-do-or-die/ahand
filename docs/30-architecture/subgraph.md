@@ -30,7 +30,7 @@ bun run build               # graph build
 bun run deploy:studio       # graph deploy ahand-base-sepolia
 ```
 
-`subgraph.<chain>.yaml` is generated from `subgraph.template.yaml` — never hand-edited. `scripts/prepare.ts` fills network, `AHandCore` address, and `startBlock` from `packages/abi/src/addresses.<chain>.json` (the deployment registry; `deployBlock` there becomes `startBlock`), and prefers the generated full ABI from `packages/abi` when it declares all nine indexed events with the frozen signatures, falling back to the package's hand-written events-only fragments otherwise.
+`subgraph.<chain>.yaml` is generated from `subgraph.template.yaml` — never hand-edited. `scripts/prepare.ts` fills network, `AHandCore` address, and `startBlock` from `packages/abi/src/addresses.<chain>.json` (the deployment registry; `deployBlock` there becomes `startBlock`), and prefers the generated full ABI from `packages/abi` when it declares all nine indexed events with the frozen signatures, falling back to the package's hand-written events-only fragments otherwise. `packages/abi` no longer writes that ABI as JSON (`abis/AHandCore.json`), so until the subgraph is ported the fragments are what it uses.
 
 ## Not built
 

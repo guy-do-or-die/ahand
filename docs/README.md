@@ -11,6 +11,19 @@ repository: the contracts in `contracts/`, the web client in `apps/web`, the SDK
 > Core (with `AHandSignals`, `AHandWitness`, a subgraph and the earlier link codec) and have not
 > been brought up to date yet: read them as the history of the design, and where they disagree
 > with the code or with those two pages, the code and those pages hold.
+>
+> **Deployments.** The deployment registry is `contracts/deployments/<chainId>.json`, which
+> `@ahand/abi` (`packages/abi`) exposes as `DEPLOYMENTS`, together with each network's USDC
+> (`NETWORKS`). The earlier `packages/abi/src/addresses.{chain}.json` files and the `AHAND_CHAIN`
+> setting that chose one of them are gone, as are the earlier exports `DeployedAddresses`,
+> `AHandSignalsAbi` and `AHandWitnessAbi`.
+> Its Core ABI export is now `aHandCoreAbi` (was `AHandCoreAbi`) and the test token's is `mockUsdAbi`
+> (was `MockUSDAbi`): @wagmi/cli writes them, in its camelCase naming.
+>
+> **Code not ported yet.** `apps/web`, `packages/subgraph`, `infra/anvil` and `infra/seed` were
+> written for the earlier Core, the earlier SDK and the earlier `@ahand/abi`. They are not in the
+> workspaces, `bun run check` does not cover them, and they do not build on this branch until they
+> are ported to the current Core.
 
 ## Map
 

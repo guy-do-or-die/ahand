@@ -29,10 +29,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ahand/abi": "workspace:*",
     "viem": "2.52.0",
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@types/node": "26.6.6",
     "typescript": "5.9.3",
     "vitest": "1.6.1"
   }

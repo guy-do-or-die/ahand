@@ -8,6 +8,8 @@ import {
   type PublicClient,
 } from "viem";
 
+import { aHandCoreAbi } from "@ahand/abi";
+
 import { decodeCoreError, type CoreRefusal } from "./errors.js";
 import { thankCalldata } from "./gas.js";
 import { toCoreSignature } from "./sign.js";
@@ -45,42 +47,10 @@ export interface RaiseTerms {
 }
 
 /**
- * The parts of AHandCore's ABI the SDK calls and reads, byte for byte as in AHandCore.sol.
- *
- * The SDK keeps its own copy of Core's ABI for now, here, in gas.ts (`thank` alone) and in
- * errors.ts (Core's errors); tests/tx.test.ts and tests/errors.test.ts compare them with the
- * contracts' build. They are to be taken from the ABI package once it is built from this Core.
+ * AHandCore's ABI exactly as forge builds it (`aHandCoreAbi` of `@ahand/abi`), under the SDK's
+ * name: every call, read and event decoding here uses it, and so can an application.
  */
-export const CORE_ABI = parseAbi([
-  "struct Shake { address nextKey; address payee; uint16 claimBps; uint16 nextClaimBps; bytes32 dataHash; }",
-  "struct SignedShake { Shake shake; bytes keySig; }",
-  "struct Give { address signer; address payee; uint16 claimBps; bytes32 routeHash; bytes32 dataHash; }",
-  "struct SignedGive { Give give; bytes keySig; bytes giverSig; }",
-  "function raise(address token, uint256 reward, uint40 expiry, address rootKey, uint16 payoutGasK, uint16 minClaimBps, bytes32 dataHash) returns (uint256 handId)",
-  "function extend(uint256 handId, uint40 newExpiry)",
-  "function fund(uint256 handId, uint256 amount)",
-  "function thank(uint256 handId, SignedShake[] signedShakes, SignedGive signedGive, bytes32 dataHash)",
-  "function refund(uint256 handId)",
-  "function withdraw(address token, address payee, address to)",
-  "function checkRoute(uint256 handId, SignedShake[] signedShakes) view returns (address lastKey, uint16 claimBps, bytes32 routeHash)",
-  "function checkGive(uint256 handId, SignedShake[] signedShakes, SignedGive signedGive) view returns (bytes32 giveHash)",
-  "function hands(uint256 handId) view returns (address raiser, uint40 expiry, uint40 openedAt, uint40 closedAt, address token, uint16 payoutGasK, uint16 minClaimBps, uint256 reward, address rootKey, bytes32 dataHash)",
-  "function thanks(uint256 handId) view returns (bytes32 giveHash, bytes32 dataHash)",
-  "function pending(address token, address payee) view returns (uint256)",
-  "function handsCount() view returns (uint256)",
-  "function MAX_EXPIRY_PERIOD() view returns (uint256)",
-  "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
-  "event Raised(uint256 indexed handId, address indexed raiser, address indexed token, uint256 reward, uint40 expiry, address rootKey, uint16 payoutGasK, uint16 minClaimBps, bytes32 dataHash)",
-  "event Extended(uint256 indexed handId, uint40 expiry)",
-  "event Funded(uint256 indexed handId, uint256 amount, uint256 reward)",
-  "event Shaken(uint256 indexed handId, address indexed payee, uint256 position, uint256 margin, address nextKey, uint16 claimBps, uint16 nextClaimBps, bytes32 dataHash)",
-  "event Given(uint256 indexed handId, address indexed signer, address indexed payee, uint256 amount, uint16 claimBps, bytes32 routeHash, bytes32 dataHash)",
-  "event Thanked(uint256 indexed handId, address indexed token, uint256 reward, bytes32 dataHash)",
-  "event Refunded(uint256 indexed handId, address indexed token, uint256 reward)",
-  "event Paid(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount)",
-  "event Pending(uint256 indexed handId, address indexed token, address indexed payee, uint256 amount)",
-  "event Withdrawn(address indexed token, address indexed payee, uint256 amount, address to)",
-]);
+export const CORE_ABI = aHandCoreAbi;
 
 const ERC20_ABI = parseAbi(["function approve(address spender, uint256 amount) returns (bool)"]);
 

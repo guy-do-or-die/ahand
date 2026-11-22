@@ -1,15 +1,9 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "declaration": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    // The package itself needs nothing beyond ES; its tests, its check and its @wagmi/cli
+    // configuration run under Bun.
+    "types": ["bun"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "scripts/**/*", "plugins/**/*", "wagmi.config.ts"]
 }

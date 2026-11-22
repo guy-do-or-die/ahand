@@ -6,9 +6,9 @@ import type { Abi } from "viem";
 import { REPO_ROOT } from "./anvil.js";
 
 /**
- * The ABIs the contracts' own build writes (`forge build` in contracts/), for tests that compare
- * the SDK's hand-written ABI with them. They are read from the build here until the ABI package
- * for this Core arrives in this repository; then these tests take it from there.
+ * The ABIs the contracts' own build writes (`forge build` in contracts/), read from the build
+ * itself: the tests compare `@ahand/abi`, which the SDK takes Core's ABI from, with Core's, and the
+ * SDK's Multicall3 fragment with the forwarder that stands in for it on the local chain.
  */
 function builtAbi(file: string, name: string): Abi {
   const path = join(REPO_ROOT, "contracts/out", file, `${name}.json`);
@@ -19,6 +19,6 @@ function builtAbi(file: string, name: string): Abi {
   }
 }
 
-export const AHandCoreAbi = builtAbi("AHandCore.sol", "AHandCore");
+export const BuiltCoreAbi = builtAbi("AHandCore.sol", "AHandCore");
 export const ForwarderAbi = builtAbi("Forwarder.sol", "Forwarder");
 export const KeyAccountFactoryAbi = builtAbi("KeyAccount.sol", "KeyAccountFactory");

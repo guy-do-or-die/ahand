@@ -29,8 +29,10 @@ const message = (account = raiser, chainId = 8453) => ({ chainId, core, raiser: 
 
 /** RFC 5869 HKDF-SHA256 in one call, by WebCrypto's own HKDF: the reference the two-step code must equal. */
 async function webCryptoHkdf(ikm: Uint8Array, salt: string, info: Uint8Array, length: number): Promise<Hex> {
-  const key = await crypto.subtle.importKey("raw", ikm as BufferSource, "HKDF", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: stringToBytes(salt), info: info as BufferSource }, key, length * 8);
+  // WebCrypto takes bytes over an ArrayBuffer; a copy gives exactly that.
+  const bytes = (view: Uint8Array) => new Uint8Array(view);
+  const key = await crypto.subtle.importKey("raw", bytes(ikm), "HKDF", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: bytes(stringToBytes(salt)), info: bytes(info) }, key, length * 8);
   return bytesToHex(new Uint8Array(bits));
 }
 

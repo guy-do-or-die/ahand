@@ -24,7 +24,7 @@ The app reads chain state directly over RPC (`getHand`, `handsCount`, Signals `b
 ### Packages
 
 - **packages/sdk** — pure TypeScript protocol SDK: types, EIP-712 hashing/signing, the payload codec, and route verification. See [SDK and link protocol](sdk-and-link-protocol.md).
-- **packages/abi** — ABIs and per-chain deployment addresses generated from forge artifacts; `addresses.{chain}.json` is the deployment registry, selected by `AHAND_CHAIN`.
+- **packages/abi** — Core's ABI generated from forge artifacts, the deployment records of `contracts/deployments/<chainId>.json` (`DEPLOYMENTS`, the deployment registry), and each network's USDC (`NETWORKS`).
 - **packages/subgraph** — The Graph subgraph indexing `AHandCore` on Base Sepolia. See [Subgraph](subgraph.md).
 
 ### Infra

@@ -9,6 +9,7 @@ import {
   erc20Abi,
   getAddress,
   http,
+  isAddress,
   isErc6492Signature,
   keccak256,
   parseAbi,
@@ -27,7 +28,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
-import { AHandCoreAbi, ForwarderAbi, KeyAccountFactoryAbi } from "./helpers/built.js";
+import { BuiltCoreAbi, ForwarderAbi, KeyAccountFactoryAbi } from "./helpers/built.js";
 import {
   CORE_ABI,
   CURVE_ORDER,
@@ -95,6 +96,12 @@ const raiser = privateKeyToAccount(raiserKey).address;
 const giver = privateKeyToAccount(giverKey).address;
 const broke = generatePrivateKey(); // an account with no tokens and no allowance
 const fresh = () => privateKeyToAddress(generatePrivateKey());
+
+/** A value read through an ABI known only at run time (the build's), checked to be an address. */
+function asAddress(value: unknown): Address {
+  if (typeof value === "string" && isAddress(value)) return value;
+  throw new Error(`not an address: ${String(value)}`);
+}
 
 const rpc = (method: string, params: unknown[] = []) =>
   (client.request as (args: { method: string; params: unknown[] }) => Promise<unknown>)({ method, params });
@@ -192,24 +199,17 @@ afterAll(async () => {
 
 describe("the calls as bytes", () => {
   it("uses Core's and the forwarder's ABI as the contracts' build writes it", () => {
+    // Core's ABI is the build's, item for item: names, types, `indexed`, mutability, errors.
+    expect(CORE_ABI).toEqual(BuiltCoreAbi);
     const signatures = (abi: Abi, type: "function" | "event" | "error") =>
       new Set(abi.filter((item) => item.type === type).map((item) => toFunctionSignature(item as AbiFunction)));
-    for (const type of ["function", "event"] as const) {
-      const ours = signatures(CORE_ABI, type);
-      const built = signatures(AHandCoreAbi as Abi, type);
-      for (const signature of ours) expect(built, signature).toContain(signature);
-    }
-    // Every function of Core that changes something or answers a check is here.
-    for (const name of ["raise", "extend", "fund", "thank", "refund", "withdraw", "checkRoute", "checkGive", "hands", "thanks", "pending", "MAX_EXPIRY_PERIOD", "eip712Domain"]) {
-      expect(CORE_ABI.some((item) => item.type === "function" && item.name === name), name).toBe(true);
-    }
-    expect([...signatures(FORWARDER_ABI, "function")]).toEqual([...signatures(ForwarderAbi as Abi, "function")]);
+    expect([...signatures(FORWARDER_ABI, "function")]).toEqual([...signatures(ForwarderAbi, "function")]);
   });
 
   it("writes each call so that Core's own ABI reads it back", () => {
     const core = chain.core;
     const terms = { token: usd, reward: 0n, expiry: 1_800_000_000, rootKey: fresh(), payoutGasK: 250, minClaimBps: 7_000, dataHash: zeroHash };
-    const read = (call: Call) => decodeFunctionData({ abi: AHandCoreAbi, data: call.data });
+    const read = (call: Call) => decodeFunctionData({ abi: BuiltCoreAbi, data: call.data });
     expect(read(raiseCall(core, terms))).toEqual({
       functionName: "raise",
       args: [terms.token, 0n, terms.expiry, terms.rootKey, 250, 7_000, zeroHash],
@@ -258,7 +258,7 @@ describe("a giver whose account is not deployed yet (ERC-6492)", () => {
     expect(forwarder).toBeTruthy();
     const ownerKey = generatePrivateKey();
     const owner = privateKeyToAddress(ownerKey);
-    const account = await client.readContract({ address: factory, abi: KeyAccountFactoryAbi, functionName: "getAddress", args: [owner, 7n] });
+    const account = asAddress(await client.readContract({ address: factory, abi: KeyAccountFactoryAbi, functionName: "getAddress", args: [owner, 7n] }));
     expect(await client.getCode({ address: account })).toBeUndefined();
     const factoryData = encodeFunctionData({ abi: KeyAccountFactoryAbi, functionName: "createAccount", args: [owner, 7n] });
 
