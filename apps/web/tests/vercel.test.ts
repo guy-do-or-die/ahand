@@ -101,6 +101,27 @@ function serve(path: string): { status: number; file?: string; fn?: true; header
   return { status: 404, headers };
 }
 
+/** `css` without every block whose prelude matches `condition`: the at-rule, its braces and all inside them. */
+function outside(css: string, condition: RegExp): string {
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const found = condition.exec(css.slice(at));
+    if (!found) return out + css.slice(at);
+    const start = at + found.index;
+    const open = css.indexOf("{", start);
+    if (open < 0) return out + css.slice(at);
+    let depth = 0;
+    let end = open;
+    for (; end < css.length; end++) {
+      if (css[end] === "{") depth++;
+      else if (css[end] === "}" && --depth === 0) break;
+    }
+    out += css.slice(at, start);
+    at = end + 1;
+  }
+}
+
 test("the site is built with the Bun that CI pins, so bun.lock installs frozen on both", () => {
   const workflow = readFileSync(join(import.meta.dir, "../../../.github/workflows/check.yml"), "utf8");
   expect(workflow).toContain(`bun-version: ${BUN}`);
@@ -227,6 +248,29 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     expect(exitProblem("<style>@font-face{src:url(../node_modules/@fontsource/ibm-plex-mono/files/x.woff2)}</style>")).toMatch(/does not carry/);
     expect(exitProblem("<style>@font-face{src:url('../fonts/x.woff2')}</style>")).toMatch(/does not carry/);
     expect(exitProblem("<script>import('/node_modules/x.js')</script>")).toMatch(/node_modules/);
+  });
+
+  test("the built stylesheets are for browsers phones still run: no color-mix() a browser without it would meet, and no width condition written as a range", () => {
+    // Every stylesheet the build wrote, and what exit.html and index.html carry inline.
+    const sheets: [string, string][] = readdirSync(join(dist, "assets"))
+      .filter((name) => name.endsWith(".css"))
+      .map((name): [string, string] => [name, readFileSync(join(dist, "assets", name), "utf8")]);
+    for (const page of ["exit.html", "index.html"]) {
+      const inline = [...readFileSync(join(dist, page), "utf8").matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((found) => found[1]!).join("\n");
+      if (inline) sheets.push([page, inline]);
+    }
+    expect(sheets.length).toBeGreaterThan(1);
+    expect(sheets.some(([name]) => name === "exit.html")).toBe(true);
+    for (const [name, css] of sheets) {
+      // What stands under `@supports (color: color-mix(…))` is read only by a browser that has it.
+      const mixes = (outside(css, /@supports\s*\(\s*color\s*:\s*color-mix\(/i).match(/[^{};]{0,60}color-mix\([^;}]{0,80}/gi) ?? []).map((found) => `${name}: ${found.trim()}`);
+      expect(mixes).toEqual([]);
+      const ranges = (css.match(/@media[^{]*\(\s*(?:width|height)\s*[<>]=?[^{]*/gi) ?? []).map((found) => `${name}: ${found.trim()}`);
+      expect(ranges).toEqual([]);
+    }
+    expect(sheets.some(([, css]) => /@media[^{]*\(min-width:/.test(css))).toBe(true);
+    // The helper itself: a block under the condition is cut whole, nested braces and all.
+    expect(outside("a{color:red}@supports (color:color-mix(in lab, red, red)){b{color:color-mix(in srgb,red,blue)}c{d:e}}f{g:h}", /@supports\s*\(\s*color\s*:\s*color-mix\(/i)).toBe("a{color:red}f{g:h}");
   });
 
   test("build.json is a file, never the index, and is asked for fresh", () => {

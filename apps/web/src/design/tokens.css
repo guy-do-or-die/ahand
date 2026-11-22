@@ -11,12 +11,14 @@
   --ah-raw-ink: #101014;
   --ah-raw-paper: #fafaf7;
   --ah-raw-amber: #f5b841;
-  /* The same three as channels, for every see-through step below: `rgb(R G B / a)` is read by
+  /* The same colours as channels, for every see-through step below: `rgb(R G B / a)` is read by
      every browser a phone still runs, where `color-mix()` is not (Safari before 16.2 drops it, and
-     a step then falls back to the solid colour: quiet text turns loud, a tone turns into a slab). */
+     a step then falls back to the solid colour: quiet text turns loud, a tone turns into a slab).
+     Whoever sets --ink or --paper sets its channels beside it (the theme slots below, print.css). */
   --ah-raw-ink-rgb: 16 16 20;
   --ah-raw-paper-rgb: 250 250 247;
   --ah-raw-amber-rgb: 245 184 65;
+  --ah-raw-card-rgb: 255 255 255;
   --ah-raw-card: #ffffff;
   --ah-raw-surface-dark: #17171c;
   /* A fill's two answers: under the pointer and under a press (the swipe button). Ink has room to

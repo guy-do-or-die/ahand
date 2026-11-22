@@ -1,0 +1,3 @@
+[test]
+# Every unit test runs without what Safari 15.4 does not have (tests/setup/old-browser.ts).
+preload = ["./tests/setup/old-browser.ts"]

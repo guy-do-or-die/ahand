@@ -128,24 +128,38 @@ test("the lens shows the evidence where it stood, stays on after a reload, and ?
   }
 
   // Kept on this device: the next page opens with the lens on. The choice is written to the
-  // device's store one flip after another, so the six flips above are waited out before leaving.
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          new Promise<unknown>((resolve) => {
-            const open = indexedDB.open("ahand");
-            open.onerror = () => resolve(undefined);
-            open.onsuccess = () => {
+  // device's store one flip after another, and the flips above end on the value some of them
+  // already wrote, so one read of "on" proves nothing. The store is read until it has said "on"
+  // five times running over a second, which no queue of single writes outlasts.
+  const stored = () =>
+    page.evaluate(
+      () =>
+        new Promise<unknown>((resolve) => {
+          const open = indexedDB.open("ahand");
+          open.onerror = () => resolve(undefined);
+          open.onsuccess = () => {
+            try {
               const read = open.result.transaction("prefs").objectStore("prefs").get("lens");
-              read.onsuccess = () => {
-                open.result.close();
-                resolve(read.result);
-              };
+              read.onsuccess = () => resolve(read.result);
               read.onerror = () => resolve(undefined);
-            };
-          }),
-      ),
+            } catch {
+              resolve(undefined); // no such store: said as a value, not as a wait that never ends
+            } finally {
+              open.result.close();
+            }
+          };
+        }),
+    );
+  await expect
+    .poll(
+      async () => {
+        for (let read = 0; read < 5; read++) {
+          if ((await stored()) !== true) return false;
+          await page.waitForTimeout(250);
+        }
+        return true;
+      },
+      { timeout: 30_000 },
     )
     .toBe(true);
   await page.goto("/raise", { waitUntil: "networkidle" });

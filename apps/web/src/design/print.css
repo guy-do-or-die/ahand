@@ -180,6 +180,9 @@
   [data-theme] {
     --ink: var(--ah-raw-ink) !important;
     --paper: var(--ah-raw-card) !important;
+    /* and their channels, so every see-through step is ink on white too */
+    --ink-rgb: var(--ah-raw-ink-rgb) !important;
+    --paper-rgb: var(--ah-raw-card-rgb) !important;
     --card: var(--ah-raw-card) !important;
     color-scheme: light !important;
   }

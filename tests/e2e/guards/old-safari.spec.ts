@@ -92,17 +92,24 @@ for (const scheme of ["light", "dark"] as const) {
 }
 
 test("the served stylesheets write every width and height condition as min- or max-, never as a range", async ({ browser }) => {
+  // A dev stand serves each stylesheet as its author wrote it and the framework's own breakpoints
+  // as ranges: only a build lowers them. What a build writes is also read in apps/web/tests/vercel.test.ts.
+  test.skip(stand.mode === "dev", "a dev stand serves stylesheets that no build has lowered");
   const context = await browser.newContext();
   await quiet(context, stand.site!);
-  const sheets: string[] = [];
+  const bodies: Promise<string>[] = [];
   context.on("response", (response) => {
-    if (new URL(response.url()).pathname.endsWith(".css")) void response.text().then((text) => sheets.push(text), () => undefined);
+    if (new URL(response.url()).pathname.endsWith(".css") && response.ok()) bodies.push(response.text());
   });
   const page = await context.newPage();
-  for (const path of ["/", "/raise", "/limits", "/defaults"]) {
+  for (const path of ["/", "/raise", "/limits", "/defaults", "/core", "/check"]) {
     await page.goto(path);
     await expect(page.getByTestId("shell-footer")).toBeAttached({ timeout: 20_000 });
+    // Each page's sheets are read whole before the next page is asked for: a body is gone once its page is.
+    await page.waitForLoadState("networkidle");
+    await Promise.all(bodies);
   }
+  const sheets = await Promise.all(bodies);
   expect(sheets.length).toBeGreaterThan(0);
   const all = sheets.join("\n");
   expect(all.match(/@media[^{]*\(\s*(?:width|height)\s*[<>]=?[^{]*\{/g) ?? []).toEqual([]);

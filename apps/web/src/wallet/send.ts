@@ -206,8 +206,19 @@ async function refusalOfRevert(client: PublicClient, from: Address, call: Call, 
 
 /** Follows a hash: `landed` resolves with its first receipt, `settled` with the last state reached. */
 function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void, known?: { sent?: Omit<Sent, "hash">; probe?: Probe }) {
+  // One controller stands for both ways the watch ends: its own stop, and the caller's signal,
+  // whose abort is passed on by hand. AbortSignal.any would say the same, but Safari has it only
+  // from 17.4, and without it this line threw right after the transaction had been sent.
   const stop = new AbortController();
-  const signal = env.signal ? AbortSignal.any([env.signal, stop.signal]) : stop.signal;
+  const outer = env.signal;
+  let release = () => {};
+  if (outer?.aborted) stop.abort(outer.reason);
+  else if (outer) {
+    const pass = () => stop.abort(outer.reason);
+    outer.addEventListener("abort", pass, { once: true });
+    release = () => outer.removeEventListener("abort", pass);
+  }
+  const signal = stop.signal;
   let land!: (receipt: TransactionReceipt) => void;
   let fail!: (error: unknown) => void;
   const landed = new Promise<TransactionReceipt>((resolve, reject) => {
@@ -226,7 +237,8 @@ function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void, kn
   }).then((result) => result.reached);
   settled.catch(fail);
   // Nobody may be listening to `settled` (an earlier step): its end must not be an unhandled rejection.
-  settled.catch(() => undefined);
+  // Either way the watch is over, and the caller's signal is let go of.
+  settled.then(release, release);
   return { landed, settled, stop: () => stop.abort(new Error("stopped following")) };
 }
 
