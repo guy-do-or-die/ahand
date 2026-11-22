@@ -5,6 +5,13 @@ repository: the contracts in `contracts/`, the web client in `apps/web`, the SDK
 `packages/sdk`, the subgraph in `packages/subgraph`, and the local infrastructure in
 `infra/`. The code is the source of truth; these pages describe what is built and why.
 
+> **The current SDK and link format.** Core was rewritten (`contracts/src/AHandCore.sol` is the
+> only contract), and the SDK with it. Two pages describe them as they are now:
+> [the SDK](sdk.md) and [links](links.md). The numbered folders below were written for the earlier
+> Core (with `AHandSignals`, `AHandWitness`, a subgraph and the earlier link codec) and have not
+> been brought up to date yet: read them as the history of the design, and where they disagree
+> with the code or with those two pages, the code and those pages hold.
+
 ## Map
 
 | Area | Purpose |
@@ -33,7 +40,7 @@ repository: the contracts in `contracts/`, the web client in `apps/web`, the SDK
 [actors and roles](10-model/actors-and-roles.md),
 [privacy and metadata](10-model/privacy-and-metadata.md),
 [tags, context, and Signals](10-model/tags-context-and-signals.md),
-[SDK and link protocol](30-architecture/sdk-and-link-protocol.md),
+[the SDK](sdk.md), [links](links.md),
 [web app](40-applications/web-app.md).
 
 **Working on indexing** — [events](20-protocol/events-and-indexing.md),

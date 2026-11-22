@@ -4,7 +4,7 @@ Two suites cover the protocol: a Foundry suite for the contracts and a vitest su
 
 ## Contract suite (`contracts/test`)
 
-All suites build on a shared harness (`AHandTestBase.sol`) with mock tokens and actors under `contracts/test/mocks`.
+The suites of the earlier Core, listed below as history, built on a shared harness (`AHandTestBase.sol`, no longer in the tree) with mock tokens and actors; the current suites share `contracts/test/Helpers.sol` and the mocks under `contracts/test/mocks`.
 
 - `AHand.raise.t.sol` — raise validation: exact-deposit escrow and fee-on-transfer rejection, policy checks, visibility coherence per mode (mandatory `metadataCommitment`; Dark requires empty discovery data and no tags; Public/Preview require discovery ref and commitment), tag rules (at most 8, strictly ascending, non-zero), expiry bounds, and the precedence order of revert reasons.
 - `AHand.policy.t.sol` — policy admin: prospective-only token enable/disable and charity allowlisting (live Hands unaffected), two-step admin transfer, `policyRevision` bump rules, and the absence of stray selectors, `receive`, and `fallback`.
@@ -18,32 +18,31 @@ All suites build on a shared harness (`AHandTestBase.sol`) with mock tokens and 
 - `AHand.routehash.t.sol` — route hash binding: tail-swap rejection, independence from signature bytes, and a locked derivation.
 - `AHand.windows.t.sol` — expiry windows: thank succeeds up to expiry and fails at it, reclaim is permissionless from expiry onward, and shake/give deadlines are bounded by expiry.
 - `Signals.materialize.t.sol` — signals materialization: idempotence via typed source keys, settlement-commitment mismatch rejection, the cumulative-square-root earned-Up curve and its order independence, per-Hand shaker dedup with anonymous hops skipped, hook-free mints to contracts, `up()` guard ordering, and the soulbound ERC-165-only surface.
-- `GenVectors.t.sol` — generates `packages/sdk/tests/test-vectors.json`, the byte-identity oracle the SDK replays; pinned to chain id 31337, a fixed core address, and well-known keys so the output is environment-independent.
+
+> The list above describes the suites of the earlier Core and is kept as history. The current
+> contract suites are `contracts/test/Core*.t.sol`, `Deploy.t.sol`, `Gas.t.sol`, `SdkGas.t.sol` and
+> `SdkVectors.t.sol`; the last writes `contracts/test/fixtures/sdk-vectors.json`, Core's own answers
+> about signed routes and Gives, which the SDK replays.
 
 ## SDK suite (`packages/sdk/tests`)
 
-- `vectors.test.ts` replays the Foundry-generated vectors: domain separator, typehashes, struct hashes, digests, and signatures must reproduce byte-identically on both the raw and typed-data signing paths.
-- `provisional.test.ts` covers typed-data coherence, `handRef` and `routeHash` layout, EIP-2098 compact signatures, the LiveRoute and TerminalProof codecs (round-trips, secret stripping on forward, kind discrimination, size caps), and `verifyLiveRoute` / `verifyTerminalProof` — including signature-tampering cases: flipped signature bytes, raised claims, swapped shakers and givers, dropped hops, and replay against another Hand.
+Vitest files for the modules of `packages/sdk/src` (`link.test.ts`, `address.test.ts`,
+`proof.test.ts`, `verify.test.ts`, …). `core-vectors.test.ts` and `verify.test.ts` replay Core's
+fixtures; `link-vectors.test.ts` reads `link-vectors.json`, the links that independent readers
+open with the same answer. Several suites start their own anvil from the contracts' build, so
+`forge build` comes first. See [the SDK](../sdk.md).
 
 ## Running
 
 From the repo root:
 
 ```sh
-bun run test          # contracts: runs `cd contracts && forge test`
+bun run test:contracts   # cd contracts && forge test
+bun run test:sdk         # the SDK's vitest suites
+bun run test:vectors     # rewrites Core's fixtures and fails if they changed
+bun run check            # everything CI runs
 ```
 
-Or directly per suite:
-
-```sh
-cd contracts && forge test
-cd packages/sdk && bun run test    # vitest run
-```
-
-Regenerate the cross-language vectors after changing the signing library:
-
-```sh
-cd contracts && FOUNDRY_OUT=out-vec forge test --match-path 'test/GenVectors.t.sol' -vv
-```
-
-The web app has no automated test script; it is exercised manually against the local stand (`bun run stand`).
+The web app has no automated test script. It was exercised manually against a local stand
+(`bun run stand`, `infra/anvil/stand.ts`); the root workspace now holds only the SDK, so that
+script is no longer wired up and the note is kept as history.

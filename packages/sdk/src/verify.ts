@@ -1,246 +1,152 @@
-import { recoverAddress, sha256, type Hex } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
 import {
-  BPS_DENOMINATOR,
-  MAX_SHAKES,
-  ZERO_ADDRESS,
-  type HandRef,
-} from "./types.js";
-import {
-  giveDigest,
-  giveHash,
-  giverAcceptanceDigest,
-  routeHashOf,
-  shakeDigest,
-  shakerAcceptanceDigest,
-  shakeStructHash,
-} from "./hash.js";
-import type {
-  LiveRoutePayload,
-  SignedShake,
-  TerminalProofPayload,
-} from "./payload.js";
+  hexToBigInt,
+  isAddressEqual,
+  recoverAddress,
+  size,
+  slice,
+  zeroAddress,
+  zeroHash,
+  type Address,
+  type Hex,
+} from "viem";
+
+import { digest, domainSeparator, extendRouteHash, giveHash, shakeHash } from "./hash.js";
+import { BPS, type Eip712Domain, type Hand, type SignedGive, type SignedShake } from "./types.js";
 
 /**
- * Pure verification of decoded payloads — no chain access, no clock beyond
- * what the caller supplies. Mirrors the contract's thank() walk so the UI can
- * fail CLOSED with the same judgement the chain would render, and can name
- * exactly which byte betrayed the route. Failures accumulate: a tampered
- * payload shows everything wrong with it, not just the first thing.
+ * The checks Core makes on a route and on the Give that ends it, in Core's order and with Core's
+ * errors, so that an application learns before sending a transaction what `thank` would say.
+ * Checked against Core's own answers (contracts/test/fixtures/sdk-vectors.json).
+ *
+ * What only the chain knows is not here: whether the Hand is still open and before its expiry,
+ * who calls, and what the code at the signer's address says about a signature.
  */
 
-export type VerifyFailureReason =
-  | "wrong-hand"
-  | "route-too-long"
-  | "capability-proof" // signature not from the expected capability
-  | "claim-mismatch" // parentClaim != childClaim of the previous hop
-  | "claim-must-not-grow"
-  | "claim-below-floor" // < minGiverClaimBps
-  | "anonymous-shaker-with-margin"
-  | "margin-rounds-to-zero"
-  | "unexpected-acceptance" // self/anonymous hop carrying acceptance bytes
-  | "acceptance-missing"
-  | "shaker-acceptance-invalid"
-  | "deadline-mismatch" // deadline must equal the Hand expiry
-  | "expired"
-  | "capability-mismatch" // tail does not resolve to the terminal capability
-  | "metadata-commitment-mismatch"
-  | "route-hash-mismatch"
-  | "final-claim-mismatch"
-  | "zero-giver"
-  | "giver-acceptance-invalid";
+/** The errors of AHandCore.sol that `checkRoute` and `checkGive` revert with. */
+export type RefusalName =
+  | "GiverIsRaiser"
+  | "ZeroPayee"
+  | "InvalidClaim"
+  | "AnonymousMargin"
+  | "InvalidKeySig"
+  | "InvalidRouteHash"
+  | "BelowMinClaim"
+  | "InvalidGiverSig";
 
-export interface VerifyFailure {
-  reason: VerifyFailureReason;
-  hop?: number; // absent for route-level and Give-level failures
-  detail?: string;
+/** Core would refuse this route or this Give with `error`, at `position` for the errors that name one. */
+export class Refusal extends Error {
+  constructor(
+    readonly error: RefusalName,
+    readonly position?: number,
+  ) {
+    super(position === undefined ? error : `${error}(${position})`);
+    this.name = "Refusal";
+  }
 }
 
-export type VerifyResult = { ok: true } | { ok: false; failures: VerifyFailure[] };
-
-/** On-chain facts about the viewed Hand; the sole authority verification trusts. */
-export interface HandFacts {
-  handRef: HandRef;
-  rootCapability: `0x${string}`;
-  expiry: bigint;
-  minGiverClaimBps: number;
-  metadataCommitment?: Hex; // sha256 of the envelope; checked when provided
-  distributablePool?: bigint; // pool after charity; enables margin-rounds-to-zero
-  now?: bigint; // seconds; defaults to the wall clock
+/** Where a route ends: what `checkRoute` returns. */
+export interface RouteEnd {
+  /** The route's last key, which must sign the Give. */
+  lastKey: Address;
+  /** The claim left for the giver, in basis points. */
+  claimBps: number;
+  routeHash: Hex;
 }
 
-function nowOf(facts: HandFacts): bigint {
-  return facts.now ?? BigInt(Math.floor(Date.now() / 1000));
+/** The order of the secp256k1 curve, and its half: Core takes only signatures whose `s` is in the lower half. */
+export const CURVE_ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+export const HALF_ORDER = CURVE_ORDER >> 1n;
+
+/** Whether `signature` has the one form Core takes from a key: 65 bytes, `v` 27 or 28, `s` in the lower half. */
+export function isKeySignature(signature: Hex): boolean {
+  if (size(signature) !== 65) return false;
+  const v = Number(hexToBigInt(slice(signature, 64, 65)));
+  return (v === 27 || v === 28) && hexToBigInt(slice(signature, 32, 64)) <= HALF_ORDER;
 }
 
-function eqAddr(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
-}
-
-async function recoversTo(
-  digest: Hex,
-  signature: Hex,
-  expected: string,
-): Promise<boolean> {
+/**
+ * Whether `key` signed `hash`, as Core's `_signedBy` judges it: only a signature in the form Core
+ * takes counts, and one that cannot be read never counts.
+ */
+export async function signedBy(key: Address, hash: Hex, signature: Hex): Promise<boolean> {
+  if (!isKeySignature(signature)) return false;
   try {
-    const addr = await recoverAddress({ hash: digest, signature });
-    return eqAddr(addr, expected);
+    return isAddressEqual(await recoverAddress({ hash, signature }), key);
   } catch {
     return false;
   }
 }
 
-/** Walk the hops exactly as the contract will; shared by both payload kinds. */
-async function walkRoute(
-  handRef: HandRef,
-  shakes: SignedShake[],
-  facts: HandFacts,
-  failures: VerifyFailure[],
-): Promise<void> {
-  if (
-    handRef.chainId !== facts.handRef.chainId ||
-    !eqAddr(handRef.core, facts.handRef.core) ||
-    handRef.handId !== facts.handRef.handId
-  )
-    failures.push({ reason: "wrong-hand" });
-  if (shakes.length > MAX_SHAKES) failures.push({ reason: "route-too-long" });
+/**
+ * Follows the route from the Hand's root key, as Core's `checkRoute` does. Each Shake must start
+ * from the claim that reached it and pass on no more, keep nothing without a payee, and be signed
+ * by the key it comes from. Throws the `Refusal` Core would revert with.
+ */
+export async function checkRoute(
+  domain: Eip712Domain,
+  hand: Hand,
+  signedShakes: readonly SignedShake[],
+): Promise<RouteEnd> {
+  const separator = domainSeparator(domain);
+  let key = hand.rootKey;
+  let claim = BPS;
+  let routeHash: Hex = zeroHash;
 
-  const now = nowOf(facts);
-  if (now >= facts.expiry) failures.push({ reason: "expired" });
-
-  let expectedCap: string = facts.rootCapability;
-  let expectedClaim = BPS_DENOMINATOR;
-  for (const [hop, signed] of shakes.entries()) {
-    const s = signed.shake;
-
-    if (s.handId !== facts.handRef.handId)
-      failures.push({ reason: "wrong-hand", hop });
-    if (s.parentClaimBps !== expectedClaim)
-      failures.push({ reason: "claim-mismatch", hop });
-    if (s.childClaimBps > s.parentClaimBps)
-      failures.push({ reason: "claim-must-not-grow", hop });
-    if (s.childClaimBps < facts.minGiverClaimBps)
-      failures.push({ reason: "claim-below-floor", hop });
-    if (s.deadline !== facts.expiry)
-      failures.push({ reason: "deadline-mismatch", hop });
-
-    const digest = shakeDigest(s, handRef.chainId, handRef.core as Hex);
-    if (!(await recoversTo(digest, signed.signature, expectedCap)))
-      failures.push({ reason: "capability-proof", hop });
-
-    const margin = s.parentClaimBps - s.childClaimBps;
-    const anonymous = eqAddr(s.shaker, ZERO_ADDRESS);
-    if (margin > 0 && anonymous)
-      failures.push({ reason: "anonymous-shaker-with-margin", hop });
-    if (
-      margin > 0 &&
-      facts.distributablePool !== undefined &&
-      (facts.distributablePool * BigInt(margin)) / BigInt(BPS_DENOMINATOR) === 0n
-    )
-      failures.push({ reason: "margin-rounds-to-zero", hop });
-
-    const explicit = !anonymous && !eqAddr(s.shaker, expectedCap);
-    if (explicit) {
-      if (!signed.acceptanceSig) {
-        failures.push({ reason: "acceptance-missing", hop });
-      } else {
-        const accDigest = shakerAcceptanceDigest(
-          shakeStructHash(s),
-          handRef.chainId,
-          handRef.core as Hex,
-        );
-        if (!(await recoversTo(accDigest, signed.acceptanceSig, s.shaker)))
-          failures.push({ reason: "shaker-acceptance-invalid", hop });
-      }
-    } else if (signed.acceptanceSig) {
-      failures.push({ reason: "unexpected-acceptance", hop });
+  for (const [position, { shake, keySig }] of signedShakes.entries()) {
+    if (shake.claimBps !== claim || shake.nextClaimBps > claim) throw new Refusal("InvalidClaim", position);
+    if (isAddressEqual(shake.payee, zeroAddress) && shake.nextClaimBps !== claim) {
+      throw new Refusal("AnonymousMargin", position);
     }
 
-    expectedCap = s.childCapability;
-    expectedClaim = s.childClaimBps;
+    const hash = shakeHash(hand, shake);
+    if (!(await signedBy(key, digest(separator, hash), keySig))) throw new Refusal("InvalidKeySig", position);
+
+    routeHash = extendRouteHash(routeHash, hash);
+    key = shake.nextKey;
+    claim = shake.nextClaimBps;
   }
+  return { lastKey: key, claimBps: claim, routeHash };
 }
 
-export async function verifyLiveRoute(
-  payload: LiveRoutePayload,
-  facts: HandFacts,
-): Promise<VerifyResult> {
-  const failures: VerifyFailure[] = [];
-  await walkRoute(payload.handRef, payload.shakes, facts, failures);
+/**
+ * Asked when the signer's own key did not sign: what the code at the signer's address says about
+ * the signature (ERC-1271). An application answers it with a call to the chain.
+ */
+export type AskSignerCode = (signer: Address, hash: Hex, signature: Hex) => Promise<boolean>;
 
-  const expectedCap =
-    payload.shakes.length === 0
-      ? facts.rootCapability
-      : payload.shakes[payload.shakes.length - 1]!.shake.childCapability;
-  const capAddr =
-    payload.capability.mode === "bearer"
-      ? (() => {
-          try {
-            return privateKeyToAddress(payload.capability.secret);
-          } catch {
-            return ZERO_ADDRESS;
-          }
-        })()
-      : payload.capability.address;
-  if (!eqAddr(capAddr, expectedCap))
-    failures.push({ reason: "capability-mismatch" });
+/**
+ * Checks a route and the Give that ends it, as Core's `checkGive` does, and returns the Give's
+ * hash: the `giveHash` Core keeps in `thanks` if the raiser thanks this Give. Throws the `Refusal`
+ * Core would revert with.
+ *
+ * The giver's signature counts if the signer's own key made it. Otherwise `askSignerCode` decides,
+ * if given; without it the Give is refused, as Core refuses it for an address without code. One
+ * thing differs from the chain and cannot be seen from here: an address that has code and no
+ * EIP-7702 delegation no longer answers to its own key there.
+ */
+export async function checkGive(
+  domain: Eip712Domain,
+  hand: Hand,
+  signedShakes: readonly SignedShake[],
+  signedGive: SignedGive,
+  askSignerCode?: AskSignerCode,
+): Promise<Hex> {
+  const { give, keySig, giverSig } = signedGive;
+  if (isAddressEqual(give.signer, hand.raiser)) throw new Refusal("GiverIsRaiser");
+  if (isAddressEqual(give.payee, zeroAddress)) throw new Refusal("ZeroPayee");
 
-  if (
-    facts.metadataCommitment !== undefined &&
-    sha256(payload.metadata.envelope).toLowerCase() !==
-      facts.metadataCommitment.toLowerCase()
-  )
-    failures.push({ reason: "metadata-commitment-mismatch" });
+  const route = await checkRoute(domain, hand, signedShakes);
+  if (give.claimBps !== route.claimBps) throw new Refusal("InvalidClaim", signedShakes.length);
+  if (give.routeHash.toLowerCase() !== route.routeHash.toLowerCase()) throw new Refusal("InvalidRouteHash");
+  if (route.claimBps < hand.minClaimBps) throw new Refusal("BelowMinClaim");
 
-  return failures.length === 0 ? { ok: true } : { ok: false, failures };
-}
+  const hash = giveHash(hand, give);
+  const signed = digest(domainSeparator(domain), hash);
+  if (!(await signedBy(route.lastKey, signed, keySig))) throw new Refusal("InvalidKeySig", signedShakes.length);
 
-export async function verifyTerminalProof(
-  payload: TerminalProofPayload,
-  facts: HandFacts,
-): Promise<VerifyResult> {
-  const failures: VerifyFailure[] = [];
-  await walkRoute(payload.handRef, payload.shakes, facts, failures);
+  let byGiver = await signedBy(give.signer, signed, giverSig);
+  if (!byGiver && askSignerCode) byGiver = await askSignerCode(give.signer, signed, giverSig);
+  if (!byGiver) throw new Refusal("InvalidGiverSig");
 
-  const g = payload.give.give;
-  const terminalCap =
-    payload.shakes.length === 0
-      ? facts.rootCapability
-      : payload.shakes[payload.shakes.length - 1]!.shake.childCapability;
-  const terminalClaim =
-    payload.shakes.length === 0
-      ? BPS_DENOMINATOR
-      : payload.shakes[payload.shakes.length - 1]!.shake.childClaimBps;
-
-  if (g.handId !== facts.handRef.handId)
-    failures.push({ reason: "wrong-hand", detail: "give" });
-  const expectedRouteHash = routeHashOf(
-    payload.handRef,
-    payload.shakes.map((s) => s.shake),
-  );
-  if (g.routeHash.toLowerCase() !== expectedRouteHash.toLowerCase())
-    failures.push({ reason: "route-hash-mismatch" });
-  if (g.finalClaimBps !== terminalClaim)
-    failures.push({ reason: "final-claim-mismatch" });
-  if (g.deadline !== facts.expiry)
-    failures.push({ reason: "deadline-mismatch", detail: "give" });
-  if (eqAddr(g.giver, ZERO_ADDRESS)) failures.push({ reason: "zero-giver" });
-
-  const gDigest = giveDigest(
-    g,
-    payload.handRef.chainId,
-    payload.handRef.core as Hex,
-  );
-  if (!(await recoversTo(gDigest, payload.give.signature, terminalCap)))
-    failures.push({ reason: "capability-proof", detail: "give" });
-
-  const gaDigest = giverAcceptanceDigest(
-    giveHash(g),
-    payload.handRef.chainId,
-    payload.handRef.core as Hex,
-  );
-  if (!(await recoversTo(gaDigest, payload.giverAcceptanceSig, g.giver)))
-    failures.push({ reason: "giver-acceptance-invalid" });
-
-  return failures.length === 0 ? { ok: true } : { ok: false, failures };
+  return hash;
 }

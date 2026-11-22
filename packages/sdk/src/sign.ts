@@ -1,148 +1,82 @@
-import {
-  compactSignatureToSignature,
-  parseCompactSignature,
-  parseSignature,
-  serializeCompactSignature,
-  serializeSignature,
-  signatureToCompactSignature,
-  type Hex,
-} from "viem";
+import { concatHex, hexToBigInt, numberToHex, size, slice, type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
-import {
-  domain,
-  GIVE_TYPES,
-  GIVER_ACCEPTANCE_TYPES,
-  SHAKE_TYPES,
-  SHAKER_ACCEPTANCE_TYPES,
-  type Give,
-  type Shake,
-} from "./types.js";
 
-/**
- * Ephemeral capability: fresh private key for every hop.
- * RULE: the forwarded payload contains AT MOST ONE private key —
- * that of the latest capability. The parent's key is stripped by the codec (see payload.ts).
- */
-export function newCapability(): { privateKey: Hex; address: `0x${string}` } {
+import { GIVE_TYPES, SHAKE_TYPES, type Eip712Domain, type Give, type Hand, type Shake } from "./types.js";
+import { CURVE_ORDER, HALF_ORDER } from "./verify.js";
+
+/** What a wallet is asked to sign for a Shake: the same bytes `shakeHash` and `digest` lead to. */
+export function shakeTypedData(domain: Eip712Domain, hand: Hand, shake: Shake) {
+  return { domain, types: SHAKE_TYPES, primaryType: "Shake" as const, message: { hand, ...shake } };
+}
+
+/** What a wallet is asked to sign for a Give. */
+export function giveTypedData(domain: Eip712Domain, hand: Hand, give: Give) {
+  return { domain, types: GIVE_TYPES, primaryType: "Give" as const, message: { hand, ...give } };
+}
+
+/** Anything that signs a Give as typed data: a viem account, or a wallet behind a client. */
+export interface GiveSigner {
+  signTypedData(typedData: ReturnType<typeof giveTypedData>): Promise<Hex>;
+}
+
+/** A fresh link key: whoever holds the private key holds the link from here on. */
+export function newKey(): { privateKey: Hex; address: Address } {
   const privateKey = generatePrivateKey();
   return { privateKey, address: privateKeyToAddress(privateKey) };
 }
 
-function shakeMessage(shake: Shake) {
-  return {
-    handId: shake.handId,
-    childCapability: shake.childCapability as `0x${string}`,
-    shaker: shake.shaker as `0x${string}`,
-    parentClaimBps: shake.parentClaimBps,
-    childClaimBps: shake.childClaimBps,
-    hopDataHash: shake.hopDataHash as Hex,
-    deadline: Number(shake.deadline),
-  };
+/** Signs a Shake with the link key it comes from: the root key for the first, then each `nextKey`. */
+export async function signShake(linkKey: Hex, domain: Eip712Domain, hand: Hand, shake: Shake): Promise<Hex> {
+  return toCoreSignature(await privateKeyToAccount(linkKey).signTypedData(shakeTypedData(domain, hand, shake)));
 }
 
-function giveMessage(give: Give) {
-  return {
-    handId: give.handId,
-    routeHash: give.routeHash as Hex,
-    giver: give.giver as `0x${string}`,
-    solutionHash: give.solutionHash as Hex,
-    finalClaimBps: give.finalClaimBps,
-    deadline: Number(give.deadline),
-  };
-}
-
-/** Sign shake using the parent capability key. */
-export async function signShake(
-  shake: Shake,
-  parentCapabilityPriv: Hex,
-  chainId: number | bigint,
-  core: `0x${string}`,
-): Promise<Hex> {
-  const account = privateKeyToAccount(parentCapabilityPriv);
-  return account.signTypedData({
-    domain: domain(chainId, core),
-    types: SHAKE_TYPES,
-    primaryType: "Shake",
-    message: shakeMessage(shake),
-  });
-}
-
-/** Sign give using the last capability key in the route path. */
-export async function signGive(
-  give: Give,
-  lastCapabilityPriv: Hex,
-  chainId: number | bigint,
-  core: `0x${string}`,
-): Promise<Hex> {
-  const account = privateKeyToAccount(lastCapabilityPriv);
-  return account.signTypedData({
-    domain: domain(chainId, core),
-    types: GIVE_TYPES,
-    primaryType: "Give",
-    message: giveMessage(give),
-  });
+/** Signs a Give with a private key: the route's last link key, or a giver's own key. */
+export async function signGiveWithKey(key: Hex, domain: Eip712Domain, hand: Hand, give: Give): Promise<Hex> {
+  return toCoreSignature(await privateKeyToAccount(key).signTypedData(giveTypedData(domain, hand, give)));
 }
 
 /**
- * Anything that can produce an EIP-712 signature: a viem local account or a
- * connected wallet client (with a hoisted account). Acceptances are the ONLY
- * artifacts signed by user wallets — everything else is capability-key work.
+ * Asks the giver's wallet to sign a Give and returns what the wallet answered, untouched: a smart
+ * wallet's signature is its own format and goes to Core as it is. For a wallet that is a plain
+ * key, bring the answer to Core's form with `toCoreSignature`.
  */
-export interface TypedSigner {
-  signTypedData(parameters: {
-    domain: ReturnType<typeof domain>;
-    types: Record<string, readonly { name: string; type: string }[]>;
-    primaryType: string;
-    message: Record<string, unknown>;
-  }): Promise<Hex>;
-}
-
-/** Consent of a distinct Shaker account to attribution over the exact shakeHash. */
-export async function signShakerAcceptance(
-  shakeHash: Hex,
-  signer: TypedSigner,
-  chainId: number | bigint,
-  core: `0x${string}`,
+export function signGiveWithWallet(
+  wallet: GiveSigner,
+  domain: Eip712Domain,
+  hand: Hand,
+  give: Give,
 ): Promise<Hex> {
-  return signer.signTypedData({
-    domain: domain(chainId, core),
-    types: SHAKER_ACCEPTANCE_TYPES,
-    primaryType: "ShakerAcceptance",
-    message: { shakeHash },
-  });
+  return wallet.signTypedData(giveTypedData(domain, hand, give));
 }
 
-/** Consent of the Giver account to attribution over the exact giveHash. */
-export async function signGiverAcceptance(
-  giveHash: Hex,
-  signer: TypedSigner,
-  chainId: number | bigint,
-  core: `0x${string}`,
-): Promise<Hex> {
-  return signer.signTypedData({
-    domain: domain(chainId, core),
-    types: GIVER_ACCEPTANCE_TYPES,
-    primaryType: "GiverAcceptance",
-    message: { giveHash },
-  });
-}
 
-/*//////////////////////////////////////////////////////////////
-            EIP-2098 compact signatures (codec stores 64B)
-//////////////////////////////////////////////////////////////*/
-
-/** 65-byte signature → 64-byte EIP-2098 compact form; compact input passes through. */
-export function toCompactSig(signature: Hex): Hex {
-  if (signature.length === 130) return signature; // already compact (64 bytes)
-  return serializeCompactSignature(
-    signatureToCompactSignature(parseSignature(signature)),
-  );
-}
-
-/** 64-byte EIP-2098 compact signature → 65-byte form (v in {27, 28}); long input passes through. */
-export function fromCompactSig(signature: Hex): Hex {
-  if (signature.length === 132) return signature; // already 65 bytes
-  return serializeSignature(
-    compactSignatureToSignature(parseCompactSignature(signature)),
-  );
+/**
+ * Core takes a key's signature only as 65 bytes, `r`, `s`, `v`, with `v` 27 or 28 and `s` in the
+ * lower half of the curve's order. Wallets and libraries also give the same signature as 64
+ * bytes (ERC-2098), with `v` 0 or 1, or with the higher `s`: this brings each of them to the one
+ * form Core takes. The signer stays the same. Anything else is not a key's signature and throws.
+ */
+export function toCoreSignature(signature: Hex): Hex {
+  let r: Hex;
+  let s: bigint;
+  let v: number;
+  if (size(signature) === 64) {
+    const vs = hexToBigInt(slice(signature, 32, 64));
+    r = slice(signature, 0, 32);
+    s = vs & ((1n << 255n) - 1n);
+    v = 27 + Number(vs >> 255n);
+  } else if (size(signature) === 65) {
+    r = slice(signature, 0, 32);
+    s = hexToBigInt(slice(signature, 32, 64));
+    v = Number(hexToBigInt(slice(signature, 64, 65)));
+    if (v === 0 || v === 1) v += 27;
+  } else {
+    throw new Error(`a key's signature is 64 or 65 bytes, not ${size(signature)}`);
+  }
+  if (v !== 27 && v !== 28) throw new Error(`a key's signature ends in 27, 28, 0 or 1, not ${v}`);
+  if (s > HALF_ORDER) {
+    s = CURVE_ORDER - s;
+    v = v === 27 ? 28 : 27;
+  }
+  return concatHex([r, numberToHex(s, { size: 32 }), numberToHex(v, { size: 1 })]);
 }

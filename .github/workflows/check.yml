@@ -1,9 +1,10 @@
-# The contracts' gate on every push: Core unchanged byte for byte, forge build, the Core recorded on
-# Base Sepolia is the Core this tree builds, every forge test (unit, invariants, the hostile
-# invariants, the SDK vectors and gas fixtures Core writes, the deployment), the fixtures unchanged
-# after the tests rewrote them from Core, and the exit kit's self-test.
+# The gate on every push: Core unchanged byte for byte, forge build, the Core recorded on Base
+# Sepolia is the Core this tree builds, every forge test (unit, invariants, the hostile invariants,
+# the SDK vectors and gas fixtures Core writes, the deployment), the fixtures unchanged after the
+# tests rewrote them from Core, the exit kit's self-test, and the SDK: its typecheck and its tests,
+# which compare it with those fixtures and run it against Core on local chains.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
-# The bun steps (typecheck, SDK, packages, app) join when those parts arrive on this branch.
+# The steps of the other packages and of the app join when those parts arrive on this branch.
 name: check
 
 on:
@@ -60,6 +61,16 @@ jobs:
         working-directory: contracts
         run: '"$FOUNDRY_BIN/forge" build'
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
       # Offline, from contracts/deployments/84532.json: keccak256 of the AHandCore built here equals
       # the recorded initcodeHash, and create2(factory, salt, initcodeHash) is the recorded Core. A
       # change to Core's source or build settings would move Core to another address.
@@ -82,6 +93,11 @@ jobs:
 
       - name: Exit kit self-test
         run: bash contracts/exit/selftest.sh
+
+      # After the build and the fixtures: the SDK's tests read Core's artifacts from contracts/out,
+      # compare the SDK with the fixtures Core wrote, and start their own anvil from $FOUNDRY_BIN.
+      - name: SDK tests
+        run: bun run test:sdk
 
       - name: Core is still unchanged
         run: |

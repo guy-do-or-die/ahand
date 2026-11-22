@@ -2,37 +2,29 @@
   "name": "ahand",
   "version": "1.0.0",
   "description": "aHand Protocol",
+  "private": true,
+  "license": "MIT",
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "apps/*",
-    "infra/*"
+    "packages/sdk"
   ],
   "scripts": {
-    "build": "cd contracts && forge build",
-    "test": "cd contracts && forge test",
-    "anvil": "anvil --chain-id 31337",
-    "deploy:local": "cd contracts && forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast",
-    "stand": "bun run --cwd infra/anvil stand",
-    "dev": "bun run --cwd apps/web dev"
+    "check:core": "echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict",
+    "build:contracts": "cd contracts && ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge build",
+    "test:contracts": "cd contracts && ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test",
+    "test:vectors": "cd contracts && WRITE_VECTORS=true ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test --match-contract 'SdkVectorsTest|SdkGasTest' && git diff --exit-code -- test/fixtures",
+    "test:exit": "bash contracts/exit/selftest.sh",
+    "typecheck": "tsc --noEmit -p packages/sdk",
+    "test:sdk": "bun run --cwd packages/sdk test",
+    "check": "bun run check:core && bun run typecheck && bun run build:contracts && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run check:core"
+  },
+  "devDependencies": {
+    "@ahand/sdk": "workspace:*",
+    "typescript": "5.9.3",
+    "viem": "2.52.0"
   },
   "overrides": {
-    "@tanstack/react-router": "1.120.20",
-    "@tanstack/router-generator": "1.120.20",
-    "@tanstack/router-plugin": "1.120.20",
-    "@tanstack/react-start-plugin": "1.120.17",
-    "@tanstack/server-functions-plugin": "1.120.17",
-    "@tanstack/start-server-functions-handler": "1.120.17",
-    "@tanstack/start-server-functions-server": "1.120.17",
-    "@tanstack/start-server-functions-client": "1.120.17",
-    "@tanstack/react-start-server": "1.120.17",
-    "@tanstack/react-start-client": "1.120.17",
-    "@tanstack/start": "1.120.20",
-    "@tanstack/start-client-core": "1.120.17",
-    "@tanstack/start-server-core": "1.120.17",
-    "@tanstack/router-core": "1.120.19"
-  },
-  "patchedDependencies": {
-    "@pimlico/mock-paymaster@0.0.8": "patches/@pimlico%2Fmock-paymaster@0.0.8.patch"
+    "typescript": "5.9.3",
+    "viem": "2.52.0"
   }
 }

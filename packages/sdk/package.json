@@ -1,26 +1,39 @@
 {
   "name": "@ahand/sdk",
   "version": "0.1.0",
+  "description": "The aHand protocol in TypeScript: hashes, signatures, offline checks, links, chain reads and the Hand passport",
+  "private": true,
+  "license": "MIT",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "source": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./app": {
+      "types": "./src/app.ts",
+      "bun": "./src/app.ts",
+      "source": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./testing": {
+      "types": "./tests/helpers/index.ts",
+      "bun": "./tests/helpers/index.ts",
+      "source": "./tests/helpers/index.ts",
+      "default": "./tests/helpers/index.ts"
     }
   },
   "scripts": {
-    "build": "tsc",
     "test": "vitest run"
   },
   "dependencies": {
     "viem": "2.52.0",
-    "zod": "^3.23.8"
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "vitest": "^1.6.0"
+    "typescript": "5.9.3",
+    "vitest": "1.6.1"
   }
 }

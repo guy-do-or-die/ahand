@@ -4,7 +4,7 @@ Escrow and authorization live in three small contracts on Base Sepolia. Everythi
 
 - [System overview](system-overview.md) — components, data flows, failure independence
 - [Contract boundaries](contract-boundaries.md) — what AHandCore, AHandSignals, and AHandWitness each own
-- [SDK and link protocol](sdk-and-link-protocol.md) — `packages/sdk` and the web link codec
+- [SDK and link protocol](sdk-and-link-protocol.md) — replaced: the current SDK is [the SDK](../sdk.md), the link format [links](../links.md)
 - [ENS](ens.md) — optional client-side display identity
 - [Subgraph](subgraph.md) — the Base Sepolia Graph deployment
 - [Deployment and trust boundaries](deployment-and-trust.md) — addresses, operators, trust inventory

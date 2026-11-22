@@ -280,6 +280,34 @@ contract SdkVectorsTest is Test {
                 "a link key's signature in the short form", id, shakes, _signGive(id, give, THIRD_PK, GIVER_PK)
             )
         );
+
+        // The two other forms of the same signature that ecrecover takes and Core does not.
+        shakes = _signRoute(id, route);
+        shakes[0].keySig = _upperS(shakes[0].keySig);
+        json = string.concat(
+            json,
+            ",\n",
+            _refusalJson(
+                "a link key's signature with s in the upper half", id, shakes, _signGive(id, give, THIRD_PK, GIVER_PK)
+            )
+        );
+        shakes = _signRoute(id, route);
+        shakes[0].keySig = _vFromZero(shakes[0].keySig);
+        json = string.concat(
+            json,
+            ",\n",
+            _refusalJson("a link key's signature with v 0 or 1", id, shakes, _signGive(id, give, THIRD_PK, GIVER_PK))
+        );
+
+        shakes = _signRoute(id, route);
+        SignedGive memory upper = _signGive(id, give, THIRD_PK, GIVER_PK);
+        upper.giverSig = _upperS(upper.giverSig);
+        json = string.concat(
+            json, ",\n", _refusalJson("the giver's signature with s in the upper half", id, shakes, upper)
+        );
+        SignedGive memory fromZero = _signGive(id, give, THIRD_PK, GIVER_PK);
+        fromZero.giverSig = _vFromZero(fromZero.giverSig);
+        json = string.concat(json, ",\n", _refusalJson("the giver's signature with v 0 or 1", id, shakes, fromZero));
     }
 
     /// No payee, a claim the route did not leave and another route's hash: the first in the order
@@ -430,15 +458,29 @@ contract SdkVectorsTest is Test {
 
     /// The ERC-2098 form of a 65-byte signature: `r`, then `s` with the parity of `v` in its top bit.
     function _shortForm(bytes memory sig) internal pure returns (bytes memory) {
-        bytes32 r;
-        bytes32 sValue;
-        uint8 v;
+        (bytes32 r, bytes32 sValue, uint8 v) = _parts(sig);
+        return abi.encodePacked(r, bytes32(uint256(sValue) | (uint256(v - 27) << 255)));
+    }
+
+    /// The same signature with `s` in the upper half: the curve's order (forge-std's `SECP256K1_ORDER`)
+    /// minus `s`, and the other `v`.
+    function _upperS(bytes memory sig) internal pure returns (bytes memory) {
+        (bytes32 r, bytes32 sValue, uint8 v) = _parts(sig);
+        return abi.encodePacked(r, bytes32(SECP256K1_ORDER - uint256(sValue)), v == 27 ? uint8(28) : uint8(27));
+    }
+
+    /// The same signature with `v` as 0 or 1 instead of 27 or 28, as some wallets return it.
+    function _vFromZero(bytes memory sig) internal pure returns (bytes memory) {
+        (bytes32 r, bytes32 sValue, uint8 v) = _parts(sig);
+        return abi.encodePacked(r, sValue, v - 27);
+    }
+
+    function _parts(bytes memory sig) internal pure returns (bytes32 r, bytes32 sValue, uint8 v) {
         assembly ("memory-safe") {
             r := mload(add(sig, 0x20))
             sValue := mload(add(sig, 0x40))
             v := byte(0, mload(add(sig, 0x60)))
         }
-        return abi.encodePacked(r, bytes32(uint256(sValue) | (uint256(v - 27) << 255)));
     }
 
     /*//////////////////////////// writing ////////////////////////////*/
