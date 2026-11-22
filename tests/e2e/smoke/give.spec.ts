@@ -14,6 +14,8 @@
  *   that Core accepts with the setup and refuses bare;
  * - "I have none": twelve words, the swipe off until they are ticked as written down, and nothing
  *   of them (nor the key) in IndexedDB, localStorage or sessionStorage afterwards;
+ * - back from a social login (simulated: the stand has no Privy): the answer typed before it is in
+ *   the field again, for that Hand only, and the tab's session storage is empty again;
  * - the stand's relay stopped: the fallback sentence and a copyable give address; started again,
  *   the outbox delivers it by itself.
  *
@@ -284,6 +286,52 @@ test("I have none: twelve words shown once, the swipe off until they are written
   expect(stored).not.toContain(words.join(" "));
   for (let i = 0; i + 3 <= words.length; i++) expect(stored).not.toContain(words.slice(i, i + 3).join(" "));
   expect(stored).not.toContain(privateKey.toLowerCase());
+});
+
+test("back from a social login: the answer typed before it is in the field again, for that Hand only, and the keys are gone", async ({ page }) => {
+  // The stand has no Privy (its configurations carry no `privy`), so the page cannot leave for a
+  // provider by itself and its own write (link-carry.ts, as the page leaves with Privy's window
+  // open) does not run here; apps/hand/tests/guards/carry.test.ts covers that write. Here the two
+  // keys are put in the tab's session storage in the shape it writes, and the page comes back as
+  // the provider sends it: a fresh load of /give with Privy's code and state in the query.
+  const hand = fixtures.twoPasses;
+  await openGive(page, hand.address);
+  const words = "Typed before logging in: I can introduce you to the clinic's head nurse.\nShe answers by Friday.";
+  await page.getByTestId("give-words").fill(words);
+  const returning = "/give?privy_oauth_code=one-time&privy_oauth_state=st&privy_oauth_provider=twitter";
+  const mark = hand.address.indexOf("#");
+  const keys = { before: hand.address.slice(0, mark), fragment: hand.address.slice(mark + 1), chainId: stand.chainId, core: stand.core.toLowerCase(), words };
+  const leave = (handId: string) =>
+    page.evaluate(
+      ({ before, fragment, chainId, core, words, handId }) => {
+        const at = Date.now();
+        sessionStorage.setItem("ahand-link-carry", JSON.stringify({ before, fragment, via: "address", path: "/give", hand: false, at }));
+        sessionStorage.setItem("ahand-give-draft", JSON.stringify({ chainId, core, handId, text: words, at }));
+      },
+      { ...keys, handId },
+    );
+  const left = () => page.evaluate(() => [sessionStorage.getItem("ahand-link-carry"), sessionStorage.getItem("ahand-give-draft")]);
+
+  await leave(hand.handId);
+  await page.goto(returning);
+  await expect(page.getByTestId("give-words")).toHaveValue(words, { timeout: 20_000 });
+  await expect(page.getByText(`${Array.from(words).length} of 1000`)).toBeVisible();
+  expect(await left()).toEqual([null, null]);
+
+  // A draft written for another Hand: the link comes back, the field stays empty.
+  await leave(String(BigInt(hand.handId) + 1000n));
+  await page.goto(returning);
+  await expect(page.locator(".ah-deal")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("give-words")).toHaveValue("");
+  expect(await left()).toEqual([null, null]);
+
+  // A load that is not the way back from a social login: both keys erased, nothing restored.
+  await leave(hand.handId);
+  await page.goto("/give");
+  // With no link in the tab, /give hands over to the Hand view on "/", which says so.
+  await expect.poll(() => page.evaluate(() => window.location.pathname), { timeout: 20_000 }).toBe("/");
+  await expect(page.getByTestId("give-words")).toHaveCount(0);
+  expect(await left()).toEqual([null, null]);
 });
 
 test("with the relay stopped: the fallback sentence and a copyable give address; started again, the outbox delivers it", async ({ page, context }) => {

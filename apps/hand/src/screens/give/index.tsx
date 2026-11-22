@@ -6,7 +6,7 @@ import { isAddressEqual, type Address, type TypedDataDefinition } from "viem";
 import { clientOf, useChainStatus, useHand, useNow } from "../../chain";
 import { config } from "../../config";
 import { t, useLang } from "../../i18n";
-import { useHoldsLink } from "../../link-carry";
+import { takeCarriedDraft, useHoldsDraft, useHoldsLink } from "../../link-carry";
 import { navigate } from "../../router";
 import { useOpened } from "../../store/memory";
 import { TID } from "../../testids";
@@ -185,6 +185,17 @@ function Answer({ opened }: { opened: OpenedAddress }) {
   const [picker, setPicker] = useState({ key: 0, initial: "", hideAccount: false });
   const [connecting, setConnecting] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+
+  // "Log in to get paid" through Google, Apple or X reloads the page: what is typed goes with the
+  // link (link-carry.ts) and comes back here, for this Hand only, once. Taken in an effect, not in
+  // render, so a second render or a second mount finds it gone rather than taking it twice.
+  const chainId = opened.domain.chainId;
+  const draftHand = useMemo(() => ({ chainId, core: core.toLowerCase(), handId: handId.toString() }), [chainId, core, handId]);
+  useEffect(() => {
+    const back = takeCarriedDraft(draftHand);
+    if (back) setText((typed) => typed || back);
+  }, [draftHand]);
+  useHoldsDraft(phase.kind === "done" ? undefined : draftHand, text);
 
   const account = wallet.status === "connected" && !picker.hideAccount ? wallet.address : undefined;
   // An answer this device already sent to this Hand (a reload loses the tab's link, not the outbox):

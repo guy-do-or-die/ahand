@@ -13,9 +13,10 @@ import { code, filesUnder, hits } from "./files";
  * - no `document.cookie`, no `indexedDB` outside store/db.ts, and `localStorage` only for the
  *   theme override (the literal key "ahand-theme") and the mark that a Privy session may be here
  *   (the literal key "ahand-privy", wallet/privy-mark.ts), neither a secret;
- * - `sessionStorage` in link-carry.ts only, under the literal key "ahand-link-carry": the one
- *   exception to D-39 the owner accepted on 2026-11-21 (docs/defaults.md question 11), the opened
- *   link carried across a social login's reload in this tab and erased on the next load;
+ * - `sessionStorage` in link-carry.ts only, under the literal keys "ahand-link-carry" and
+ *   "ahand-give-draft": the one exception to D-39 the owner accepted on 2026-11-21 and widened to
+ *   the answer typed on /give on 2026-11-22 (docs/defaults.md question 11), the opened link and that
+ *   draft carried across a social login's reload in this tab and erased on the next load;
  * - no request but RPC and relays (made by viem and packages/deliver, not here): `fetch` only of a
  *   same-site path written as a literal, and no XMLHttpRequest, sendBeacon, WebSocket or
  *   EventSource in the app's own code;
@@ -57,15 +58,20 @@ describe("secrets: the fragment and the link's text have nowhere to go", () => {
     expect(scan(/document\s*\.\s*cookie|\bcookieStore\b/)).toEqual([]);
   });
 
-  test("session storage only in link-carry.ts, under its one key", () => {
+  test("session storage only in link-carry.ts, under its two keys", () => {
     // Its unit test (tests/guards/carry.test.ts) runs in happy-dom's window, outside src.
     const uses = scan(/\bsessionStorage\b/);
     const other = uses.filter((line) => {
       const [file] = line.split(":");
-      return !(file === "link-carry.ts" && /sessionStorage\.(setItem|getItem|removeItem)\(\s*"ahand-link-carry"/.test(line.split(": ").slice(1).join(": ")));
+      return !(file === "link-carry.ts" && /sessionStorage\.(setItem|getItem|removeItem)\(\s*"ahand-(link-carry|give-draft)"/.test(line.split(": ").slice(1).join(": ")));
     });
     expect(other).toEqual([]);
     expect(uses.length).toBeGreaterThan(0);
+    // Each key is named in code there and nowhere else.
+    for (const key of ["ahand-link-carry", "ahand-give-draft"]) {
+      expect(scan(new RegExp(`"${key}"`), (f) => f === "link-carry.ts")).toEqual([]);
+      expect(code("link-carry.ts")).toContain(`"${key}"`);
+    }
   });
 
   test("localStorage holds only the theme override and the Privy session mark", () => {

@@ -7,14 +7,19 @@ import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "b
  * link, erased on every load and whenever the login ends on the page, used only on the way back
  * from Google, Apple or X within `CARRY_MS`, and never a throw where storage refuses. Run in a
  * happy-dom window, whose session storage stands in for the tab's; the last test hides it behind a
- * getter that throws, as a private window or blocked site data does.
+ * getter that throws, as a private window or blocked site data does. The answer typed on /give goes
+ * with the link under a second key, for its own Hand only.
  */
 
 const SITE = "http://127.0.0.1:18312";
 const LINK = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA-carried_text";
 const RETURN = "?privy_oauth_code=one-time&privy_oauth_state=st&privy_oauth_provider=google";
 const KEY = "ahand-link-carry";
+const DRAFT_KEY = "ahand-give-draft";
 const T0 = 1_800_000_000_000;
+const CORE = "0x65aC000000000000000000000000000000002309";
+const HAND = { chainId: 84532, core: CORE, handId: "8" };
+const DRAFT = "A long answer, typed before logging in.\nSecond line.";
 
 let carry: typeof import("../../src/link-carry");
 let memory: typeof import("../../src/store/memory");
@@ -34,6 +39,7 @@ afterAll(async () => {
 });
 
 afterEach(() => {
+  carry.takeCarriedDraft(HAND); // lets go of a draft a test restored and left
   memory.forget();
   sessionStorage.clear();
   window.history.replaceState(null, "", "/");
@@ -262,6 +268,225 @@ describe("restoring on load", () => {
   });
 });
 
+describe("the answer draft on /give: with the link, for its own Hand, once", () => {
+  const draftStored = () => sessionStorage.getItem(DRAFT_KEY);
+
+  /** /give with a link and `text` typed for `hand`; returns the release of both holds. */
+  function typing(text: string, hand = HAND): () => void {
+    const release = onScreen("/give");
+    const releaseDraft = carry.holdDraft(hand, text);
+    return () => {
+      releaseDraft();
+      release();
+    };
+  }
+
+  /** Written as the page left at `at`, then the fresh load on the way back to /give. */
+  function leaveAndReturn(text: string, at = T0, hand = HAND): void {
+    const release = typing(text, hand);
+    expect(carry.writeCarry(at)).toBe(true);
+    release();
+    memory.forget();
+    window.history.replaceState(null, "", `/give${RETURN}`);
+  }
+
+  test("leaving while the login window is open writes the draft beside the link, with its Hand and the same time", () => {
+    const release = typing(DRAFT);
+    const target = new EventTarget();
+    const disarm = carry.armLinkCarry(target);
+    expect(draftStored()).toBeNull();
+    leave(target);
+    const link = JSON.parse(stored()!);
+    const written = JSON.parse(draftStored()!);
+    expect(written).toEqual({ chainId: 84532, core: CORE.toLowerCase(), handId: "8", text: DRAFT, at: link.at });
+    disarm();
+    release();
+  });
+
+  test("an empty or blank field writes no draft, and erases one left from before", () => {
+    sessionStorage.setItem(DRAFT_KEY, "left over");
+    const release = typing("  \n ");
+    expect(carry.writeCarry(T0)).toBe(true);
+    expect(stored()).not.toBeNull();
+    expect(draftStored()).toBeNull();
+    release();
+  });
+
+  test("a draft but no link on screen, or no link in memory: nothing at all is written", () => {
+    const releaseDraft = carry.holdDraft(HAND, DRAFT);
+    memory.remember({ before: `${SITE}/give`, fragment: LINK, via: "address" });
+    expect(carry.writeCarry(T0)).toBe(false); // nothing holds the link
+    memory.forget();
+    const release = carry.holdLink();
+    expect(carry.writeCarry(T0)).toBe(false); // nothing in memory
+    expect(stored()).toBeNull();
+    expect(draftStored()).toBeNull();
+    release();
+    releaseDraft();
+  });
+
+  test("a released draft is not written; an older release leaves the newer draft held", () => {
+    const release = onScreen("/give");
+    const first = carry.holdDraft(HAND, "first");
+    const second = carry.holdDraft(HAND, "second");
+    first();
+    carry.writeCarry(T0);
+    expect(JSON.parse(draftStored()!).text).toBe("second");
+    second();
+    carry.writeCarry(T0);
+    expect(draftStored()).toBeNull();
+    release();
+  });
+
+  test("the login ends on the page, or the page comes back from the back-forward cache: the draft is erased with the link", () => {
+    const release = typing(DRAFT);
+    const target = new EventTarget();
+    const disarm = carry.armLinkCarry(target);
+    leave(target);
+    target.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+    expect(stored()).toBeNull();
+    expect(draftStored()).toBeNull();
+    leave(target);
+    expect(draftStored()).not.toBeNull();
+    disarm();
+    expect(stored()).toBeNull();
+    expect(draftStored()).toBeNull();
+    release();
+  });
+
+  test("the way back to /give within CARRY_MS: the same Hand gets the draft once, and both keys are gone", () => {
+    leaveAndReturn(DRAFT);
+    expect(carry.restoreCarriedLink(true, T0 + 30_000)).toBe(true);
+    expect(stored()).toBeNull();
+    expect(draftStored()).toBeNull();
+    expect(carry.takeCarriedDraft({ chainId: 84532, core: CORE.toLowerCase(), handId: "8" })).toBe(DRAFT);
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined(); // once only
+  });
+
+  test("another Hand (another number, Core or chain): nothing, and the draft is let go", () => {
+    for (const other of [
+      { ...HAND, handId: "9" },
+      { ...HAND, core: "0x0000000000000000000000000000000000000001" },
+      { ...HAND, chainId: 8453 },
+    ]) {
+      leaveAndReturn(DRAFT);
+      expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+      expect(carry.takeCarriedDraft(other)).toBeUndefined();
+      expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+      memory.forget();
+    }
+  });
+
+  test("memory moved on to another link before /give took it: nothing", () => {
+    leaveAndReturn(DRAFT);
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+    memory.remember({ before: `${SITE}/give`, fragment: "another-link", via: "paste" });
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+
+    leaveAndReturn(DRAFT);
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+    memory.forget();
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+  });
+
+  test("not the way back, too late, another path, or a link in the address: both keys erased, no draft", () => {
+    leaveAndReturn(DRAFT);
+    expect(carry.restoreCarriedLink(false, T0 + 1)).toBe(false);
+    expect(draftStored()).toBeNull();
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+
+    leaveAndReturn(DRAFT);
+    expect(carry.restoreCarriedLink(true, T0 + carry.CARRY_MS)).toBe(false);
+    expect(draftStored()).toBeNull();
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+
+    leaveAndReturn(DRAFT);
+    window.history.replaceState(null, "", `/pass${RETURN}`);
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(false);
+    expect(draftStored()).toBeNull();
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+
+    leaveAndReturn(DRAFT);
+    memory.remember({ before: `${SITE}/give`, fragment: "newer-link", via: "address" });
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(false);
+    expect(draftStored()).toBeNull();
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+  });
+
+  test("a draft with no link beside it, from another write, or not of the written shape: erased unused, the link still comes back", () => {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...HAND, core: CORE.toLowerCase(), text: DRAFT, at: T0 }));
+    expect(carry.takeCarried(true, T0 + 1)).toBeUndefined();
+    expect(draftStored()).toBeNull();
+
+    leaveAndReturn(DRAFT);
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...HAND, core: CORE.toLowerCase(), text: DRAFT, at: T0 - 1 }));
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+    memory.forget();
+
+    for (const junk of ["not json", "null", "{}", JSON.stringify({ ...HAND, text: DRAFT, at: T0 }), JSON.stringify({ ...HAND, core: CORE.toLowerCase(), text: "x".repeat(carry.DRAFT_MAX_UNITS + 1), at: T0 }), JSON.stringify({ ...HAND, core: CORE.toLowerCase(), handId: "8a", text: DRAFT, at: T0 })]) {
+      leaveAndReturn(DRAFT);
+      sessionStorage.setItem(DRAFT_KEY, junk);
+      expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+      expect(draftStored()).toBeNull();
+      expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+      memory.forget();
+    }
+  });
+
+  test("the longest draft the field allows fits: 1000 characters, 2000 UTF-16 units at most", async () => {
+    const { MAX_WORDS } = await import("../../src/screens/give/flow");
+    expect(carry.DRAFT_MAX_UNITS).toBe(2 * MAX_WORDS);
+    const longest = "😀".repeat(MAX_WORDS);
+    leaveAndReturn(longest);
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+    expect(carry.takeCarriedDraft(HAND)).toBe(longest);
+  });
+
+  test("storage refusing only the draft (full): the link still goes, the field comes back empty", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    const real = sessionStorage;
+    const full = {
+      getItem: (key: string) => real.getItem(key),
+      removeItem: (key: string) => real.removeItem(key),
+      setItem: (key: string, value: string) => {
+        if (key === DRAFT_KEY) throw new Error("QuotaExceededError");
+        real.setItem(key, value);
+      },
+    };
+    Object.defineProperty(globalThis, "sessionStorage", { configurable: true, get: () => full });
+    try {
+      leaveAndReturn(DRAFT);
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
+    }
+    expect(draftStored()).toBeNull();
+    expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
+    expect(carry.takeCarriedDraft(HAND)).toBeUndefined();
+  });
+
+  test("refusing to read the link key: the draft key is still erased", () => {
+    leaveAndReturn(DRAFT);
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    const real = sessionStorage;
+    const partial = {
+      getItem: (key: string) => {
+        if (key === KEY) throw new Error("SecurityError");
+        return real.getItem(key);
+      },
+      removeItem: (key: string) => real.removeItem(key),
+      setItem: (key: string, value: string) => real.setItem(key, value),
+    };
+    Object.defineProperty(globalThis, "sessionStorage", { configurable: true, get: () => partial });
+    try {
+      expect(carry.takeCarried(true, T0 + 1)).toBeUndefined();
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
+    }
+    expect(draftStored()).toBeNull();
+  });
+});
+
 describe("storage that refuses", () => {
   test("a private window or blocked site data: nothing written, nothing restored, nothing thrown", () => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
@@ -273,24 +498,28 @@ describe("storage that refuses", () => {
     });
     try {
       const release = onScreen("/give");
+      const releaseDraft = carry.holdDraft(HAND, DRAFT);
       const target = new EventTarget();
       const disarm = carry.armLinkCarry(target);
       expect(() => leave(target)).not.toThrow();
       expect(carry.writeCarry(T0)).toBe(false);
       expect(() => disarm()).not.toThrow();
       expect(() => carry.eraseCarry()).not.toThrow();
+      releaseDraft();
       release();
       memory.forget();
       expect(carry.takeCarried(true, T0)).toBeUndefined();
       expect(carry.restoreCarriedLink(true, T0)).toBe(false);
       expect(memory.openedLink()).toBeUndefined(); // the old way: open the link once more
+      expect(carry.takeCarriedDraft(HAND)).toBeUndefined(); // and type the answer again
     } finally {
       if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
     }
   });
 
-  test("nothing of the link reached the console", () => {
+  test("nothing of the link or the draft reached the console", () => {
     expect(JSON.stringify(logs).includes(LINK)).toBe(false);
+    expect(JSON.stringify(logs).includes("typed before logging in")).toBe(false);
     expect(logs).toEqual([]);
   });
 });
