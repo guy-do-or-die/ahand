@@ -1,4 +1,86 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "exit 0"
+  "framework": null,
+  "installCommand": "cd ../.. && npx -y bun@1.4.4 install --frozen-lockfile",
+  "buildCommand": "cd ../.. && npx -y bun@1.4.4 apps/web/vercel.ts build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/view.mjs": {
+      "includeFiles": "view/**",
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/([0-9]+/(?:0x[0-9a-fA-F]{40}/)?[0-9]+)",
+      "destination": "/api/view"
+    },
+    {
+      "source": "/og/(generic|[0-9]+/(?:0x[0-9a-fA-F]{40}/)?[0-9]+)\\.png",
+      "destination": "/api/view"
+    },
+    {
+      "source": "/((?:[^/]*/)*[^/.]*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/((?!exit\\.html$).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://explorer-api.walletconnect.com; font-src 'self'; connect-src 'self' https://sepolia.base.org wss://relay.primal.net wss://nos.lol wss://relay.nos.social wss://relay.ditto.pub wss://relay.coinos.io https://auth.privy.io https://*.rpc.privy.systems wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://explorer-api.walletconnect.com; frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org; child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/exit.html",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-IyRN/lnHRcG0Ih7Ntdjpy2+C0FG8KlVR7aezwHo+hHo='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://sepolia.base.org wss://relay.primal.net wss://nos.lol wss://relay.nos.social wss://relay.ditto.pub wss://relay.coinos.io https: http://127.0.0.1:* http://localhost:*; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/build.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
+  ]
 }

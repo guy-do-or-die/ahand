@@ -1,0 +1,117 @@
+/* /core: parts under a 1.5px ink rule; machine truth in mono boxes. */
+
+.core-part {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: var(--bw-emph) solid var(--ink);
+  padding-top: 14px;
+  font-size: var(--fs-body-md);
+  line-height: 1.45;
+}
+.core-part__title {
+  margin: 0;
+  font-size: var(--fs-card-title);
+  font-weight: var(--fw-heavy);
+  letter-spacing: -0.02em;
+  line-height: var(--lh-headline);
+}
+
+.core-address {
+  display: block;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-lg);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.core-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: var(--bw-hair) solid var(--ink-a20);
+  border-radius: var(--r-control);
+  background: var(--card);
+  padding: 10px 12px;
+}
+.core-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+}
+@media (min-width: 640px) {
+  .core-row {
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+.core-row__name {
+  color: var(--ink-a70);
+}
+.core-row__value {
+  overflow-wrap: anywhere;
+}
+
+.core-claim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.core-finding {
+  border: var(--bw-focus) solid var(--ink);
+  border-radius: var(--r-control);
+  padding: 10px 12px;
+  font-weight: var(--fw-bold);
+}
+
+.core-comes {
+  margin: 0;
+  border: var(--bw-emph) dashed var(--ink-a30);
+  border-radius: var(--r-btn);
+  padding: 12px 16px;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+}
+
+.core-limits {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--fs-body-sm);
+  line-height: 1.5;
+}
+.core-limits li::marker {
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-xs);
+  color: var(--ink-a60);
+}
+
+/* This build's own figure under the limit's sentence: exact data, so mono. */
+.core-limits__here {
+  display: block;
+  margin-top: 6px;
+  border-left: var(--bw-emph) solid var(--ink);
+  padding-left: 10px;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-a70);
+}
+
+.core-unaudited {
+  margin: 0;
+  border: var(--bw-focus) solid var(--ink);
+  border-radius: var(--r-btn);
+  padding: 14px 16px;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-heavy);
+  line-height: 1.3;
+}

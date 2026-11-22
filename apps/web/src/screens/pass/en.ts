@@ -1,0 +1,36 @@
+// The pass screen's words in English. Keys are dotted ids; ru.ts has the
+// same keys. "Where should your share land?" and its three choices are the kit's (ui/words.ts).
+const en = {
+  "pass.title": "Pass it on.",
+  "pass.lead": "Keep a little for yourself, or pass it all on.",
+  "pass.slider": "Your share",
+  "pass.share": "{pct} — about {amount} if this route is thanked",
+  "pass.shareNone": "0% — you keep nothing; it all travels on",
+  "pass.shareMax": "At most {pct}: the rest is what the asker promised the helper.",
+  "pass.noReward": "This hand carries no reward, so there is no share to keep.",
+  "pass.land.choose": "Choose where it lands",
+  "pass.land.change": "Change",
+  "pass.land.at": "Your share lands at",
+  "pass.darker": "Keep the words out of the address",
+  "pass.darker.hint": "The title and details go into the part of the link after #, which neither the site nor a preview sees.",
+  "pass.make": "Make my link",
+  "pass.making": "Making your link here, in this tab…",
+  "pass.made": "Your link is ready.",
+  "pass.readBack.share": "This link pays {payee} {pct} if its route is thanked.",
+  "pass.readBack.calm": "You get {pct} if the asker thanks someone further down this link.",
+  "pass.readBack.none": "This link keeps no share for you: everything travels on.",
+  "pass.sendIt": "Send it to people who might know someone. Passing it on is free for them.",
+  "pass.oldLink": "Whoever sent you the link can pass it to others too. That's normal.",
+  "pass.toHand": "See what they will see",
+  "pass.noLink": "To pass it on, open the link you were sent.",
+  "pass.toStart": "To the start",
+  "pass.closed": "This hand is closed. There is nothing to pass on.",
+  "pass.timeUp": "Time's up. There is nothing to pass on now.",
+  "pass.waiting": "Waiting for the network's clock before anything is made.",
+  "pass.answer": "This is an answer, not a link to pass on. Pass the answer back the way it came.",
+  "pass.cannot": "This route can't go further. You can still help.",
+  "pass.lens.terms": "Shake · payee {payee} · claimBps {claim} → nextClaimBps {next} · signed by the link key in this tab",
+  "pass.lens.read": "Read back from the written link · {shakes} shakes · shape {shape}",
+};
+
+export default en;

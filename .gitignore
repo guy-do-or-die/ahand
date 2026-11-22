@@ -36,3 +36,13 @@ output/
 outputs/
 local/
 .vercel
+
+# The app's public build: the Vercel Function's folder, made by `bun apps/web/vercel.ts build`
+# (the view server bundled, index.html, its settings, fonts and resvg)
+apps/web/view/
+# tests/e2e/fork/run.ts deploys Core on a local fork of a public network; that file is never a real deployment
+contracts/deployments/*-fork.json
+# Playwright's results and reports, and the screenshots shots.spec.ts writes
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+tests/e2e/shots/

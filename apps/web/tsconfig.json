@@ -1,17 +1,9 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "rootDir": "./",
-    "paths": {
-      "~/*": ["./app/*"]
-    }
+    "types": ["vite/client", "bun"]
   },
-  "include": ["app/**/*", "app/routes/**/*"]
+  "include": ["src", "exit", "tests", "vite.config.ts", "vite.exit.config.ts", "vite.shared.ts"]
 }

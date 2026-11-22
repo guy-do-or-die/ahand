@@ -12,8 +12,8 @@
 #   extend   <handId> <expiry>            move the expiry later: unix seconds, or +30d, +12h, +90m from the latest block (raiser only)
 #   fund     <handId> <amount>            add <amount> in whole tokens, e.g. 12.5 (raiser only); approves exactly that
 #                                         first unless --from names the sender and its allowance already covers it
-#   thank    <calldata-hex | file>        send a thank prepared elsewhere (see README.md: cast calldata, or the
-#                                         app's tools that arrive with later parts of this branch)
+#   thank    <calldata-hex | file>        send a thank prepared elsewhere (see README.md: cast calldata,
+#                                         exit.html, or bun tools/ahand.ts thank-calldata)
 #
 # Everything after -- goes to `cast send` unchanged: --account <name>, --ledger, --trezor, --from ...
 # Prefer a keystore account or a hardware wallet: a key given with --private-key shows in `ps` and

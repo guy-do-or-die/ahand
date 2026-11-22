@@ -18,7 +18,7 @@ stateAt(now.timestamp);                                               // "open" 
 | Step | Calls |
 |---|---|
 | words | `normalizeText`, `describeHand({mode, title, content, inbox}, { publicPartMaxChars })` → `dataHash`, shape, the link part (`linkPart`, after `#`) and the public part (`publicPart`, in `d`); past the limit it throws `DescriptionTooLarge` with `chars` and `max` (`describe.ts`) |
-| keys | `keysTypedData(chainId, core, raiser)` (sign once), `masterOf(signature, { chainId, core, raiser })`, `rootSeedOf`, `inboxSecretOf`, `newBook`, `matchRoot` (`keys.ts`); only the raiser's own key's signature is taken, since a smart account's may be stored or predictable |
+| keys | `keysTypedData(chainId, core, raiser)` (sign once), `masterOf(signature, { chainId, core, raiser })`, `rootSeedOf`, `inboxSecretOf`, `newBook`, `matchRoot` (`keys.ts`); only the raiser's own key's signature is taken, since a smart account's may be stored or predictable; any other is refused with `NotAKeySignatureError` |
 | time | `chainNow`, `expiryAfter(now, seconds, MAX_EXPIRY_PERIOD)`, `readLimits` (`chain.ts`) |
 | send | `approveCall`, `raiseCall`, `fundCall`, `extendCall`, `simulate` first (`tx.ts`) |
 | link | `encodeLive`, `toAddress` (`link.ts`, `address.ts`) |

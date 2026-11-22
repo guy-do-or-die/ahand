@@ -1,0 +1,144 @@
+/**
+ * feat-hand's own helpers for its smoke: the
+ * fixture shapes it reads from the seed's JSON, the craft tool as a child process, and a request
+ * log that says where every request of a browser context went and which JSON-RPC methods it
+ * carried.
+ */
+import { resolve } from "node:path";
+
+import type { BrowserContext, Page, Request } from "@playwright/test";
+import type { Address } from "viem";
+
+import { runProgram, standSlot } from "../stand";
+
+/** One fixture as the seed prints it (infra/stand/seed.ts `handJson` and friends). */
+export interface Fixture {
+  handId: string;
+  reward: string;
+  expiry: number;
+  title: string;
+  content: string;
+  address: string;
+  state: string;
+  endedBlock?: string;
+}
+
+export interface SeedRun {
+  chainId: number;
+  core: Address;
+  rpc: string;
+  site: string;
+  raiser: { account: number; address: Address };
+  fixtures: Record<string, Fixture>;
+}
+
+/**
+ * Runs `bun tests/e2e/lib/craft.ts <args>` against the stand this run reads and returns its JSON:
+ * the file in STAND_FILE when one is named (a chain outside the slots), else the slot's.
+ */
+export function craft<T = Record<string, unknown>>(args: string[]): T {
+  const where = process.env.STAND_FILE ? ["--stand", resolve(process.env.STAND_FILE)] : ["--slot", String(standSlot())];
+  const { stdout } = runProgram("tests/e2e/lib/craft.ts", [...args, ...where]);
+  return JSON.parse(stdout) as T;
+}
+
+/** One request a page made: where it went, the JSON-RPC methods in its body, if any, and its `eth_call`s. */
+export interface Seen {
+  url: string;
+  origin: string;
+  methods: string[];
+  /** Each `eth_call` in the body: the contract called and the first four bytes of its data. */
+  calls: { to: string; selector: string }[];
+}
+
+function bodyOf(request: Request): { method?: unknown; params?: unknown }[] {
+  try {
+    const body = request.postDataJSON() as unknown;
+    return (Array.isArray(body) ? body : [body]).filter((item): item is { method?: unknown; params?: unknown } => !!item && typeof item === "object");
+  } catch {
+    return [];
+  }
+}
+
+function methodsOf(request: Request): string[] {
+  return bodyOf(request)
+    .map((item) => ("method" in item ? String(item.method) : ""))
+    .filter(Boolean);
+}
+
+function callsOf(request: Request): Seen["calls"] {
+  return bodyOf(request)
+    .filter((item) => item.method === "eth_call" && Array.isArray(item.params))
+    .map((item) => {
+      const [call] = item.params as [{ to?: string; data?: string; input?: string }];
+      return { to: String(call?.to ?? "").toLowerCase(), selector: String(call?.data ?? call?.input ?? "").slice(0, 10).toLowerCase() };
+    });
+}
+
+/**
+ * Logs every request the context (or page) makes from now on: HTTP requests and WebSocket
+ * openings alike. `seen` grows as they happen.
+ */
+export function logRequests(target: BrowserContext | Page): Seen[] {
+  const seen: Seen[] = [];
+  target.on("request", (request) => {
+    const url = request.url();
+    let origin = url;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      // data: and blob: URLs have no origin worth checking; they leave nothing.
+    }
+    seen.push({ url, origin, methods: methodsOf(request), calls: callsOf(request) });
+  });
+  const pages = "pages" in target ? target.pages() : [target];
+  const watch = (page: Page) =>
+    page.on("websocket", (socket) => {
+      const url = socket.url();
+      seen.push({ url, origin: new URL(url.replace(/^ws/, "http")).origin, methods: [], calls: [] });
+    });
+  pages.forEach(watch);
+  if ("pages" in target) target.on("page", watch);
+  return seen;
+}
+
+/**
+ * In --dev mode, Vite reloads every open page when anyone edits any file of the app,
+ * and a reload forgets the link (by design: it lives in the tab's memory only). The dev server's
+ * own WebSocket (same origin as the site) is therefore answered here by a socket that never
+ * reaches the server: no reload arrives mid-test. A built stand has no such socket; this changes
+ * nothing there. The relay's socket is on another port and is not touched.
+ */
+export async function quietDevServer(context: BrowserContext, site: string): Promise<void> {
+  const origin = new URL(site).origin.replace(/^http/, "ws");
+  await context.routeWebSocket((url) => url.origin === origin, () => {
+    // Accepted and left silent: not connected to the server, so no update and no reload comes.
+  });
+}
+
+/** Multicall3's `aggregate3((address,bool,bytes)[])`, which the stand's forwarder answers too. */
+export const AGGREGATE3 = "0x82ad56cb";
+
+/** How many `eth_call`s to `aggregate3` on this contract (the forwarder) the requests carried. */
+export function aggregateCount(seen: readonly Seen[], forwarder: string): number {
+  return seen.reduce((sum, item) => sum + item.calls.filter((call) => call.to === forwarder.toLowerCase() && call.selector === AGGREGATE3).length, 0);
+}
+
+/** How many `eth_getLogs` calls the requests carried. */
+export function getLogsCount(seen: readonly Seen[]): number {
+  return seen.reduce((sum, item) => sum + item.methods.filter((method) => method === "eth_getLogs").length, 0);
+}
+
+/**
+ * Makes every JSON-RPC request of this page fail as a refused connection, as
+ * the network would when it is down. Returns the undo: the network is back.
+ */
+export async function cutRpc(page: Page, rpc: string): Promise<() => Promise<void>> {
+  const refuse = (route: import("@playwright/test").Route) => route.abort("connectionrefused");
+  await page.route(`${rpc}/**`, refuse);
+  await page.route(rpc, refuse);
+  return async () => {
+    await page.unroute(`${rpc}/**`, refuse);
+    await page.unroute(rpc, refuse);
+  };
+}

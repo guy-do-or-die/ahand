@@ -43,6 +43,6 @@ bun run test:vectors     # rewrites Core's fixtures and fails if they changed
 bun run check            # everything CI runs
 ```
 
-The web app has no automated test script. It was exercised manually against a local stand
-(`bun run stand`, `infra/anvil/stand.ts`); the root workspace now holds only the SDK, so that
-script is no longer wired up and the note is kept as history.
+The web app (`apps/web`) is tested by `bun run test:web` and the browser suites in `tests/e2e`,
+against a local stand from `infra/stand` (`bun run stand`). An earlier note here described the
+manual runs of the earlier client against `infra/anvil/stand.ts`; that stand is history.

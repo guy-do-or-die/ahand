@@ -45,8 +45,8 @@ export const PRICES: PriceSnapshot = {
  * for a contract this site does not read. The position is not part of the id: the sentence takes
  * it as a value.
  *
- * The ids follow `LinkErrorCode` exactly, so a renamed code renames its id: when the application's
- * i18n catalogue arrives with the app, its keys move with them ("link.no-canonical" became
+ * The ids follow `LinkErrorCode` exactly, so a renamed code renames its id, and the app's i18n
+ * catalogue (apps/web) moves its keys with them ("link.no-canonical" became
  * "link.no-canonical-core").
  */
 export function messageIdOf(e: CoreRefusal | LinkError | Refusal | UntrustedCore): string {

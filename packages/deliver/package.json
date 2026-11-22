@@ -11,6 +11,12 @@
       "bun": "./src/index.ts",
       "source": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./relays": {
+      "types": "./src/relays.ts",
+      "bun": "./src/relays.ts",
+      "source": "./src/relays.ts",
+      "default": "./src/relays.ts"
     }
   },
   "scripts": {

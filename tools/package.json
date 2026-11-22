@@ -1,0 +1,21 @@
+{
+  "name": "@ahand/tools",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "ahand": "bun ahand.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@ahand/abi": "workspace:*",
+    "@ahand/sdk": "workspace:*",
+    "viem": "2.52.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "5.9.3"
+  }
+}

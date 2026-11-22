@@ -123,8 +123,8 @@ for _ in $(seq 50); do "$CAST" block-number --rpc-url "$RPC" >/dev/null 2>&1 && 
 "$CAST" block-number --rpc-url "$RPC" >/dev/null || fail "anvil did not start on $port"
 echo "anvil on $port (pid $anvil_pid)"
 
-# A forge lock shared with the repository's other local deploys (the local stand arrives with a
-# later part of this branch): a folder taken by mkdir, stale after 120 seconds.
+# A forge lock shared with the repository's other local deploys (the local stand's, see
+# infra/stand/foundry.ts): a folder taken by mkdir, stale after 120 seconds.
 mkdir -p "$(dirname "$lock")"
 for _ in $(seq 600); do
   if mkdir "$lock" 2>/dev/null; then locked=1; break; fi

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   KEYS_PURPOSE,
+  NotAKeySignatureError,
   inboxSecretOf,
   keysTypedData,
   masterOf,
@@ -112,6 +113,8 @@ describe("master, root seed and inbox secret", () => {
     await expect(masterOf(await signatureOf(other), message())).rejects.toThrow(/own key's signature/);
     await expect(masterOf(signature, message(raiser, 1))).rejects.toThrow(/own key's signature/);
     await expect(masterOf(signature, { ...message(), core: other.address })).rejects.toThrow(/own key's signature/);
+    // The refusal is its own class, so an app tells it apart from any other failure.
+    await expect(masterOf(preApproved, message())).rejects.toBeInstanceOf(NotAKeySignatureError);
     await expect(masterOf("0x", message())).rejects.toThrow(/hex bytes/);
   });
 

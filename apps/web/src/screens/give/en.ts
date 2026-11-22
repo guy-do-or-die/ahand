@@ -1,0 +1,113 @@
+// The give screen's words in English (word for word where it gives them).
+// Keys are dotted ids; ru.ts has the same keys. Keys with a `lens` segment are the specialist
+// layer: Core's own names stand there in mono.
+const en = {
+  "give.title": "I can help.",
+  "give.opening": "Checking the link…",
+  "give.noLink": "There is no link open in this tab. Open the one you were sent.",
+  "give.notLive": "Only the link you were sent can be answered: this one is someone's answer or a route already ended.",
+  "give.offline.kept": "Your link is still open in this tab; nothing was sent.",
+  "give.offline.retry": "Try again",
+  "give.again": "You already answered this hand from this device. Your answer and the asker's messages are in “My hands”. A new answer here would be a second one.",
+  "give.again.go": "See my answer",
+  "give.closed": "This hand can't be answered any more.",
+
+  "give.step.words": "1 · What you can do",
+  "give.step.land": "2 · Where the money lands",
+  "give.step.agree": "3 · Before you agree",
+
+  "give.words.ask": "Say what you can do. If they thank you, you get at least {amount}.",
+  "give.words.askNoReward": "Say what you can do. This hand carries no reward: a thank-you only.",
+  "give.words.placeholder": "For example: I know a flat like that and the owner; I can introduce you this week.",
+  "give.words.meta": "Only the asker sees your words; they are never made public.",
+  "give.words.count": "{n} of {max} characters",
+  "give.land.noReward": "There is no reward now. If the asker adds one before thanking, it lands here.",
+
+  "give.agree.intro": "This is exactly what your answer says. Nothing else goes with it. The asker decides whether to thank.",
+  "give.agree.network": "Network",
+  "give.agree.contract": "The contract",
+  "give.agree.hand": "Hand",
+  "give.agree.handNumber": "number {n}",
+  "give.agree.claim": "Your claim",
+  "give.agree.claimMoney": "{percent} of the reward — {amount} today",
+  "give.agree.claimNoReward": "{percent} of the reward — there is no reward now",
+  "give.agree.lands": "Where it lands",
+  "give.agree.confirms": "Who confirms it",
+  "give.agree.byAccount": "This account, on its own screen, with the same numbers",
+  "give.agree.byOneTime": "A one-time key, on this page; then it is thrown away",
+  "give.agree.byWords": "The address made from your 12 words, on this page",
+  "give.agree.flagged.raiser": "This is the asker's own address. The money would go back to them.",
+  "give.agree.flagged.token": "This is the token's own address. Money sent there is usually lost.",
+  "give.askerHop": "{n, plural, one {Pass {passes} on this route named} other {Passes {passes} on this route named}} the asker's own address: that share goes back to the asker, or the link went through the asker's key. The contract allows it; your part is unchanged.",
+  "give.agree.pick": "Choose where the money lands first.",
+  // The new address is made and only "I wrote them down" is unticked (LandPicker knows which).
+  "give.agree.tick": "Tick that the 12 words are written down.",
+
+  "give.swipe": "Send my answer",
+  "give.swipe.busy": "Checking…",
+
+  "give.check.confirm": "Confirming your answer",
+  "give.check.here": "Checking it here, in Core's order",
+  "give.check.core": "Asking the contract itself",
+  "give.check.write": "Writing your answer",
+
+  "give.setup": "Your account isn't set up on this network yet. That's fine: it gets set up when the asker thanks you.",
+  "give.noForwarder":
+    "Your account isn't set up on this network yet, and this site can't set it up for you. Choose 'An address I have' and paste your account's address: the money lands there all the same.",
+  "give.noForwarder.go": "Use 'An address I have'",
+
+  "give.error.refused": "You said no. Nothing was sent.",
+  "give.error.failed": "Your answer couldn't be confirmed. Nothing was sent.",
+  "give.error.kept": "Your words are still here.",
+
+  "give.done.title": "Your answer is ready.",
+  "give.done.checked": "Checked here and by the contract.",
+  "give.delivered.one": "Delivered to {acks} of 1 relay.",
+  "give.delivered.many": "Delivered to {acks} of {of} relays.",
+  "give.delivering": "Sending it to the asker…",
+  "give.relay.what": "What is a relay?",
+  "give.relay.body":
+    "A relay is a small server that holds sealed messages until the asker's device picks them up. It cannot read what a message says, but it sees which inbox the message is for, when it was sent and picked up, and the IP addresses of the devices that send and fetch it. If none can be reached, you can send the link below any other way.",
+  "give.fallback":
+    "We couldn't reach them directly. Send this back to whoever sent you the link — each person knows the one before.",
+  "give.retrying": "We keep trying on this device while this page is open.",
+  "give.retry": "Try again now",
+  "give.answer.label": "Your answer, as a link",
+  "give.answer.copyHint": "Copy it as it is: the address stands on its own line.",
+  "give.answer.label.calm": "If the asker can't see your answer, send them this link",
+  "give.keyFile": "The key file is saved. Keep it with your other keys: future receipts would belong to it.",
+
+  "give.thread.title": "Messages",
+  "give.thread.empty": "The asker's replies appear here.",
+  "give.thread.asker": "The asker",
+  "give.thread.you": "You",
+  "give.thread.yourWords": "Your words, with the answer",
+  "give.thread.queued": "waiting to be delivered",
+  "give.thread.reply": "Write to the asker",
+  "give.thread.send": "Send",
+  "give.thread.noInbox": "This hand doesn't say where to write, so there are no messages here. Your answer travels by the link above.",
+  "give.waiting": "If they thank you, the money lands at {payee}.",
+  "give.waiting.calm": "If they thank you, the money lands at this address:",
+  "give.waiting.thanked": "Your share was sent to this address. If it couldn't arrive, it waits for you here:",
+  "give.delivered.calm": "Sent to the asker.",
+  "give.thanked": "The asker thanked you for this answer. Your share went to your address.",
+  "give.waiting.go": "See what waits for this address",
+
+  "give.lens.heading": "What was checked",
+  "give.lens.offline": "checkGive · computed here · in Core's order · OK",
+  "give.lens.core": "checkGive · eth_call · block {block} · OK",
+  "give.lens.coreSetup": "aggregate3 [setup, checkGive] · eth_call through the forwarder {forwarder} · block {block} · OK",
+  "give.lens.giveHash": "giveHash {hash}",
+  "give.lens.dataHash": "Give.dataHash 0x0 · the words are not in it",
+  "give.lens.keySig": "keySig · the link key {key}",
+  "give.lens.sigKey": "giverSig · 65 bytes · a key's",
+  "give.lens.sigWrapped": "giverSig · ERC-6492 · {bytes} bytes · factory {factory}",
+  "give.lens.sigCode": "giverSig · ERC-1271 · {bytes} bytes · the account's own",
+  "give.lens.signer": "Give.signer {address}",
+  "give.lens.payee": "Give.payee {address}",
+  "give.lens.claim": "Give.claimBps {bps} · routeHash {hash}",
+  "give.lens.delivery": "NIP-17 gift wrap · kind 1059 · to inbox.n1 {inbox}",
+  "give.lens.noInbox": "no inbox.n1 in the Hand's description",
+};
+
+export default en;

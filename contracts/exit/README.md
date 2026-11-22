@@ -5,9 +5,9 @@ directly. Three ways need nothing from us:
 
 1. **`ahand.sh`** in this folder: bash and Foundry's `cast`, from any computer.
 2. **A block explorer's "Write Contract" form**, field by field (below).
-3. **`exit.html`**: one self-contained page that works opened from disk. Its source arrives with a
-   later part of this branch; until then it is served at https://exp-e2e.ahand.in/exit.html (save the
-   page to keep it).
+3. **`exit.html`**: one self-contained page that works opened from disk. Its source is
+   `apps/web/exit.html` and `apps/web/exit/`; `bun run --cwd apps/web build` writes it to
+   `apps/web/dist/exit.html`, and the site serves it at `/exit.html` (save the page to keep it).
 
 The three exits are the same three calls: **refund** (time's up: the reward goes back to the raiser),
 **withdraw** (a payout that could not be delivered waits in Core for its payee), **thank** (the raiser
@@ -54,8 +54,9 @@ the sender; otherwise it approves exactly the amount first. `ahand.sh` needs onl
 and cast.
 
 The thank calldata is what `cast calldata` prints for Core's `thank` with the values of the giver's
-give link (the form is below). The app's tools that build it from a give link arrive with later parts
-of this branch; https://exp-e2e.ahand.in/exit.html builds it today.
+give link (the form is below). `bun tools/ahand.ts thank-calldata <give-address> --rpc URL --out FILE`
+builds it from a give link (after asking Core's `checkGive`) and prints the `ahand.sh thank` command;
+`exit.html` builds it too.
 `bash selftest.sh` proves refund, withdraw, extend, fund and thank on a fresh local chain (it needs jq
 too), and that the Core it deploys there sits at the pinned address. Before that, with a stand-in
 `cast` (`selftest-cast.sh`) and no chain, it checks that amounts past 64 bits are compared as uint256:
@@ -114,8 +115,8 @@ sends it to another address of theirs.
 ### Exit 3: `thank`
 
 Only the raiser's account, only before `expiry`. The values come from the thank calldata built from
-the giver's give link (built by `exit.html`, or by the app's tools that arrive with later parts of
-this branch); this prints them in the order of the form:
+the giver's give link (built by `exit.html`, or by `bun tools/ahand.ts thank-calldata`); this prints
+them in the order of the form:
 
 ```sh
 cast decode-calldata "thank(uint256,((address,address,uint16,uint16,bytes32),bytes)[],((address,address,uint16,bytes32,bytes32),bytes,bytes),bytes32)" <calldata>

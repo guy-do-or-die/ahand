@@ -68,7 +68,7 @@ For the proxy in front: `/assets/*` may be kept a year, a card five minutes, eve
 
 ## The app's index.html
 
-The view server adds its tags to the app's built `index.html` and serves it; it does not build the app. No app in this repository's workspaces builds that layout yet: the web client in `apps/web` was written for the earlier Core and is outside the workspaces until it is ported (see [the documentation index](README.md)). So the tests use a stand-in, `apps/view/tests/fixtures/index.html`, and the server never imports anything from an app. The app's build supplies the real `index.html`: in the folder `VIEW_DIST` names for the standalone server, and beside the bundle for the function.
+The view server adds its tags to the app's built `index.html` and serves it; it does not build the app. That file comes from `apps/web`'s build (`bun run --cwd apps/web build`, see [app.md](app.md)): in the folder `VIEW_DIST` names for the standalone server (the stand passes its own build), and beside the bundle for the function. The server never imports anything from an app, and its own tests use a stand-in, `apps/view/tests/fixtures/index.html`, so they need no built app.
 
 ## Tests
 

@@ -1,0 +1,257 @@
+/*
+ * aHand: print rules for the A6 card and the 85×55mm tag (/print).
+ * Kept as its own file so that work touches no other stylesheet. Tokens only.
+ *
+ * On screen a sheet is a preview at its real size (cut to the column on a phone), framed by a
+ * dashed cut line. In print only the sheet marked `data-print-target` is printed, on a page of
+ * its own size, in ink on white whatever the theme.
+ */
+
+/* ── On screen ─────────────────────────────────────────────────────── */
+.ah-print-frame {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.ah-print-sheet {
+  box-sizing: border-box;
+  max-width: 100%;
+  background: var(--card);
+  color: var(--ink);
+  border: var(--bw-emph) dashed var(--ink-a30);
+  border-radius: var(--r-chip-lg);
+  font-family: var(--font-display);
+}
+.ah-print-sheet--tag {
+  width: 85mm;
+  min-height: 55mm;
+  padding: 4mm;
+}
+.ah-print-sheet--card {
+  width: 105mm;
+  min-height: 148mm;
+  padding: 6mm;
+}
+.ah-print-sheet--receipt {
+  width: 100%;
+  padding: 6mm;
+}
+
+.ah-print-code {
+  display: block;
+  flex: none;
+  max-width: 100%;
+}
+.ah-print-code__ground {
+  fill: var(--ah-raw-card);
+}
+.ah-print-code__ink {
+  fill: var(--ah-raw-ink);
+}
+
+/* The tag: the code on the left, the words on the right. */
+.ah-print-tag {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  height: 100%;
+}
+.ah-print-tag__words {
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+  min-width: 0;
+}
+.ah-print-tag__found {
+  margin: 0;
+  font-size: 15pt;
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+.ah-print-tag__free {
+  margin: 0;
+  font-size: 8pt;
+  line-height: 1.3;
+}
+.ah-print-tag__mark,
+.ah-print-receipt__head {
+  font-family: var(--font-meta);
+  font-size: 6.5pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-a60);
+}
+
+/* The card: the Deal card, then the code and its one line. */
+.ah-print-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4mm;
+}
+.ah-print-card .ah-deal {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.ah-print-card .ah-deal__content {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ah-print-card__code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2mm;
+}
+.ah-print-card__scan {
+  margin: 0;
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* The receipt: the table, then the code to the passport and the command. */
+.ah-print-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 5mm;
+}
+.ah-print-receipt__head {
+  margin: 0;
+}
+/* Its head: what it is, what was asked, how and when it closed, and who asked. */
+.ah-print-receipt__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+}
+.ah-print-receipt__title {
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.ah-print-receipt__question {
+  margin: 0;
+  font-size: 11pt;
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ah-print-receipt__when {
+  margin: 0;
+  font-size: 10pt;
+  font-weight: 700;
+}
+.ah-print-receipt__asker {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 8pt;
+  overflow-wrap: anywhere;
+}
+.ah-print-receipt__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 5mm;
+}
+
+/* ── Pages ─────────────────────────────────────────────────────────── */
+@page ahand-tag {
+  size: 85mm 55mm;
+  margin: 0;
+}
+@page ahand-card {
+  size: 105mm 148mm;
+  margin: 0;
+}
+@page ahand-receipt {
+  size: A4;
+  margin: 14mm;
+}
+
+/* ── In print ──────────────────────────────────────────────────────── */
+@media print {
+  /* Ink on white in every theme: the dark theme and the device's appearance are overruled. */
+  :root,
+  [data-theme] {
+    --ink: var(--ah-raw-ink) !important;
+    --paper: var(--ah-raw-card) !important;
+    --card: var(--ah-raw-card) !important;
+    color-scheme: light !important;
+  }
+  html,
+  body {
+    background: var(--ah-raw-card) !important;
+    color: var(--ah-raw-ink) !important;
+  }
+
+  /* Only the chosen sheet: everything that neither holds it nor stands inside it is not printed. */
+  body:has([data-print-target]) *:not(:has([data-print-target])):not([data-print-target]):not([data-print-target] *) {
+    display: none !important;
+  }
+  body:has([data-print-target]) *:has([data-print-target]) {
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .ah-print-sheet {
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+    background: var(--ah-raw-card);
+    color: var(--ah-raw-ink);
+    break-inside: avoid;
+  }
+  .ah-print-sheet--tag {
+    page: ahand-tag;
+    width: 85mm;
+    height: 55mm;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .ah-print-sheet--card {
+    page: ahand-card;
+    width: 105mm;
+    height: 148mm;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .ah-print-sheet--receipt {
+    page: ahand-receipt;
+    padding: 0;
+  }
+  /* Nothing that only works on a screen: the evidence toggles' arrows, the amber marker. */
+  .ah-print-sheet button {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: inherit;
+  }
+  .ah-print-sheet .ah-marker {
+    background: none;
+  }
+  /* Paper does not turn over: no dashed "tap me" foot under a row's label. */
+  .ah-print-sheet .ah-receipt__what {
+    text-decoration: none;
+  }
+  /* The helper's amount loses its amber chip on paper, and with it the chip's padding, so its
+     last digit stands in the same column as every other amount. */
+  .ah-print-sheet .ah-receipt__amount--chip {
+    background: none;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
+  }
+}

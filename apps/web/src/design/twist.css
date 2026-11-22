@@ -1,0 +1,560 @@
+/*
+ * aHand: the twist. Every hand turns over: the flip card (ui/Flip.tsx) and
+ * its backs (ShakeBack, GiveBack, the asker's terms, a receipt row's formula), and the marker
+ * sweep drawn by the receipt table (ui/Sweep.tsx). Tokens only; no raw colours, no shadows.
+ * Amber is only ever a fill with ink over it.
+ */
+
+/* ── Flip: a two-sided card ──────────────────────────────────────────── */
+.ah-flip {
+  position: relative;
+  perspective: 1000px;
+  border-radius: var(--r-chip-lg);
+}
+/* The button that turns the card keeps the focus while it faces away, so the ring is drawn on
+   the card, which never turns. */
+.ah-flip:has(.ah-flip__front:focus-visible) {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+.ah-flip__card {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 360ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.ah-flip--flipped > .ah-flip__card {
+  transform: rotateY(180deg);
+}
+.ah-flip__face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.ah-flip__front {
+  display: block;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.ah-flip__front:focus-visible {
+  outline: none; /* drawn on .ah-flip, which does not turn */
+}
+.ah-flip__back {
+  transform: rotateY(180deg);
+  cursor: pointer;
+}
+.ah-flip__back[hidden] {
+  display: none;
+}
+/* Only the side facing up takes a tap. */
+.ah-flip--flipped .ah-flip__front,
+.ah-flip:not(.ah-flip--flipped) .ah-flip__back {
+  pointer-events: none;
+}
+.ah-flip__hint {
+  margin: 10px 0 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-xs);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* ── On the rail: the hand turns where it stands; its back opens under the rail ──
+   A back is far wider than a hand. Inside the rail it would push every later hand, the
+   viewer's chip and the empty slot off a phone's screen. So the rail is a grid: its first row
+   is the route (hand, line, hand, …), and the back of the turned hand is the second row, as
+   wide as the rail's box and pinned to it while the route scrolls sideways under it. In the
+   document the back still follows its button: the list item, the card and its inner box only
+   stop making boxes of their own (`display: contents`). */
+.ah-railbox {
+  /* the rail's box is the measure of the sheet: 100cqi below */
+  container-type: inline-size;
+  /* a measured box no longer takes its width from what it holds: it takes its parent's */
+  width: 100%;
+}
+.ah-rail--flips {
+  display: grid;
+  /* --ah-rail-links: the lines between the rail's parts (ChainRail sets it). A hand keeps its
+     whole name (max-content); the lines share what is left, and a route too long for the box
+     scrolls sideways. */
+  grid-template-columns: max-content repeat(var(--ah-rail-links), minmax(24px, 1fr) max-content);
+  grid-auto-columns: max-content;
+  align-items: start;
+  row-gap: 10px;
+  /* No padding at the sides, so the box has one left edge for the sheet to be pinned to
+     (with 4px of padding, Chromium put a sheet pinned at 4px at 8px once the route was longer
+     than the box). The end hands keep room for their focus ring themselves (below). */
+  padding-inline: 0;
+  scroll-padding: 0 8px;
+}
+.ah-rail--flips .ah-rail__item,
+.ah-flip--rail,
+.ah-flip--rail > .ah-flip__card {
+  display: contents;
+}
+.ah-rail--flips .ah-rail__line,
+.ah-rail--flips .ah-rail__you,
+.ah-rail--flips .ah-rail__slot,
+.ah-flip--rail .ah-flip__front {
+  grid-area: auto;
+  grid-row: 1;
+}
+/* The route hangs from the top of its row, joined at the height of the names. */
+.ah-rail--flips .ah-rail__line {
+  margin: 34px 5px 0;
+}
+.ah-rail--flips .ah-rail__you {
+  margin-top: 27px;
+}
+.ah-rail--flips .ah-rail__slot {
+  margin-top: 22px;
+}
+
+/* The hand: a 44px target that stays up, and tappable, while its back is open. */
+.ah-flip--rail .ah-flip__front {
+  position: relative;
+  align-self: stretch;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  border-radius: var(--r-chip-lg);
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  pointer-events: auto;
+  scroll-margin-block: 12px;
+  transition: background-color var(--dur-hover);
+}
+.ah-flip--rail .ah-flip__front:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+/* Room for that ring (2px at 2px) where a hand stands at an end of the rail. */
+.ah-rail--flips > .ah-rail__item:first-child .ah-flip__front {
+  margin-left: 4px;
+}
+.ah-rail--flips > .ah-rail__item:last-child .ah-flip__front {
+  margin-right: 4px;
+}
+.ah-flip--rail .ah-flip__front .ah-rail__hand {
+  justify-content: flex-end;
+  min-height: 44px;
+}
+.ah-flip--rail:not(.ah-flip--flipped) .ah-flip__front:hover {
+  background: var(--ink-a08);
+}
+/* A hand that can turn says so with a dashed foot: "there is more under this". */
+.ah-flip--rail .ah-rail__name {
+  text-decoration: underline dashed var(--ink-a30);
+  text-underline-offset: 3px;
+}
+/* Turned over, the hand shows its other side: ink, with a stem down to its back. It turns in
+   360ms of rotateY, edge-on at the half, where the sides swap. */
+.ah-flip--rail.ah-flip--flipped .ah-flip__front {
+  background: var(--ink);
+  color: var(--paper);
+  animation: ah-hand-over 360ms linear;
+}
+.ah-flip--rail.ah-flip--flipped .ah-flip__front::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1px);
+  top: 100%;
+  width: 2px;
+  height: 10px; /* the rail's row-gap */
+  background: var(--ink);
+}
+.ah-flip--rail.ah-flip--flipped .ah-rail__name,
+.ah-flip--rail .ah-flip__front:has(+ .ah-flip__back:not([hidden])) .ah-rail__name {
+  color: inherit;
+  text-decoration-color: transparent;
+}
+/* Turning back: while its back is still leaving. */
+.ah-flip--rail:not(.ah-flip--flipped) .ah-flip__front:has(+ .ah-flip__back:not([hidden])) {
+  animation: ah-hand-back 360ms linear;
+}
+@keyframes ah-hand-over {
+  0% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: transparent;
+    color: var(--ink);
+    animation-timing-function: ease-in;
+  }
+  49.99% {
+    transform: perspective(600px) rotateY(90deg);
+    background-color: transparent;
+    color: var(--ink);
+  }
+  50% {
+    transform: perspective(600px) rotateY(-90deg);
+    background-color: var(--ink);
+    color: var(--paper);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+}
+@keyframes ah-hand-back {
+  0% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: var(--ink);
+    color: var(--paper);
+    animation-timing-function: ease-in;
+  }
+  49.99% {
+    transform: perspective(600px) rotateY(-90deg);
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+  50% {
+    transform: perspective(600px) rotateY(90deg);
+    background-color: transparent;
+    color: var(--ink);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: transparent;
+    color: var(--ink);
+  }
+}
+
+/* The back: one sheet under the whole rail. */
+.ah-flip--rail .ah-flip__back {
+  grid-area: auto;
+  grid-row: 2;
+  grid-column: 1 / -1;
+  position: sticky;
+  left: 0;
+  justify-self: start;
+  box-sizing: border-box;
+  /* the whole route's width where the rail's box cannot be measured, else the box's */
+  width: 100%;
+  width: 100cqi;
+  transform: none;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  scroll-margin-block: 12px;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-card-sm);
+  padding: 14px;
+  background: var(--card);
+  /* It unrolls from the rail downwards. A clip moves no box, so the page can measure the sheet
+     and scroll to it while it opens. */
+  animation: ah-sheet-open 360ms cubic-bezier(0.3, 0.7, 0.3, 1) backwards;
+}
+.ah-flip--rail:not(.ah-flip--flipped) .ah-flip__back {
+  animation: ah-sheet-close 360ms cubic-bezier(0.3, 0.7, 0.3, 1) forwards;
+}
+/* One sheet at a time: when another hand turns, the sheet of the last one leaves at once. */
+.ah-rail--flips:has(.ah-flip--flipped) .ah-flip--rail:not(.ah-flip--flipped) .ah-flip__back {
+  display: none;
+}
+@keyframes ah-sheet-open {
+  0% {
+    clip-path: inset(0 0 100% 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes ah-sheet-close {
+  0% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+/* In a receipt: one row turns; its back spans the table's width. */
+.ah-flip--row {
+  border-radius: var(--r-chip);
+}
+.ah-flip--row .ah-flip__front {
+  width: 100%;
+  min-height: 44px;
+}
+.ah-flip--row .ah-flip__back {
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-lg);
+  padding: 10px 12px;
+  margin: 4px 0;
+  background: var(--card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-flip__card,
+  .ah-flip--rail .ah-flip__front {
+    transition: none;
+  }
+  /* The hand's turn and the sheet's unrolling are animations: tokens.css stops every animation. */
+}
+
+/* ── The back: machine truth, in mono ───────────────────────────────── */
+.ah-back {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-sm);
+  line-height: 1.5;
+  color: var(--ink);
+  text-align: left;
+  white-space: normal;
+  cursor: auto;
+}
+.ah-back__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+.ah-back__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ah-back__fact dt,
+.ah-back__label {
+  margin: 0;
+  font-size: var(--fs-mono-xs);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.ah-back__label {
+  margin-top: 6px;
+}
+.ah-back__fact dd {
+  margin: 0;
+  font-weight: var(--fw-medium);
+}
+.ah-back__line {
+  display: block;
+  margin: 0;
+}
+.ah-back__exact {
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+/* An address or a hash breaks only between its groups of four: never one digit alone. */
+.ah-back__exact.ah-hex {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ah-hex__group ~ .ah-hex__group {
+  margin-inline-start: 0.3ch;
+}
+.ah-back__steps,
+.ah-back__events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-back__step {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: baseline;
+}
+.ah-back__step[data-shown="false"] {
+  color: var(--ink-a40);
+}
+.ah-back__tick {
+  font-weight: var(--fw-bold);
+}
+.ah-back__name {
+  color: var(--ink-quiet);
+}
+.ah-back__core {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: var(--bw-hair) solid var(--ink-a15);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+.ah-back__core .ah-back__label {
+  margin-top: 0;
+}
+.ah-back__answer {
+  margin: 0;
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+/* Core's yes, said in ink fill: the "on chain" mark's own shape. */
+.ah-back__core[data-status="ok"] .ah-back__answer {
+  align-self: flex-start;
+  border-radius: var(--r-chip-sm);
+  padding: 2px 6px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.ah-back__verdict {
+  align-self: flex-start;
+  margin: 2px 0 0;
+  border: var(--bw-emph) solid var(--ink);
+  border-radius: var(--r-chip-sm);
+  padding: 2px 6px;
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+}
+.ah-back__verdict[data-status="match"] {
+  background: var(--amber);
+  color: var(--on-amber);
+}
+.ah-back__verdict[data-status="differ"] {
+  border-style: dashed;
+}
+.ah-back__events li {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── The receipt's rows as cards ─────────────────────────────────────── */
+.ah-receipt--flips td.ah-receipt__cell {
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.ah-receipt__line {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 0;
+}
+.ah-receipt__what {
+  min-width: 0;
+  font-family: var(--font-meta);
+  font-size: 11.5px;
+  letter-spacing: var(--track-mono-sm);
+  line-height: 1.5;
+  text-transform: uppercase;
+  text-decoration: underline dashed var(--ink-a30);
+  text-underline-offset: 3px;
+}
+.ah-receipt__sum {
+  flex-shrink: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.ah-receipt__sum.ah-receipt__none {
+  flex-shrink: 1;
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-medium);
+  color: var(--ink-quiet);
+  white-space: normal;
+}
+.ah-receipt__row--highlight .ah-receipt__line {
+  min-height: 44px;
+}
+.ah-receipt__row--highlight .ah-receipt__what {
+  color: var(--ink);
+}
+.ah-receipt__row--highlight .ah-receipt__sum {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-heavy);
+}
+.ah-receipt--flips tr[data-landed="false"] .ah-receipt__line {
+  color: var(--ink-quiet);
+}
+.ah-receipt--flips .ah-receipt__row--highlight .ah-receipt__what {
+  font-weight: var(--fw-medium);
+}
+/* The calm view (lens off): the rows stand still, and who got what is said in the human voice,
+   with no address and no dashed underline that would promise a back to turn to. */
+.ah-receipt:not(.ah-receipt--flips) td.ah-receipt__cell {
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.ah-receipt:not(.ah-receipt--flips) .ah-receipt__what,
+.ah-receipt:not(.ah-receipt--flips) tfoot th {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+}
+.ah-receipt:not(.ah-receipt--flips) .ah-receipt__what::first-letter,
+.ah-receipt:not(.ah-receipt--flips) tfoot th::first-letter {
+  text-transform: uppercase;
+}
+
+/* ── The marker sweep ────────────────────────────────────────────────── */
+/* A marker stroke runs along the foot of the row, left to right, and stays there. It never
+   lies behind the row's words: amber carries ink-on-amber text only, and in the dark theme the
+   row's words are paper-coloured. The finished state is the stroke's own style, so with no
+   animation (less motion) a swept row simply shows it. */
+.ah-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  border-radius: var(--r-bar);
+  background: var(--amber);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.ah-sweep--idle {
+  visibility: hidden;
+}
+.ah-sweep--sweeping {
+  animation: ah-sweep 420ms cubic-bezier(0.5, 0, 0.3, 1) both;
+}
+@keyframes ah-sweep {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+/* 🙏 bows twice beside the helper's chip, then rests. */
+.ah-sweep__bow {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--emoji);
+  font-size: 18px;
+  line-height: 1;
+  vertical-align: middle;
+  transform-origin: 50% 90%;
+  animation: ah-bow 1.2s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-sweep--sweeping,
+  .ah-sweep__bow {
+    animation: none;
+  }
+}

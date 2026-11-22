@@ -10,8 +10,12 @@ infrastructure in `infra/`. The code is the source of truth; these pages describ
 > [the SDK](sdk.md) and [links](links.md). [Delivery](delivery.md) describes how a helper's answer
 > reaches the asker over Nostr relays (`packages/deliver`, and `infra/relay` for local tests).
 > [The view server](view.md) describes the preview server for messengers' link previews (`apps/view`).
+> [The web app](app.md) describes `apps/web`, the static app on the current Core, and
+> [the public test deployment](public-test-deployment.md) how it is served on Base Sepolia.
 > The numbered folders below were written for the earlier Core (with `AHandSignals`,
-> `AHandWitness`, a subgraph and the earlier link codec) and have not been brought up to date yet:
+> `AHandWitness`, a subgraph and the earlier link codec) and have not been brought up to date yet;
+> `30-architecture` and `40-applications` still describe the earlier web app (TanStack Start, server
+> routes, XMTP), which `apps/web` replaced:
 > read them as the history of the design, and where they disagree with the code or with these
 > pages, the code and these pages hold.
 >
@@ -23,10 +27,12 @@ infrastructure in `infra/`. The code is the source of truth; these pages describ
 > Its Core ABI export is now `aHandCoreAbi` (was `AHandCoreAbi`) and the test token's is `mockUsdAbi`
 > (was `MockUSDAbi`): @wagmi/cli writes them, in its camelCase naming.
 >
-> **Code not ported yet.** `apps/web`, `packages/subgraph`, `infra/anvil` and `infra/seed` were
-> written for the earlier Core, the earlier SDK and the earlier `@ahand/abi`. They are not in the
-> workspaces, `bun run check` does not cover them, and they do not build on this branch until they
-> are ported to the current Core.
+> **Code not ported yet.** `packages/subgraph`, `infra/anvil` and `infra/seed` were written for the
+> earlier Core, the earlier SDK and the earlier `@ahand/abi`. They are not in the workspaces,
+> `bun run check` does not cover them, and they do not build on this branch (`infra/seed` also
+> imports files of the earlier web app, which is gone). The local stand is now `infra/stand`
+> (`bun run stand`). `apps/web` is ported: it is a workspace, and `bun run check` typechecks,
+> tests and builds it.
 
 ## Map
 

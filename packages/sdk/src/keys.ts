@@ -72,6 +72,17 @@ export interface KeysMessage {
 const NOT_A_SECRET =
   "keys are made only from the raiser's own key's signature of the keys message: another signature (a smart account's, a passkey's) may be stored or predictable, and would give the keys away";
 
+/**
+ * `masterOf`'s refusal of a signature that is not the raiser's own key's (a smart account's, a
+ * wrapped or a passkey's): an app tells it apart from any other failure by this class.
+ */
+export class NotAKeySignatureError extends Error {
+  constructor() {
+    super(NOT_A_SECRET);
+    this.name = "NotAKeySignatureError";
+  }
+}
+
 /** The signature's bytes as the master is made from them: the raiser's key's, in Core's form. */
 async function signatureBytes(signature: Hex, signed: KeysMessage): Promise<Uint8Array> {
   if (!/^0x[0-9a-fA-F]*$/.test(signature) || size(signature) === 0) throw new Error("a signature is hex bytes");
@@ -81,9 +92,9 @@ async function signatureBytes(signature: Hex, signed: KeysMessage): Promise<Uint
     core = toCoreSignature(signature);
     by = await recoverTypedDataAddress({ ...keysTypedData(signed.chainId, signed.core, signed.raiser), signature: core });
   } catch {
-    throw new Error(NOT_A_SECRET);
+    throw new NotAKeySignatureError();
   }
-  if (!isAddressEqual(by, signed.raiser)) throw new Error(NOT_A_SECRET);
+  if (!isAddressEqual(by, signed.raiser)) throw new NotAKeySignatureError();
   return hexToBytes(core);
 }
 
