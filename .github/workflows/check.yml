@@ -2,9 +2,10 @@
 # Sepolia is the Core this tree builds, the ABI package equal to forge's build and to the deployment
 # records, every forge test (unit, invariants, the hostile invariants, the SDK vectors and gas
 # fixtures Core writes, the deployment), the fixtures unchanged after the tests rewrote them from
-# Core, the exit kit's self-test, the typecheck of the SDK, its tests and the ABI package, the SDK's
-# tests, which compare it with those fixtures and run it against Core on local chains, and the ABI
-# package's tests.
+# Core, the exit kit's self-test, the typecheck of the SDK, its tests, the ABI package, the delivery
+# package and the test relay, the SDK's tests, which compare it with those fixtures and run it
+# against Core on local chains, the ABI package's tests, and the tests of the delivery package and
+# the test relay, which run on 127.0.0.1 only and contact no public relay.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
 # The steps of the other packages and of the app join when those parts arrive on this branch.
 name: check
@@ -108,6 +109,14 @@ jobs:
 
       - name: ABI package tests
         run: bun run test:abi
+
+      # NIP-17 wrapping, the transport against the test relay and against scripted relays (forged
+      # copies, CLOSED, NIP-42 AUTH, refusals), and the outbox's retries and delivered rule.
+      - name: Delivery package tests
+        run: bun run test:deliver
+
+      - name: Test relay tests
+        run: bun run test:relay
 
       - name: Core is still unchanged
         run: |

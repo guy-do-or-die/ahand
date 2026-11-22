@@ -7,10 +7,12 @@ repository: the contracts in `contracts/`, the web client in `apps/web`, the SDK
 
 > **The current SDK and link format.** Core was rewritten (`contracts/src/AHandCore.sol` is the
 > only contract), and the SDK with it. Two pages describe them as they are now:
-> [the SDK](sdk.md) and [links](links.md). The numbered folders below were written for the earlier
-> Core (with `AHandSignals`, `AHandWitness`, a subgraph and the earlier link codec) and have not
-> been brought up to date yet: read them as the history of the design, and where they disagree
-> with the code or with those two pages, the code and those pages hold.
+> [the SDK](sdk.md) and [links](links.md). [Delivery](delivery.md) describes how a helper's answer
+> reaches the asker over Nostr relays (`packages/deliver`, and `infra/relay` for local tests).
+> The numbered folders below were written for the earlier Core (with `AHandSignals`,
+> `AHandWitness`, a subgraph and the earlier link codec) and have not been brought up to date yet:
+> read them as the history of the design, and where they disagree with the code or with these
+> three pages, the code and these pages hold.
 >
 > **Deployments.** The deployment registry is `contracts/deployments/<chainId>.json`, which
 > `@ahand/abi` (`packages/abi`) exposes as `DEPLOYMENTS`, together with each network's USDC

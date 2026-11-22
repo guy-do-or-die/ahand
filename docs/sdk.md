@@ -27,7 +27,7 @@ stateAt(now.timestamp);                                               // "open" 
 
 **Holder**: `openAddress`/`openLink` (proves the route against the Hand), `readHand`, `readDescription` (and `readDescriptionOf(hand, matched)` where only a described address's `d` was matched), `passesLeft`, `carryFor` (the `linkPart` and `publicPart` to pass on in a given shape), `passOn` (signs a Shake with the link key: no wallet), `canReshape`, `toAddress`.
 
-**Helper (giver)**: `signGive` (a key's answer brought to Core's 65-byte form by `toCoreSignature`; a contract's or a wrapped one returned as it came), offline `checkGive` with `askSigner` (`wallet.ts`; ERC-1271 for a deployed account, ERC-6492 for one not deployed yet), then `checkGiveOnChain`, then `encodeGive`. Delivering the give link to the raiser is not the SDK's: the Hand's description names the key answers are wrapped to (`inbox.n1`).
+**Helper (giver)**: `signGive` (a key's answer brought to Core's 65-byte form by `toCoreSignature`; a contract's or a wrapped one returned as it came), offline `checkGive` with `askSigner` (`wallet.ts`; ERC-1271 for a deployed account, ERC-6492 for one not deployed yet), then `checkGiveOnChain`, then `encodeGive`. Delivering the give link to the raiser is not the SDK's: the Hand's description names the key answers are wrapped to (`inbox.n1`), and `@ahand/deliver` carries them ([delivery](delivery.md)).
 
 **Payee**: `readPending`, `withdrawCall`; anyone may deliver to the payee.
 

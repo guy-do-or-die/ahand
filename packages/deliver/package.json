@@ -1,0 +1,27 @@
+{
+  "name": "@ahand/deliver",
+  "version": "0.1.0",
+  "description": "Delivery of a give link and the short thread after it: NIP-17 gift wraps over a configured list of Nostr relays, with an outbox",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "source": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "nostr-tools": "2.26.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "5.9.3"
+  }
+}
