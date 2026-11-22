@@ -1,4 +1,9 @@
 @import "tailwindcss";
+/* Tests are not markup: the guards hold sample strings that look like utilities, and every one of
+   them would be written into the stylesheet a visitor downloads. */
+@source not "../../tests";
+@source not "../**/*.test.ts";
+@source not "../**/*.test.tsx";
 @import "@fontsource-variable/schibsted-grotesk";
 @import "@fontsource-variable/onest";
 @import "@fontsource/ibm-plex-mono/400.css";

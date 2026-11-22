@@ -19,6 +19,10 @@ import { SRC, hits } from "./files";
  * cannot tell by its name (a Set's union, intersection and the rest, 17.0; an array's `with`,
  * 16.0), so a call this file misses still fails where it is tested.
  *
+ * The taking away holds where the tests are started in apps/web (bunfig.toml is read from that
+ * folder). The packages' own suites run in their folders with everything a new runtime has: what
+ * the app ships of them is read here as source and run by the app's tests that import them.
+ *
  * Not read: the libraries in node_modules. What they call on a path the app takes shows in the
  * unit tests that run them, and nowhere else.
  */
@@ -85,7 +89,9 @@ describe("browser: nothing newer than Safari 15.4 in the code the app ships", ()
   });
 
   test("the unit tests themselves run without the newer functions (bunfig.toml, tests/setup/old-browser.ts)", () => {
-    expect("any" in AbortSignal).toBe(false);
+    // bunfig.toml is read from the folder the tests are started in, so this holds for `bun test` in apps/web
+    // (which is what `bun run test:web` and the gate do) and not for `bun test apps/web/…` from the repository's root.
+    expect({ startedIn: "apps/web", withoutAbortSignalAny: !("any" in AbortSignal) }).toEqual({ startedIn: "apps/web", withoutAbortSignalAny: true });
     expect("timeout" in AbortSignal).toBe(false);
     expect("withResolvers" in Promise).toBe(false);
     expect("toSorted" in Array.prototype).toBe(false);

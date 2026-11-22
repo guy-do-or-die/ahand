@@ -76,8 +76,10 @@ Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c
 
    ```sh
    bun apps/web/deploy.ts write
-   bun test apps/web/tests/vercel.test.ts
+   bun run --cwd apps/web test tests/vercel.test.ts
    ```
+
+   The test is started in `apps/web`, as every test of the app is: that folder's `bunfig.toml` takes away the functions an old Safari lacks before a test runs, and it is read only from the folder the tests start in.
 
 4. Publish Core's source, so that the explorer shows its code and its Contract → Write Contract tab, which `/without-us` step 3 relies on. Sourcify needs no key (Blockscout reads it); BaseScan needs an Etherscan API key (one key works for every Etherscan chain):
 

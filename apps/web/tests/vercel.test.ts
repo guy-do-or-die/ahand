@@ -101,25 +101,44 @@ function serve(path: string): { status: number; file?: string; fn?: true; header
   return { status: 404, headers };
 }
 
-/** `css` without every block whose prelude matches `condition`: the at-rule, its braces and all inside them. */
-function outside(css: string, condition: RegExp): string {
-  let out = "";
+/** What a build may write under `@supports (color: color-mix(…))`, without its spaces: the reset's hint colour and nothing else. */
+const KNOWN_UNDER_SUPPORTS = ["::placeholder{color:color-mix(inoklab,currentcolor50%,transparent)}"];
+
+/** Every block of `css` whose prelude matches `condition`, as [where it starts, where its body starts, where it ends]. */
+function blocks(css: string, condition: RegExp): [number, number, number][] {
+  const found: [number, number, number][] = [];
   let at = 0;
   for (;;) {
-    const found = condition.exec(css.slice(at));
-    if (!found) return out + css.slice(at);
-    const start = at + found.index;
+    const match = condition.exec(css.slice(at));
+    if (!match) return found;
+    const start = at + match.index;
     const open = css.indexOf("{", start);
-    if (open < 0) return out + css.slice(at);
+    if (open < 0) return found;
     let depth = 0;
     let end = open;
     for (; end < css.length; end++) {
       if (css[end] === "{") depth++;
       else if (css[end] === "}" && --depth === 0) break;
     }
+    found.push([start, open + 1, end]);
+    at = end + 1;
+  }
+}
+
+/** `css` without every block whose prelude matches `condition`: the at-rule, its braces and all inside them. */
+function outside(css: string, condition: RegExp): string {
+  let out = "";
+  let at = 0;
+  for (const [start, , end] of blocks(css, condition)) {
     out += css.slice(at, start);
     at = end + 1;
   }
+  return out + css.slice(at);
+}
+
+/** What stands inside each block whose prelude matches `condition`. */
+function under(css: string, condition: RegExp): string[] {
+  return blocks(css, condition).map(([, body, end]) => css.slice(body, end));
 }
 
 test("the site is built with the Bun that CI pins, so bun.lock installs frozen on both", () => {
@@ -262,14 +281,22 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     expect(sheets.length).toBeGreaterThan(1);
     expect(sheets.some(([name]) => name === "exit.html")).toBe(true);
     for (const [name, css] of sheets) {
-      // What stands under `@supports (color: color-mix(…))` is read only by a browser that has it.
-      const mixes = (outside(css, /@supports\s*\(\s*color\s*:\s*color-mix\(/i).match(/[^{};]{0,60}color-mix\([^;}]{0,80}/gi) ?? []).map((found) => `${name}: ${found.trim()}`);
+      // What stands under `@supports (color: color-mix(…))` is read only by a browser that has it,
+      // and a browser without it keeps what stands before the block. That is right for one thing
+      // only: the reset's hint colour, which components.css sets as a token for everyone. Any
+      // other rule under that condition would be a see-through colour with a solid one behind it,
+      // which is the very fault this test is for, so the blocks are named, not waved through.
+      const SUPPORTS = /@supports\s*\(\s*color\s*:\s*color-mix\(/i;
+      const strangers = under(css, SUPPORTS).filter((body) => !KNOWN_UNDER_SUPPORTS.includes(body.replace(/\s+/g, "")));
+      expect(strangers.map((body) => `${name}: ${body.slice(0, 160)}`)).toEqual([]);
+      const mixes = (outside(css, SUPPORTS).match(/[^{};]{0,60}color-mix\([^;}]{0,80}/gi) ?? []).map((found) => `${name}: ${found.trim()}`);
       expect(mixes).toEqual([]);
       const ranges = (css.match(/@media[^{]*\(\s*(?:width|height)\s*[<>]=?[^{]*/gi) ?? []).map((found) => `${name}: ${found.trim()}`);
       expect(ranges).toEqual([]);
     }
     expect(sheets.some(([, css]) => /@media[^{]*\(min-width:/.test(css))).toBe(true);
-    // The helper itself: a block under the condition is cut whole, nested braces and all.
+    // The helpers themselves: a block under the condition is cut whole, nested braces and all, and its inside is what `under` gives.
+    expect(under("a{b:c}@supports (color:color-mix(in lab, red, red)){x{y:z}}@supports (color:color-mix(in lab, red, red)){p{q:r}s{t:u}}", /@supports\s*\(\s*color\s*:\s*color-mix\(/i)).toEqual(["x{y:z}", "p{q:r}s{t:u}"]);
     expect(outside("a{color:red}@supports (color:color-mix(in lab, red, red)){b{color:color-mix(in srgb,red,blue)}c{d:e}}f{g:h}", /@supports\s*\(\s*color\s*:\s*color-mix\(/i)).toBe("a{color:red}f{g:h}");
   });
 

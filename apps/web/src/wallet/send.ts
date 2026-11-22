@@ -2,6 +2,7 @@ import { decodeCoreError, type Call, type CoreRefusal } from "@ahand/sdk";
 import type { Account, Address, Chain, Hex, PublicClient, TransactionReceipt, Transport, WalletClient } from "viem";
 
 import { DroppedError, fateOf, follow, type Fate, type Probe, type Progress, type Reached, type Sent } from "../chain/finality";
+import { stopWith } from "../lib/abort";
 import { simulateAll, simulateOne } from "../chain/simulate";
 
 /**
@@ -206,18 +207,10 @@ async function refusalOfRevert(client: PublicClient, from: Address, call: Call, 
 
 /** Follows a hash: `landed` resolves with its first receipt, `settled` with the last state reached. */
 function watch(env: SendEnv, hash: Hex, report: (progress: Progress) => void, known?: { sent?: Omit<Sent, "hash">; probe?: Probe }) {
-  // One controller stands for both ways the watch ends: its own stop, and the caller's signal,
-  // whose abort is passed on by hand. AbortSignal.any would say the same, but Safari has it only
-  // from 17.4, and without it this line threw right after the transaction had been sent.
-  const stop = new AbortController();
-  const outer = env.signal;
-  let release = () => {};
-  if (outer?.aborted) stop.abort(outer.reason);
-  else if (outer) {
-    const pass = () => stop.abort(outer.reason);
-    outer.addEventListener("abort", pass, { once: true });
-    release = () => outer.removeEventListener("abort", pass);
-  }
+  // One controller stands for both ways the watch ends: its own stop, and the caller's signal
+  // (lib/abort.ts). AbortSignal.any would say the same, but Safari has it only from 17.4, and
+  // without it this line threw right after the transaction had been sent.
+  const { stop, release } = stopWith(env.signal);
   const signal = stop.signal;
   let land!: (receipt: TransactionReceipt) => void;
   let fail!: (error: unknown) => void;
