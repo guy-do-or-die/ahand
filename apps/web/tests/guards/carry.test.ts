@@ -2,13 +2,13 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "bun:test";
 
 /**
- * The opened link carried across a social login (link-carry.ts;,
- * option b): written only as the page leaves while the login window is open on a screen holding a
- * link, erased on every load and whenever the login ends on the page, used only on the way back
- * from Google, Apple or X within `CARRY_MS`, and never a throw where storage refuses. Run in a
- * happy-dom window, whose session storage stands in for the tab's; the last test hides it behind a
- * getter that throws, as a private window or blocked site data does. The answer typed on /give goes
- * with the link under a second key, for its own Hand only.
+ * The opened link carried across a social login (link-carry.ts): written only as the page leaves
+ * while the login window is open on a screen holding a link, erased on every load and whenever the
+ * login ends on the page, used only on the way back from Google, Apple or X within `CARRY_MS`, and
+ * never a throw where storage refuses. Run in a happy-dom window, whose session storage stands in
+ * for the tab's; the last test hides it behind a getter that throws, as a private window or blocked
+ * site data does. The answer typed on /give goes with the link under a second key, for its own Hand
+ * only.
  */
 
 const SITE = "http://127.0.0.1:18312";

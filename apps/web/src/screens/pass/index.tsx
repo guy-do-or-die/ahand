@@ -1,4 +1,4 @@
-import { passesLeft, type OpenedAddress } from "@ahand/sdk";
+import { marginOf, passesLeft, type OpenedAddress } from "@ahand/sdk";
 import { useMemo, useState, type CSSProperties } from "react";
 
 import { useChainStatus, useHand, useNow } from "../../chain";
@@ -8,7 +8,7 @@ import { useHoldsLink } from "../../link-carry";
 import { navigate } from "../../router";
 import { remember, useOpened } from "../../store/memory";
 import { TID } from "../../testids";
-import { CopyRow, DealCard, ErrorBand, Identity, LandSheet, Mark, Proof, Qr, QuietButton, SwipeButton, money, percent, shortAddress, type Landing } from "../../ui";
+import { CopyRow, DealCard, ErrorBand, Identity, LandSheet, Mark, Proof, Qr, QuietButton, SwipeButton, money, percent, railHandsOf, shortAddress, type Landing } from "../../ui";
 import { ConnectSheet, LinkAgain, useWallet } from "../../wallet";
 import { failureOf, keepMax, makePass, pathOf, shareOf, KEEP_STEP, type Failure, type Held, type Made } from "../hand/held";
 import { Unreachable } from "../hand/Unreachable";
@@ -144,6 +144,7 @@ function Pass({ opened, onRetry }: { opened: OpenedAddress; onRetry: () => void 
       expiry={view.expiry}
       {...(closed ? { closedAt: view.closedAt } : {})}
       claimBps={claim}
+      spine={{ hands: railHandsOf(opened), shares: opened.signedShakes.map(({ shake }) => marginOf(view.reward, shake.claimBps, shake.nextClaimBps)) }}
       raiser={view.raiser}
       handId={view.handId}
       {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}

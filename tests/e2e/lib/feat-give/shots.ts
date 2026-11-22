@@ -47,8 +47,12 @@ async function openGive(page: Page, address: string): Promise<void> {
 }
 
 async function lang(page: Page, which: "en" | "ru"): Promise<void> {
-  const button = page.getByTestId(which === "ru" ? "shell-lang-ru" : "shell-lang-en");
-  if (await button.isVisible()) await button.click();
+  // The language is one bubble that opens the list; nothing to do when it already says `which`.
+  const bubble = page.getByTestId("shell-lang");
+  if ((await bubble.isVisible()) && (await bubble.getAttribute("data-value")) !== which) {
+    await bubble.click();
+    await page.getByTestId(which === "ru" ? "shell-lang-ru" : "shell-lang-en").click();
+  }
   await page.waitForFunction((l) => document.documentElement.lang === l, which);
 }
 

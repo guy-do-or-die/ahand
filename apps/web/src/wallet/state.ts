@@ -14,6 +14,7 @@ import type { DevRole, DevWho } from "./dev";
 import { unknownNetwork } from "./errors";
 import { safeIcon } from "./icons";
 import type { SignedInWallet } from "./send";
+import { setWho } from "./who";
 
 /**
  * The wallet as screens see it: who is connected, on which chain, whether that account can send,
@@ -73,6 +74,8 @@ let started: Promise<Config> | undefined;
 
 function emit(next: Snapshot): void {
   snapshot = next;
+  // The frame's own copy (who.ts): the header shows who is connected without loading this layer.
+  setWho(next.state.status === "connected" ? next.state.address : undefined);
   for (const listener of [...listeners]) listener();
 }
 

@@ -66,7 +66,7 @@ interface Seen {
 async function upOf(page: Page): Promise<Seen> {
   const up = page.getByTestId("raise-up");
   await expect(up).toBeVisible({ timeout: 30_000 });
-  await expect(up).toContainText(/Your hand is up\.|Рука поднята\./);
+  await expect(up).toContainText(/Your hand is up|Рука поднята/);
   return { handId: BigInt((await up.getAttribute("data-hand-id"))!), dataHash: (await up.getAttribute("data-data-hash")) as Hex };
 }
 
@@ -176,7 +176,7 @@ async function pausedRaise(page: Page, index: number): Promise<bigint> {
   await expect.poll(async () => JSON.parse(await dumpDb(page)).hands.some((h: { status?: string }) => h.status === "sent"), { timeout: 20_000 }).toBe(true);
   await page.reload();
   await expect(page.getByTestId("raise-pending")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("raise-pending")).toContainText("Your last raise is still on its way.");
+  await expect(page.getByTestId("raise-pending")).toContainText("Your last raise is still on its way");
   await resumeBlocks(chain);
   return count;
 }
@@ -238,7 +238,7 @@ test("the compose state: one level-one heading bound to its field, the asker in 
   // No account yet: the preview names no address, least of all the zero one.
   await page.getByTestId("raise-what").fill("A quiet room in Tbilisi for a week");
   const preview = page.getByTestId("raise-preview");
-  // The card's own "Asked by" row says the address comes once an account is connected (the fix round's F5).
+  // The card's own "Asked by" row says the address comes once an account is connected.
   await expect(preview.locator('.ah-deal__foot[data-raiser="later"]')).toHaveText(/Asked by\s*your address, once you connect/);
   await expect(preview).toHaveAttribute("data-raiser", "none");
   expect(await preview.innerText()).not.toMatch(/0x[0-9a-fA-F]/);
@@ -362,7 +362,7 @@ test("a wallet that takes approve and raise as one batch: a reload before the ba
   await page.reload();
   const pending = page.getByTestId("raise-pending");
   await expect(pending).toBeVisible({ timeout: 20_000 });
-  await expect(pending).toContainText("Your last raise is still on its way.");
+  await expect(pending).toContainText("Your last raise is still on its way");
   await expect(pending).toHaveAttribute("data-batch", batchId);
   await expect(page.getByTestId("raise-error")).toHaveAttribute("data-value", "raise.error.connectToLook");
   await shot(page, "smoke-batch-pending-connect");

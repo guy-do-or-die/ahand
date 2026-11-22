@@ -5,7 +5,7 @@ export interface RewardBarProps {
   progress: number;
   /** What the bar measures, in words; a meter with no name says nothing to a screen reader. */
   label: string;
-  /** bar = the 4px track ; sm, md and lg are the mock sizes (8, 10, 12px). */
+  /** bar = the 4px track; sm, md and lg are the mock sizes (8, 10, 12px). */
   size?: "bar" | "sm" | "md" | "lg";
   className?: string;
 }

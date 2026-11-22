@@ -27,7 +27,7 @@ export interface CopyRowProps {
  * page except through the clipboard (or the system's share sheet, when the person presses
  * Share). Where the clipboard is closed, the row says so and the text can be selected by hand.
  *
- * A link is what a done screen is for (F12): it gets a full-width ink "Copy link", "Share"
+ * A link is what a done screen is for: it gets a full-width ink "Copy link", "Share"
  * where the browser can share, and the dashed row under them shows the link itself, to read
  * or to select by hand. Any other value (a command, a code) is the row alone, as before.
  */

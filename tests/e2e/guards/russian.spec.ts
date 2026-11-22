@@ -93,14 +93,15 @@ test("raise, open, pass on, help and thank in Russian: the design's sentences, a
   await expect(asker.locator("html")).toHaveAttribute("lang", "ru");
   await expect(asker.getByTestId("shell-main")).toContainText("Кого или что ищешь?");
   await expect(asker.getByTestId("raise-swipe")).toContainText("Поднять руку");
-  // The calm view says what the money is; that an issuer can freeze an address is the lens's.
-  await expect(asker.getByTestId("raise-issuer-line")).toContainText("Награда в тестовых долларах.");
+  // The calm view says one thing under the reward; what holds the money and what its issuer can do is the lens's.
+  await expect(asker.getByTestId("raise-reward-later")).toHaveText("Потом можно добавить.");
+  await expect(asker.getByTestId("raise-issuer-line")).toHaveCount(0);
   await compose(asker, { title: "Кто одолжит палатку на выходные?", details: "На двоих, верну в понедельник.", reward: "20" });
   await noEnglish(asker, "/raise");
   await swipe(asker, 1);
   const up = asker.getByTestId("raise-up");
   await expect(up).toBeVisible({ timeout: 40_000 });
-  await expect(up).toContainText("Рука поднята.");
+  await expect(up).toContainText("Рука поднята");
   const handId = BigInt((await up.getAttribute("data-hand-id"))!);
   await expect(asker.getByTestId("shell-main")).toContainText("Отправь тем, кто может знать нужного человека. Передать дальше — бесплатно.");
   await noEnglish(asker, "/raise, the hand is up");

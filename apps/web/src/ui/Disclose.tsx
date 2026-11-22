@@ -18,8 +18,8 @@ export interface DiscloseProps {
 
 /**
  * A plain sentence first, the evidence behind it. A Disclose is proof, so it stands only under
- * the lens, and there it stands open in place, as every Disclose always did under the lens
- *; in the calm view the sentence above it is all there is. On a page that is itself
+ * the lens, and there it stands open in place, as every Disclose always did under the lens; in
+ * the calm view the sentence above it is all there is. On a page that is itself
  * the proof (the passport, `ProofPage`) it is drawn closed, one tap away, as it always was.
  */
 export function Disclose({ label, summary, defaultOpen = false, children, className }: DiscloseProps) {

@@ -79,6 +79,7 @@ for (const [name, viewport, lang] of [
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.goto(`${site}/my`);
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId(`shell-lang-${lang}`).click();
   await page.screenshot({ path: join(out, `${name}-empty.png`), fullPage: true });
   await keep(page);
@@ -118,6 +119,7 @@ for (const [name, viewport, lang] of [
   const lone = await cut.newPage();
   await lone.routeWebSocket(/^wss?:/, (socket) => void socket.close());
   await lone.goto(`${site}/my`);
+  await lone.getByTestId("shell-lang").click();
   await lone.getByTestId(`shell-lang-${lang}`).click();
   await keep(lone);
   await lone.reload();

@@ -381,6 +381,7 @@ test("a second account connected, not the raiser: stopped before sending with th
 test("in Russian: the fine print names no owner in the human voice, and the done state says what was spent", async ({ page }) => {
   const fresh = passedAndGiven({ reward: "15" });
   await page.goto("/thank");
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-ru").click();
   await page.getByTestId("thank-input").fill(fresh.given.address);
   await page.getByTestId("thank-open").click();

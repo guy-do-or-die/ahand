@@ -16,3 +16,19 @@ export function currentTheme(): Theme {
 export function setTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
 }
+
+/**
+ * Calls `onChange` whenever the theme on screen may have changed: the choice on <html> (from any
+ * switch: the footer's or the person sheet's) or the device's own. Returns the unsubscribe, so it
+ * fits React's useSyncExternalStore.
+ */
+export function subscribeTheme(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", onChange);
+  return () => {
+    observer.disconnect();
+    media.removeEventListener("change", onChange);
+  };
+}

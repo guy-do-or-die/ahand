@@ -123,12 +123,36 @@ describe("the Deal card", () => {
     const calm = text(draw(false, card));
     expect(calm).toContain("$40");
     expect(calm).toContain("open until 20 Dec");
-    expect(calm).toContain("If you pass it on");
-    expect(calm).toContain("Asked by someone");
-    // The asker's words are not checked: that warning is for everyone, so it stays.
-    expect(calm).toContain("In the asker's words — not checked");
+    // The message says the amount and whose it will be; what passing on means is the screen's to
+    // say, and "Someone raised a hand" already names the asker, so neither row is drawn.
+    expect(calm).toContain("If you help and they thank you");
+    expect(calm).not.toContain("If you pass it on");
+    expect(calm).not.toContain("Asked by");
+    expect(calm).toContain("If nobody is thanked by");
+    // The asker's words stand under the line that says who asks, with no bubble around them; the
+    // line that nobody checked them is for the lens, and for words that give a reason for care (below).
+    expect(calm).not.toContain("In the asker's words — not checked");
+    expect(draw(false, card)).toMatch(/ah-asker__words/);
+    expect(draw(false, card)).not.toMatch(/ah-asker__bubble/);
+    // No bar under the reward: nothing on a Hand progresses.
+    expect(draw(false, card)).not.toContain('role="meter"');
     for (const evidence of ["hands(12)", "block", "On chain", "Network time", shortAddress(fx.ASKER), "claimBps"]) expect(calm).not.toContain(evidence);
     expect(draw(false, card)).not.toContain("ah-figure");
+  });
+
+  test("the line that nobody checked the words: under the lens always, in the calm view when the words give a reason for care", () => {
+    expect(text(draw(true, card))).toContain("In the asker's words — not checked");
+    const wary = (title: string) => (
+      <DealCard state="open" description={{ status: "attached", title }} reward={fx.dollars(40)} decimals={fx.DECIMALS} expiry={fx.EXPIRY} claimBps={10_000} raiser={fx.ASKER} handId={12n} timeZone="UTC" />
+    );
+    // An amount in the words that is not the reward Core holds.
+    const amount = text(draw(false, wary("A sublet in Yerevan, I pay $500")));
+    expect(amount).toContain("The words mention $500");
+    expect(amount).toContain("In the asker's words — not checked");
+    // A character that is not seen (a zero-width space).
+    expect(text(draw(false, wary("A sublet in Yere\u200bvan")))).toContain("In the asker's words — not checked");
+    // Plain words: the quotation is enough.
+    expect(text(draw(false, wary("A sublet in Yerevan")))).not.toContain("not checked");
   });
 
   test("lens: every source stands open, as before", () => {

@@ -2,8 +2,8 @@
 
 This directory documents the aHand protocol and the reference implementation in this
 repository: the contracts in `contracts/`, the web client in `apps/web`, the view server in
-`apps/view`, the SDK in `packages/sdk`, the subgraph in `packages/subgraph`, and the local
-infrastructure in `infra/`. The code is the source of truth; these pages describe what is built and why.
+`apps/view`, the preview card in `packages/card`, the SDK in `packages/sdk`, the subgraph in
+`packages/subgraph`, and the local infrastructure in `infra/`. The code is the source of truth; these pages describe what is built and why.
 
 > **The current SDK and link format.** Core was rewritten (`contracts/src/AHandCore.sol` is the
 > only contract), and the SDK with it. Two pages describe them as they are now:

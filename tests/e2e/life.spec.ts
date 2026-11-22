@@ -244,7 +244,7 @@ test("the whole life: raise, pass at 0% and 10%, help, reply, thank, waiting mon
     await swipe(page, 1);
     const up = page.getByTestId("raise-up");
     await expect(up).toBeVisible({ timeout: 45_000 });
-    await expect(up).toContainText("Your hand is up.");
+    await expect(up).toContainText("Your hand is up");
     first = { handId: BigInt((await up.getAttribute("data-hand-id"))!), address: "" };
     await expect(page.getByTestId("raise-tx-rail")).toHaveAttribute("data-value", "final", { timeout: 30_000 });
     const rail = await page.evaluate(() => (window as unknown as { __rail: string[] }).__rail);

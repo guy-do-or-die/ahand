@@ -2,7 +2,7 @@ import type en from "./en";
 
 // The give screen's words in Russian: the same keys as en.ts, checked by the type. Speaks as «ты».
 const ru: Record<keyof typeof en, string> = {
-  "give.title": "Могу помочь.",
+  "give.title": "Могу помочь",
   "give.opening": "Проверяем ссылку…",
   "give.noLink": "В этой вкладке не открыта ссылка. Открой ту, что тебе прислали.",
   "give.notLive": "Ответить можно только на присланную ссылку: эта — чей-то ответ или уже законченный путь.",
@@ -34,11 +34,11 @@ const ru: Record<keyof typeof en, string> = {
   "give.agree.lands": "Куда придут деньги",
   "give.agree.confirms": "Подтверждает",
   "give.agree.byAccount": "Этот аккаунт, на своём экране, с теми же числами",
-  "give.agree.byOneTime": "Одноразовый ключ, прямо на этой странице; потом он стирается",
+  "give.agree.byOneTime": "Одноразовый ключ, прямо на этой странице. Потом он стирается",
   "give.agree.byWords": "Адрес из твоих 12 слов, прямо на этой странице",
   "give.agree.flagged.raiser": "Это адрес самого автора. Деньги вернулись бы ему.",
   "give.agree.flagged.token": "Это адрес самого токена. Деньги, отправленные туда, обычно пропадают.",
-  "give.askerHop": "{n, plural, one {Передача {passes} на этом пути назвала} other {Передачи {passes} на этом пути назвали}} адрес самого автора: эта доля вернётся автору, или ссылка прошла через ключ автора. Контракт это разрешает; твоя часть не меняется.",
+  "give.askerHop": "{n, plural, one {Передача {passes} на этом пути назвала} other {Передачи {passes} на этом пути назвали}} адрес самого автора: эта доля вернётся автору, или ссылка прошла через ключ автора. Контракт это разрешает. Твоя часть не меняется.",
   "give.agree.pick": "Сначала выбери, куда придут деньги.",
   "give.agree.tick": "Отметь, что 12 слов записаны.",
 
@@ -59,7 +59,7 @@ const ru: Record<keyof typeof en, string> = {
   "give.error.failed": "Твой ответ не удалось подтвердить. Ничего не отправлено.",
   "give.error.kept": "Твои слова остались здесь.",
 
-  "give.done.title": "Твой ответ готов.",
+  "give.done.title": "Твой ответ готов",
   "give.done.checked": "Проверено здесь и самим контрактом.",
   "give.delivered.one": "Доставлено на {acks} из 1 реле.",
   "give.delivered.many": "Доставлено на {acks} из {of} реле.",

@@ -1,6 +1,6 @@
 // The print screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 const en = {
-  "print.title": "Print.",
+  "print.title": "Print",
   "print.kicker": "On paper",
   "print.lead": "A card for a wall or a tag for a parcel. The code holds the whole link: whoever scans it can pass it on.",
   "print.none": "Open a link first: paste it here, or come from the hand's page.",
@@ -27,7 +27,7 @@ const en = {
   "print.lens.tag": "tag: 31 mm / ({modules} + 8) = {mm} mm",
   "print.lens.card": "card: 50 mm / ({modules} + 8) = {mm} mm",
 
-  "print.receipt.title": "The receipt.",
+  "print.receipt.title": "The receipt",
   "print.receipt.lead": "Every payout, from the network's own records. The code leads to the hand's passport.",
   "print.receipt.open": "This hand is still open: there is no receipt yet.",
   "print.receipt.scan": "Scan to check it all again.",

@@ -8,7 +8,7 @@
  *   FORK_PHASE      absent: before Core is put on the fork; life: after
  *
  * absent  every screen that reads Core says "This contract is not on Base Sepolia (test network)
- *         yet." in English and Russian, never "Can't reach the network"; /core shows its derivation
+ *         yet" in English and Russian, never "Can't reach the network"; /core shows its derivation
  *         and the empty eth_getCode; the landing and /build.json are as usual.
  * life    raise (an injected test wallet with anvil's public key 1) → pass at 0% (no wallet) →
  *         help with a pasted payee (no wallet; the public relays are blocked, so the give link is
@@ -76,7 +76,7 @@ test.describe("before Core is on the fork", () => {
       const band = page.getByTestId("shell-no-core");
       await expect(band, path).toBeVisible({ timeout: 20_000 });
       await expect(band).toHaveAttribute("data-value", CORE);
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText("This contract is not on Base Sepolia (test network) yet.");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("This contract is not on Base Sepolia (test network) yet");
       await expect(page.locator("main")).not.toContainText("Can't reach the network");
     }
 
@@ -84,9 +84,9 @@ test.describe("before Core is on the fork", () => {
     await expect(page.getByTestId("shell-ribbon")).toHaveText("Base Sepolia (test network) · Test dollars");
 
     await page.goto("/core");
-    await expect(page.getByTestId("core-absent")).toContainText("This contract is not on Base Sepolia (test network) yet.", { timeout: 20_000 });
+    await expect(page.getByTestId("core-absent")).toContainText("This contract is not on Base Sepolia (test network) yet", { timeout: 20_000 });
     // The public site writes link previews for a Hand's address (the view server's Vercel Function); the contract opens on the chain's explorer.
-    await expect(page.locator("main")).toContainText("A Hand's address and its card carry the preview tags and image this server adds; /index.html is the file as built.");
+    await expect(page.locator("main")).toContainText("A Hand's address and its card carry the preview tags and image this server adds. /index.html is the file as built.");
     await expect(page.locator("main")).not.toContainText("This site adds nothing to its pages");
     await expect(page.getByTestId("shell-explorer").first()).toHaveAttribute("href", `https://sepolia.basescan.org/address/${CORE}`);
     await expect(page.getByTestId("core-absent")).toContainText("No code was found at this address on this network just now.");
@@ -95,13 +95,15 @@ test.describe("before Core is on the fork", () => {
     await expect(page.locator("main")).not.toContainText("Can't reach the network");
     await expect(page.getByTestId("core-build-hash")).toBeVisible();
 
+    await page.getByTestId("shell-lang").click();
     await page.getByTestId("shell-lang-ru").click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ru");
-    await expect(page.getByTestId("core-absent")).toContainText("Этого контракта ещё нет в сети Base Sepolia (тестовая сеть).");
+    await expect(page.getByTestId("core-absent")).toContainText("Этого контракта ещё нет в сети Base Sepolia (тестовая сеть)");
     await expect(page.getByTestId("shell-ribbon")).toHaveText("Base Sepolia (тестовая сеть) · Тестовые доллары");
     await page.goto("/raise");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Этого контракта ещё нет в сети Base Sepolia (тестовая сеть).", { timeout: 20_000 });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Этого контракта ещё нет в сети Base Sepolia (тестовая сеть)", { timeout: 20_000 });
     await expect(page.locator("main")).not.toContainText("Сеть сейчас недоступна");
+    await page.getByTestId("shell-lang").click();
     await page.getByTestId("shell-lang-en").click();
 
     // Check again asks the chain again and keeps the sentence while the address is still empty.
@@ -163,10 +165,10 @@ test.describe("the life on the fork", () => {
       const { page } = raiser;
       await page.goto("/raise");
       await expect(page.getByTestId("raise-what")).toBeVisible({ timeout: 30_000 });
-      // Test money: where it comes from, what it is worth, and the smallest reward first.
-      await expect(page.getByTestId("shell-faucets")).toContainText("Test money is free on Base Sepolia (test network):");
-      await expect(page.getByTestId("shell-faucets").getByRole("link", { name: "faucet.circle.com" })).toHaveAttribute("href", "https://faucet.circle.com");
-      await expect(page.getByTestId("raise-issuer-line")).toContainText("Held in test USDC on Base Sepolia (test network): it is worth nothing.");
+      // Under the reward the calm view says one thing; where test money comes from is said when
+      // it runs short and in the reader's own sheet, and what holds it is the lens's.
+      await expect(page.getByTestId("raise-reward-later")).toHaveText("You can add to it later.");
+      await expect(page.getByTestId("raise-issuer-line")).toHaveCount(0);
       await compose(page, { title, reward: "5", days: 7, mode: "unlisted" });
       // The preview of a link names this chain and shows what the view server's function writes for it.
       const unfurl = page.getByTestId("raise-unfurl");

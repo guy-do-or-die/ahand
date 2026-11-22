@@ -33,7 +33,10 @@ async function shot(name: string, address: string, act?: (page: Page) => Promise
       await quietDevServer(context, stand.site!);
       const page = await context.newPage();
       await page.goto(address);
-      if (lang === "ru") await page.getByTestId("shell-lang-ru").click();
+      if (lang === "ru") {
+        await page.getByTestId("shell-lang").click();
+        await page.getByTestId("shell-lang-ru").click();
+      }
       await page.waitForTimeout(1500);
       if (act) await act(page);
       await page.waitForTimeout(500);

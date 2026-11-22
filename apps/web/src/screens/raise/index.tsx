@@ -9,6 +9,8 @@ import { chainName } from "../../i18n/common/chain";
 import type { Mode } from "../../store/db";
 import { TID } from "../../testids";
 import { CostLine, DealCard, Disclose, ErrorBand, MoneyInput, Proof, QuietButton, Sheet, SwipeButton, TxRail, count, day, money, percent, useLens, type MoneyReading, type TxReached } from "../../ui";
+import { DayPick } from "../../ui/DayPick";
+import { SectionStrip } from "../../ui/SectionStrip";
 import { ConnectSheet, connectedWallet, useSend, useTypedSigner, useWallet } from "../../wallet";
 import { exactMoney } from "./exact";
 import { dropKeptRaise, keepRaise, takeKeptRaise, type RaiseForm } from "./kept";
@@ -29,8 +31,8 @@ import {
   type Step,
   type Up,
 } from "./flow";
-import { expiryFor, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
-import { Chips, Opens, Part, Unfurl, Visibility } from "./parts";
+import { daysForDate, expiryFor, fieldDate, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
+import { Chips, MODE_WORD, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
 import { Faucets, OnExplorer } from "../../shell/OnExplorer";
 
@@ -50,7 +52,9 @@ const keptOnce = (): Promise<(RaiseForm & { used?: boolean }) | undefined> => (k
  */
 
 const REWARDS = ["5", "20", "50"] as const;
-const DAYS = [7, 30, 90, 180] as const;
+/** The ready terms; any other date, up to Core's cap, is picked in the system's own date field. */
+const DAYS: readonly number[] = [7, 30, 90];
+const DAY_SECONDS = 86_400;
 const MIN_CLAIMS = [5000, 7000, 9000, 10000] as const;
 const ROOMS = [200, 250, 300] as const;
 const NUDGE_DAYS = 60;
@@ -120,6 +124,18 @@ export default function RaiseScreen() {
   const [rewardKey, setRewardKey] = useState<string>(TESTNET && !config.chain.local ? "5" : "20");
   const [custom, setCustom] = useState<MoneyReading>({ status: "empty" });
   const [days, setDays] = useState<number>(config.defaults.expiryDays || 30);
+  // The calendar under the term's row, opened from the date in that row.
+  const [picking, setPicking] = useState(false);
+  // The date in the row, which opens the calendar: the keyboard comes back to it when the calendar closes.
+  const dateChip = useRef<HTMLButtonElement>(null);
+  const closeCalendar = () => {
+    setPicking(false);
+    requestAnimationFrame(() => dateChip.current?.focus());
+  };
+  // Opened, the calendar is brought whole onto the screen where it fits (clear of the pinned action).
+  useEffect(() => {
+    if (picking) document.getElementById("raise-expiry-days")?.scrollIntoView({ block: "nearest" });
+  }, [picking]);
   const [mode, setMode] = useState<Mode>("unlisted");
   const [minClaimBps, setMinClaimBps] = useState<number>(config.defaults.minClaimBps || 7000);
   const [payoutGasK, setPayoutGasK] = useState<number>(config.defaults.payoutGasK || 250);
@@ -338,6 +354,35 @@ export default function RaiseScreen() {
     t(p.id, { network: chainName(config.chain), ...(p.values ?? {}), ...(p.amount !== undefined ? { amount: money(p.amount, decimals, lang) } : {}) });
 
   /* ── the share step ── */
+  // Beside the sections the examples live in a box no taller than the window; when the box does
+  // not show its end, its foot fades (design/talk.css, `data-clipped`).
+  useEffect(() => {
+    const box = document.getElementById("raise-preview");
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const mark = () => {
+      box.toggleAttribute("data-clipped", box.scrollHeight - box.scrollTop - box.clientHeight > 6);
+      // A box that scrolls must be reachable by the keyboard to be scrolled by it.
+      box.tabIndex = box.scrollHeight - box.clientHeight > 6 ? 0 : -1;
+    };
+    // Marked on the next frame: the mark changes nothing the observer measures in the same pass.
+    let frame = 0;
+    const later = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(mark);
+    };
+    const watch = new ResizeObserver(later);
+    watch.observe(box);
+    for (const child of box.children) watch.observe(child);
+    box.addEventListener("scroll", mark, { passive: true });
+    mark();
+    return () => {
+      cancelAnimationFrame(frame);
+      watch.disconnect();
+      box.removeEventListener("scroll", mark);
+    };
+    // the compose view is drawn again after a raise ends or fails
+  }, [phase.kind]);
+
   if (phase.kind === "up") {
     return (
       <Frame>
@@ -441,20 +486,30 @@ export default function RaiseScreen() {
   const titleOver = weighed.over === "title";
   const detailsOver = weighed.over === "details";
   const untilDate = expiry !== undefined ? day(expiry, lang) : undefined;
-  const moneyLine =
-    untilDate === undefined
-      ? ""
-      : reward && reward > 0n
-        ? t("raise.who.money", { reward: money(reward, decimals, lang), date: untilDate })
-        : t("raise.who.moneyNone", { date: untilDate });
 
   return (
-    <Frame>
-      <div className="flex flex-col gap-8">
+    <Frame wide>
+      {/* The screen in sections. The strip names them with what each is set to now and moves
+          between them; on a phone the one action stays within reach under them, and from 1100 px
+          the example and the action stand beside them (design/talk.css). */}
+      <div className="ah-sided ah-sided--paged">
+      <SectionStrip
+        label={t("raise.nav.label")}
+        testId={TID.raise.nav}
+        sections={[
+          { id: "raise-ask", label: t("raise.nav.ask") },
+          { id: "raise-reward", label: t("raise.reward.label"), value: reward === undefined ? undefined : reward > 0n ? money(reward, decimals, lang) : t("raise.nav.none") },
+          { id: "raise-expiry", label: t("raise.expiry.label"), value: untilDate },
+          { id: "raise-who", label: t("raise.who.label"), value: t(MODE_WORD[mode]) },
+          { id: "raise-preview", label: t("raise.nav.preview"), beside: true },
+        ]}
+      />
+      <div className="ah-sections">
         {/* 1. What are you looking for? */}
-        <section className="flex flex-col gap-3">
-          <span className="ah-meta">✋ {t("raise.kicker")}</span>
-          <h1 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em] md:text-[length:var(--fs-title-m)]">
+        <section id="raise-ask" tabIndex={-1} className="ah-section flex flex-col gap-3">
+          {/* The question is this section's heading, set as every section's is: the loud thing here is
+              what the asker types. The raised hand stands on the action, not here a second time. */}
+          <h1 className="ah-field__label m-0">
             <label htmlFor="raise-what">{t("raise.what")}</label>
           </h1>
           <textarea
@@ -513,7 +568,7 @@ export default function RaiseScreen() {
         </section>
 
         {/* 2. Reward */}
-        <Part label={t("raise.reward.label")}>
+        <Part id="raise-reward" label={t("raise.reward.label")}>
           <Chips
             label={t("raise.reward.label")}
             testId={TID.raise.rewardChip}
@@ -530,37 +585,112 @@ export default function RaiseScreen() {
             <p className="ah-note m-0" data-testid={TID.raise.noReward}>
               {t("raise.reward.none")}
             </p>
-          ) : untilDate ? (
-            <p className="ah-label m-0" data-testid={TID.raise.lockedLine}>
-              {t("raise.reward.locked", { date: untilDate })}
+          ) : (
+            <p className="ah-label m-0" data-testid={TID.raise.later}>
+              {t("raise.reward.later")}
             </p>
-          ) : null}
-          <p className="ah-label m-0" data-testid={TID.raise.issuerLine}>
-            {/* That the issuer can freeze an address is for those who check; the calm view says what the money is. */}
-            <Proof
-              calm={TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.calmTest", { network: chainName(config.chain) }) : t("raise.reward.calm")) : t("raise.reward.calmStand")}
-            >
+          )}
+          {/* What holds the money and what its issuer can do is for those who check: under the lens
+              here. Where test money comes from is said when it runs short (below) and in the
+              reader's own sheet. */}
+          <Proof>
+            {reward !== 0n && untilDate ? (
+              <p className="ah-label m-0" data-testid={TID.raise.lockedLine}>
+                {t("raise.reward.locked", { date: untilDate })}
+              </p>
+            ) : null}
+            <p className="ah-label m-0" data-testid={TID.raise.issuerLine}>
               {TOKEN.kind === "usdc" ? (TESTNET ? t("raise.reward.issuerTest", { network: chainName(config.chain) }) : t("raise.reward.issuer")) : t("raise.reward.issuerStand")}
-            </Proof>
-          </p>
-          <Faucets />
+            </p>
+          </Proof>
           <Disclose label={TOKEN.symbol}>
             <span className="ah-meta ah-meta--exact break-all">{t("raise.reward.lens.token", { address: TOKEN.address, decimals: String(decimals) })}</span>
           </Disclose>
+            {/* How the reward may be split: a setting of the reward, so it stands with it, folded. */}
+          <Opens label={t("raise.fine.label")} summary={lens ? `${percent(minClaimBps, lang)} · ${payoutGasK}` : t("raise.fine.calm", { pct: percent(minClaimBps, lang) })} testId={TID.raise.fineTune}>
+            <div className="flex flex-col gap-2" data-testid={TID.raise.minClaim} data-value={minClaimBps}>
+              <span className="ah-field__label">{t("raise.fine.minClaim", { pct: percent(minClaimBps, lang) })}</span>
+              <Chips
+                label={t("raise.fine.minClaim", { pct: percent(minClaimBps, lang) })}
+                testId={`${TID.raise.minClaim}-chip`}
+                selected={String(minClaimBps)}
+                onSelect={(key) => setMinClaimBps(Number(key))}
+                chips={MIN_CLAIMS.map((bps) => ({ key: String(bps), label: percent(bps, lang) }))}
+              />
+              <span className="ah-label">{t("raise.fine.minClaimWhy")}</span>
+            </div>
+            {/* The room for each payout is counted in units of work: the lens's, like Core's names below. */}
+            <Proof>
+            <div className="flex flex-col gap-2" data-testid={TID.raise.payoutRoom} data-value={payoutGasK}>
+              <span className="ah-field__label">{t("raise.fine.room", { k: String(payoutGasK) })}</span>
+              <Chips
+                label={t("raise.fine.room", { k: String(payoutGasK) })}
+                testId={`${TID.raise.payoutRoom}-chip`}
+                selected={String(payoutGasK)}
+                onSelect={(key) => setPayoutGasK(Number(key))}
+                chips={ROOMS.map((k) => ({ key: String(k), label: String(k) }))}
+              />
+              <span className="ah-label">{t("raise.fine.roomWhy", { passes: String(passesAt(250)), more: String(passesAt(200)) })}</span>
+              {payoutGasK !== 250 ? <span className="ah-label">{t("raise.fine.roomNow", { k: String(payoutGasK), passes: String(passesAt(payoutGasK)) })}</span> : null}
+            </div>
+            <span className="ah-meta ah-meta--exact">{t("raise.fine.lens.terms", { bps: String(minClaimBps), k: String(payoutGasK) })}</span>
+            </Proof>
+          </Opens>
         </Part>
 
-        {/* 3. Open until */}
-        <Part label={t("raise.expiry.label")}>
-          <Chips
-            label={t("raise.expiry.label")}
-            testId={TID.raise.expiryChip}
-            selected={String(days)}
-            onSelect={(key) => setDays(Number(key))}
-            chips={DAYS.map((n) => ({ key: String(n), label: t("raise.expiry.days", { n }) }))}
-          />
+        {/* 3. How many days it stays open: a ready number, or any date in the system's own date field.
+            The field always shows the date the days come to, so the date is said once, in it. */}
+        <Part id="raise-expiry" label={t("raise.expiry.for")}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Chips
+              label={t("raise.expiry.for")}
+              testId={TID.raise.expiryChip}
+              selected={DAYS.includes(days) ? String(days) : ""}
+              onSelect={(key) => setDays(Number(key))}
+              chips={DAYS.map((n) => ({ key: String(n), label: count(n) }))}
+            />
+            {/* The date the days come to, said in the row; it opens the calendar for any other date. */}
+            {now && facts && untilDate ? (
+              <button
+                ref={dateChip}
+                type="button"
+                className={DAYS.includes(days) ? "ah-chip ah-chip--date" : "ah-chip ah-chip--date ah-chip--selected"}
+                aria-current={DAYS.includes(days) ? undefined : "true"}
+                aria-expanded={picking}
+                aria-controls="raise-expiry-days"
+                data-testid={TID.raise.expiryDate}
+                data-value={fieldDate(expiry ?? now.timestamp + days * DAY_SECONDS)}
+                onClick={() => setPicking(!picking)}
+              >
+                {t("raise.expiry.untilDate", { date: untilDate })}
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={picking ? "M3.5 10L8 5.5l4.5 4.5" : "M3.5 6L8 10.5 12.5 6"} />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+          <div id="raise-expiry-days">
+            {picking && now && facts ? (
+              <DayPick
+                value={fieldDate(expiry ?? now.timestamp + days * DAY_SECONDS)}
+                min={fieldDate(now.timestamp + DAY_SECONDS)}
+                max={fieldDate(now.timestamp + facts.cap - 600)}
+                lang={lang}
+                label={t("raise.expiry.pick")}
+                earlier={t("raise.expiry.earlier")}
+                later={t("raise.expiry.later")}
+                testId={TID.raise.expiryCalendar}
+                onPick={(date) => {
+                  setDays(daysForDate(date, now.timestamp, facts.cap));
+                  closeCalendar();
+                }}
+                onClose={closeCalendar}
+              />
+            ) : null}
+          </div>
           {expiry !== undefined && untilDate ? (
-            <p className="ah-label m-0" data-expiry={expiry}>
-              {t("raise.expiry.until", { date: untilDate })}
+            <p className="ah-label m-0" data-expiry={expiry} data-testid={TID.raise.expiryLine}>
+              {t(reward !== undefined && reward > 0n ? "raise.expiry.until" : "raise.expiry.untilNone")}
             </p>
           ) : (
             <p className="ah-note m-0">{t("common.time.offline")}</p>
@@ -580,13 +710,12 @@ export default function RaiseScreen() {
         </Part>
 
         {/* 4. Who can see it */}
-        <Part label={t("raise.who.label")}>
+        <Part id="raise-who" label={t("raise.who.label")}>
           <Visibility mode={mode} onMode={setMode} />
           <p className="ah-label m-0">{t("raise.who.shared")}</p>
           <Disclose label={t("raise.who.halves")}>
             <span className="ah-label">{t("raise.who.halvesBody")}</span>
           </Disclose>
-          <Unfurl mode={mode} host={config.site.replace(/^https?:\/\//, "")} title={title} content={content} money={moneyLine} />
           {mode === "public" && title && (addressOver || lens) ? (
             <p className={addressOver ? "ah-alert m-0" : "ah-label m-0"} data-testid={TID.raise.size} data-value={weighed.beforeHash} data-over={addressOver ? "true" : "false"}>
               {t("raise.size", { bytes: count(weighed.beforeHash), max: count(MAX_BEFORE_HASH) })}
@@ -595,41 +724,17 @@ export default function RaiseScreen() {
           {addressOver && tooLong ? <TooLong sentence={sentence(tooLong)} what="address" /> : null}
         </Part>
 
-        {/* 5. Fine-tune */}
-        <Opens label={t("raise.fine.label")} summary={lens ? `${percent(minClaimBps, lang)} · ${payoutGasK}` : t("raise.fine.calm", { pct: percent(minClaimBps, lang) })} testId={TID.raise.fineTune}>
-          <div className="flex flex-col gap-2" data-testid={TID.raise.minClaim} data-value={minClaimBps}>
-            <span className="ah-field__label">{t("raise.fine.minClaim", { pct: percent(minClaimBps, lang) })}</span>
-            <Chips
-              label={t("raise.fine.minClaim", { pct: percent(minClaimBps, lang) })}
-              testId={`${TID.raise.minClaim}-chip`}
-              selected={String(minClaimBps)}
-              onSelect={(key) => setMinClaimBps(Number(key))}
-              chips={MIN_CLAIMS.map((bps) => ({ key: String(bps), label: percent(bps, lang) }))}
-            />
-            <span className="ah-label">{t("raise.fine.minClaimWhy")}</span>
-          </div>
-          {/* The room for each payout is counted in units of work: the lens's, like Core's names below. */}
-          <Proof>
-          <div className="flex flex-col gap-2" data-testid={TID.raise.payoutRoom} data-value={payoutGasK}>
-            <span className="ah-field__label">{t("raise.fine.room", { k: String(payoutGasK) })}</span>
-            <Chips
-              label={t("raise.fine.room", { k: String(payoutGasK) })}
-              testId={`${TID.raise.payoutRoom}-chip`}
-              selected={String(payoutGasK)}
-              onSelect={(key) => setPayoutGasK(Number(key))}
-              chips={ROOMS.map((k) => ({ key: String(k), label: String(k) }))}
-            />
-            <span className="ah-label">{t("raise.fine.roomWhy", { passes: String(passesAt(250)), more: String(passesAt(200)) })}</span>
-            {payoutGasK !== 250 ? <span className="ah-label">{t("raise.fine.roomNow", { k: String(payoutGasK), passes: String(passesAt(payoutGasK)) })}</span> : null}
-          </div>
-          <span className="ah-meta ah-meta--exact">{t("raise.fine.lens.terms", { bps: String(minClaimBps), k: String(payoutGasK) })}</span>
-          </Proof>
-        </Opens>
+      </div>
 
-        {/* 6. Preview */}
-        <Part label={t("raise.preview.label")}>
-          <div data-testid={TID.raise.preview} data-raiser={wallet.address ? "connected" : "none"}>
-            {/* F5: before an account is connected the card's "Asked by" row says the address comes then. */}
+      <div className="ah-sided__side">
+        {/* 5. Preview */}
+        {/* The two things a person meets, in the order they meet them: the link's preview in a chat,
+            then the page it opens. Both follow every choice above as it is made. */}
+        <Part id="raise-preview" label={t("raise.preview.label")}>
+          <Unfurl mode={mode} host={config.site.replace(/^https?:\/\//, "")} title={title} content={content} reward={reward} decimals={decimals} token={TOKEN} expiry={expiry} />
+          <span className="ah-meta">{t("raise.preview.page")}</span>
+          <div className="ah-example" data-testid={TID.raise.preview} data-raiser={wallet.address ? "connected" : "none"}>
+            {/* Before an account is connected the card's "Asked by" row says the address comes then. */}
             {expiry !== undefined && reward !== undefined ? (
               <DealCard
                 state={now ? "open" : undefined}
@@ -648,8 +753,8 @@ export default function RaiseScreen() {
           </div>
         </Part>
 
-        {/* 7. The swipe */}
-        <section className="flex flex-col gap-4 pt-6">
+        {/* 6. The swipe: what it is doing, then the one action, then what it will cost. */}
+        <section className="ah-sided__state flex flex-col gap-4">
           {working ? <Steps phase={phase} needsConnect={wallet.status !== "connected"} amount={reward !== undefined && reward > 0n ? exactMoney(reward, decimals, lang) : undefined} /> : null}
           {working && raiseSent ? (
             <div data-testid={TID.raise.txRail} data-value={reached} data-offline={unreachable ? "true" : "false"}>
@@ -664,9 +769,13 @@ export default function RaiseScreen() {
           {problem?.id === "raise.error.short" ? <Faucets /> : null}
           {failed ? <ErrorBand what={t("raise.error.facts")} /> : null}
           {priced.status === "refused" && !working ? <ErrorBand what={t(`core.${priced.refusal.name}`)} code={priced.refusal.name} /> : null}
-          <SwipeButton gesture="raise" variant="amber" data-testid={TID.raise.swipe} disabled={!canSwipe} aria-describedby="raise-swipe-note" onClick={() => void swipe()}>
+        </section>
+        <div className="ah-go">
+          <SwipeButton gesture="raise" variant="amber" data-testid={TID.raise.swipe} disabled={!canSwipe} aria-describedby="raise-swipe-note" onClick={() => void swipe()} className="w-full">
             {reward !== undefined && reward > 0n ? t("raise.swipe.amount", { amount: exactMoney(reward, decimals, lang) }) : t("raise.swipe")}
           </SwipeButton>
+        </div>
+        <section className="flex flex-col gap-4">
           <p id="raise-swipe-note" className="ah-label m-0">
             {noTitle ? t("raise.swipe.needTitle") : tooLong ? sentence(tooLong) : !now ? t("raise.swipe.noClock") : t("raise.steps.tried")}
           </p>
@@ -676,6 +785,7 @@ export default function RaiseScreen() {
             </div>
           ) : null}
         </section>
+      </div>
       </div>
       {keysAsk ? <KeysCard ask={keysAsk} onDone={() => setKeysAsk(undefined)} raiser={wallet.address} /> : null}
       {connectAsk ? <Connect ask={connectAsk} onDone={() => setConnectAsk(undefined)} /> : null}
@@ -704,9 +814,10 @@ function raiseCallOf(terms: { reward: bigint; expiry: number; minClaimBps: numbe
   return raiseCall(CORE, { token: TOKEN.address, rootKey: PREVIEW_ROOT, dataHash: PREVIEW_HASH, ...terms });
 }
 
-function Frame({ children }: { children: ReactNode }) {
+/** `wide`: the compose surface, which from 1100 px stands in two columns (design/talk.css). */
+function Frame({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <section className="mx-auto w-full max-w-[720px] px-6 py-10 md:px-10" data-screen="raise">
+    <section className={`mx-auto w-full px-6 py-10 md:px-10 ${wide ? "ah-raise max-w-[720px]" : "max-w-[720px]"}`} data-screen="raise">
       {children}
     </section>
   );

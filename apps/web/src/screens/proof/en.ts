@@ -1,8 +1,8 @@
 // The passport's words in English. Keys are dotted ids; ru.ts has the same keys.
 // The sentence keys `proof.core` … `proof.refunded` are the SDK's (`Check.sentence`, proof.ts).
 const en = {
-  "proof.title": "The passport.",
-  "proof.intro": "Every claim about hand #{hand}, checked again in this browser against the chain. A plain sentence first; open any line for the evidence.",
+  "proof.title": "The passport",
+  "proof.intro": "Every claim about hand #{hand}, checked again in this browser against the chain. A plain sentence first. Open any line for the evidence.",
   "proof.readAt": "Read at block {block}",
   "proof.meta": "Chain {chain} · Core {core} · Hand {hand}",
   "proof.loading": "Reading the hand from the chain…",
@@ -53,7 +53,7 @@ const en = {
   "proof.payout": "{amount} for {who}.",
   "proof.payout.paid": "{amount} left the contract for {who}.",
   "proof.payout.pending": "{amount} waits in the contract for {who}.",
-  "proof.payouts": "Together the payouts are the whole reward, {amount}. Paid means it left the contract; a token that takes its own cut may deliver less.",
+  "proof.payouts": "Together the payouts are the whole reward, {amount}. Paid means it left the contract. A token that takes its own cut may deliver less.",
   "proof.now": "Waiting now for {who}: {amount}. Counted per token and address, across every hand, not per hand.",
   "proof.now.none": "Nothing waits now for {who}. Counted per token and address, across every hand.",
   "proof.refunded": "The reward went back to the asker after the end date: {amount}.",
@@ -83,8 +83,8 @@ const en = {
   "proof.finding": "This does not match. Expected {expected}, found {actual}.",
   "proof.nc": "Not checkable here",
   "proof.nc.core": "This site was built without the contract's deployment facts, so the address can't be derived here.",
-  "proof.nc.description": "The words travel only inside links, and this page was opened without one. Nothing is wrong; there is just nothing here to compare.",
-  "proof.nc.between": "Top-ups or extensions lie between the raise and now; reading them takes more requests. Read them below.",
+  "proof.nc.description": "The words travel only inside links, and this page was opened without one. Nothing is wrong. There is just nothing here to compare.",
+  "proof.nc.between": "Top-ups or extensions lie between the raise and now. Reading them takes more requests. Read them below.",
   "proof.nc.confirmations": "The confirmations were not found in the call that thanked. The facts above are proven from the events without them.",
   "proof.nc.time": "The block's own time could not be read just now. Check it all again.",
   "proof.nc.other": "This browser had nothing to check it against.",
@@ -109,11 +109,11 @@ const en = {
   "proof.again": "Check it all again",
   "proof.again.running": "Checking…",
   "proof.download": "Download the proof",
-  "proof.download.note": "A file with everything read here, the sending and the blocks' times included. With no network it can only show that the file agrees with itself; that its amounts and events really happened only the chain can say, and the command below asks it. The command-line check does not look at the two time lines yet.",
+  "proof.download.note": "A file with everything read here, the sending and the blocks' times included. With no network it can only show that the file agrees with itself. That its amounts and events really happened only the chain can say, and the command below asks it. The command-line check does not look at the two time lines yet.",
   "proof.withoutSite": "Check it without this site",
   "proof.withoutSite.body": "In a clone of the code, at the commit this site was built from, this one line runs the same checks against the chain:",
-  "proof.withoutSite.bundle": "Or check the downloaded file against the chain. Without --rpc it only shows that the file agrees with itself; its amounts and events are then just what the file says:",
-  "proof.withoutSite.noCommit": "This site doesn't say which commit it was built from; check out the code you trust.",
+  "proof.withoutSite.bundle": "Or check the downloaded file against the chain. Without --rpc it only shows that the file agrees with itself. Its amounts and events are then just what the file says:",
+  "proof.withoutSite.noCommit": "This site doesn't say which commit it was built from. Check out the code you trust.",
   "proof.print": "Print the receipt",
 
   // Failures to read.

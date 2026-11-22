@@ -12,7 +12,8 @@ export const TID = {
     ribbon: "shell-ribbon",
     header: "shell-header",
     logo: "shell-logo",
-    langEn: "shell-lang-en",
+    lang: "shell-lang", // the header's language bubble; data-value: the language in use; it opens the list
+    langEn: "shell-lang-en", // an item of the opened list
     langRu: "shell-lang-ru",
     lens: "shell-lens",
     main: "shell-main",
@@ -31,22 +32,38 @@ export const TID = {
     faucets: "shell-faucets", // where this test network's money comes from
     noCore: "shell-no-core", // the build's Core has no code on its chain; data-value: the Core's address
     noCoreRetry: "shell-no-core-retry",
+    personOpen: "shell-person-open", // the header's mark of a connected account; data-value: the viewer's address
+    logIn: "shell-log-in", // the header's way in, with no account connected
+    myHands: "shell-my-hands", // the header's link to this device's hands, with no account connected and a hand passed on from here
+    person: "shell-person", // the open sheet; data-who: me | other
+    personAddress: "shell-person-address",
+    personLogIn: "shell-person-log-in",
+    personLogOut: "shell-person-log-out",
+    personBalance: "shell-person-balance", // data-value: the token's balance in its smallest units
+    personWaiting: "shell-person-waiting",
+    personHands: "shell-person-hands",
+    personRaise: "shell-person-raise",
+    personLens: "shell-person-lens",
   },
 
   /** Landing `/`. */
   landing: {
     hero: "landing-hero",
-    gesture: "landing-gesture", // data-value: raise | pass | thank (a flip card)
+    gesture: "landing-gesture", // data-value: raise | pass | help | thank (a flip card)
     openInput: "landing-open-input",
     openSubmit: "landing-open-submit",
     otherSite: "landing-other-site",
     raise: "landing-raise",
-    my: "landing-my",
-    withoutUs: "landing-without-us",
+    openAsk: "landing-open-ask", // the folded paste row: one question that opens the box
+    sample: "landing-sample", // a Hand as the person it reaches sees it, with an example's words
+    example: "landing-example", // one example Hand of the set; data-value is its id, data-current marks the one in turn
+    sampleNext: "landing-sample-next", // brings the next example
+    samplePause: "landing-sample-pause", // holds the examples where they are, and lets them go on; data-value: paused | running
   },
 
   /** Raise `/raise`. */
   raise: {
+    nav: "raise-nav", // the strip of sections; each item carries data-section
     what: "raise-what",
     detailsToggle: "raise-details-toggle",
     details: "raise-details",
@@ -55,10 +72,17 @@ export const TID = {
     noReward: "raise-no-reward",
     lockedLine: "raise-locked-line",
     issuerLine: "raise-issuer-line",
-    expiryChip: "raise-expiry-chip", // data-value: 7 | 30 | 90 | 180
+    expiryChip: "raise-expiry-chip", // data-value: 7 | 30 | 90 (days)
+    expiryDate: "raise-expiry-date", // the date the days come to, beside the chips (data-value: 2027-04-01); it opens the calendar
+    expiryCalendar: "raise-expiry-calendar", // the app's own month of days (ui/DayPick.tsx); data-min, data-max, data-value
+    expiryLine: "raise-expiry-line", // what happens after the date, and that it can be extended
+    later: "raise-reward-later", // "You can add to it later."
     nudge: "raise-nudge",
     visibility: "raise-visibility", // data-value: public | unlisted | dark
     unfurl: "raise-unfurl",
+    unfurlCard: "raise-unfurl-card",
+    unfurlTitle: "raise-unfurl-title",
+    unfurlUtc: "raise-unfurl-utc",
     fineTune: "raise-fine-tune",
     minClaim: "raise-min-claim",
     payoutRoom: "raise-payout-room",
@@ -198,7 +222,6 @@ export const TID = {
     dealCard: "hand-deal-card",
     rail: "hand-rail",
     railHand: "hand-rail-hand", // data-index: position
-    handsSoFar: "hand-hands-so-far",
     pass: "hand-pass",
     help: "hand-help",
     helpNote: "hand-help-note",
@@ -455,6 +478,16 @@ export const TID = {
     withoutUs: "kit-without-us",
     dealWordsLabel: "kit-deal-words-label",
     dealReadAll: "kit-deal-read-all",
+    dealOfWhole: "kit-deal-of-whole", // beside the amount that reaches the helper: the whole reward and what was kept
+    railPerson: "kit-rail-person", // a hand on the rail that opens its person (calm view, address known)
+    dealRaiser: "kit-deal-raiser", // the line over the asker's words, where it opens the asker as a person
+    spine: "kit-spine", // the receiver's card drawn as the route's spine (calm view); data-value: hands on the route
+    spineFold: "kit-spine-fold", // the line that counts who passed it on and opens them; data-value: how many
+    spineKept: "kit-spine-kept", // what those passes kept
+    spineWhole: "kit-spine-whole", // the whole reward, at the asker (left out where the viewer's own beat shows that amount)
+    spineFar: "kit-spine-far", // after the date: how far off it is by the chain's clock
+    spinePass: "kit-spine-pass", // one pass, once the line is open; data-index: its place among the passes
+    spinePerson: "kit-spine-person", // a pass's name where its address is known: it opens that person
     dealAmountFlag: "kit-deal-amount-flag",
     dealHiddenChars: "kit-deal-hidden-chars",
     txOffline: "kit-tx-offline",

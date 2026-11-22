@@ -1,11 +1,11 @@
 // The pass screen's words in English. Keys are dotted ids; ru.ts has the
 // same keys. "Where should your share land?" and its three choices are the kit's (ui/words.ts).
 const en = {
-  "pass.title": "Pass it on.",
+  "pass.title": "Pass it on",
   "pass.lead": "Keep a little for yourself, or pass it all on.",
   "pass.slider": "Your share",
   "pass.share": "{pct} — about {amount} if this route is thanked",
-  "pass.shareNone": "0% — you keep nothing; it all travels on",
+  "pass.shareNone": "0% — you keep nothing, it all travels on",
   "pass.shareMax": "At most {pct}: the rest is what the asker promised the helper.",
   "pass.noReward": "This hand carries no reward, so there is no share to keep.",
   "pass.land.choose": "Choose where it lands",
@@ -15,7 +15,7 @@ const en = {
   "pass.darker.hint": "The title and details go into the part of the link after #, which neither the site nor a preview sees.",
   "pass.make": "Make my link",
   "pass.making": "Making your link here, in this tab…",
-  "pass.made": "Your link is ready.",
+  "pass.made": "Your link is ready",
   "pass.readBack.share": "This link pays {payee} {pct} if its route is thanked.",
   "pass.readBack.calm": "You get {pct} if the asker thanks someone further down this link.",
   "pass.readBack.none": "This link keeps no share for you: everything travels on.",

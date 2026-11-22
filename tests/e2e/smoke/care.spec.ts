@@ -251,7 +251,7 @@ test("in Russian at 390 px: /care and /print speak Russian and nothing runs past
   const made = make("--mode", "dark", "--reward", "5", "--title", "Кто одолжит палатку на выходные?", "--content", "");
   const { context, page } = await phone(browser, "ru");
   await page.goto(`/care/${stand.chainId}/${made.handId}`);
-  await expect(page.getByText("Позаботиться о руке.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Позаботиться о руке")).toBeVisible({ timeout: 20_000 });
   await connectAs(page, 1, ASKER.address);
   await expect(page.getByText("Все уже разосланные ссылки остаются в силе.").first()).toBeVisible();
   await expect(page.locator('[data-testid="care-extend-chip"][data-value="max"]')).toContainText("до 180 дней с сегодняшнего дня");

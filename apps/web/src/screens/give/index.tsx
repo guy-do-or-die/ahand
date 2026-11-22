@@ -1,4 +1,4 @@
-import { newKey, raiserHops, readDescription, readThank, walletKind, type OpenedAddress } from "@ahand/sdk";
+import { marginOf, newKey, raiserHops, readDescription, readThank, walletKind, type OpenedAddress } from "@ahand/sdk";
 import type { Hex } from "@ahand/deliver";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { isAddressEqual, type Address, type TypedDataDefinition } from "viem";
@@ -29,6 +29,7 @@ import {
   SwipeButton,
   type DealDescription,
   type Landing,
+  railHandsOf,
 } from "../../ui";
 import { ConnectSheet, LinkAgain, switchToAppChain, useTypedSigner, useWallet } from "../../wallet";
 import { answerLink, confirmWithAccount, confirmWithKey, confirmWithWallet, type AnswerOutcome, type AnswerStep, type Confirm } from "./answer";
@@ -71,7 +72,7 @@ function Title() {
 
 function Step({ title, children, testId }: { title: string; children: ReactNode; testId?: string }) {
   return (
-    <section className="flex flex-col gap-4 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-4" data-testid={testId}>
+    <section className="flex flex-col gap-4 border-t-[length:var(--bw-hair)] border-[var(--ink-a12)] pt-4" data-testid={testId}>
       <h2 className="ah-meta ah-meta--ink m-0">{title}</h2>
       {children}
     </section>
@@ -284,6 +285,7 @@ function Answer({ opened }: { opened: OpenedAddress }) {
       expiry={view.expiry}
       {...(view.closedAt ? { closedAt: view.closedAt } : {})}
       claimBps={claimBps}
+      spine={{ hands: railHandsOf(opened), shares: opened.signedShakes.map(({ shake }) => marginOf(view.reward, shake.claimBps, shake.nextClaimBps)) }}
       raiser={opened.hand.raiser}
       handId={handId}
       {...(now ? { block: { number: now.number, timestamp: now.timestamp } } : {})}
@@ -641,7 +643,7 @@ function Done({ phase, opened, inbox }: { phase: Extract<Phase, { kind: "done" }
 
       <Thread phase={phase} opened={opened} inbox={inbox} />
 
-      <div className="flex flex-col gap-2 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-4">
+      <div className="flex flex-col gap-2 border-t-[length:var(--bw-hair)] border-[var(--ink-a12)] pt-4">
         <p className="m-0 flex flex-wrap items-baseline gap-2">
           {thanked ? (
             t("give.waiting.thanked")

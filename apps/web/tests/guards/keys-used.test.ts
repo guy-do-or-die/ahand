@@ -21,6 +21,9 @@ import { code, filesUnder, SRC } from "./files";
  * guard fails when that template is gone or the family matches no key, and a new template that
  * builds a key from a catalogue's prefix must be added here before it passes.
  *
+ * It also reads the other way: an id written whole in a t() call is a key some catalogue has.
+ * Lingui renders an unknown id as the id itself, and nothing else catches it: t() takes any string.
+ *
  * The localization structure itself (several word systems: the Lingui catalogues, ui/words.ts,
  * exit/words.ts and the view server's own words; and only English and Russian) will get its own review later.
  * This guard only keeps the catalogues free of dead keys until then.
@@ -32,9 +35,13 @@ const DYNAMIC: readonly { family: RegExp; file: string; template: string }[] = [
   { family: /^link\.[a-z-]+$/, file: "screens/print/index.tsx", template: "`link.${named.code}`" },
   { family: /^common\.chain\.\d+$/, file: "i18n/common/chain.ts", template: "`common.chain.${chain.id}`" },
   { family: /^common\.language\.\w+$/, file: "shell/Shell.tsx", template: "`common.language.${code}`" },
+  { family: /^common\.person\.role\.\w+$/, file: "shell/PersonSheet.tsx", template: "`common.person.role.${role}`" },
   { family: /^common\.token\.\w+$/, file: "screens/waiting/index.tsx", template: "`common.token.${token.kind}`" },
   { family: /^landing\.\w+\.say$/, file: "screens/landing/index.tsx", template: "`landing.${gesture}.say`" },
   { family: /^landing\.lens\.\w+$/, file: "screens/landing/index.tsx", template: "`landing.lens.${gesture}`" },
+  { family: /^landing\.\w+\.more$/, file: "screens/landing/index.tsx", template: "`landing.${gesture}.more`" },
+  { family: /^landing\.example\.\w+\.title$/, file: "screens/landing/examples.ts", template: "`landing.example.${example.id}.title`" },
+  { family: /^landing\.example\.\w+\.details$/, file: "screens/landing/examples.ts", template: "`landing.example.${example.id}.details`" },
   { family: /^check\.state\.\w+$/, file: "screens/check/model.ts", template: "`check.state.${standing}`" },
   { family: /^check\.step\.\w+\.\w+$/, file: "screens/check/model.ts", template: "`check.step.${step.of}.${step.check}`" },
   { family: /^check\.kind\.[\w-]+$/, file: "screens/check/index.tsx", template: "`check.kind.${ruler.kind}`" },
@@ -49,7 +56,7 @@ const DYNAMIC: readonly { family: RegExp; file: string; template: string }[] = [
   { family: /^proof\.(route|share)\.to$/, file: "screens/proof/model.ts", template: "`${check.messageId}.to`" },
   { family: /^dev-wallet\.connect\.role\.\w+$/, file: "screens/dev-wallet/index.tsx", template: "`dev-wallet.connect.role.${role}`" },
   { family: /^raise\.who\.\w+\.site$/, file: "screens/raise/parts.tsx", template: "`raise.who.${each}.site`" },
-  { family: /^raise\.who\.\w+\.link$/, file: "screens/raise/parts.tsx", template: "`raise.who.${each}.link`" },
+  { family: /^raise\.who\.unfurl\.\w+$/, file: "screens/raise/parts.tsx", template: "`raise.who.unfurl.${mode}`" },
   { family: /^give\.agree\.flagged\.\w+$/, file: "screens/give/index.tsx", template: "`give.agree.flagged.${landing.flagged}`" },
   { family: /^defaults\.\w+\.title$/, file: "screens/defaults/index.tsx", template: "`defaults.${row.key}.title`" },
   { family: /^defaults\.\w+\.body$/, file: "screens/defaults/index.tsx", template: "`defaults.${row.key}.body`" },
@@ -97,6 +104,18 @@ describe("catalogue keys: every key is read somewhere", () => {
   test("no catalogue key is unused: each stands as a literal in the code or belongs to a listed dynamic family", () => {
     const unused = [...keys].filter(([key]) => !literal(key) && !dynamic(key)).map(([key, path]) => `${path}: ${key}`);
     expect(unused).toEqual([]);
+  });
+
+  test("every id written whole in a t() call is a key the catalogues have: an unknown id renders as itself", () => {
+    // t("common.word.raise"), and both ids of t(cond ? "raise.a" : "raise.b"); an id built at run time is DYNAMIC's.
+    const whole = /\bt\(\s*(["'`])([\w.-]+)\1/g;
+    const either = /\bt\(\s*[^()"'`?]*\?\s*(["'`])([\w.-]+)\1\s*:\s*(["'`])([\w.-]+)\3/g;
+    const missing: string[] = [];
+    for (const [file, text] of texts) {
+      const ids = [...[...text.matchAll(whole)].map((match) => match[2]!), ...[...text.matchAll(either)].flatMap((match) => [match[2]!, match[4]!])];
+      for (const id of ids) if (!keys.has(id)) missing.push(`${file}: ${id}`);
+    }
+    expect(missing).toEqual([]);
   });
 
   test("each dynamic family's template still stands in its file and matches at least one key", () => {

@@ -1,7 +1,10 @@
 // The raise screen's words in English. Keys are dotted ids; ru.ts has
 // the same keys. Keys with a `lens` segment are the specialist layer: Core's own names stand there.
 const en = {
-  "raise.kicker": "Raise a hand",
+  "raise.nav.label": "Sections of this screen",
+  "raise.nav.ask": "Ask",
+  "raise.nav.preview": "Preview",
+  "raise.nav.none": "none",
 
   // 1. What are you looking for?
   "raise.what": "What are you looking for?",
@@ -21,18 +24,21 @@ const en = {
   "raise.reward.customLabel": "Your amount, zero included",
   "raise.reward.none": "No reward: a thank-you only.",
   "raise.reward.locked": "Locked until you thank someone — or all of it back to you after {date}.",
-  "raise.reward.issuer": "Held in USDC. Its issuer can freeze addresses; then that money waits.",
-  "raise.reward.issuerTest": "Held in test USDC on {network}: it is worth nothing. Its issuer can freeze addresses; then that money waits.",
-  "raise.reward.issuerStand": "Held in test dollars, standing in for USDC. USDC's issuer can freeze addresses; then that money waits.",
-  "raise.reward.calm": "Held in USDC.",
-  "raise.reward.calmTest": "Held in test USDC on {network}: it is worth nothing.",
-  "raise.reward.calmStand": "Held in test dollars.",
+  "raise.reward.issuer": "Held in USDC. Its issuer can freeze addresses. Then that money waits.",
+  "raise.reward.issuerTest": "Held in test USDC on {network}: it is worth nothing. Its issuer can freeze addresses. Then that money waits.",
+  "raise.reward.issuerStand": "Held in test dollars, standing in for USDC. USDC's issuer can freeze addresses. Then that money waits.",
+  "raise.reward.later": "You can add to it later.",
   "raise.reward.lens.token": "Token {address} · {decimals} decimals, read from the token",
 
   // 3. Open until
   "raise.expiry.label": "Open until",
-  "raise.expiry.days": "{n} days",
-  "raise.expiry.until": "Open until {date}, by the network's clock.",
+  "raise.expiry.for": "Days it stays open",
+  "raise.expiry.untilDate": "until {date}",
+  "raise.expiry.pick": "The last day it stays open",
+  "raise.expiry.earlier": "Earlier month",
+  "raise.expiry.later": "Later month",
+  "raise.expiry.until": "If you thank nobody by then, the reward can be sent back to you. Anyone can do it, and it goes only to you. You can extend the date later.",
+  "raise.expiry.untilNone": "You can extend the date later.",
   "raise.expiry.how": "How the date is counted",
   "raise.expiry.nudge": "Long hands need a nudge. After you raise it, you'll get a button to add a calendar reminder.",
   "raise.expiry.lens.formula": "expiry = min(now + {days} d, now + MAX_EXPIRY_PERIOD − 600 s) = {expiry}",
@@ -40,22 +46,20 @@ const en = {
 
   // 4. Who can see it
   "raise.who.label": "Who can see it",
-  "raise.who.public.site": "The site and link previews get the title and the details.",
-  "raise.who.public.link": "Whoever has the link reads everything.",
-  "raise.who.unlisted.site": "The site and link previews get the title.",
-  "raise.who.unlisted.link": "Whoever has the link reads the details too.",
-  "raise.who.dark.site": "The site and link previews get nothing.",
-  "raise.who.dark.link": "Whoever has the link reads the title and the details.",
-  "raise.who.shared": "The reward, the dates and your address are public in every mode. Dark is not secret writing.",
+  "raise.who.public.site": "Open to anyone. The title and the details can be read without the link, and the hand may be listed.",
+  "raise.who.unlisted.site": "Not listed anywhere. The link's preview shows the title, the details travel inside the link.",
+  "raise.who.dark.site": "Not listed anywhere, and nothing shows outside the link, not even which hand it is.",
+  "raise.who.shared": "With the whole link a person reads everything. The reward, the dates and your address are public in every mode.",
   "raise.who.halves": "How a link reads",
   "raise.who.halvesBody": "The site never receives what stands after # in the address. The code this site serves reads it in your browser, because that is how a link opens.",
   "raise.who.unfurl": "In a chat it looks like this",
+  "raise.who.unfurl.public": "Anyone who sees the address reads the title and the details.",
+  "raise.who.unfurl.unlisted": "The preview shows the title. The details travel after # and open only with the whole link.",
+  "raise.who.unfurl.dark": "The preview says nothing about the hand, not even its number.",
+  "raise.who.utc": "A preview counts the day in UTC, so there it says {date}.",
   "raise.who.noPreviews": "On this test site a chat's link preview shows only the site's name.",
-  "raise.who.generic": "Someone raised a hand. Open to see.",
   "raise.who.untitled": "Your title goes here",
-  "raise.who.money": "{reward} reward · open until {date}",
-  "raise.who.moneyNone": "No reward: a thank-you only · open until {date}",
-  "raise.who.tooLong": "With these words the address would be too long for sites and link previews to open. Shorten them, or choose “Dark”: then the words travel inside the link.",
+  "raise.who.tooLong": "With these words the address would be too long for sites and link previews to open. Shorten them, or choose “Hidden”: then the words travel inside the link.",
 
   // 5. Fine-tune
   "raise.fine.label": "Fine-tune",
@@ -69,6 +73,7 @@ const en = {
 
   // 6. Preview
   "raise.preview.label": "How it will look to whoever gets the link",
+  "raise.preview.page": "And like this when they open it",
 
   // 7. The swipe and its steps
   "raise.swipe": "Raise your hand",
@@ -95,8 +100,8 @@ const en = {
   "raise.keys.lens.message": "Keys(string purpose, address raiser) · domain aHand keys / 1 · as your account shows it",
 
   // 8. States
-  "raise.up": "Your hand is up.",
-  "raise.pending": "Your last raise is still on its way.",
+  "raise.up": "Your hand is up",
+  "raise.pending": "Your last raise is still on its way",
   "raise.pending.note": "Nothing is sent again: this screen follows the one already sent.",
   "raise.pending.batch": "Your account took this raise as one batch and has not named it on the network yet.",
   "raise.pending.aside": "You can raise another hand meanwhile. This screen looks for the one on its way each time it opens.",
@@ -134,7 +139,7 @@ const en = {
   "raise.error.connectToLook": "Connect the account that sent this raise, and this screen will look for it. Nothing is sent again.",
   "raise.error.otherAccount": "This raise was sent from another account. Connect that one to look for it. Nothing is sent again.",
   "raise.error.copyLost": "This device can no longer open its locked copy of the link. After the hand's end, the reward can still be sent back to you.",
-  "raise.error.otherTerms": "The contract recorded other terms than this screen sent. Don't share this hand; after its end, it can be sent back to you.",
+  "raise.error.otherTerms": "The contract recorded other terms than this screen sent. Don't share this hand. After its end, it can be sent back to you.",
   "raise.error.facts": "Can't read the contract's limits or the token right now. Nothing was sent.",
 
   // A raise whose fate is not known yet, or that never went
@@ -144,8 +149,8 @@ const en = {
   "raise.error.allowUnknown": "It isn't known whether the permission step went out. The raise itself was not sent and no reward moved. The next try checks the permission first.",
   "raise.error.allowDropped": "The permission step didn't go through and the raise was not sent: nothing left your account.",
   "raise.error.accountChanged": "The account changed from {was} to {now} in the middle of the raise, so it stopped. Nothing was sent.",
-  "raise.error.accountChangedAllow": "The account changed from {was} to {now} after the permission step, so the raise stopped. The permission step went out from {was} and its cost was paid; no reward moved.",
-  "raise.error.tooLarge": "A public hand's words must fit in {max} characters of its address; these take {bytes}. Shorten them, or choose Unlisted or Dark, where the details travel inside the link. Nothing was sent.",
+  "raise.error.accountChangedAllow": "The account changed from {was} to {now} after the permission step, so the raise stopped. The permission step went out from {was} and its cost was paid. No reward moved.",
+  "raise.error.tooLarge": "A public hand's words must fit in {max} characters of its address. These take {bytes}. Shorten them, or choose Unlisted or Hidden, where the details travel inside the link. Nothing was sent.",
   "raise.size": "In the address before #: {bytes} of at most {max} characters.",
   "raise.swipe.amount": "Raise your hand · {amount}",
   "raise.steps.allowAmount": "1 of 2: allow {amount}",

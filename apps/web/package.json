@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@ahand/abi": "workspace:*",
+    "@ahand/card": "workspace:*",
     "@ahand/deliver": "workspace:*",
     "@ahand/sdk": "workspace:*",
     "@fontsource-variable/onest": "5.3.1",

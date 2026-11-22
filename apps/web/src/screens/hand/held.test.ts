@@ -148,7 +148,7 @@ describe("openHeld and failureOf: every way a link fails has its own sentence", 
       expect(failure.id).toBe("hand.offline.opening");
       expect(canRetry(failure)).toBe(true);
     }
-    expect(en["hand.offline.opening"]).toBe("Can't reach the network right now. Your link is still open in this tab; nothing was sent.");
+    expect(en["hand.offline.opening"]).toBe("Can't reach the network right now. Your link is still open in this tab. Nothing was sent.");
     expect(ru["hand.offline.opening"]).toBe("Сеть сейчас недоступна. Ссылка всё ещё открыта в этой вкладке, ничего не отправлено.");
     expect([en["hand.code.network"], ru["hand.code.network"]]).toEqual(["NETWORK", "СЕТЬ"]);
     // A call that reverted is an answer from the chain, not the network.

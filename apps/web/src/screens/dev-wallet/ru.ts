@@ -2,13 +2,13 @@ import type en from "./en";
 
 // The dev-wallet screen's words in Russian: the same keys as en.ts, checked by the type.
 const ru: Record<keyof typeof en, string> = {
-  "dev-wallet.title": "Тестовые аккаунты.",
+  "dev-wallet.title": "Тестовые аккаунты",
   "dev-wallet.intro": "Эта страница есть только в локальной тестовой сети. Она подключает один из публичных тестовых аккаунтов anvil, дважды просит его подписать одно и то же типизированное сообщение, сравнивает часы сети с часами этого устройства и отправляет тестовый approve.",
   "dev-wallet.connect.heading": "1 · Аккаунт",
   "dev-wallet.connect.none": "Аккаунт не подключён.",
   "dev-wallet.connect.role.key": "Каждый раз отвечает одинаково, как ключ.",
   "dev-wallet.connect.role.entropy": "Каждый раз отвечает по-разному (подписывает с добавленной энтропией).",
-  "dev-wallet.connect.role.unset": "Ещё не настроен: смарт-аккаунт без кода. Его ответы приходят в обёртке ERC-6492; отправлять он не может.",
+  "dev-wallet.connect.role.unset": "Ещё не настроен: смарт-аккаунт без кода. Его ответы приходят в обёртке ERC-6492. Отправлять он не может.",
   "dev-wallet.connect.role.found": "Кошелёк, найденный в этом браузере.",
   "dev-wallet.sayNo": "Отказать на следующий запрос",
   "dev-wallet.time.heading": "2 · Двое часов",
@@ -37,7 +37,7 @@ const ru: Record<keyof typeof en, string> = {
   "dev-wallet.approve.what": "Разрешает Core взять {amount} {symbol} с этого аккаунта. Сначала симуляция, потом отправка.",
   "dev-wallet.approve.go": "Отправить approve",
   "dev-wallet.approve.step": "Шаг {n} из {of}",
-  "dev-wallet.approve.reorged": "Блок, в котором она была, заменён; следим за той же транзакцией снова. Ничего не отправлено дважды.",
+  "dev-wallet.approve.reorged": "Блок, в котором она была, заменён. Следим за той же транзакцией снова. Ничего не отправлено дважды.",
   "dev-wallet.approve.done": "В блоке.",
   "dev-wallet.approve.final": "Окончательно.",
   "dev-wallet.approve.refused": "Core отказал до отправки: {name}",

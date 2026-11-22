@@ -214,11 +214,12 @@ test("11. an address made for another site, pasted on the landing page: the sent
     if (new URL(request.url()).hostname === "other.example") elsewhere.push(request.url());
   });
   await page.goto("/");
+  await page.getByTestId("landing-open-ask").click();
   await page.getByTestId("landing-open-input").fill(foreign);
   await page.getByTestId("landing-open-submit").click();
   const warning = page.getByTestId("landing-other-site");
   await expect(warning).toBeVisible({ timeout: 10_000 });
-  await expect(warning).toContainText("This address was made for other.example. The link opens anywhere; make sure you trust the site you're on.");
+  await expect(warning).toContainText("This address was made for other.example. The link opens anywhere. Make sure you trust the site you're on.");
   expect(new URL(page.url()).origin).toBe(new URL(stand.site!).origin);
   expect(page.url()).not.toContain("#");
   expect(elsewhere).toEqual([]);

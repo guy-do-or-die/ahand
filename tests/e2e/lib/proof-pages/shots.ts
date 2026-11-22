@@ -50,6 +50,7 @@ for (const spec of args) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, locale: lang === "ru" ? "ru-RU" : "en-GB", colorScheme: dark ? "dark" : "light" });
       const page = await context.newPage();
       await page.goto(`${site}${path}`);
+      await page.getByTestId("shell-lang").click();
       await page.getByTestId(lang === "ru" ? "shell-lang-ru" : "shell-lang-en").click();
       if (lens) await page.getByTestId("shell-lens").click();
       if (offline) {

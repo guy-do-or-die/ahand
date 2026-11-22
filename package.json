@@ -9,6 +9,7 @@
     "packages/abi",
     "packages/sdk",
     "packages/deliver",
+    "packages/card",
     "infra/relay",
     "infra/stand",
     "apps/view",
@@ -22,10 +23,11 @@
     "test:contracts": "cd contracts && ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test",
     "test:vectors": "cd contracts && WRITE_VECTORS=true ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test --match-contract 'SdkVectorsTest|SdkGasTest' && git diff --exit-code -- test/fixtures",
     "test:exit": "bash contracts/exit/selftest.sh",
-    "typecheck": "tsc --noEmit -p packages/sdk && tsc --noEmit -p packages/sdk/tests && tsc --noEmit -p packages/abi && tsc --noEmit -p packages/deliver && tsc --noEmit -p infra/relay && tsc --noEmit -p infra/stand && tsc --noEmit -p apps/view && tsc --noEmit -p apps/web && tsc --noEmit -p tools && tsc --noEmit -p tests/e2e",
+    "typecheck": "tsc --noEmit -p packages/sdk && tsc --noEmit -p packages/sdk/tests && tsc --noEmit -p packages/abi && tsc --noEmit -p packages/deliver && tsc --noEmit -p packages/card && tsc --noEmit -p infra/relay && tsc --noEmit -p infra/stand && tsc --noEmit -p apps/view && tsc --noEmit -p apps/web && tsc --noEmit -p tools && tsc --noEmit -p tests/e2e",
     "test:sdk": "bun run --cwd packages/sdk test",
     "test:abi": "bun run --cwd packages/abi test",
     "test:deliver": "bun run --cwd packages/deliver test",
+    "test:card": "bun run --cwd packages/card test",
     "test:relay": "bun run --cwd infra/relay test",
     "test:view": "bun run --cwd apps/view test",
     "test:web": "bun run --cwd apps/web test",
@@ -34,7 +36,7 @@
     "build": "bun run --cwd apps/web build",
     "stand": "bun infra/stand/stand.ts",
     "e2e": "playwright test tests/e2e",
-    "check": "bun run check:core && bun run typecheck && bun run build:contracts && bun run check:abi && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run test:abi && bun run test:deliver && bun run test:relay && bun run test:view && bun run test:web && bun run test:stand && bun run test:tools && bun run build && bun run check:core"
+    "check": "bun run check:core && bun run typecheck && bun run build:contracts && bun run check:abi && bun run test:contracts && bun run test:vectors && bun run test:exit && bun run test:sdk && bun run test:abi && bun run test:deliver && bun run test:card && bun run test:relay && bun run test:view && bun run test:web && bun run test:stand && bun run test:tools && bun run build && bun run check:core"
   },
   "devDependencies": {
     "@ahand/abi": "workspace:*",

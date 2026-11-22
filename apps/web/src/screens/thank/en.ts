@@ -1,7 +1,7 @@
 // The thank screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 // Keys with a `lens` segment are the specialist layer: Core's own names in mono are allowed there.
 const en = {
-  "thank.title": "Thank.",
+  "thank.title": "Thank",
   "thank.lead": "When someone can help, what they send back comes here. Paste it, and it is checked before anything else.",
   "thank.input.label": "What came back to you",
   "thank.input.placeholder": "https://…/#…",
@@ -33,10 +33,10 @@ const en = {
   "thank.resigned.noShare": "kept nothing",
   "thank.resigned.anyway": "Thank this route anyway",
   "thank.resigned.overridden": "You chose to thank this route anyway.",
-  "thank.branch": "Another answer came for this hand by a different route. Both routes are fair; you choose which one to thank.",
+  "thank.branch": "Another answer came for this hand by a different route. Both routes are fair. You choose which one to thank.",
 
   // Payees
-  "thank.payee.core": "That address is the contract itself; money sent there waits forever.",
+  "thank.payee.core": "That address is the contract itself. Money sent there waits forever.",
   "thank.payee.raiser": "One share on this route lands at your own address.",
   "thank.key.raiser": "Pass {n} on this route handed the link to a key at your own address.",
   "thank.payee.token": "One share on this route lands at the token's own address, which usually keeps what it gets.",
@@ -46,7 +46,7 @@ const en = {
   // The worst case is never sent as the limit: the send carries no gas of its own (wallet/send.ts),
   // so the account's app estimates it. The line says so, so the number is not read as the cost.
   "thank.lens.fit":
-    "Worst case {gas} gas · {bytes} bytes of calldata · limit 16 777 216 gas. The worst case is used only to check that this route fits one transaction; your wallet's own estimate is what is sent.",
+    "Worst case {gas} gas · {bytes} bytes of calldata · limit 16 777 216 gas. The worst case is used only to check that this route fits one transaction. Your wallet's own estimate is what is sent.",
 
   // An account not set up yet
   "thank.setup": "The helper's account isn't set up on this network yet. Saying thanks sets it up first.",
@@ -117,8 +117,8 @@ const en = {
 
   // Failures after asking
   "thank.reverted": "The network refused it.",
-  "thank.reverted.kept": "The reward is still in the contract; only the cost of trying was spent.",
-  "thank.firstStepOnly": "The helper's account is set up; the thanks didn't go. Only the first step's cost was spent.",
+  "thank.reverted.kept": "The reward is still in the contract. Only the cost of trying was spent.",
+  "thank.firstStepOnly": "The helper's account is set up. The thanks didn't go. Only the first step's cost was spent.",
   "thank.onWay": "A thanks sent from this device is on its way: hand {id}. Nothing is sent again.",
   "thank.onWay.done": "That thanks went through: hand {id}.",
   "thank.onWay.open": "See what was sent to whom",

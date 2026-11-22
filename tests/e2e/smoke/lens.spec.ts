@@ -39,12 +39,18 @@ test("a Hand opens calm: plain words and the actions, none of the chain's machin
   await expect(page.locator("html")).not.toHaveAttribute("data-lens", "on");
   await expect(page.getByTestId("hand-pass")).toBeVisible();
   await expect(page.getByTestId("hand-help")).toBeVisible();
-  // Safety stays: the test-money ribbon and the warning that the asker's words are not checked.
+  // Safety stays: the test-money ribbon. The asker's words are the first beat of the route's spine,
+  // under the line that says someone asked; the line that nobody checked them is drawn for words
+  // that give a reason for care, and under the lens.
   await expect(page.getByTestId("shell-ribbon")).toBeVisible();
-  await expect(page.getByTestId("kit-deal-words-label")).toBeVisible();
+  await expect(page.locator(".ah-spine .ah-asker__words")).toBeVisible();
+  await expect(page.locator(".ah-asker__bubble")).toHaveCount(0);
+  await expect(page.getByTestId("kit-deal-words-label")).toHaveCount(0);
   const text = await mainText(page);
   expect(text).toContain("$50");
-  expect(text).toMatch(/Asked by\s+someone/);
+  // "Someone raised a hand" names the asker; no separate row repeats it without the lens.
+  expect(text).toContain("Someone raised a hand");
+  expect(text).not.toContain("Asked by");
   for (const evidence of EVIDENCE) expect(text).not.toMatch(evidence);
   // The rail names people in words and nothing on it turns over.
   await expect(page.getByTestId("twist-flip")).toHaveCount(0);
@@ -99,6 +105,27 @@ test("the lens shows the evidence where it stood, stays on after a reload, and ?
   await expect(core).toHaveAttribute("href", "/core");
   await expect(page.getByTestId("shell-footer")).not.toContainText(/unaudited|no owner|no fee/i);
   await expect(page.getByTestId("twist-flip").first()).toBeVisible();
+  // Core's line stands beside the switches, in room the footer already has: with the lens on and
+  // off the footer is the same size and its switches stand where they stood, at a phone's width,
+  // between, and wide.
+  for (const width of [390, 800, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const look = () =>
+      page.evaluate(() => {
+        const footer = document.querySelector('[data-testid="shell-footer"]')!.getBoundingClientRect();
+        const lens = document.querySelector('[data-testid="shell-lens"]')!.getBoundingClientRect();
+        return { height: Math.round(footer.height), left: Math.round(lens.left), down: Math.round(lens.top - footer.top), over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+    await expect(core).toBeVisible();
+    const on = await look();
+    await page.keyboard.press("?");
+    await expect(core).toHaveCount(0);
+    const off = await look();
+    expect(off, `the footer at ${width}px`).toEqual(on);
+    expect(on.over).toBe(0);
+    await page.keyboard.press("?");
+    await expect(core).toBeVisible();
+  }
 
   // Kept on this device: the next page opens with the lens on.
   await page.goto("/raise", { waitUntil: "networkidle" });

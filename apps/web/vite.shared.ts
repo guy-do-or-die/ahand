@@ -29,7 +29,8 @@ export const outDir = fromRoot(process.env.AHAND_OUT_DIR || "dist");
 export const cacheDir = fromRoot(process.env.AHAND_VITE_CACHE || "node_modules/.vite");
 export const conditions = [...defaultClientConditions];
 export const workspaceAlias = [
-  { find: /^@ahand\/(sdk|abi|deliver)$/, replacement: resolve(here, "../../packages/$1/src/index.ts") },
+  { find: /^@ahand\/card\/Card$/, replacement: resolve(here, "../../packages/card/src/Card.tsx") },
+  { find: /^@ahand\/(sdk|abi|deliver|card)$/, replacement: resolve(here, "../../packages/$1/src/index.ts") },
 ];
 
 /**

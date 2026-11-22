@@ -1,6 +1,6 @@
 // The care screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 const en = {
-  "care.title": "Care for this hand.",
+  "care.title": "Care for this hand",
   "care.kicker": "Hand {id}",
   "care.kicker.calm": "Your hand",
   "care.words": "The words of a hand travel with its link. This page reads only what the network keeps.",

@@ -13,6 +13,15 @@
   --ah-raw-amber: #f5b841;
   --ah-raw-card: #ffffff;
   --ah-raw-surface-dark: #17171c;
+  /* A fill's two answers: under the pointer and under a press (the swipe button). Ink has room to
+     lighten and to deepen; paper has none to lighten (95% to 100% is not seen), so it steps darker
+     both times; amber lifts, then deepens. */
+  --ah-raw-ink-hover: #2e2e35;
+  --ah-raw-ink-press: #000000;
+  --ah-raw-paper-hover: #d2d2cd;
+  --ah-raw-paper-press: #b9b9b4;
+  --ah-raw-amber-hover: #ffc95c;
+  --ah-raw-amber-press: #e2a52b;
 }
 
 /* ── Theme slots ────────────────────────────────────────────────────── */
@@ -21,12 +30,16 @@
   --ink: var(--ah-raw-ink);
   --paper: var(--ah-raw-paper);
   --card: var(--ah-raw-card);
+  --ink-hover: var(--ah-raw-ink-hover);
+  --ink-press: var(--ah-raw-ink-press);
 }
 
 [data-theme="dark"] {
   --ink: var(--ah-raw-paper);
   --paper: var(--ah-raw-ink);
   --card: var(--ah-raw-surface-dark);
+  --ink-hover: var(--ah-raw-paper-hover);
+  --ink-press: var(--ah-raw-paper-press);
 }
 
 /*
@@ -39,6 +52,8 @@
     --ink: var(--ah-raw-paper);
     --paper: var(--ah-raw-ink);
     --card: var(--ah-raw-surface-dark);
+    --ink-hover: var(--ah-raw-paper-hover);
+    --ink-press: var(--ah-raw-paper-press);
   }
 }
 :root {
@@ -54,6 +69,8 @@
 :root,
 [data-theme] {
   --amber: var(--ah-raw-amber);
+  --amber-hover: var(--ah-raw-amber-hover);
+  --amber-press: var(--ah-raw-amber-press);
   /* Text on amber fills is always dark ink, both themes (README: amber
      "always as fill/chip/bar with ink text on it"; amber never inverts). */
   --on-amber: var(--ah-raw-ink);
@@ -104,6 +121,11 @@
      paper is 4.2:1 and fails; at 60% it is 4.9:1 on paper and 5.0:1 on card (dark: 7.6:1).
      So every small quiet text uses the 60% step, which stays between 50% and 70%. */
   --ink-quiet: var(--ink-a60);
+
+  /* A control that stands inside something framed is a tone, not a second frame: one border
+     per level. The frame (1.5px ink) belongs to the outer card and to the one chosen thing. */
+  --sunken: var(--ink-a08);
+  --sunken-hi: var(--ink-a12);
 }
 
 /* ── Typography ─────────────────────────────────────────────────────── */
@@ -168,7 +190,11 @@
 
   /* ── Borders ── */
   --bw-hair: 1px;
-  --bw-emph: 1.5px;
+  /* A line that is drawn at all is a hairline: 1px. It was 1.5px; thick and nested frames
+     read as cheap (design/talk.css, "Surfaces"). */
+  --bw-emph: 1px;
+  /* A state a control is in (chosen, focused): the one line allowed to be a little heavier. */
+  --bw-state: 1.5px;
   --bw-focus: 2px;
 
   /* ── Spacing (4px base; Tailwind's default scale is the same grid) ── */
@@ -176,15 +202,17 @@
   --pad-screen-desktop: 40px;
   --gap-section: 24px; /* mocks use 20–26 per screen */
 
-  /* ── Motion (mock-exact: buttons 3.4/3.2/3s, hero emoji 4s) ── */
-  --dur-press: 120ms; /* gesture-emoji press jump */
-  --dur-idle-raise: 3.4s;
-  --dur-idle-raise-hero: 4s;
-  --dur-idle-shake: 3.2s;
-  --dur-idle-cheer: 3s;
-  --dur-idle-cheer-hero: 3.6s;
-  --dur-idle-bow: 4s;
+  /* ── Motion: a gesture makes its move once in a round, then rests ── */
+  --dur-press: 120ms; /* the gesture's push on press */
+  --dur-reach: 380ms; /* the hand reaching forward under the pointer, and coming back */
+  --dur-gesture: 5s; /* one round: about a second of movement, four of rest */
+  --ease-gesture: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-hover: 140ms; /* flat border and colour changes */
+  /* A fill answering as one tone (the swipe button): it arrives fast and leaves slower; a press is instant. */
+  --dur-tone: 160ms;
+  --dur-tone-out: 300ms;
+  --dur-push: 90ms; /* the button giving under a press, and its hand pushing */
+  --ease-tone: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
   /* ── Layout widths ── */
   --w-sheet: 560px; /* a sheet from 768px up */
@@ -192,41 +220,95 @@
   --w-action: 400px; /* the action card beside the content on desktop */
 }
 
-/* ── Idle gesture keyframes (verbatim from the mock package) ────────── */
+/* ── Gesture keyframes: each gesture keeps its own character (✋ waves, 🤝 shakes, 🙌 cheers,
+   🙏 bows), makes it once at the start of a round and stands still for the rest of it. A move is
+   drawn the way a hand does it: a small wind-up, then swings that die down, never one jerk. ── */
+/* a wave: the hand lifts a little and swings from the wrist, each swing smaller than the last */
 @keyframes ah-raise {
   0%,
+  19%,
   100% {
-    transform: translateY(0) rotate(-6deg);
+    transform: none;
   }
-  50% {
-    transform: translateY(-6px) rotate(-2deg);
+  2.4% {
+    transform: translateY(-3px) rotate(-14deg);
+  }
+  5.6% {
+    transform: translateY(-3px) rotate(11deg);
+  }
+  8.8% {
+    transform: translateY(-3px) rotate(-8deg);
+  }
+  12% {
+    transform: translateY(-2px) rotate(5deg);
+  }
+  15.2% {
+    transform: translateY(-1px) rotate(-2deg);
   }
 }
+/* a handshake: a squeeze, then it pumps down and up, less each time; it does not rock sideways */
 @keyframes ah-shake {
   0%,
+  17%,
   100% {
-    transform: rotate(-5deg);
+    transform: none;
   }
-  50% {
-    transform: rotate(6deg);
+  2% {
+    transform: translateY(-2px) scale(1.03);
+  }
+  4.8% {
+    transform: translateY(4px) rotate(-3deg) scale(1.03);
+  }
+  7.6% {
+    transform: translateY(-4px) rotate(2deg) scale(1.03);
+  }
+  10.4% {
+    transform: translateY(3px) rotate(-2deg);
+  }
+  13.2% {
+    transform: translateY(-2px) rotate(1deg);
   }
 }
+/* a cheer: it crouches, jumps, lands with a small squash and hops once more */
 @keyframes ah-cheer {
   0%,
+  18.5%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: none;
   }
-  50% {
-    transform: translateY(-5px) scale(1.06);
+  1.8% {
+    transform: translateY(2px) scale(1.03, 0.94);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  6% {
+    transform: translateY(-9px) scale(0.98, 1.06);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.45);
+  }
+  9.4% {
+    transform: translateY(0) scale(1.04, 0.95);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  12.4% {
+    transform: translateY(-4px) scale(1, 1.02);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.45);
+  }
+  15.4% {
+    transform: translateY(0) scale(1.02, 0.98);
   }
 }
+/* a bow: it dips slowly, stays a moment and comes back up, a touch past upright */
 @keyframes ah-bow {
   0%,
+  23%,
   100% {
-    transform: rotate(0deg);
+    transform: none;
   }
-  50% {
-    transform: rotate(9deg);
+  7.6%,
+  12.6% {
+    transform: rotate(9deg) translateY(3px) scale(0.97);
+  }
+  20% {
+    transform: rotate(-1.5deg);
   }
 }
 

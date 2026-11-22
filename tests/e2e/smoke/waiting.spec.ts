@@ -153,7 +153,7 @@ test("a pasted address shows what waits for it, read only, with the sentence for
   // the row and can be pressed (the merge keeps the build's visitor Deliver over the fix round's
   // drawn-but-off control), the line beside it says what pressing asks for, and the same call
   // stands ready for a terminal.
-  await expect(page.locator("h1")).toHaveText("Money waiting for an address.");
+  await expect(page.locator("h1")).toHaveText("Money waiting for an address");
   await expect(row(page, token).getByTestId("waiting-deliver")).toBeEnabled();
   await expect(row(page, token)).toContainText("You'll be asked to Connect a wallet first");
   await expect(row(page, token).getByTestId("kit-without-us")).toBeVisible();
@@ -193,7 +193,7 @@ test("another account may Deliver but not take it out; while the payee is blocke
   const error = row(page, token).getByTestId("waiting-error");
   await expect(error).toHaveAttribute("data-value", "token");
   await expect(error).toContainText("The token won't move this money to this address right now.");
-  await expect(error).toContainText("The money stays waiting; nothing was lost.");
+  await expect(error).toContainText("The money stays waiting. Nothing was lost.");
   // Why a token can refuse (its issuer's power) is for those who check: under the lens.
   await expect(row(page, token).getByTestId("waiting-issuer")).toHaveCount(0);
   await expect(deliver).toBeDisabled();

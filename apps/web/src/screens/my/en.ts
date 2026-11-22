@@ -1,7 +1,7 @@
 // The my screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 // Keys with a `lens` segment are the specialist layer, where Core's own names may stand.
 const en = {
-  "my.title": "Hands raised on this device.",
+  "my.title": "Hands raised on this device",
   "my.empty": "No hands raised from this device yet.",
   "my.raise": "Raise a hand",
   "my.deviceOnly": "This list lives on this device only. Your own link still opens your hand.",
@@ -52,7 +52,7 @@ const en = {
   "my.add.bad": "A hand's number is a whole number, like 12.",
   "my.add.notYours": "That hand was raised by another account. Only its asker can add it here.",
   "my.add.already": "That hand is already in this list.",
-  "my.add.done": "Added hand {id}. Its words are not on this device; the link you saved still has them.",
+  "my.add.done": "Added hand {id}. Its words are not on this device. The link you saved still has them.",
   "my.add.connect": "Connect the account that raised it first.",
   "my.add.logIn": "Log in with the account that raised it first.",
   "my.add.offline": "Can't reach the network right now. Nothing was added.",
@@ -85,7 +85,7 @@ const en = {
   "my.answers.nonePasted": "No answers pasted here yet",
   "my.answers.listening": "Listening for answers through {n, plural, one {# relay} other {# relays}} while this page is open.",
   "my.answers.listening.calm": "Waiting for answers while this page is open.",
-  "my.answers.noRelay": "This site has no relay set up, so answers can't arrive here. A helper can send theirs back the way the link came; paste it to say thanks.",
+  "my.answers.noRelay": "This site has no relay set up, so answers can't arrive here. A helper can send theirs back the way the link came. Paste it to say thanks.",
   "my.answers.none": "Nothing has arrived yet.",
   "my.answers.checking": "Checking this answer with the contract…",
   "my.answer.words": "Their words",
@@ -138,7 +138,7 @@ const en = {
   "my.lens.coreOk": "checkGive · eth_call · block {block} · ok",
   "my.lens.giveHash": "giveHash {hash}",
   "my.lens.inbox": "inbox.n1 {key}",
-  "my.lens.split": "margin = ⌊reward × (claimBps − nextClaimBps) / 10 000⌋; the helper gets the rest",
+  "my.lens.split": "margin = ⌊reward × (claimBps − nextClaimBps) / 10 000⌋. The helper gets the rest",
   "my.lens.firstSeen": "First seen on this device {time}",
   "my.lens.onWay": "thank intent · {kind} · chain {chain} · {hash}",
 };

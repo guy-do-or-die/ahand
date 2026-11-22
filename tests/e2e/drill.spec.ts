@@ -164,6 +164,7 @@ test("relay off: the helper sees the fallback sentence, and the asker thanks fro
   const giveAddress = (await copy.getAttribute("data-value"))!;
   expect(giveAddress.startsWith(`${stand.site}/#`)).toBe(true);
   await shot(helper.page, "2-relay-off-fallback-390-en");
+  await helper.page.getByTestId("shell-lang").click();
   await helper.page.getByTestId("shell-lang-ru").click();
   await expect(helper.page.getByTestId("give-fallback")).not.toContainText("We couldn't reach them");
   await shot(helper.page, "2-relay-off-fallback-390-ru");

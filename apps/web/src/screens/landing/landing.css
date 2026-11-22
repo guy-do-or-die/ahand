@@ -17,6 +17,126 @@
   white-space: nowrap;
 }
 
+/* The first screen: what this is and the one way in, and beside them a Hand as the person it
+   reaches sees it. One column on a phone, the example after the action; two from a width where
+   the headline and the card both keep their line. */
+.lp-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+}
+@media (min-width: 1000px) {
+  .lp-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+    column-gap: 56px;
+  }
+}
+.lp-hero__note {
+  font-size: var(--fs-body-md);
+  color: var(--ink-quiet);
+}
+/* The example stands on the card's tone, as the example on the raise screen does (design/talk.css,
+   `.ah-example`): a tone and space, no frame. The card in it is the receiver's own (ui/DealCard.tsx
+   `DealPicture`), and nothing here restyles a beat of it. */
+.lp-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  border-radius: var(--r-card-lg);
+  background: var(--card);
+  padding: 14px 22px 24px;
+}
+/* What is about the picture and not in it: its name, the pause, and the way to another one. */
+.lp-sample__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+.lp-sample__controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+}
+/* The pause is a bare glyph, as the footer's two switches are: no rim and no fill. */
+.lp-sample__pause {
+  position: relative;
+  display: inline-flex;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ink-quiet);
+  cursor: pointer;
+}
+/* The other control: quiet text, underlined as the page's other quiet question is ("Got a link?"),
+   so it stands well under the amber action. */
+.lp-sample__next {
+  position: relative;
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-body-sm);
+  color: var(--ink-quiet);
+  text-decoration: underline dotted var(--ink-a40);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+/* Each takes a finger: 44px tall, and the two places to press do not overlap. */
+.lp-sample__pause::after,
+.lp-sample__next::after {
+  content: "";
+  position: absolute;
+  inset: -14px -7px;
+}
+.lp-sample__pause:focus-visible,
+.lp-sample__next:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 3px;
+  border-radius: var(--r-chip);
+}
+/* Every example lies in one cell, so the cell is as tall as the tallest and showing another moves
+   nothing (the gesture cards under the lens hold their height the same way). The one before is
+   gone at once, so two are never read together. */
+.lp-sample__stack {
+  display: grid;
+  align-items: start;
+}
+.lp-sample__one {
+  grid-area: 1 / 1;
+  min-width: 0;
+  visibility: hidden;
+}
+.lp-sample__one[data-current="true"] {
+  visibility: visible;
+}
+/* An example arrives the way a Hand does: down its route, beat after beat, from who asked through
+   those who passed it on to the reader. The asker's hand greets once, as it does on the receiver's
+   card. The example the page opens with stands still, and so does every one out of turn. */
+@keyframes lp-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.lp-sample[data-moved] .lp-sample__one[data-current="true"] .ah-spine__row {
+  animation: lp-arrive var(--dur-reach) var(--ease-gesture) backwards;
+}
+.lp-sample[data-moved] .lp-sample__one[data-current="true"] .ah-spine__row:nth-child(2) {
+  animation-delay: 220ms;
+}
+.lp-sample[data-moved] .lp-sample__one[data-current="true"] .ah-spine__row:nth-child(3) {
+  animation-delay: 440ms;
+}
+.lp-sample:not([data-moved]) .lp-sample__one [data-gesture],
+.lp-sample__one:not([data-current="true"]) [data-gesture] {
+  animation: none;
+}
 .lp-flip {
   position: relative;
   display: grid;
@@ -28,9 +148,10 @@
   flex-direction: column;
   gap: 12px;
   min-height: 100%;
-  border: var(--bw-emph) solid var(--ink);
+  /* a tone, not a frame (design/talk.css, "Surfaces"); the back keeps its dashed hairline */
+  border: var(--bw-hair) solid transparent;
   border-radius: var(--r-card);
-  background: var(--card);
+  background: var(--ink-a035);
   padding: 18px 18px 16px;
   text-align: left;
   color: var(--ink);
@@ -62,6 +183,7 @@
   visibility: hidden;
   background: var(--paper);
   border-style: dashed;
+  border-color: var(--ink-a30);
 }
 /* Each side takes its own height: the side turned away leaves the flow and lies over the
    one in view, so a closed card is as tall as its front, not as its back. */
@@ -79,10 +201,37 @@
   transform: rotateY(0deg);
   visibility: visible;
 }
+/* Under the lens a card's back is Core's own call, written in mono: it needs a line long enough
+   not to break a name in two, so the cards stand two in a row, never four. And both sides keep
+   their place in the card's one cell, so a card is as tall as its taller side whichever is turned
+   up, and turning one moves nothing around it. */
+@media (min-width: 640px) {
+  :root[data-lens="on"] .lp-gestures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+:root[data-lens="on"] .lp-flip:not([data-open="true"]) .lp-flip__back,
+:root[data-lens="on"] .lp-flip[data-open="true"] .lp-flip__front {
+  position: relative;
+  inset: auto;
+}
+:root[data-lens="on"] .lp-flip__code {
+  overflow-wrap: break-word;
+}
+:root[data-lens="on"] .lp-flip__back .ah-label {
+  color: var(--ink);
+}
 .lp-flip__emoji {
   font-family: var(--emoji);
   font-size: 46px;
   line-height: 1;
+}
+/* What a newcomer would ask next about the gesture, said quietly under its sentence. */
+.lp-flip__more {
+  font-size: var(--fs-body-md);
+  line-height: 1.4;
+  color: var(--ink-quiet);
+  text-wrap: pretty;
 }
 .lp-flip__code {
   margin: 0;
@@ -123,8 +272,52 @@
   font-size: var(--fs-body-md);
   font-weight: var(--fw-bold);
 }
+/* Folded, the paste row is one question with no rule over it: it opens the box, so it is underlined
+   as everything that opens is. */
+.lp-paste--folded {
+  border-top: 0;
+  padding-top: 0;
+}
+.lp-paste__ask {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-body-md);
+  color: var(--ink-quiet);
+  text-decoration: underline dotted var(--ink-a40);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.lp-paste__ask::after {
+  content: "";
+  position: absolute;
+  inset: -12px -8px;
+}
+.lp-paste__ask:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 3px;
+  border-radius: var(--r-chip);
+}
 
 @media (prefers-reduced-motion: reduce) {
+  /* Where less motion is asked for, every animation is stopped (design/tokens.css), the hand's
+     greeting among them. The tone stays: the next example still comes in its time, each beat by
+     tone alone, in the same order and with no rise. */
+  .lp-sample__one:not([data-current="true"]) .ah-spine__row {
+    opacity: 0;
+  }
+  .lp-sample__one[data-current="true"] .ah-spine__row {
+    opacity: 1;
+    transition: opacity var(--dur-reach) var(--ease-tone);
+  }
+  .lp-sample__one[data-current="true"] .ah-spine__row:nth-child(2) {
+    transition-delay: 220ms;
+  }
+  .lp-sample__one[data-current="true"] .ah-spine__row:nth-child(3) {
+    transition-delay: 440ms;
+  }
   .lp-flip__face {
     transition: none;
   }

@@ -69,7 +69,6 @@ test("the fresh hand opens with no account, passes at 0%, and the next person se
   await expect(card).toContainText(unlisted.title);
   await expect(card).toHaveAttribute("data-state", "open");
   await expect(page.getByTestId("hand-rail")).toHaveAttribute("data-value", "1");
-  await expect(page.getByTestId("hand-hands-so-far")).toHaveText("So far only the asker.");
   await expect(page.getByTestId("hand-help-note")).toContainText("The asker decides whether to thank.");
   await expect(page.getByTestId("hand-tab-only")).toBeVisible();
   expect(page.url()).not.toContain("#");
@@ -89,7 +88,6 @@ test("the fresh hand opens with no account, passes at 0%, and the next person se
   const other = await openElsewhere(browser, next);
   await expect(other.getByTestId("hand-deal-card")).toContainText(unlisted.title);
   await expect(other.getByTestId("hand-rail")).toHaveAttribute("data-value", "2");
-  await expect(other.getByTestId("hand-hands-so-far")).toHaveText("So far: the asker and 1 more.");
   await other.context().close();
 
   const allowed = new Set([new URL(stand.site!).origin, new URL(stand.rpc).origin]);
@@ -145,8 +143,8 @@ test("a 10% share lands at a pasted address, read back from the new link; Core's
   expect(opened.route).toEqual([expect.objectContaining({ payee: payee, keptBps: 1000 })]);
   const other = await openElsewhere(browser, next);
   await expect(other.getByTestId("hand-rail")).toHaveAttribute("data-value", "2");
-  // The calm view names the pass "someone"; the lens shows the address it named.
-  await expect(other.getByTestId("hand-rail")).toContainText("someone");
+  // The calm view says only that someone passed it on; the lens shows the address the pass named.
+  await expect(other.getByTestId("hand-rail")).toContainText("Someone passed it on");
   await lensOn(other);
   await expect(other.getByTestId("hand-rail")).toContainText(`${payee.slice(0, 6)}…${payee.slice(-4)}`);
   await other.context().close();
@@ -321,7 +319,7 @@ test("a hand with no reward says so and never shows $0; the address bar keeps no
   const card = page.getByTestId("hand-deal-card");
   await expect(card).toHaveAttribute("data-reward", "0");
   await expect(card).toContainText("No reward: a thank-you only");
-  await expect(card).toContainText("it's free; there is no share to keep");
+  await expect(card).toContainText("it's free. There is no share to keep");
   expect(await page.evaluate(() => location.href)).not.toContain("#");
   expect(await page.locator("body").innerText()).not.toMatch(/\$0(?![.,]?\d*[1-9])/);
   await page.getByTestId("hand-pass").click();
@@ -361,7 +359,7 @@ test("the network fails as a dark link opens: the link is kept and said so, the 
   await expect(band).toBeVisible();
   await expect(band).toHaveAttribute("data-held", "true");
   await expect(band).toContainText("Can't reach the network right now.");
-  await expect(band).toContainText("Your link is still open in this tab; nothing was sent.");
+  await expect(band).toContainText("Your link is still open in this tab. Nothing was sent.");
   // The code NETWORK is the lens's; the calm view says the sentence and what was kept.
   await expect(band).not.toContainText("NETWORK");
   await expect(band).toContainText("This link lives in this tab only.");
@@ -403,7 +401,7 @@ test("the link opens and then the network's clock can't be read: the same band, 
   await page.goto(unlisted.address);
   const band = page.getByTestId("hand-unreachable");
   await expect(band).toBeVisible();
-  await expect(band).toContainText("Your link is still open in this tab; nothing was sent.");
+  await expect(band).toContainText("Your link is still open in this tab. Nothing was sent.");
   await expect(page.getByTestId("hand-error")).toHaveCount(0);
   await expect(page.getByTestId("hand-pass")).toHaveCount(0);
   expect(cut.failed()).toBeGreaterThan(0);
@@ -414,8 +412,8 @@ test("the link opens and then the network's clock can't be read: the same band, 
 
 test("on a phone both actions of an open hand are on the first screen, in English and Russian, for a three-line title; the bar steps aside for a keyboard and a closed hand has none", async ({ page }) => {
   const hands = [
-    { lang: "en", title: "Who can lend me a tent for one weekend?", content: "For two people, back on Monday." },
-    { lang: "ru", title: "Кто одолжит палатку на одни выходные?", content: "На двоих, верну в понедельник." },
+    { lang: "en", title: "Who can lend me a tent for two people for one long weekend in the mountains?", content: "Back on Monday." },
+    { lang: "ru", title: "Кто одолжит палатку на двоих на одни длинные выходные в горах?", content: "Верну в понедельник." },
   ];
   for (const { lang, title, content } of hands) {
     const made = craft<{ ok: boolean; address: string }>(["make", "--title", title, "--content", content, "--reward", "40"]);
@@ -423,6 +421,7 @@ test("on a phone both actions of an open hand are on the first screen, in Englis
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("about:blank");
     await page.goto(made.address);
+    await page.getByTestId("shell-lang").click();
     await page.getByTestId(`shell-lang-${lang}`).click();
     const heading = page.getByTestId("hand-deal-card").getByRole("heading", { level: 1 });
     await expect(heading).toHaveText(title);
@@ -497,6 +496,7 @@ test("on a phone both actions of an open hand are on the first screen, in Englis
     await expect(page.getByTestId("hand-action-bar")).toHaveCount(0);
     await expect(page.getByTestId("hand-pass")).toHaveCount(1);
     await expect(page.getByTestId("hand-help")).toBeVisible();
+    await page.getByTestId("shell-lang").click();
     await page.getByTestId("shell-lang-en").click();
   }
 
@@ -542,7 +542,7 @@ test("a link opened while the network is down says NETWORK and that the link is 
   await expect(error).toHaveAttribute("data-code", "NETWORK", { timeout: 20_000 });
   await expect(page.getByTestId("hand-error")).toHaveCount(0);
   await expect(error).not.toContainText("NETWORK");
-  await expect(error).toContainText("Can't reach the network right now. Your link is still open in this tab; nothing was sent.");
+  await expect(error).toContainText("Can't reach the network right now. Your link is still open in this tab. Nothing was sent.");
   await expect(error).not.toContainText("ContractFunctionExecutionError");
   await restore();
   await page.getByTestId("hand-retry").click();
@@ -558,7 +558,8 @@ test("every Hand leads to its proof: a thanked one under its receipt with no cou
   await page.goto(thanked.address);
   await expect(page.getByTestId("hand-closed")).toHaveAttribute("data-value", "thanked");
   await expect(page.getByTestId("hand-closed").getByTestId("hand-proof-link")).toHaveAttribute("href", `/${run.chainId}/${thanked.handId}/proof`);
-  await expect(page.getByTestId("hand-hands-so-far")).toHaveCount(0);
+  // No count of the hands it went through ("So far: the asker and 2 more.", "3 hands so far.").
+  await expect(page.locator("main")).not.toContainText(/\bso far\b/i);
   await page.getByTestId("hand-closed").getByTestId("hand-proof-link").click();
   await expect(page).toHaveURL(new RegExp(`/${run.chainId}/${thanked.handId}/proof$`));
   await expect(page.locator('[data-screen="proof"]')).toBeVisible();
@@ -590,7 +591,7 @@ test("a screen whose code cannot arrive draws the offline band, not the crash sc
   const band = page.getByTestId("shell-offline");
   await expect(band).toBeVisible({ timeout: 20_000 });
   await expect(band).toContainText("Can't reach the network right now.");
-  await expect(band).toContainText("Everything open in this tab is still here; nothing was sent.");
+  await expect(band).toContainText("Everything open in this tab is still here. Nothing was sent.");
   await expect(page.getByTestId("shell-crash")).toHaveCount(0);
 
   await page.unroute(giveChunk);

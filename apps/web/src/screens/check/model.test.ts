@@ -88,7 +88,7 @@ describe("check: what the Hand is at the block Core answered at", () => {
   });
 });
 
-/* F1: Core's checkRoute and checkGive ignore the expiry and closedAt, so the page says the state. */
+/* Core's checkRoute and checkGive ignore the expiry and closedAt, so the page says the state. */
 
 const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as const;
 const RAISER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as const;

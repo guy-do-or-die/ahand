@@ -2,11 +2,11 @@
 // Keys are dotted ids; ru.ts has the same keys. Keys with a `lens` segment are the specialist
 // layer: Core's own names stand there in mono.
 const en = {
-  "give.title": "I can help.",
+  "give.title": "I can help",
   "give.opening": "Checking the link…",
   "give.noLink": "There is no link open in this tab. Open the one you were sent.",
   "give.notLive": "Only the link you were sent can be answered: this one is someone's answer or a route already ended.",
-  "give.offline.kept": "Your link is still open in this tab; nothing was sent.",
+  "give.offline.kept": "Your link is still open in this tab. Nothing was sent.",
   "give.offline.retry": "Try again",
   "give.again": "You already answered this hand from this device. Your answer and the asker's messages are in “My hands”. A new answer here would be a second one.",
   "give.again.go": "See my answer",
@@ -18,8 +18,8 @@ const en = {
 
   "give.words.ask": "Say what you can do. If they thank you, you get at least {amount}.",
   "give.words.askNoReward": "Say what you can do. This hand carries no reward: a thank-you only.",
-  "give.words.placeholder": "For example: I know a flat like that and the owner; I can introduce you this week.",
-  "give.words.meta": "Only the asker sees your words; they are never made public.",
+  "give.words.placeholder": "For example: I know a flat like that and the owner. I can introduce you this week.",
+  "give.words.meta": "Only the asker sees your words. They are never made public.",
   "give.words.count": "{n} of {max} characters",
   "give.land.noReward": "There is no reward now. If the asker adds one before thanking, it lands here.",
 
@@ -34,11 +34,11 @@ const en = {
   "give.agree.lands": "Where it lands",
   "give.agree.confirms": "Who confirms it",
   "give.agree.byAccount": "This account, on its own screen, with the same numbers",
-  "give.agree.byOneTime": "A one-time key, on this page; then it is thrown away",
+  "give.agree.byOneTime": "A one-time key, on this page. Then it is thrown away",
   "give.agree.byWords": "The address made from your 12 words, on this page",
   "give.agree.flagged.raiser": "This is the asker's own address. The money would go back to them.",
   "give.agree.flagged.token": "This is the token's own address. Money sent there is usually lost.",
-  "give.askerHop": "{n, plural, one {Pass {passes} on this route named} other {Passes {passes} on this route named}} the asker's own address: that share goes back to the asker, or the link went through the asker's key. The contract allows it; your part is unchanged.",
+  "give.askerHop": "{n, plural, one {Pass {passes} on this route named} other {Passes {passes} on this route named}} the asker's own address: that share goes back to the asker, or the link went through the asker's key. The contract allows it. Your part is unchanged.",
   "give.agree.pick": "Choose where the money lands first.",
   // The new address is made and only "I wrote them down" is unticked (LandPicker knows which).
   "give.agree.tick": "Tick that the 12 words are written down.",
@@ -60,7 +60,7 @@ const en = {
   "give.error.failed": "Your answer couldn't be confirmed. Nothing was sent.",
   "give.error.kept": "Your words are still here.",
 
-  "give.done.title": "Your answer is ready.",
+  "give.done.title": "Your answer is ready",
   "give.done.checked": "Checked here and by the contract.",
   "give.delivered.one": "Delivered to {acks} of 1 relay.",
   "give.delivered.many": "Delivered to {acks} of {of} relays.",

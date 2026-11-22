@@ -26,7 +26,7 @@ export interface PlaceOf {
   params: Record<string, string>;
 }
 
-/** Which of the three arrivals  a place is. */
+/** Which of the three arrivals a place is. */
 export type Arrival =
   /** A link this tab holds belongs to this place. */
   | { kind: "link"; held: Held }

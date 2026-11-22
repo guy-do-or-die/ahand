@@ -2,7 +2,7 @@ import type en from "./en";
 
 // The my screen's words in Russian: the same keys as en.ts, checked by the type. Russian speaks as «ты».
 const ru: Record<keyof typeof en, string> = {
-  "my.title": "Руки, поднятые на этом устройстве.",
+  "my.title": "Руки, поднятые на этом устройстве",
   "my.empty": "С этого устройства ещё не поднято ни одной руки.",
   "my.raise": "Поднять руку",
   "my.deviceOnly": "Этот список хранится только на этом устройстве. Но твоя ссылка откроет твою руку где угодно.",
@@ -52,7 +52,7 @@ const ru: Record<keyof typeof en, string> = {
   "my.add.bad": "Номер руки — целое число, например 12.",
   "my.add.notYours": "Эту руку поднял другой аккаунт. Добавить её сюда может только её автор.",
   "my.add.already": "Эта рука уже в списке.",
-  "my.add.done": "Рука {id} добавлена. Её слов на этом устройстве нет; они есть в сохранённой тобой ссылке.",
+  "my.add.done": "Рука {id} добавлена. Её слов на этом устройстве нет. Они есть в сохранённой тобой ссылке.",
   "my.add.connect": "Сначала подключи аккаунт, который её поднял.",
   "my.add.logIn": "Сначала войди в аккаунт, который её поднял.",
   "my.add.offline": "Сеть сейчас недоступна. Ничего не добавлено.",
@@ -85,7 +85,7 @@ const ru: Record<keyof typeof en, string> = {
   "my.answers.nonePasted": "Сюда пока не вставлено ни одного ответа",
   "my.answers.listening": "Слушаем ответы через {n} реле, пока эта страница открыта.",
   "my.answers.listening.calm": "Ждём ответов, пока эта страница открыта.",
-  "my.answers.noRelay": "На этом сайте не настроено реле, поэтому ответы сюда не придут. Помощник может отправить свой ответ обратно тем же путём, каким пришла ссылка; вставь его, чтобы сказать спасибо.",
+  "my.answers.noRelay": "На этом сайте не настроено реле, поэтому ответы сюда не придут. Помощник может отправить свой ответ обратно тем же путём, каким пришла ссылка. Вставь его, чтобы сказать спасибо.",
   "my.answers.none": "Пока ничего не пришло.",
   "my.answers.checking": "Проверяем этот ответ у контракта…",
   "my.answer.words": "Их слова",
@@ -138,7 +138,7 @@ const ru: Record<keyof typeof en, string> = {
   "my.lens.coreOk": "checkGive · eth_call · блок {block} · ok",
   "my.lens.giveHash": "giveHash {hash}",
   "my.lens.inbox": "inbox.n1 {key}",
-  "my.lens.split": "margin = ⌊reward × (claimBps − nextClaimBps) / 10 000⌋; помощнику — остаток",
+  "my.lens.split": "margin = ⌊reward × (claimBps − nextClaimBps) / 10 000⌋. Помощнику — остаток",
   "my.lens.firstSeen": "Впервые на этом устройстве {time}",
   "my.lens.onWay": "намерение спасибо · {kind} · сеть {chain} · {hash}",
 };

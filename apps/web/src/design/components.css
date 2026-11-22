@@ -10,7 +10,17 @@
  * - the sheet is a native <dialog>, so focus stays inside it without any script.
  */
 
-/* ── Marker-swipe button (signature CTA) ────────────────────────────── */
+/* ── Marker-swipe button (signature CTA) ──────────────────────────────
+   The fill fades out toward the gesture, so the hand stands on the page and the button and its
+   hand read as one thing. The fill is a layer under a mask, so its colour can change as one tone
+   while the fade keeps its shape. The fade is anchored in pixels from the right edge, where the
+   hand is, and each fill has its own:
+   - a neutral fill (ink, or paper in the dark theme) greys as it thins, so its fade is short and
+     its steep middle lies under the hand, which never blends with either;
+   - amber thins cleanly, but the yellow hand blends with it, so its fade is long and nearly gone
+     (22% left) where the hand begins.
+   Both are one S-curve (smootherstep): no visible start, no band in the middle. Only a stop's
+   opacity counts in a mask, so each is ink thinned toward nothing; the fill's colour is the layer's. */
 .ah-swipe {
   position: relative;
   display: flex;
@@ -24,16 +34,77 @@
   font-weight: var(--fw-bold);
   text-align: left;
   cursor: pointer;
-  /* Fill fades to transparent so the emoji stands on the page background. */
-  background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 58%, color-mix(in srgb, var(--ink) 48%, transparent) 70%, color-mix(in srgb, var(--ink) 14%, transparent) 82%, transparent 94%);
+  background: none;
   color: var(--paper);
   /* The emoji intentionally overflows the button top — never clip. */
   overflow: visible;
+  /* the fill layer stands behind the label and inside the button's own stack */
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform var(--dur-tone-out) var(--ease-tone);
+  --swipe-fill: var(--ink);
+  --swipe-fill-hover: var(--ink-hover);
+  --swipe-fill-press: var(--ink-press);
+  /* where the fade begins and where it is gone, from the right edge */
+  --swipe-from: min(120px, 42%);
+  --swipe-to: 30px;
+  --swipe-mask: linear-gradient(
+    90deg,
+    var(--ink) calc(100% - var(--swipe-from)),
+    color-mix(in srgb, var(--ink) 99.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.0833),
+    color-mix(in srgb, var(--ink) 96.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.1667),
+    color-mix(in srgb, var(--ink) 89.6%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.2500),
+    color-mix(in srgb, var(--ink) 79.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.3333),
+    color-mix(in srgb, var(--ink) 65.3%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.4167),
+    color-mix(in srgb, var(--ink) 50.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.5000),
+    color-mix(in srgb, var(--ink) 34.7%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.5833),
+    color-mix(in srgb, var(--ink) 21.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.6667),
+    color-mix(in srgb, var(--ink) 10.4%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.7500),
+    color-mix(in srgb, var(--ink) 3.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.8333),
+    color-mix(in srgb, var(--ink) 0.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 0.9167),
+    transparent calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-to)) * 1.0000)
+  );
+}
+.ah-swipe::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--swipe-fill);
+  -webkit-mask-image: var(--swipe-mask);
+  mask-image: var(--swipe-mask);
+  transition: background-color var(--dur-tone-out) var(--ease-tone);
 }
 
 .ah-swipe--amber {
-  background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 58%, color-mix(in srgb, var(--amber) 48%, transparent) 70%, color-mix(in srgb, var(--amber) 14%, transparent) 82%, transparent 94%);
   color: var(--on-amber);
+  --swipe-fill: var(--amber);
+  --swipe-fill-hover: var(--amber-hover);
+  --swipe-fill-press: var(--amber-press);
+  --swipe-from: min(200px, 54%);
+  /* where the hand begins */
+  --swipe-hand: 78px;
+  --swipe-to: 14px;
+  --swipe-mask: linear-gradient(
+    90deg,
+    var(--ink) calc(100% - var(--swipe-from)),
+    color-mix(in srgb, var(--ink) 99.7%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.1082),
+    color-mix(in srgb, var(--ink) 97.7%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.2165),
+    color-mix(in srgb, var(--ink) 93.1%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.3247),
+    color-mix(in srgb, var(--ink) 85.5%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.4329),
+    color-mix(in srgb, var(--ink) 75.4%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.5411),
+    color-mix(in srgb, var(--ink) 63.2%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.6494),
+    color-mix(in srgb, var(--ink) 50.0%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.7576),
+    color-mix(in srgb, var(--ink) 36.8%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.8658),
+    color-mix(in srgb, var(--ink) 24.6%, transparent) calc(100% - var(--swipe-from) + (var(--swipe-from) - var(--swipe-hand)) * 0.9740),
+    color-mix(in srgb, var(--ink) 14.5%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.1597),
+    color-mix(in srgb, var(--ink) 6.9%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.3697),
+    color-mix(in srgb, var(--ink) 2.3%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.5798),
+    color-mix(in srgb, var(--ink) 0.3%, transparent) calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 0.7899),
+    transparent calc(100% - var(--swipe-hand) + (var(--swipe-hand) - var(--swipe-to)) * 1.0000)
+  );
 }
 
 /* Dark theme: the ink variant inverts to a paper fill via the tokens —
@@ -44,10 +115,14 @@
   border-radius: var(--r-control-lg);
   padding: 0 84px 0 18px;
   font-size: var(--fs-body-md);
-  background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 52%, color-mix(in srgb, var(--ink) 48%, transparent) 65%, color-mix(in srgb, var(--ink) 14%, transparent) 78%, transparent 92%);
+  /* a smaller hand: the fade follows it */
+  --swipe-from: min(104px, 42%);
+  --swipe-to: 26px;
 }
 .ah-swipe--compact.ah-swipe--amber {
-  background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 52%, color-mix(in srgb, var(--amber) 48%, transparent) 65%, color-mix(in srgb, var(--amber) 14%, transparent) 78%, transparent 92%);
+  --swipe-from: min(172px, 54%);
+  --swipe-hand: 66px;
+  --swipe-to: 12px;
 }
 
 .ah-swipe:disabled {
@@ -55,10 +130,12 @@
   cursor: not-allowed;
 }
 
-/* ── Gesture emoji (ui/Gesture.tsx): each gesture idles with its own motion ──
-   ✋ rises, 🤝 shakes, 🙌 cheers, 🙏 bows. Used where the gesture is the hero of the moment
-   (the Deal card, a screen's big emoji, the swipe button); a small emoji in running text stays
-   still. A context sets --gesture-dur to change the loop's length (the swipe buttons do).
+/* ── Gesture emoji (ui/Gesture.tsx): each gesture moves its own way, one at a time ──
+   ✋ waves, 🤝 shakes, 🙌 cheers, 🙏 bows: once in a round of --dur-gesture, then it rests. Used
+   where the gesture is the hero of the moment (the Deal card, a screen's big emoji, the swipe
+   button); a small emoji in running text stays still. --gesture-turn says when in the round a
+   gesture takes its turn, so two gestures on one screen never move together: a screen's own
+   gesture goes first, a swipe button's after it, the handshake half a round later.
    tokens.css stops every animation under prefers-reduced-motion. */
 .ah-gesture {
   display: inline-block;
@@ -70,16 +147,20 @@
   transform-origin: 50% 90%;
 }
 .ah-gesture--raise {
-  animation: ah-raise var(--gesture-dur, var(--dur-idle-raise-hero)) ease-in-out infinite;
+  animation: ah-raise var(--dur-gesture) ease var(--gesture-turn, 0s) infinite;
+  transform-origin: 50% 92%;
 }
 .ah-gesture--shake {
-  animation: ah-shake var(--gesture-dur, var(--dur-idle-shake)) ease-in-out infinite;
+  animation: ah-shake var(--dur-gesture) ease var(--gesture-turn, 0s) infinite;
+  transform-origin: 50% 60%;
 }
 .ah-gesture--cheer {
-  animation: ah-cheer var(--gesture-dur, var(--dur-idle-cheer-hero)) ease-in-out infinite;
+  animation: ah-cheer var(--dur-gesture) ease var(--gesture-turn, 0s) infinite;
+  transform-origin: 50% 100%;
 }
 .ah-gesture--bow {
-  animation: ah-bow var(--gesture-dur, var(--dur-idle-bow)) ease-in-out infinite;
+  animation: ah-bow var(--dur-gesture) ease var(--gesture-turn, 0s) infinite;
+  transform-origin: 50% 100%;
 }
 .ah-gesture--still {
   animation: none;
@@ -87,32 +168,32 @@
 
 .ah-swipe__emoji {
   position: absolute;
-  bottom: 6px;
+  /* clear of the button's thin top edge, which a hand's own top would otherwise cross */
+  bottom: 9px;
   line-height: 1;
   font-family: var(--emoji);
-  transform-origin: 50% 85%;
-  transition: transform var(--dur-press) ease-out;
+  transition: transform var(--dur-tone-out) var(--ease-tone);
+  /* after the screen's own gesture, which goes first */
+  --gesture-turn: 1.25s;
 }
-/* Per-gesture mock-exact size/offset; the idle loop is the gesture's own, at the button's pace */
+/* Per-gesture mock-exact size/offset; the move is the gesture's own, the button only says when */
 .ah-swipe__emoji--raise {
   right: 4px;
   font-size: 66px;
-  --gesture-dur: var(--dur-idle-raise);
 }
 .ah-swipe__emoji--shake {
   right: 10px;
   font-size: 60px;
-  --gesture-dur: var(--dur-idle-shake);
+  /* "Pass it on" stands beside "I can help": the handshake answers half a round later */
+  --gesture-turn: 3.75s;
 }
 .ah-swipe__emoji--cheer {
   right: 0;
   font-size: 68px;
-  --gesture-dur: var(--dur-idle-cheer);
 }
 .ah-swipe__emoji--bow {
   right: 6px;
   font-size: 64px;
-  --gesture-dur: var(--dur-idle-bow);
 }
 .ah-swipe--compact .ah-swipe__emoji {
   font-size: 54px;
@@ -123,27 +204,71 @@
   font-size: 72px;
   right: 8px;
 }
+.ah-swipe--hero.ah-swipe--amber {
+  --swipe-hand: 84px;
+}
 /* Landing illustration card (mock 01): densest compact pair */
 .ah-swipe--card {
   padding: 0 58px 0 16px;
   font-size: var(--fs-body-xs);
   white-space: nowrap;
+  /* a narrow button: the label ends 58px from the edge, and the fade may not begin far before it */
+  --swipe-from: min(84px, 46%);
+  --swipe-to: 22px;
+}
+.ah-swipe--card.ah-swipe--amber {
+  --swipe-from: min(92px, 50%);
+  --swipe-hand: 52px;
+  --swipe-to: 8px;
 }
 .ah-swipe--card .ah-swipe__emoji--shake {
   font-size: 48px;
   right: 4px;
-  bottom: 5px;
+  bottom: 8px;
 }
 .ah-swipe--card .ah-swipe__emoji--cheer {
   font-size: 50px;
   right: 0;
-  bottom: 5px;
+  bottom: 8px;
 }
 
-/* Press feedback: emoji jumps. Idle animation yields for the press. */
-.ah-swipe:active:not(:disabled) .ah-swipe__emoji {
+/* The answer to the pointer: the whole fill steps in tone and the hand leans, both at once; leaving
+   takes longer than arriving. The answer to a press, by pointer or by finger: the tone deepens at
+   once, the button gives 2% and the hand pushes; letting go is slow enough for a quick tap to be
+   seen ([data-pressed] is held for at least 150 ms by ui/SwipeButton.tsx). A light fill has no
+   room to get lighter, so in the dark theme the paper fill steps darker (tokens.css). The hand's
+   own move yields to both. */
+@media (hover: hover) {
+  .ah-swipe:not(:disabled):hover::before {
+    background-color: var(--swipe-fill-hover);
+    transition-duration: var(--dur-tone);
+  }
+  .ah-swipe:not(:disabled):hover .ah-swipe__emoji {
+    animation: none;
+    transform: translateX(6px) rotate(-8deg);
+    transition-duration: var(--dur-tone);
+  }
+}
+.ah-swipe:not(:disabled):is(:active, [data-pressed])::before {
+  background-color: var(--swipe-fill-press);
+  transition-duration: 0s;
+}
+.ah-swipe:not(:disabled):is(:active, [data-pressed]) {
+  transform: scale(0.98);
+  transition-duration: var(--dur-push);
+}
+.ah-swipe:not(:disabled):is(:active, [data-pressed]) .ah-swipe__emoji {
   animation: none;
-  transform: translateY(-4px);
+  transform: translate(8px, -3px) rotate(-12deg);
+  transition-duration: var(--dur-push);
+}
+/* less motion asked for: the tone still answers, nothing moves */
+@media (prefers-reduced-motion: reduce) {
+  .ah-swipe,
+  .ah-swipe .ah-swipe__emoji {
+    transform: none !important;
+    transition: none !important;
+  }
 }
 .ah-swipe:disabled .ah-swipe__emoji {
   animation: none;
@@ -155,14 +280,15 @@
   align-items: center;
   justify-content: center;
   height: 56px;
-  border: var(--bw-emph) solid var(--ink-a25);
+  /* a tone, not an outline; the transparent border keeps its size and gives "soon" its dashes */
+  border: var(--bw-emph) solid transparent;
   border-radius: var(--r-btn);
   padding: 0 18px;
-  background: none;
+  background: var(--sunken);
   font-family: var(--font-display);
   font-size: var(--fs-body-md);
   font-weight: var(--fw-semibold);
-  color: var(--ink-a70);
+  color: var(--ink);
   cursor: pointer;
 }
 .ah-quiet--compact {
@@ -178,6 +304,7 @@
   cursor: default;
   border-style: dashed;
   border-color: var(--ink-a20);
+  background: none;
   color: var(--ink-a40);
   gap: 8px;
 }
@@ -188,6 +315,7 @@
   border: 0;
   padding: 0 4px;
   margin: 0 -4px;
+  background: none;
   text-decoration: underline;
   text-decoration-color: var(--ink-a30);
   text-underline-offset: 4px;
@@ -220,10 +348,10 @@
   display: inline-flex;
   align-items: center;
   height: 44px;
-  border: var(--bw-emph) solid var(--ink-a20);
+  border: var(--bw-emph) solid transparent;
   border-radius: var(--r-control);
   padding: 0 16px;
-  background: none;
+  background: var(--sunken);
   font-family: var(--font-display);
   font-size: var(--fs-body-md);
   font-weight: var(--fw-bold);
@@ -233,12 +361,12 @@
 }
 .ah-chip--selected {
   background: var(--amber);
-  border-color: var(--ink);
   font-weight: var(--fw-heavy);
   color: var(--on-amber);
 }
 .ah-chip--dashed {
   border: var(--bw-emph) dashed var(--ink-a30);
+  background: none;
   font-weight: var(--fw-semibold);
   color: var(--ink-quiet);
 }
@@ -281,8 +409,14 @@
   min-width: 34px;
 }
 .ah-rail__gesture {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-pill);
+  background: var(--ink-a08);
   font-family: var(--emoji);
-  font-size: 22px;
+  font-size: 19px;
   line-height: 1;
 }
 .ah-rail__name {
@@ -338,38 +472,53 @@
   line-height: 1.4;
   text-transform: none;
 }
+/* A line that is drawn is a pass that happened; the dashed one is a pass that may come */
 .ah-rail__line {
   flex: 1;
   min-width: 14px;
   height: 2px;
-  background: var(--ink-a15);
-  margin: 0 5px 7px;
-}
-.ah-rail__line--reaching {
-  background: var(--amber);
+  background: var(--ink);
+  margin: 0 5px 37px;
 }
 .ah-rail__line--next {
   height: 0;
   background: none;
-  border-top: 2px dashed var(--ink-a25);
+  border-top: 2px dashed var(--ink-a40);
 }
+/* The viewer: an ink disc with a word in it. Amber on the rail is kept for money that moved. */
 .ah-rail__you {
-  font-family: var(--font-meta);
-  font-size: var(--fs-mono-2xs);
-  line-height: 12px;
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  /* no name stands under it, so it is lifted to the height of the other hands */
+  margin-bottom: 21px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--fs-mono-sm);
   font-weight: var(--fw-bold);
-  background: var(--amber);
-  color: var(--on-amber);
-  padding: 2px 6px;
-  border-radius: var(--r-bar);
-  text-transform: uppercase;
+  line-height: 1;
   white-space: nowrap;
 }
+/* Whoever comes next: an empty place with a question in it */
 .ah-rail__slot {
-  width: 26px;
-  height: 26px;
-  border: var(--bw-emph) dashed var(--ink-a30);
-  border-radius: var(--r-chip);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  margin-bottom: 21px;
+  border: var(--bw-emph) dashed var(--ink-a40);
+  border-radius: var(--r-pill);
+}
+.ah-rail__slot::before {
+  content: "?";
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-bold);
+  color: var(--ink-quiet);
 }
 
 /* ── Receipt table (Thank / Pocket) ─────────────────────────────────── */
@@ -479,6 +628,20 @@
   color: var(--ink);
 }
 /* An address or a hash may break anywhere; it never pushes the page sideways */
+/* Mono means exact data a reader can check, and that lives under the lens and on the pages
+   that are themselves the proof. In the calm view every line a person reads here is a person's
+   word (a kicker, a status, a counter), so it speaks in the human voice: sentence case, no
+   tracking. With the lens on, and on those pages, the label keeps its machine voice. */
+:root:not([data-lens="on"]) .ah-meta:not(.ah-meta--exact):not(:where([data-screen="proof"], [data-screen="check"], [data-screen="core"], [data-screen="dev-wallet"], [data-screen="without-us"]) *),
+:root:not([data-lens="on"]) .ah-disclose,
+:root:not([data-lens="on"]) .ah-linkrow__action {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+}
 .ah-meta--exact {
   text-transform: none;
   letter-spacing: 0;
@@ -501,10 +664,10 @@
 .ah-input {
   display: block;
   width: 100%;
-  border: var(--bw-emph) solid var(--ink-a15);
+  border: var(--bw-emph) solid transparent;
   border-radius: var(--r-btn);
   padding: 16px;
-  background: none;
+  background: var(--sunken);
   font-family: var(--font-display);
   font-size: var(--fs-body-lg);
   line-height: 1.45;
@@ -527,7 +690,7 @@
   outline: none;
   border-color: var(--ink);
 }
-/* A selected chip already has the full ink border, so it takes the page's own focus ring. */
+/* A selected chip is a fill with no border to darken, so it takes the page's own focus ring. */
 .ah-chip--selected:focus-visible {
   outline: var(--bw-focus) solid var(--ink);
   outline-offset: 2px;
@@ -760,33 +923,39 @@
   padding: 18px 16px;
 }
 
-/* ── OG-card preview (Raise) — what the scraper will show ───────────── */
-.ah-ogcard {
-  position: relative;
-  border: var(--bw-emph) solid var(--ink);
+/* ── The link's preview on /raise: what a chat will show ─────────────
+   The picture is the preview service's own card (packages/card), drawn here from the draft and
+   scaled to the column; under it the title and description lines a messenger sets. One tone
+   holds the address, the picture and the lines together, as a chat's message holds them; no
+   frame, and no bubble tail: the picture already says it is a picture by its own paper. */
+.ah-unfurl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
   border-radius: var(--r-card-sm);
-  background: var(--card);
-  background-clip: padding-box;
-  padding: 14px 16px 14px 27px;
+  background: var(--sunken);
+  padding: 12px;
+}
+/* A chat draws the picture about this wide on a phone; from 640px it keeps that width, so the
+   page's own example beside it on a wide screen still starts within the window. */
+@media (min-width: 640px) {
+  .ah-unfurl {
+    max-width: 320px;
+  }
+}
+.ah-unfurl__image {
+  aspect-ratio: 1200 / 630;
   overflow: hidden;
+  border-radius: 10px;
 }
-/* messenger-unfurl cue: the one amber accent on this card */
-.ah-ogcard::before {
-  content: "";
-  position: absolute;
-  left: 13px;
-  top: 15px;
-  bottom: 15px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--amber);
+.ah-unfurl__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
-.ah-ogcard__foot {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: var(--bw-hair) solid var(--ink-a08);
-}
-.ah-ogcard__title {
+.ah-unfurl__title {
   color: var(--ink);
   font-size: var(--fs-card-title-sm);
   font-weight: var(--fw-heavy);
@@ -797,11 +966,14 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.ah-ogcard__desc {
-  margin-top: 5px;
+.ah-unfurl__desc {
   font-size: var(--fs-body-xs);
   line-height: var(--lh-body);
   color: var(--ink-a60);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 /* ── Sheet: a full screen on phones, a 560px modal from 768px (mock 14/15) ──
@@ -922,12 +1094,12 @@ dialog.ah-sheet::backdrop {
 
 /* ── Quiet flat hovers (pointer devices only) ───────────────────────── */
 @media (hover: hover) {
-  .ah-chip:not(.ah-chip--selected):not(:disabled):hover {
-    border-color: var(--ink-a45);
+  .ah-chip:not(.ah-chip--selected):not(.ah-chip--dashed):not(:disabled):hover,
+  .ah-quiet:not(.ah-quiet--text):not(:disabled):hover {
+    background: var(--sunken-hi);
   }
-  .ah-quiet:not(:disabled):hover {
+  .ah-chip--dashed:not(:disabled):hover {
     border-color: var(--ink-a45);
-    color: var(--ink);
   }
   .ah-linkrow:not(:disabled):hover {
     border-color: var(--ink-a50);
@@ -1238,6 +1410,15 @@ dialog.ah-sheet::backdrop {
   font-family: var(--emoji);
   font-size: 40px;
   line-height: 1;
+  /* the hand greets whoever opens the card, once, and leaves the moving to the action below */
+  animation-iteration-count: 1;
+}
+/* The line over the asker's words, with the card's hand standing in it */
+.ah-deal__lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
 }
 .ah-deal__intro {
   margin: 0;
@@ -1245,6 +1426,23 @@ dialog.ah-sheet::backdrop {
   font-weight: var(--fw-medium);
   line-height: 1.3;
   color: var(--ink-quiet);
+}
+.ah-deal__lead .ah-deal__gesture {
+  margin-top: 0;
+  font-size: 28px;
+}
+/* The asker's words are a quotation: the opening mark hangs in the margin, so the lines of
+   the words keep one straight edge. The marks are the card's, not the asker's. */
+.ah-deal__title--quote {
+  margin-top: 10px;
+  padding-left: 0.52em;
+  text-indent: -0.52em;
+}
+.ah-deal__title--quote::before {
+  content: open-quote;
+}
+.ah-deal__title--quote::after {
+  content: close-quote;
 }
 .ah-deal__title {
   margin: 3px 0 0;
@@ -1276,18 +1474,19 @@ dialog.ah-sheet::backdrop {
   line-height: 1.2;
   letter-spacing: var(--track-display);
 }
+/* Three outcomes, each a condition and what follows from it, on one straight left edge */
 .ah-deal__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin: 0;
-  border-top: var(--bw-emph) solid var(--ink);
+  border-top: var(--bw-hair) solid var(--ink-a12);
+  padding-top: 14px;
 }
 .ah-deal__row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 2px 16px;
-  border-bottom: var(--bw-hair) solid var(--ink-a10);
-  padding: 11px 0;
+  flex-direction: column;
+  gap: 1px;
 }
 .ah-deal__row dt {
   font-size: var(--fs-body-sm);
@@ -1296,18 +1495,16 @@ dialog.ah-sheet::backdrop {
   color: var(--ink-a70);
 }
 .ah-deal__row dd {
-  margin: 0 0 0 auto;
+  margin: 0;
   font-size: var(--fs-body-md);
   font-weight: var(--fw-bold);
   line-height: 1.4;
-  text-align: right;
 }
-/* An opened figure takes the row's whole width: the figure stays right, its source reads left */
+/* An opened figure keeps its place and its source opens under it */
 .ah-deal__row dd[data-open="true"] {
   display: flex;
-  flex-basis: 100%;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 .ah-deal__row .ah-evidence {
   align-self: stretch;
@@ -1334,18 +1531,17 @@ dialog.ah-sheet::backdrop {
 }
 
 /* ── The asker's words: labelled, isolated, clamped ──
-   The words are the asker's and Core does not check them. A quiet mono line says so above
-   them, in no shape of the three marks. The title keeps its size and place. */
+   The words are the asker's and Core does not check them. They stand as a quotation; a quiet
+   line under them says nobody checked them, in a person's voice and in no shape of the three
+   marks, where the card draws it (under the lens, or when the words give a reason for care). */
 .ah-asker {
   min-width: 0;
 }
 .ah-asker__label {
-  margin: 0 0 4px;
-  font-family: var(--font-meta);
-  font-size: var(--fs-mono-2xs);
-  line-height: 14px;
-  letter-spacing: var(--track-mono-sm);
-  text-transform: uppercase;
+  margin: 8px 0 0;
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
   color: var(--ink-quiet);
 }
 .ah-asker__text {
@@ -1520,15 +1716,19 @@ dialog.ah-sheet::backdrop {
   padding: 0;
   min-width: 0;
 }
+/* A choice is a tone; the chosen one is the only one that gets the frame */
 .ah-choice {
-  border: var(--bw-emph) solid var(--ink-a20);
+  border: var(--bw-emph) solid transparent;
   border-radius: var(--r-card-sm);
-  background: var(--card);
+  background: var(--ink-a035);
   background-clip: padding-box;
-  transition: border-color var(--dur-hover) ease;
+  transition:
+    border-color var(--dur-hover) ease,
+    background-color var(--dur-hover) ease;
 }
 .ah-choice--on {
   border-color: var(--ink);
+  background: var(--card);
 }
 .ah-choice__head {
   display: flex;

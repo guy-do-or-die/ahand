@@ -25,7 +25,7 @@ function Command({ lines, testId }: { lines: string[]; testId?: string }) {
 
 function Form({ fn, say, fields }: { fn: string; say: string; fields: [string, string][] }) {
   return (
-    <div className="flex flex-col gap-2 border-t-[1.5px] border-[color:var(--ink)] pt-3">
+    <div className="flex flex-col gap-2 border-t-[length:var(--bw-hair)] border-[color:var(--ink-a12)] pt-3">
       <p className="m-0 font-mono text-[length:var(--fs-mono-lg)] font-medium">{fn}</p>
       <p className="ah-label m-0">{say}</p>
       <dl className="m-0 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
@@ -59,7 +59,7 @@ export default function WithoutUsScreen() {
           href="/exit.html"
           download="ahand-exit.html"
           data-testid={TID.about.download}
-          className="inline-flex min-h-[48px] items-center justify-center self-start rounded-[var(--r-btn)] border-[1.5px] border-[color:var(--ink)] bg-[color:var(--amber)] px-5 font-bold text-[color:var(--on-amber)] no-underline"
+          className="inline-flex min-h-[48px] items-center justify-center self-start rounded-[var(--r-btn)] border-0 bg-[color:var(--amber)] px-5 font-bold text-[color:var(--on-amber)] no-underline"
         >
           {t("without-us.file.download")}
         </a>
@@ -110,7 +110,7 @@ export default function WithoutUsScreen() {
         />
       </article>
 
-      <footer className="flex flex-col gap-1 border-t-[1.5px] border-[color:var(--ink)] pt-3" data-testid={TID.about.core}>
+      <footer className="flex flex-col gap-1 border-t-[length:var(--bw-hair)] border-[color:var(--ink-a12)] pt-3" data-testid={TID.about.core}>
         <p className="ah-label m-0">{t("without-us.core")}</p>
         <p className="ah-meta ah-meta--ink ah-meta--exact m-0 text-[length:var(--fs-mono-lg)]">{core}</p>
         {core ? <OnExplorer address={core} /> : null}

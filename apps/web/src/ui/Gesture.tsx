@@ -20,18 +20,22 @@ export const GESTURE_KEYFRAMES: Record<GestureKind, string> = {
 };
 
 /**
- * A gesture emoji that moves the way its gesture does: ✋ rises, 🤝 shakes, 🙌 cheers, 🙏 bows,
- * in an idle loop of 3–4 seconds (design/components.css, `.ah-gesture`). It belongs where the
- * gesture is the hero of the moment: the Deal card, a screen's big emoji, the main action. A
- * small emoji inside running text stays a plain <Emoji>, because motion there is only noise.
- * `still` keeps this one from moving; `prefers-reduced-motion` stops every one of them. The
- * emoji is decorative and hidden from assistive tech: the words beside it carry the meaning.
+ * A gesture emoji that moves the way its gesture does: ✋ waves, 🤝 shakes, 🙌 cheers, 🙏 bows.
+ * It makes its move once in a round of five seconds and rests for the remainder
+ * (design/components.css, `.ah-gesture`), so a screen is alive without flickering. It belongs
+ * where the gesture is the hero of the moment: the Deal card, a screen's big emoji, the main
+ * action. A small emoji inside running text stays a plain <Emoji>, because motion there is only
+ * noise. `turn` is the second of the round at which this one moves: gestures that share a screen
+ * get different turns and so move one after another, never together. `still` keeps this one from
+ * moving; `prefers-reduced-motion` stops every one of them. The emoji is decorative and hidden
+ * from assistive tech: the words beside it carry the meaning.
  */
 export function GestureEmoji({
   kind,
   size,
   emoji,
   still = false,
+  turn,
   className,
   style,
 }: {
@@ -41,15 +45,18 @@ export function GestureEmoji({
   /** Another emoji with this gesture's motion (🫴 on the waiting screen's take-out). */
   emoji?: string;
   still?: boolean;
+  /** When in the five-second round this gesture moves, in seconds; unset, its place decides. */
+  turn?: number;
   className?: string;
   style?: CSSProperties;
 }) {
+  const placed = { ...(size ? { fontSize: size } : {}), ...(turn !== undefined ? { "--gesture-turn": `${turn}s` } : {}), ...style } as CSSProperties;
   return (
     <span
       aria-hidden="true"
       data-gesture={kind}
       className={clsx("ah-gesture", `ah-gesture--${kind}`, still && "ah-gesture--still", className)}
-      style={size ? { fontSize: size, ...style } : style}
+      style={Object.keys(placed).length > 0 ? placed : undefined}
     >
       {emoji ?? GESTURE_EMOJI[kind]}
     </span>

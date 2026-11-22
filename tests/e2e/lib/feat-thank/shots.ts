@@ -39,6 +39,7 @@ async function connect(page: Page, who: number): Promise<void> {
 
 async function paste(page: Page, lang: "en" | "ru", address: string): Promise<void> {
   await page.goto(`${site}/thank`);
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId(lang === "ru" ? "shell-lang-ru" : "shell-lang-en").click();
   await page.getByTestId("thank-input").fill(address);
   await page.getByTestId("thank-open").click();
@@ -67,6 +68,7 @@ try {
     const page = await context.newPage();
 
     await page.goto(`${site}/thank`);
+    await page.getByTestId("shell-lang").click();
     await page.getByTestId(lang === "ru" ? "shell-lang-ru" : "shell-lang-en").click();
     await shot(page, `${lang}-01-empty`);
 

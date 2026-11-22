@@ -1,8 +1,8 @@
 // The /check screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 const en = {
-  "check.title": "Check any link.",
+  "check.title": "Check any link",
   "check.intro": "Paste an address or a link. With no network, this page measures its bytes and shows what they say. With the hand's terms read once from the contract, it walks the contract's own checks in its own order, then asks the contract itself and puts the two answers side by side.",
-  "check.privacy": "Nothing you paste here is sent anywhere except the call to the contract. The box empties as soon as the link is read; the secret part is never shown.",
+  "check.privacy": "Nothing you paste here is sent anywhere except the call to the contract. The box empties as soon as the link is read. The secret part is never shown.",
   "check.label": "Address or link",
   "check.placeholder": "https://…#… or the link alone",
   "check.run": "Check",
@@ -30,7 +30,7 @@ const en = {
 
   "check.here.title": "2 · Checked here, in the contract's order",
   "check.here.body": "The same checks the contract makes, run in this browser over the hand's terms read once from the contract.",
-  "check.here.chainOnly": "Before these, a thanks is also asked who sends it and whether the hand is still open and in time. Only the chain knows that; part 3 reads the hand's state from the contract.",
+  "check.here.chainOnly": "Before these, a thanks is also asked who sends it and whether the hand is still open and in time. Only the chain knows that. Part 3 reads the hand's state from the contract.",
   "check.step.shake.InvalidClaim": "Pass {n}: its share is the one that reached it, and it does not grow.",
   "check.step.shake.AnonymousMargin": "Pass {n}: if it kept a part, it said where that part lands.",
   "check.step.shake.InvalidKeySig": "Pass {n}: made with the very key that held the link.",
@@ -66,14 +66,14 @@ const en = {
   "check.now.open.give": "The hand is open until {date}. The asker can thank this answer.",
   "check.now.open.refused": "The hand is open until {date}, but as it is this can't be thanked.",
   "check.now.thanked-this": "This is the answer that was thanked.",
-  "check.now.thanked-other": "The asker thanked another answer; this one can no longer be thanked.",
+  "check.now.thanked-other": "The asker thanked another answer. This one can no longer be thanked.",
   "check.now.passport": "See its passport",
   "check.lens.now": "hands(id) · thanks(id) · block {block} · network time {time}",
   // A closed or ended hand's state, at the latest block's time.
   "check.state.thanked": "This hand is closed: thanked on {date}.",
   "check.state.refunded": "This hand is closed: the reward went back to the asker on {date}.",
   "check.state.closed.valid": "The route is valid, but nobody can be paid through it any more.",
-  "check.state.expired": "Time's up on {date}; only sending the reward back is possible now.",
+  "check.state.expired": "Time's up on {date}. Only sending the reward back is possible now.",
 
   // With no network: what the bytes alone say.
   "check.offline.title": "2 · Read here, from the bytes alone",
@@ -85,7 +85,7 @@ const en = {
   "check.offline.left": "What the route leaves for whoever helps: {share}.",
   "check.offline.give": "The answer names the helper {who}. The money would land at {payee}.",
   "check.offline.give.key": "The helper confirmed it with a key.",
-  "check.offline.give.account": "The helper confirmed it as an account ({n, plural, one {# byte} other {# bytes}}); only the contract can judge that.",
+  "check.offline.give.account": "The helper confirmed it as an account ({n, plural, one {# byte} other {# bytes}}). Only the contract can judge that.",
   "check.offline.unchecked": "Not checked: whether each pass was made with the key that held the link, and whether the confirmations are real. Every confirmation is made over the hand's terms, and those are kept by the contract, so none of them can be checked with no network.",
   "check.offline.words": "Words carried with the link",
   "check.offline.words.note": "Not compared with the chain: the contract keeps only a fingerprint of the asker's words, and it couldn't be read.",

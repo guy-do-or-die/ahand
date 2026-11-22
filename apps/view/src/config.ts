@@ -1,6 +1,9 @@
 import { resolve } from "node:path";
 
 import { getAddress, isAddress, type Address } from "viem";
+import { DOLLAR_KINDS } from "@ahand/card";
+
+export { DOLLAR_KINDS } from "@ahand/card";
 
 /**
  * The view server's configuration, from the environment:
@@ -38,9 +41,6 @@ export interface ListedToken {
   /** A dollar token: its amounts are written "$40". */
   dollar: boolean;
 }
-
-/** The token kinds of the app's configuration that are dollars. */
-export const DOLLAR_KINDS: readonly string[] = ["usd", "usdc", "blacklist"];
 
 const SYMBOL = /^[A-Za-z0-9.-]{1,12}$/;
 

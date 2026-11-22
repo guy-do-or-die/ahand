@@ -6,12 +6,12 @@ import { openedLink, remember, subscribeOpened, type OpenedLink } from "./store/
 import { privyReturning } from "./wallet/privy-mark";
 
 /**
- * An opened link carried across one social login: the one
- * exception to a reload forgetting an opened link. Google, Apple and X through Privy send the person to the provider and back
- * by a fresh load of the same address (Privy 3.51.3 calls `window.location.assign`), and a fresh
- * load forgets a link that lives only in this tab's memory (store/memory.ts). So it is carried
- * across that trip in this tab's `sessionStorage` and erased on return. A per-person setting kept encrypted in ENS data records is a note for later,
- * not built.
+ * An opened link carried across one social login: the one exception to a reload forgetting an
+ * opened link. Google, Apple and X through Privy send the person to the provider and back by a
+ * fresh load of the same address (Privy 3.51.3 calls `window.location.assign`), and a fresh load
+ * forgets a link that lives only in this tab's memory (store/memory.ts). So it is carried across
+ * that trip in this tab's `sessionStorage` and erased on return. A per-person setting kept
+ * encrypted in ENS data records is a note for later, not built.
  *
  * How narrow it is:
  *
@@ -39,10 +39,10 @@ import { privyReturning } from "./wallet/privy-mark";
  *   - Storage that refuses (a private window, blocked site data) carries nothing and throws
  *     nothing: the person opens the link once more, and `LinkAgain` (wallet/ConnectSheet.tsx) says so.
  *
- * The answer typed on /give goes with the link (since
- * 2026-11-22): a helper who writes first and only then presses "Log in to get paid" would otherwise
- * come back to an empty field. It is written by `writeCarry` at the same moment, under a second key,
- * "ahand-give-draft", only when the link itself was written and /give holds a non-empty draft
+ * The answer typed on /give goes with the link (since 2026-11-22): a helper who writes first and
+ * only then presses "Log in to get paid" would otherwise come back to an empty field. It is written
+ * by `writeCarry` at the same moment, under a second key, "ahand-give-draft", only when the link
+ * itself was written and /give holds a non-empty draft
  * (`useHoldsDraft`); it names the Hand it was typed for (chain, Core, number) and carries the link
  * record's own time. It is erased with the link on every path above, taken out with it on every
  * load, and kept for the screen (in memory only) only when the link itself was put back and the

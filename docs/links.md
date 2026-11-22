@@ -7,6 +7,8 @@ http://127.0.0.1:18330/31337/14?d=AgFP…#AQ…
 
 The format is `packages/sdk/src/link.ts` (its header comment is the byte layout) and `packages/sdk/src/address.ts`. `packages/sdk/tests/link-vectors.json` holds 27 links that readers written apart from each other, in TypeScript, Python and Go, open with the same answer; the SDK is checked against them.
 
+From a clone, with no site: `pbpaste | bun tools/ahand.ts inspect - --rpc $RPC` prints any address's head, each pass, where it ends, its sizes and the Hand's state, and never prints the secret (a live link's seed shows only as present). Give the address as `-`, or pipe it in with no argument, so a live link stays out of shell history; as an argument it works, with a warning.
+
 ## Kinds
 
 | Kind | Carries | Made by |
@@ -37,7 +39,7 @@ A link or an address that leaves Core's address out names the canonical Core, `0
 | **unlisted** (default) | described; the title in `d`; details, salt and inbox key inside the link | Hand number, title | everything, and the link's secret | the same |
 | dark | bare; everything inside | nothing | everything, and the link's secret | the same |
 
-The server never receives what stands after `#`; **the code the site serves reads it in your browser, because that is how a link opens.** A dishonest or look-alike site could copy a link or write another payee into a pass. Dark is not encryption. Built by `describeHand` (`packages/sdk/src/describe.ts`, tests "public: …", "unlisted: …", "dark: …" in `describe.test.ts`). A public Hand carries its whole description in `d`, because there is no public index of Hands to read it from. How long `d` may be is the site's limit, not the format's (`PUBLIC_PART_MAX_CHARS`, 8,192 base64url characters, in `@ahand/sdk/app`).
+The server never receives what stands after `#`; **the code the site serves reads it in your browser, because that is how a link opens.** A dishonest or look-alike site could copy a link or write another payee into a pass. Dark is not encryption. On screen the modes are called Public, Unlisted and Hidden (with their own words in each language): "dark" stays the mode's name in the code, the SDK and this document, and "Hidden" is the interface's word for it, since "dark" there already names the theme. Built by `describeHand` (`packages/sdk/src/describe.ts`, tests "public: …", "unlisted: …", "dark: …" in `describe.test.ts`). A public Hand carries its whole description in `d`, because there is no public index of Hands to read it from. How long `d` may be is the site's limit, not the format's (`PUBLIC_PART_MAX_CHARS`, 8,192 base64url characters, in `@ahand/sdk/app`).
 
 A preview server sees only the part before `#`: it should show a title only after `d` matched the `dataHash` Core keeps (`viewOf` does both), and a generic card for a bare address, a mismatch or a Core it does not trust. [The view server](view.md) is that server.
 
@@ -60,6 +62,7 @@ The first key of a Hand's link is derived, not stored (`packages/sdk/src/keys.ts
 - The asker's account confirms one EIP-712 message, domain `aHand keys`/`1`, whose text is its own warning: "Rebuilds my aHand links and opens replies to me. I sign this only on a site I trust."
 - `master = HKDF-Extract("aHand.keys/1", signature)`; the root seed `rootSeedOf(master, book, n) = HKDF-Expand(master, "aHand.root/1" ‖ book ‖ n)` (16 bytes); the inbox secret `inboxSecretOf(master, book, n) = HKDF-Expand(master, "aHand.inbox/1" ‖ book ‖ n)` (32 bytes).
 - `book` is 8 random bytes per device and asker; `n` is the asker's own Hand number in that book, which the application reserves before anything is signed and never reuses. Two devices can never make the same root key.
+- After a lost device, rebuild a root link from a clone: `pbpaste | bun tools/ahand.ts recover --book <16 hex> --rpc $RPC <handId>` reads the keys signature from standard input (never from an argument), finds `n` in that book and prints the root key's first characters; `--print-link` prints the live link itself, under a warning.
 - The description is never on chain, so a link rebuilt from the keys has no words; the full recovery is the saved link.
 
 ## Errors

@@ -2,7 +2,7 @@
 // This is the one screen where "safe" may stand, and only in waiting.safe (the words guard allows it here).
 // Keys with a `lens` segment are the specialist layer: Core's own names, in mono.
 const en = {
-  "waiting.title": "Money waiting for an address.",
+  "waiting.title": "Money waiting for an address",
   "waiting.intro": "When money can't reach its address at the moment a hand is thanked or sent back, it is held until it can. From here it can be taken out, or delivered.",
 
   // Whose money
@@ -31,17 +31,17 @@ const en = {
   "waiting.deliver": "Deliver",
   "waiting.deliver.note": "Whoever presses, it lands only at this address.",
   // Nobody connected: Deliver is still on the row, and its press opens "Connect a wallet"
-  "waiting.deliver.visitor": "Anyone can deliver it. You'll be asked to Connect a wallet first; whoever presses, the money lands only at this address.",
-  "waiting.deliver.visitorLogIn": "Anyone can deliver it. You'll be asked to Log in first; whoever presses, the money lands only at this address.",
+  "waiting.deliver.visitor": "Anyone can deliver it. You'll be asked to Connect a wallet first. Whoever presses, the money lands only at this address.",
+  "waiting.deliver.visitorLogIn": "Anyone can deliver it. You'll be asked to Log in first. Whoever presses, the money lands only at this address.",
   "waiting.cost.checking": "Working out what it costs…",
 
   // When nobody here can pay the cost
-  "waiting.safe": "This money is safe where it is. Anyone can press Deliver; it always lands at this address.",
+  "waiting.safe": "This money is safe where it is. Anyone can press Deliver. It always lands at this address.",
   "waiting.friend": "Send this page to anyone who can press Deliver:",
 
   // When it doesn't go
   "waiting.stuck": "The token won't move this money to this address right now.",
-  "waiting.kept": "The money stays waiting; nothing was lost.",
+  "waiting.kept": "The money stays waiting. Nothing was lost.",
   "waiting.stuck.said": "What the token said",
   "waiting.issuer": "Why would a token refuse? Its issuer can freeze an address, and then that money waits.",
   "waiting.failed": "It didn't go through.",
@@ -52,7 +52,7 @@ const en = {
 
   // Do it without us
   "waiting.withoutUs": "Do it without us",
-  "waiting.withoutUs.body": "The same action from a terminal, with no site. Anyone can run it; only the address the money waits for can change where it lands.",
+  "waiting.withoutUs.body": "The same action from a terminal, with no site. Anyone can run it. Only the address the money waits for can change where it lands.",
   "waiting.withoutUs.more": "Every way to do it without us",
 
   // Hands this device knows

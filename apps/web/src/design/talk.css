@@ -1,0 +1,1224 @@
+/* ── "Conversation": the look of a hand ─────────────────────────────────────────────────────
+   A hand is read as a message from a person with a thank-you attached, not as a card of terms.
+   The asker's words stand as words, with no bubble, in the reader's own device font, the way a
+   message from a person reads everywhere else on their phone; the site's own voice keeps the brand face,
+   and the one loud thing on a screen is the amber amount. It is a metaphor to steer by, not a
+   promise of a chat: where the mechanism has no chat, the screen says
+   what there is.
+
+   Three parts: the Deal card in message form, a person (the header's button and their sheet), and
+   a long screen's sections with the strip that moves between them. */
+
+:root {
+  /* What a message from a person is set in on this device. */
+  --font-device: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", sans-serif;
+  /* The header's own height from the strip's point of view: the strip sticks to the window's top. */
+  --strip-h: 60px;
+}
+
+/* ── The Deal card as a message ─────────────────────────────────────────────────────────────
+   No frame of its own: who asks, their words, the thank-you attached under it, and
+   what happens if nobody is thanked. A screen that needs a frame around it (the raise screen's
+   preview) draws the frame itself. */
+.ah-deal {
+  gap: 14px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: none;
+}
+.ah-deal__lead {
+  gap: 10px;
+}
+/* The hand beside the line stands on the page: a system emoji needs no plate under it. */
+.ah-deal__lead .ah-deal__gesture,
+.ah-deal__head .ah-deal__gesture {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  font-size: 22px;
+}
+.ah-deal__intro {
+  font-size: var(--fs-body-md);
+}
+.ah-deal__head {
+  align-items: center;
+  gap: 10px;
+}
+.ah-deal__head .ah-deal__title {
+  margin: 0;
+  font-size: var(--fs-card-title-lg);
+}
+
+.ah-asker__label {
+  margin: 6px 0 0 4px;
+}
+
+/* The thank-you attached to the message: the amount on amber, beside it what it is, the whole it
+   is part of when passes kept a share, and until when. */
+.ah-deal__money {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-regular);
+  line-height: 1.35;
+}
+.ah-deal__sum .ah-marker,
+.ah-deal__sum .ah-figure.ah-marker {
+  border-radius: 12px;
+  padding: 7px 12px 8px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: var(--fw-heavy);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+.ah-deal__terms {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ah-deal__what {
+  font-weight: var(--fw-bold);
+}
+/* Each line beside the amount starts as a line does. */
+.ah-deal__what::first-letter,
+.ah-deal__of::first-letter,
+.ah-deal__when::first-letter {
+  text-transform: uppercase;
+}
+.ah-deal__of,
+.ah-deal__when {
+  font-size: var(--fs-body-sm);
+  color: var(--ink-quiet);
+}
+/* A hand with no reward says so in words; there is no amount to set on amber. */
+.ah-deal__money--none {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ah-deal__rows {
+  gap: 10px;
+  border-top: 0;
+  padding-top: 0;
+}
+:root[data-lens="on"] .ah-deal__rows {
+  border-top: var(--bw-hair) solid var(--ink-a12);
+  padding-top: 14px;
+}
+@media (min-width: 768px) {
+  .ah-deal {
+    border-radius: 0;
+    padding: 0;
+  }
+  .ah-asker__words .ah-deal__title,
+  .ah-spine__bare {
+    font-size: 25px;
+  }
+  .ah-asker__words .ah-deal__content {
+    font-size: 16.5px;
+  }
+}
+
+/* A frame for a Deal card shown as an example of what someone else will see. */
+.ah-example {
+  border-radius: var(--r-card-lg);
+  padding: 18px;
+  background: var(--card);
+}
+
+/* ── Surfaces: tone and space instead of frames ─────────────────────────────────────────────
+   Thick frames, and above all a frame inside a frame, make an interface look cheap and add noise
+   to a screen that already says a lot.
+
+   The rule:
+   1. A thing is grouped by the space around it and by a tone under it, never by a frame. A surface
+      inside a surface is one step of tone, so a frame never stands inside a frame.
+   2. A line that is still drawn is a hairline (`--bw-emph` is 1px now) and separates two things on
+      one surface: a rule between sections, a table's rows.
+   3. Only a state gets a slightly heavier line (`--bw-state`): the chosen one of several, the
+      field being typed in. It comes and goes with the state.
+   4. A fill needs no outline. No shadows, as before. */
+.ah-card,
+.ah-pocket-card {
+  border: 0;
+}
+.ah-example {
+  border: 0;
+}
+dialog.ah-sheet .ah-sheet__panel {
+  border: 0;
+}
+/* A value to copy, a link to take along: a field's tone, and its own word says "copy". */
+.ah-linkrow,
+.ah-linkrow--dashed {
+  border: var(--bw-state) solid transparent;
+  background: var(--sunken);
+}
+.ah-linkrow:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--sunken-hi);
+}
+.ah-linkrow:focus-visible {
+  outline: none;
+  border-color: var(--ink);
+}
+/* A note ("not here", "check this") is a quiet band of tone; an error stays the ink band it was. */
+.ah-note,
+.ah-asker__flag {
+  border: 0;
+  background: var(--sunken);
+}
+.ah-panel {
+  border: 0;
+  background: var(--ink-a035);
+}
+/* The amount field is a field like any other: a tone, and the line only while it is typed in. */
+.ah-money {
+  border: var(--bw-state) solid transparent;
+  background: var(--sunken);
+}
+.ah-money:focus-within {
+  border-color: var(--ink);
+}
+/* Of several choices the chosen one is lifted to the card's tone and its mark is filled; a
+   hairline keeps it whole on a paper that is nearly the card's colour. */
+.ah-choice {
+  border-width: var(--bw-hair);
+}
+.ah-choice--on {
+  border-color: var(--ink-a20);
+}
+.ah-input,
+.ah-chip,
+.ah-quiet {
+  border-width: var(--bw-state);
+}
+.ah-qr__tile {
+  border-color: var(--ink-a15);
+}
+/* The receipt's first and total rules: hairlines in a quiet tone, the total said by its weight. */
+.ah-receipt {
+  border-top-color: var(--ink-a25);
+}
+.ah-receipt tr.ah-receipt__row--pretotal {
+  border-bottom-color: var(--ink-a25);
+}
+
+/* ── A person ───────────────────────────────────────────────────────────────────────────────
+   The header's button: the viewer's mark when logged in, a plain head otherwise. */
+.ah-person-disc {
+  display: block;
+  flex: none;
+  border-radius: 50%;
+  color: var(--ink);
+}
+.ah-person-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -8px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ah-person-btn .ah-person-disc {
+  transition: transform var(--dur-press) ease;
+}
+@media (hover: hover) {
+  .ah-person-btn:hover .ah-person-disc {
+    transform: scale(1.07);
+  }
+}
+.ah-person-btn:active .ah-person-disc {
+  transform: scale(0.94);
+}
+/* The language: one bubble with the language in use, and under it the list it opens. The bubble
+   is a tone, as every quiet control is; the list floats over the page, so it stands on the card's
+   tone with one hairline for its edge (no shadow). An item is 44px to press, and the language in
+   use is marked by a tone, not by a line. */
+.ah-lang {
+  position: relative;
+  display: inline-flex;
+}
+.ah-lang__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 0 10px 0 12px;
+  background: var(--sunken);
+  color: var(--ink);
+  font-family: var(--font-meta);
+  font-size: var(--fs-mono-lg);
+  /* the weight the header has always set its language in, so the face is on the page from the first paint */
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--track-mono-sm);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color var(--dur-tone-out) var(--ease-tone);
+}
+.ah-lang__btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
+}
+.ah-lang__btn svg {
+  color: var(--ink-a60);
+  transition: transform var(--dur-tone) var(--ease-tone);
+}
+.ah-lang__btn[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+@media (hover: hover) {
+  .ah-lang__btn:hover {
+    background: var(--ink-a15);
+    transition-duration: var(--dur-tone);
+  }
+}
+.ah-lang__btn[aria-expanded="true"] {
+  background: var(--ink-a15);
+}
+.ah-lang__menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  border: var(--bw-hair) solid var(--ink-a15);
+  border-radius: var(--r-card);
+  padding: 6px;
+  background: var(--card);
+}
+.ah-lang__menu button {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--r-control);
+  padding: 0 12px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body-lg);
+  text-align: left;
+  cursor: pointer;
+}
+.ah-lang__menu button[aria-checked="true"] {
+  background: var(--sunken);
+  font-weight: var(--fw-semibold);
+}
+@media (hover: hover) {
+  .ah-lang__menu button:hover {
+    background: var(--ink-a08);
+  }
+}
+.ah-lang__btn:focus-visible,
+.ah-lang__menu button:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ah-lang__btn svg {
+    transition: none;
+  }
+}
+/* With no account the header says the way in in a word: a quiet tone, never a second loud thing
+   beside a screen's own action. It is 36px tall with 44px to press. */
+.ah-head-login {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 0 14px;
+  background: var(--sunken);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-tone-out) var(--ease-tone);
+}
+.ah-head-login::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
+}
+@media (hover: hover) {
+  .ah-head-login:hover {
+    background: var(--ink-a15);
+    transition-duration: var(--dur-tone);
+  }
+}
+.ah-head-login:active {
+  background: var(--ink-a20);
+  transition-duration: 0s;
+}
+.ah-head-login:focus-visible,
+.ah-head-link:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 3px;
+}
+@media (min-width: 400px) {
+  .ah-head-login {
+    margin-left: 6px;
+  }
+  .ah-head-link {
+    margin-right: 6px;
+  }
+}
+/* The device's own hands, for someone with no account: a link like the footer's. */
+.ah-head-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--fs-body-sm);
+  color: var(--ink-a80);
+  white-space: nowrap;
+  text-decoration: underline dashed var(--ink-a40);
+  text-underline-offset: 4px;
+  border-radius: var(--r-chip);
+}
+/* A name that opens its person: the words keep their look, a dotted line says they open. */
+.ah-person-link {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted var(--ink-a40);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.ah-person {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-top: 18px;
+}
+.ah-person__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ah-person__name {
+  margin: 0;
+  font-size: var(--fs-card-title-lg);
+  font-weight: var(--fw-heavy);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+.ah-person__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: var(--bw-hair) solid var(--ink-a12);
+  padding-top: 16px;
+}
+.ah-person__title {
+  margin: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.3;
+  color: var(--ink-quiet);
+}
+.ah-person__sum {
+  margin: 0;
+  font-size: 34px;
+  font-weight: var(--fw-heavy);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+.ah-person__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  font-size: var(--fs-body-lg);
+  font-weight: var(--fw-medium);
+  line-height: 1.3;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ah-person__row--link {
+  margin: 0 -10px;
+  border-radius: var(--r-control);
+  padding: 0 10px;
+}
+@media (hover: hover) {
+  .ah-person__row--link:hover {
+    background: var(--sunken);
+  }
+}
+.ah-person__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.ah-person__value svg {
+  color: var(--ink-a40);
+}
+/* Two or three words to choose between: one tone, the chosen one in ink. */
+.ah-person__choice {
+  display: inline-flex;
+  border-radius: var(--r-control);
+  padding: 3px;
+  background: var(--sunken);
+}
+.ah-person__choice button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ink-quiet);
+  cursor: pointer;
+}
+.ah-person__choice button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--ink);
+}
+/* A switch: on is ink, not amber (amber is money's). */
+.ah-switch {
+  position: relative;
+  flex: none;
+  width: 50px;
+  height: 30px;
+  border: 0;
+  border-radius: 99px;
+  padding: 0;
+  background: var(--ink-a30);
+  cursor: pointer;
+  transition: background var(--dur-press) ease;
+}
+.ah-switch::after {
+  /* the target is 44px tall */
+  content: "";
+  position: absolute;
+  inset: -7px 0;
+}
+.ah-switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--paper);
+  transition: transform var(--dur-press) ease;
+}
+.ah-switch[aria-checked="true"] {
+  background: var(--ink);
+}
+.ah-switch[aria-checked="true"] span {
+  transform: translateX(20px);
+}
+
+/* ── A long screen in sections ──────────────────────────────────────────────────────────────
+   The strip names the screen's sections and what each is set to now, stays at the window's top
+   while the screen scrolls, and moves to a section when one is pressed. The page's address is
+   never touched: on this site the part after # can carry a link's secret. */
+.ah-strip {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 calc(var(--pad-screen) * -1);
+  padding: 8px var(--pad-screen);
+  border-bottom: var(--bw-hair) solid var(--ink-a10);
+  background: var(--paper);
+}
+.ah-strip__row {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* the row scrolls sideways under the page's padding, so the last chip is not cut at a hard edge */
+  margin-inline: calc(var(--pad-screen) * -1);
+  padding-inline: var(--pad-screen);
+  scroll-padding-inline: var(--pad-screen);
+}
+.ah-strip__row::-webkit-scrollbar {
+  display: none;
+}
+.ah-strip__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  border: var(--bw-emph) solid transparent;
+  border-radius: var(--r-control);
+  padding: 0 12px;
+  background: none;
+  font-family: var(--font-display);
+  text-align: left;
+  white-space: nowrap;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--dur-press) ease;
+}
+.ah-strip__item[aria-current="true"] {
+  background: var(--sunken);
+}
+/* The same 2px ring as every other control, drawn inside: the row scrolls, so a ring outside it would be cut. */
+.ah-strip__item:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: calc(var(--bw-focus) * -1);
+}
+@media (hover: hover) {
+  .ah-strip__item:hover {
+    background: var(--sunken);
+  }
+}
+.ah-strip__label {
+  font-size: 11.5px;
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
+  color: var(--ink-quiet);
+}
+.ah-strip__value {
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+/* A section with nothing to show for itself is named by its label alone, in the value's weight. */
+.ah-strip__item:not(:has(.ah-strip__value)) .ah-strip__label {
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+/* What the strip leads to stops below it, not under it: the page itself keeps the strip's height
+   free at its top (`html:has(.ah-strip)` below), for a section and for anything focused. */
+.ah-section > h1,
+.ah-section > h2 {
+  font-size: var(--fs-card-title);
+  font-weight: var(--fw-heavy);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.ah-section:focus {
+  outline: none;
+}
+.ah-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+.ah-sections > .ah-section + .ah-section {
+  border-top: var(--bw-hair) solid var(--ink-a12);
+  padding-top: 28px;
+}
+
+/* The screen's one action stays within reach on a phone while its sections scroll under it, and
+   comes to rest in its own place at the screen's end. */
+.ah-go {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 0 calc(var(--pad-screen) * -1);
+  padding: 18px var(--pad-screen) max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--paper) 18px);
+}
+html:has(.ah-go) {
+  scroll-padding-bottom: 104px;
+}
+html:has(.ah-strip) {
+  scroll-padding-top: calc(var(--strip-h) + 14px);
+}
+
+/* One section at a time. A long form is read a screenful at a step: each named section is at
+   least as tall as the room between the strip, which stays at the top, and the action, which
+   stays at the bottom, so one section stands on the screen and the next begins on the next. The
+   page still scrolls as any page does and comes to rest at a section's start when it is let go
+   near one (`proximity`: a section taller than the screen scrolls freely inside itself, and a
+   field with the keyboard open is never pulled away). The strip moves to any section from any. */
+html:has(.ah-sided--paged) {
+  scroll-snap-type: y proximity;
+}
+/* The sections pass like a band on a drum: what comes up from below is in the drum's shade until
+   it is the section in front. A haze of the page's own colour lies over the foot of the screen,
+   thicker toward its edge, so the next section's head is seen but does not speak over the action
+   or over the section being read. It takes no taps. In one column it lies above the pinned
+   action; where the action stands beside the sections it lies at the foot of their column. */
+@media (max-width: 1099.98px) {
+  /* what is brought into view (a calendar just opened, a field focused) stops above the haze's thick part */
+  html:has(.ah-sided--paged) {
+    scroll-padding-bottom: calc(104px + min(84px, 12vh));
+  }
+  /* the haze ends in the page's colour, and the action's own ground goes on from there whole */
+  .ah-sided--paged .ah-go {
+    background: var(--paper);
+  }
+  .ah-sided--paged .ah-go::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: min(168px, 24vh);
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--paper) 62%, transparent) 32%,
+      color-mix(in srgb, var(--paper) 86%, transparent) 68%,
+      var(--paper)
+    );
+  }
+  /* …and what rolls up under the strip leaves the same way */
+  .ah-sided--paged > .ah-strip::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 14px;
+    margin-top: var(--bw-hair);
+    pointer-events: none;
+    background: linear-gradient(to bottom, var(--paper), transparent);
+  }
+}
+
+/* The page's own top is a place to rest too: without it the page would come to rest at the first
+   section as soon as it loads, and the header above the strip could not be reached. */
+html:has(.ah-sided--paged) body {
+  scroll-snap-align: start;
+}
+.ah-sided--paged .ah-section {
+  /* the room under the strip and above the pinned action, less a little: the next section shows
+     its head and its first line at the screen's foot, so the screen says there is more below */
+  min-height: calc(100vh - var(--strip-h) - 14px - var(--go-room) - var(--peek));
+  min-height: calc(100svh - var(--strip-h) - 14px - var(--go-room) - var(--peek));
+  padding-bottom: 28px;
+  scroll-snap-align: start;
+  /* a short section stands in the middle of its screen, not at the top of an empty one */
+  justify-content: center;
+}
+.ah-sided--paged {
+  --go-room: 104px;
+  --peek: 104px;
+}
+.ah-sided--paged .ah-sections {
+  gap: 0;
+}
+.ah-sided--paged .ah-sections > .ah-section + .ah-section {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* A screen with sections and a side: one column on a phone, where the side's parts simply follow
+   the sections (the side has no box of its own, so the pinned action is held by the whole screen);
+   two columns from 1100 px. */
+.ah-sided {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.ah-sided > .ah-strip {
+  margin-bottom: -8px;
+}
+.ah-sided__side {
+  display: contents;
+}
+@media (min-width: 768px) {
+  [data-screen="raise"] {
+    --pad-screen: var(--pad-screen-desktop);
+  }
+}
+@media (min-width: 1100px) {
+  /* Wide: the sections on the left, the example and the action beside them, in view throughout. */
+  .ah-raise {
+    max-width: 1120px;
+  }
+  .ah-sided {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    align-items: start;
+    gap: 28px 64px;
+  }
+  .ah-sided > .ah-strip {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  .ah-sided__side {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: calc(var(--strip-h) + 24px);
+    /* never taller than the window: the action under the examples stays on the screen, and on a
+       short window the examples scroll inside their own box */
+    max-height: calc(100vh - var(--strip-h) - 48px);
+    max-height: calc(100svh - var(--strip-h) - 48px);
+  }
+  .ah-sided__side > * {
+    flex: none;
+  }
+  /* The examples scroll inside their box when the window is short, with no bar drawn: a bar in a
+     column of examples reads as a control of its own. Where there is more below, the box's foot
+     fades (`data-clipped`, set by the screen when the box does not show its end). */
+  .ah-sided__side > .ah-section {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .ah-sided__side > .ah-section::-webkit-scrollbar {
+    display: none;
+  }
+  .ah-sided__side > .ah-section:focus-visible {
+    outline: var(--bw-focus) solid var(--ink);
+    outline-offset: 4px;
+    border-radius: var(--r-card);
+  }
+  .ah-sided__side > .ah-section[data-clipped] {
+    -webkit-mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 56px), transparent);
+    mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 56px), transparent);
+  }
+  /* The action keeps to the window's foot here too. At the page's own top the header stands over
+     the strip, so the column's end is below the window on a short one: the action then rests at
+     the window's edge, over the foot of the examples, and takes its own place once they fit. */
+  .ah-go {
+    position: sticky;
+    bottom: 0;
+    margin: 0;
+    padding: 14px 0 16px;
+    background: linear-gradient(to bottom, transparent, var(--paper) 14px);
+  }
+  html:has(.ah-go) {
+    scroll-padding-bottom: 0;
+  }
+  /* wide: the action stands beside the sections, so a section has the height under the strip
+     down to the window's foot, less the same look at the next one */
+  .ah-sided--paged {
+    --go-room: 24px;
+  }
+  .ah-sided--paged .ah-sections::after {
+    content: "";
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    height: min(168px, 24vh);
+    margin-top: calc(min(168px, 24vh) * -1);
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--paper) 62%, transparent) 32%,
+      color-mix(in srgb, var(--paper) 86%, transparent) 68%,
+      var(--paper)
+    );
+  }
+  /* the last section ends clear of the haze, which rests over the column's own foot */
+  .ah-sided--paged .ah-sections > .ah-section:last-child {
+    padding-bottom: min(168px, 24vh);
+  }
+  /* …and the strip has no item for it: there is nowhere to move to */
+  .ah-strip__beside {
+    display: none;
+  }
+  /* the example beside the sections is always in view: it is not a page of its own there */
+  /* two columns start on one line: a section keeps to the top, level with the example beside it */
+  .ah-sided--paged .ah-section {
+    justify-content: flex-start;
+  }
+  .ah-sided--paged .ah-sided__side .ah-section {
+    min-height: 0;
+    padding-bottom: 0;
+    scroll-snap-align: none;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-person-btn .ah-person-disc,
+  .ah-switch,
+  .ah-switch span,
+  .ah-strip__item {
+    transition: none;
+  }
+}
+
+/* A hand on the rail that opens its person: the hand as it was, pressable. */
+.ah-rail__person {
+  display: block;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ah-rail__person:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+
+/* ── The receiver's card as the route's spine ──
+   An open Hand whose link is held reads top to bottom in three beats: who asked, who passed it
+   on, you. Three, however long the route: those who passed it on are one line that opens. Each
+   amount stands with whose it is: the whole reward at the asker, what was kept at those who
+   passed, what reaches the viewer on amber at their own place. A beat's mark is the system's own
+   emoji standing on the page, and one hairline joins the marks. (ui/DealCard.tsx, `spine`.) */
+.ah-spine {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-spine__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 14px;
+  padding-bottom: 22px;
+}
+.ah-spine__row:last-child {
+  padding-bottom: 0;
+}
+.ah-spine__row:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 13.5px;
+  top: 34px;
+  bottom: 6px;
+  width: var(--bw-hair);
+  background: var(--ink-a15);
+}
+.ah-spine__node {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 28px;
+}
+.ah-spine__gesture {
+  font-size: 22px;
+  line-height: 28px;
+  /* the asker's hand greets whoever opens the card, once, and leaves the moving to the actions */
+  animation-iteration-count: 1;
+}
+.ah-spine__dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 9px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.ah-spine__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ah-deal--spine .ah-deal__lead {
+  min-height: 28px;
+  margin: 0;
+}
+.ah-deal--spine .ah-deal__intro {
+  color: var(--ink-quiet);
+}
+.ah-asker__words {
+  margin-top: 2px;
+}
+.ah-asker__words .ah-deal__title,
+.ah-spine__bare {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 650;
+  line-height: 1.22;
+  letter-spacing: -0.012em;
+  text-wrap: pretty;
+}
+.ah-asker__words .ah-deal__title {
+  font-family: var(--font-device);
+}
+.ah-asker__words .ah-deal__content {
+  margin: 8px 0 0;
+  font-family: var(--font-device);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink-a80);
+}
+.ah-asker__words .ah-asker__more {
+  margin: 4px -4px -6px;
+}
+.ah-spine__body > .ah-note,
+.ah-spine__body > .ah-asker__flag {
+  margin-top: 10px;
+}
+.ah-spine__quiet {
+  margin: 0;
+  font-size: var(--fs-body-sm);
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+.ah-spine__terms {
+  margin-top: 10px;
+}
+.ah-spine__terms::first-letter {
+  text-transform: uppercase;
+}
+/* The line that counts those who passed it on: it opens them, so it is underlined as a name that
+   opens its person is. The button is 28px of text with a taller place to press. */
+.ah-spine__fold {
+  position: relative;
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  line-height: 28px;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline dotted var(--ink-a40);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.ah-spine__fold::after {
+  content: "";
+  position: absolute;
+  inset: -8px -6px;
+}
+/* In a picture of a card the line does not open, so it is not underlined and takes no press. */
+.ah-spine__fold--fixed {
+  margin: 0;
+  text-decoration: none;
+  cursor: auto;
+}
+.ah-spine__fold--fixed::after {
+  content: none;
+}
+/* Opened, the line goes on down the spine: one small row for each pass, its mark a ring on the
+   hairline, then who and what that pass kept. */
+.ah-spine__passes {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ah-spine__pass,
+.ah-spine__earlier {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  min-height: 30px;
+  padding: 4px 0;
+  font-size: var(--fs-body-sm);
+  line-height: 22px;
+}
+.ah-spine__pass::before {
+  content: "";
+  position: absolute;
+  /* on the spine's hairline: the row's text starts 42px from the row's edge, the line stands at 13.5px */
+  left: -32px;
+  top: 11px;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border: var(--bw-hair) solid var(--ink-a40);
+  border-radius: 50%;
+  background: var(--paper);
+}
+.ah-spine__earlier {
+  color: var(--ink-quiet);
+}
+.ah-spine__who {
+  display: inline-block;
+}
+.ah-spine__who::first-letter {
+  text-transform: uppercase;
+}
+button.ah-spine__who {
+  position: relative;
+  display: inline-block;
+}
+button.ah-spine__who::after {
+  content: "";
+  position: absolute;
+  inset: -6px -8px;
+}
+.ah-spine__share {
+  color: var(--ink-quiet);
+}
+.ah-spine__fold:focus-visible,
+.ah-spine__who:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 2px;
+  border-radius: var(--r-chip);
+}
+.ah-spine__you {
+  margin: 0;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
+  line-height: 28px;
+}
+.ah-deal--spine .ah-deal__money {
+  margin: 4px 0 0;
+}
+/* What happens if nobody is thanked belongs to the same card: it keeps the card's text edge. */
+.ah-deal--spine .ah-deal__rows {
+  padding-left: 42px;
+}
+
+/* Who answered, and what a Hand came to: the spine's later beats. */
+.ah-spine__answered {
+  align-self: flex-start;
+  margin: 0;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  line-height: 28px;
+}
+button.ah-spine__answered {
+  display: block;
+  line-height: 28px;
+}
+.ah-spine__end {
+  gap: 4px;
+}
+.ah-spine__end .ah-deal__state {
+  margin: 0;
+  line-height: 28px;
+}
+.ah-spine__end .ah-label {
+  margin: 0;
+}
+/* A hand on the rail stands on the page too (the rail is drawn under the lens, on /thank and in an answer). */
+.ah-rail__gesture {
+  background: none;
+  font-size: 22px;
+}
+
+
+/* The date in the term's row: a chip that says the date and opens the calendar under the row. */
+.ah-chip--date {
+  gap: 8px;
+  font-weight: var(--fw-semibold);
+}
+
+/* ── A month of days (ui/DayPick.tsx) ── a tone under it, the chosen day on amber, a day outside
+   the span quiet. Seven columns that share the width, so it fits the narrowest phone. */
+.ah-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 344px;
+  border-radius: var(--r-card);
+  padding: 12px;
+  background: var(--sunken);
+}
+.ah-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ah-cal__month {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-bold);
+}
+.ah-cal__month::first-letter {
+  text-transform: uppercase;
+}
+.ah-cal__step {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ah-cal__step:disabled {
+  color: var(--ink-a25);
+  cursor: default;
+}
+.ah-cal__week,
+.ah-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.ah-cal__week {
+  font-size: var(--fs-mono-md);
+  color: var(--ink-quiet);
+  text-align: center;
+}
+.ah-cal__day {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--r-control-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ah-cal__day:disabled {
+  color: var(--ink-a25);
+  font-weight: var(--fw-regular);
+  cursor: default;
+}
+.ah-cal__day--on {
+  background: var(--amber);
+  color: var(--on-amber);
+  font-weight: var(--fw-bold);
+}
+@media (hover: hover) {
+  .ah-cal__day:not(:disabled):not(.ah-cal__day--on):hover,
+  .ah-cal__step:not(:disabled):hover {
+    background: var(--sunken-hi);
+  }
+}
+.ah-cal__day:focus-visible,
+.ah-cal__step:focus-visible {
+  outline: var(--bw-focus) solid var(--ink);
+  outline-offset: 1px;
+}

@@ -98,7 +98,7 @@ export function payeeOf(reading: AddressReading): Address | undefined {
 // say when they differ from the reward Core holds.
 
 /** Invisible and direction-changing characters, by the short name a token shows. */
-// The names are the OG card's (apps/view/src/bidi.ts NAMES), so the card and the app read alike.
+// The names are the OG card's (packages/card/src/bidi.ts NAMES), so the card and the app read alike.
 export const HIDDEN_CHARS: Readonly<Record<string, string>> = {
   "‪": "LRE",
   "‫": "RLE",

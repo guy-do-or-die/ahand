@@ -107,9 +107,18 @@ test("the Deal card shows each state in words, and a hand with no reward never s
     await expect(card("public").locator(".ah-deal__intro")).toHaveText("Someone raised a hand:");
     await expect(card("public").locator(".ah-deal__title")).toHaveText("A sublet in Yerevan, June.");
     await expect(card("open")).not.toContainText("is looking for");
-    await expect(card("open")).toContainText("$40 reward · open until 20 Dec");
-    await expect(card("open")).toContainText("If you help and they thank you");
-    await expect(card("open")).toContainText("at least $28");
+    // The card is the route's spine: the whole reward and the date stand at the asker, and at the
+    // viewer's place, on amber, what reaches whoever helps from here, under its condition (a
+    // condition, not a promise of thanks). The gallery's card knows no route, so what passes kept
+    // is said beside the amount.
+    await expect(card("open").locator('[data-role="asker"]')).toContainText("Reward $40 · open until 20 Dec");
+    await expect(card("open").locator(".ah-deal__money")).toHaveAttribute("data-plate", "reaches");
+    await expect(card("open").locator(".ah-deal__sum")).toHaveText("$28");
+    await expect(card("open").locator('[data-role="you"]')).toContainText("It reached you$28 If you help and they thank you · of $40: $12 was kept along the way");
+    // A Hand that is over ends with what it came to, and nobody has a place on it.
+    await expect(card("expired").locator('[data-role="end"]')).toContainText("Time's up.");
+    await expect(card("expired").locator('[data-role="you"]')).toHaveCount(0);
+    await expect(card("thanked").locator('[data-role="end"]')).toContainText("Thanked on 3 Dec.");
     await expect(card("open")).toContainText("the whole reward goes back");
     await expect(card("expired")).toContainText("Time's up.");
     await expect(card("expired")).not.toContainText("If you help");
@@ -126,8 +135,11 @@ test("the Deal card shows each state in words, and a hand with no reward never s
     await expect(card("no-clock")).not.toContainText("open until");
 
     const bare = card("no-reward");
-    await expect(bare).toContainText("No reward: a thank-you only · open until 20 Dec");
-    await expect(bare).toContainText("it's free; there is no share to keep");
+    // Each fact once: the date at the asker, with how far off it is; "no reward" at the viewer's own place.
+    await expect(bare.locator('[data-role="asker"]')).toContainText("open until 20 Dec, in 1 month");
+    await expect(bare.locator('[data-role="you"]')).toContainText("No reward: a thank-you only");
+    await expect(bare.locator('[data-role="asker"]')).not.toContainText("No reward");
+    await expect(bare).toContainText("it's free. There is no share to keep");
     await expect(bare).toContainText("the hand closes");
     await expect(bare).not.toContainText("at least");
     await expect(bare).not.toContainText("$0");
@@ -136,16 +148,16 @@ test("the Deal card shows each state in words, and a hand with no reward never s
 
   await open(page, "?lang=ru");
   const bareRu = panel(page, "light").locator('[data-case="no-reward"] .ah-deal');
-  // F16: the hand is open, not the reward.
-  await expect(bareRu).toContainText("Без награды: только спасибо · рука открыта до 20 дек");
-  await expect(bareRu).toContainText("бесплатно; доли здесь нет");
+  // The hand is open, not the reward.
+  await expect(bareRu.locator('[data-role="asker"]')).toContainText("рука открыта до 20 дек, через 1 месяц");
+  await expect(bareRu.locator('[data-role="you"]')).toContainText("Без награды: только спасибо");
+  await expect(bareRu).toContainText("бесплатно. Доли здесь нет");
   await expect(bareRu).toContainText("рука закроется");
   await expect(bareRu).not.toContainText("$0");
   const openRu = panel(page, "light").locator('[data-case="open"] .ah-deal');
-  await expect(openRu).toContainText("минимум $28");
-  await expect(openRu).toContainText("Награда $40 · рука открыта до 20 дек");
-  // F4: a condition, not a promise of thanks.
-  await expect(openRu).toContainText("Если поможешь и тебя поблагодарят");
+  // A condition, not a promise of thanks.
+  await expect(openRu.locator('[data-role="asker"]')).toContainText("Награда $40 · рука открыта до 20 дек");
+  await expect(openRu.locator('[data-role="you"]')).toContainText("Дошло до тебя$28 Если поможешь и тебя поблагодарят · из $40: $12 оставили себе по пути");
   await expect(openRu).not.toContainText("Поможешь, и тебя поблагодарят");
   await expect(openRu.locator(".ah-deal__intro")).toHaveText("Кто-то поднял руку:");
   await expect(openRu.locator(".ah-deal__title")).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
@@ -162,7 +174,7 @@ test("the asker's own card speaks about whoever helps and calls the 70% the floo
   await expect(card).toContainText("Whoever helps and is thanked");
   await expect(card).toContainText("at least $35 (the floor you set: 70%)");
   await expect(card).toContainText("Whoever passes it on");
-  await expect(card).toContainText("If you thank nobody by 20 Dec");
+  await expect(card).toContainText("If you thank nobody by then");
   await expect(card).toContainText("the whole reward comes back to you");
   await expect(card).not.toContainText("If you help");
   await expect(card).not.toContainText("If you pass it on");
@@ -194,8 +206,8 @@ test("a figure is plain words in the calm view, and the lens opens every source"
   await open(page);
   const card = panel(page, "light").locator('[data-case="open"] .ah-deal');
   // The calm view (since 2026-11-21): the amount and the floor are words, nothing opens.
-  await expect(card).toContainText("$40 reward");
-  await expect(card).toContainText("at least $28");
+  await expect(card.locator(".ah-deal__sum")).toHaveText("$28");
+  await expect(card).toContainText("of $40: $12 was kept along the way");
   await expect(card).not.toContainText("hands(12).reward");
   await expect(card.getByRole("button", { name: "$40" })).toHaveCount(0);
   await expect(card.locator(".ah-mark")).toHaveCount(0);
@@ -259,8 +271,11 @@ test("Cyrillic headlines are drawn in Onest, Latin ones in Schibsted Grotesk", a
   await open(page, "?lang=ru");
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   // The asker's words stand isolated in a <bdi> inside the title; its text is the bdi's own.
-  const title = '[data-panel="light"] [data-case="open"] .ah-deal__title bdi';
-  await expect(page.locator(title)).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
+  // They are a message from a person, set in the reader's device font, so the brand's faces are
+  // read from the card's own words beside the amount.
+  await expect(page.locator('[data-panel="light"] [data-case="open"] .ah-deal__title bdi')).toHaveText("Кто знает, где снять квартиру в Ереване на июнь?");
+  const title = '[data-panel="light"] [data-case="open"] .ah-deal__what';
+  await expect(page.locator(title)).toHaveText("Если поможешь и тебя поблагодарят");
   const russian = await fontsDrawn(page, title);
   expect(russian.some((family) => /Onest/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
   expect(russian.every((family) => /Onest|Schibsted/i.test(family)), `drawn with: ${russian.join(", ")}`).toBe(true);
@@ -456,10 +471,16 @@ test("the asker's words are labelled unchecked, and an amount in them that is no
     await expect(flag).toHaveText("The words mention $5,000 and $4,500. The reward on chain is $1.");
     await expect(flag).toHaveAttribute("data-value", "5000 4500");
     // The figures Core backs still stand in their own place, after the words and the flag.
-    await expect(card.locator(".ah-deal__money")).toContainText("$1 reward");
-    // The open case's words mention no amount: no flag, but the label.
+    // (this case stands after a pass that kept a share: the amber amount is what reaches the
+    // helper, and Core's whole reward, the one the flag names, stands beside it)
+    await expect(card.locator(".ah-deal__money")).toContainText("of $1: $0.10 was kept along the way");
+    // The open case's words mention no amount: no flag, and the line over the words alone says whose
+    // they are. They stand as words: no bubble around them, and no plate under the hand.
     const plain = panel(page, theme).locator('[data-case="open"] .ah-deal');
-    await expect(plain.getByTestId("kit-deal-words-label")).toBeVisible();
+    await expect(plain.locator(".ah-asker__words")).toBeVisible();
+    await expect(plain.locator(".ah-asker__bubble")).toHaveCount(0);
+    expect(await plain.locator(".ah-spine__gesture").first().evaluate((mark) => getComputedStyle(mark).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    await expect(plain.getByTestId("kit-deal-words-label")).toHaveCount(0);
     await expect(plain.getByTestId("kit-deal-amount-flag")).toHaveCount(0);
     await expect(plain.getByTestId("kit-deal-hidden-chars")).toHaveCount(0);
     // No words, no label.
@@ -502,7 +523,8 @@ test("long words are clamped behind Read all, so the reward and the rows stay ne
   await expect(more).toHaveAttribute("aria-expanded", "false");
   const top = (await card.boundingBox())!.y;
   const money = (await card.locator(".ah-deal__money").boundingBox())!;
-  const asked = (await card.locator(".ah-deal__foot").last().boundingBox())!;
+  // The card's last part in the calm view: its rows (the "Asked by" row is the lens's).
+  const asked = (await card.locator(".ah-deal__rows").last().boundingBox())!;
   // The whole card, words clamped, is shorter than a phone's screen.
   expect(asked.y + asked.height - top).toBeLessThan(844);
   expect(money.y - top).toBeLessThan(560);

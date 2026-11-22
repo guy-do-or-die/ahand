@@ -1,6 +1,5 @@
 /**
- * `recover`: rebuild a Hand's root key from the raiser's keys signature and the device's book
- *.
+ * `recover`: rebuild a Hand's root key from the raiser's keys signature and the device's book.
  *
  * The signature is read from standard input, never from an argument, so it does not land in the
  * shell's history or in the process list. The default output says only whether a number n was

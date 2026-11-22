@@ -209,10 +209,12 @@ test("a give in the inbox is an answer only after Core's checkGive; a broken one
   // The helper's words are quoted as each language quotes: “…” in English, «…» in Russian.
   await expect(answer).toContainText(`“${words}”`);
   await expect(refused).toContainText(`“${brokenWords}”`);
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-ru").click();
   await expect(answer).toContainText(`«${words}»`);
   await expect(refused).toContainText(`«${brokenWords}»`);
   await expect(page.getByTestId("my-answers")).not.toContainText(/[“”]/);
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-en").click();
   await expect(answer).toContainText(`“${words}”`);
 
@@ -264,9 +266,11 @@ test("locked, the screen says the answers are locked and never that there are no
     await expect(countOf(page, hand)).toHaveText("Answers are locked — unlock to check.");
   }
   await expect(page.getByTestId("my-list")).not.toContainText("No answers yet");
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-ru").click();
   await expect(countOf(page, answered)).toHaveText("Ответы закрыты — открой доступ, чтобы проверить.");
   await expect(page.getByTestId("my-list")).not.toContainText("Ответов пока нет");
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-en").click();
 
   // Unlocking on the list: the line goes from locked to the answer that was waiting, and at no
@@ -294,9 +298,11 @@ test("locked, the screen says the answers are locked and never that there are no
   await expect(section).toHaveAttribute("data-state", "locked");
   await expect(section).toContainText("Answers are locked — unlock to check.");
   await expect(section).not.toContainText("Nothing has arrived yet.");
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-ru").click();
   await expect(section).toContainText("Ответы закрыты — открой доступ, чтобы проверить.");
   await expect(section).not.toContainText("Пока ничего не пришло.");
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-en").click();
   await unlock(page);
   await expect(section).toHaveAttribute("data-state", "read");

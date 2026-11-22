@@ -78,7 +78,7 @@ function tokenOf(address: Address): TokenConfig | undefined {
 }
 
 function Heading({ children }: { children: ReactNode }) {
-  return <h2 className="ah-meta ah-meta--ink m-0 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-4">{children}</h2>;
+  return <h2 className="ah-meta ah-meta--ink m-0 border-t-[length:var(--bw-hair)] border-[var(--ink-a12)] pt-4">{children}</h2>;
 }
 
 /* ─────────────────────────────────────────────────────────── whose money ── */

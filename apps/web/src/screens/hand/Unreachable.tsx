@@ -6,11 +6,11 @@ import { ErrorBand, QuietButton } from "../../ui";
 import { retryWhileVisible } from "./held";
 
 /**
- * The network can't be reached: the place of the Deal card stays as
- * its outline, and a band says what happened and what was not lost. Nothing here is a verdict on
- * the link. With a link held in this tab, the band says it is still open here and nothing was sent
- *, and the line under it says why not to reload: the address bar no longer carries
- * it. The label is NETWORK in the reader's language; viem's class name is never shown.
+ * The network can't be reached: the place of the Deal card stays as its outline, and a band says
+ * what happened and what was not lost. Nothing here is a verdict on the link. With a link held in
+ * this tab, the band says it is still open here and nothing was sent, and the line under it says
+ * why not to reload: the address bar no longer carries it. The label is NETWORK in the reader's
+ * language; viem's class name is never shown.
  *
  * `retry` reads again without asking for the link: on the button, and (as `auto`, the same
  * unless another is given) every few seconds on its own while the tab is visible, and at once

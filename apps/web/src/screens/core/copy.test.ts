@@ -13,7 +13,7 @@ function say(lang: "en" | "ru", id: keyof typeof en, values: Record<string, unkn
   return i18n._(id, values).replace(/ /g, " ");
 }
 
-describe("core: numbers and units read as each language writes them (F10)", () => {
+describe("core: numbers and units read as each language writes them", () => {
   test("the code's size takes the plural its number needs", () => {
     expect(say("ru", "core.code", { bytes: 10_733 })).toBe("Его код на месте: 10 733 байта.");
     expect(say("ru", "core.code", { bytes: 10_735 })).toBe("Его код на месте: 10 735 байт.");
@@ -31,7 +31,7 @@ describe("core: numbers and units read as each language writes them (F10)", () =
     expect(say("ru", "core.chainId", { id: 31337 })).toBe("ID сети 31337");
   });
 
-  test("the Russian names the deployer as a CREATE2 factory (F16), and no page is sent to a limits screen the app no longer has", () => {
+  test("the Russian names the deployer as a CREATE2 factory, and no page is sent to a limits screen the app no longer has", () => {
     expect(ru["core.derive.body"]).toContain("фабрика развёртывания (CREATE2) по фиксированному адресу");
     expect(ru["core.limits.body"]).not.toMatch(/«[^»]+»/);
     expect(en["core.limits.body"]).not.toContain("What it can't promise");

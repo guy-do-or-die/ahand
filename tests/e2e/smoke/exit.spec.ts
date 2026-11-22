@@ -194,8 +194,9 @@ test("thank an account not set up yet in two presses: setup through the forwarde
 
 test("/without-us renders in English and Russian, and its link to /exit.html answers 200", async ({ page, request }) => {
   await page.goto("/without-us");
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-en").click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Do it without us.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Do it without us");
   await expect(page.getByTestId("without-us-exit")).toBeVisible();
   await expect(page.getByTestId("without-us-command")).toContainText("contracts/exit/ahand.sh");
   await expect(page.getByTestId("without-us-explorer")).toContainText("refund");
@@ -206,7 +207,8 @@ test("/without-us renders in English and Russian, and its link to /exit.html ans
   expect(answer.status()).toBe(200);
   expect(await answer.text()).toContain('id="exit"');
 
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-ru").click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Сделать без нас.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Сделать без нас");
   await expect(page.getByTestId("without-us-exit")).toContainText("exit.html");
 });

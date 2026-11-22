@@ -52,6 +52,19 @@ const EN = {
     calm: ["Sending…", "It went through. Making it final…", "It went through. Almost final…", "Done. It can't be undone."] as readonly string[],
   },
   disclose: { show: "show", hide: "hide" },
+  /** The route as the spine of the receiver's screen: who asked, who passed it on, you (ui/Spine.tsx). */
+  spine: {
+    reward: (amount: string) => `Reward ${amount}`,
+    passed: (n: number) => (n === 1 ? "Someone passed it on" : `${n} people passed it on`),
+    kept: (amount: string, _n: number) => `kept ${amount}`,
+    flagged: "A pass here named",
+    /** The viewer's own beat: the hand has come to them. */
+    you: "It reached you",
+    /** The beat of whoever answered, on a Hand that has an answer. */
+    answered: "Someone answered",
+    /** Above the nearest passes of a very long route: how many came before them. */
+    earlier: (n: number) => (n === 1 ? "and 1 more before them" : `and ${n} more before them`),
+  },
   deal: {
     /**
      * The line above the Hand's own title. A whole sentence, so a title of any shape reads after
@@ -60,8 +73,13 @@ const EN = {
     intro: "Someone raised a hand:",
     bare: "Someone raised a hand.",
     lost: "The description didn't arrive with this link. Ask whoever sent it.",
-    /** The words around the amount: "[$40] reward". */
-    reward: ["", " reward"] as readonly [string, string],
+    /** The amount's name where no condition stands over it: a hand that is over, or the lens. It
+     *  stands in its own column beside the amount and starts its line, capitalised by the card's
+     *  stylesheet (`.ah-deal__what::first-letter`), so it is a bare word in every language, with no
+     *  dash before it. */
+    rewardWord: "reward",
+    /** Beside the amount that reaches the helper: the whole reward, and what passes before kept. */
+    ofWhole: (whole: string, kept: string) => `of ${whole}: ${kept} was kept along the way`,
     noReward: "No reward: a thank-you only",
     openUntil: (date: string) => `open until ${date}`,
     until: (date: string) => `until ${date}`,
@@ -70,8 +88,13 @@ const EN = {
     atLeast: (amount: string) => `at least ${amount}`,
     ifPass: "If you pass it on",
     keepShare: "keep a share you choose",
-    passFree: "it's free; there is no share to keep",
+    passFree: "it's free. There is no share to keep",
     ifNobody: (date: string) => `If nobody is thanked by ${date}`,
+    /** In the card's calm form the date stands once, at the asker; this row points back at it. */
+    ifNobodyThen: "If nobody is thanked by then",
+    /** After the date: how far off it is ("in 1 month and 7 days"), and the last hour of a Hand. */
+    inTime: (span: string) => `in ${span}`,
+    soon: "in under an hour",
     goesBack: "the whole reward goes back",
     closes: "the hand closes",
     timeUp: "Time's up.",
@@ -86,7 +109,7 @@ const EN = {
     askedByLaterLogIn: "your address, once you log in",
     block: "block",
     networkTime: "Network time",
-    floorWhy: "what is left of the reward at your place on this route; each pass's share is rounded down, so yours is rounded up",
+    floorWhy: "what is left of the reward at your place on this route. Each pass's share is rounded down, so yours is rounded up",
     wordsLabel: "In the asker's words — not checked",
     readAll: "Read all",
     readLess: "Show less",
@@ -111,10 +134,11 @@ const EN = {
       ifPass: "Whoever passes it on",
       keepShare: "keeps a share they choose",
       ifNobody: (date: string) => `If you thank nobody by ${date}`,
+      ifNobodyThen: "If you thank nobody by then",
       goesBack: "the whole reward comes back to you",
       sendBack: "Anyone can send the reward back to you now.",
       askedBy: "Asked from your address",
-      floorWhy: "the least a helper is left, however long the route grows; each pass's share is rounded down, so the helper's is rounded up",
+      floorWhy: "the least a helper is left, however long the route grows. Each pass's share is rounded down, so the helper's is rounded up",
     },
   },
   receipt: {
@@ -163,7 +187,7 @@ const EN = {
     keepKeyHint: "A small file. Future receipts would belong to it.",
     fresh: "I have none — make one",
     freshWarn:
-      "These 12 words are the only key to this address. Write them down before you go on; we don't keep them. They open it in any crypto app. Moving money out of it later costs a little ETH.",
+      "These 12 words are the only key to this address. Write them down before you go on. We don't keep them. They open it in any crypto app. Moving money out of it later costs a little ETH.",
     freshAddress: "The address made from these words",
     freshGive: "It receives the money and confirms your answer.",
     wrote: "I wrote them down",
@@ -228,11 +252,25 @@ const RU: Words = {
     calm: ["Отправляем…", "Прошло. Закрепляем…", "Прошло. Почти закреплено…", "Готово. Отменить это уже нельзя."],
   },
   disclose: { show: "показать", hide: "скрыть" },
+  spine: {
+    reward: (amount: string) => `Награда ${amount}`,
+    passed: (n: number) => {
+      if (n === 1) return "Кто-то передал дальше";
+      const form = ruHands.select(n);
+      return form === "one" ? `${n} человек передал дальше` : form === "few" ? `${n} человека передали дальше` : `${n} человек передали дальше`;
+    },
+    kept: (amount: string, n: number) => (ruHands.select(n) === "one" ? `оставил себе ${amount}` : `оставили себе ${amount}`),
+    flagged: "Одна из передач назвала",
+    you: "Дошло до тебя",
+    answered: "Кто-то ответил",
+    earlier: (n: number) => `и ещё ${n} до них`,
+  },
   deal: {
     intro: "Кто-то поднял руку:",
     bare: "Кто-то поднял руку.",
     lost: "Описание не дошло вместе со ссылкой. Спроси у того, кто её прислал.",
-    reward: ["Награда ", ""],
+    rewardWord: "награда",
+    ofWhole: (whole: string, kept: string) => `из ${whole}: ${kept} оставили себе по пути`,
     noReward: "Без награды: только спасибо",
     openUntil: (date: string) => `рука открыта до ${date}`,
     until: (date: string) => `до ${date}`,
@@ -241,8 +279,11 @@ const RU: Words = {
     atLeast: (amount: string) => `минимум ${amount}`,
     ifPass: "Передашь дальше",
     keepShare: "оставь себе долю, сколько решишь",
-    passFree: "бесплатно; доли здесь нет",
+    passFree: "бесплатно. Доли здесь нет",
     ifNobody: (date: string) => `Никого не поблагодарят до ${date}`,
+    ifNobodyThen: "Если до тех пор никого не поблагодарят",
+    inTime: (span: string) => `через ${span}`,
+    soon: "меньше чем через час",
     goesBack: "вся награда вернётся автору",
     closes: "рука закроется",
     timeUp: "Срок вышел.",
@@ -257,7 +298,7 @@ const RU: Words = {
     askedByLaterLogIn: "твой адрес — появится после входа",
     block: "блок",
     networkTime: "Время сети",
-    floorWhy: "что остаётся от награды на твоём месте этого пути; доля каждой передачи округляется вниз, поэтому твоя — вверх",
+    floorWhy: "что остаётся от награды на твоём месте этого пути. Доля каждой передачи округляется вниз, поэтому твоя — вверх",
     wordsLabel: "Словами автора — не проверено",
     readAll: "Читать целиком",
     readLess: "Свернуть",
@@ -276,10 +317,11 @@ const RU: Words = {
       ifPass: "Кто передаст дальше",
       keepShare: "оставит себе долю, сколько решит",
       ifNobody: (date: string) => `Если никого не поблагодаришь до ${date}`,
+      ifNobodyThen: "Если до тех пор никого не поблагодаришь",
       goesBack: "вся награда вернётся тебе",
       sendBack: "Теперь кто угодно может вернуть награду тебе.",
       askedBy: "Твой адрес",
-      floorWhy: "меньше этого помощнику не останется, как бы ни вырос путь; доля каждой передачи округляется вниз, поэтому доля помощника — вверх",
+      floorWhy: "меньше этого помощнику не останется, как бы ни вырос путь. Доля каждой передачи округляется вниз, поэтому доля помощника — вверх",
     },
   },
   receipt: {

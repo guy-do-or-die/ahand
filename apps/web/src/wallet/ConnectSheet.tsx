@@ -17,7 +17,7 @@ import { useWalletWords } from "./words";
  * The way in.
  *
  * A build whose configuration has `privy` has one way in: Privy's own window, opened directly by
- * "Log in" («Войти») or by an action that needs an account, with email, social accounts, a passkey
+ * "Log in" or by an action that needs an account, with email, social accounts, a passkey
  * and crypto wallets all in it (wallet/privy.ts). Nothing of the app's own comes before it: while
  * Privy's code loads (the first time on this page) a status line says "Opening log in…", and while
  * Privy's window is open the app shows nothing. If Privy cannot be reached, the app's own sheet
@@ -45,7 +45,7 @@ function Initial({ name, mark }: { name: string; mark?: string }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--r-control)] border-[length:var(--bw-emph)] border-[var(--ink)] font-extrabold"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--r-control)] bg-[var(--sunken)] font-extrabold"
     >
       {mark ?? (name.trim()[0] ?? "?").toUpperCase()}
     </span>
@@ -66,8 +66,8 @@ function Option({ option, address, busy, onPick }: { option: WalletOption; addre
         disabled={busy}
         onClick={onPick}
         className={clsx(
-          "flex min-h-[64px] w-full items-center gap-3 rounded-[var(--r-card-sm)] border-[length:var(--bw-emph)] border-[var(--ink-a20)] bg-[var(--card)] px-4 py-3 text-left text-[var(--ink)]",
-          "hover:border-[var(--ink-a50)] focus-visible:border-[var(--ink)] disabled:opacity-50",
+          "flex min-h-[64px] w-full items-center gap-3 rounded-[var(--r-card-sm)] border-[length:var(--bw-state)] border-transparent bg-[var(--sunken)] px-4 py-3 text-left text-[var(--ink)]",
+          "hover:bg-[var(--sunken-hi)] focus-visible:border-[var(--ink)] disabled:opacity-50",
         )}
       >
         {option.icon ? <img src={option.icon} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-[var(--r-control)]" /> : <Initial name={title} {...(dev ? { mark: option.devWho === "not-set-up" ? "6" : String(option.devWho) } : {})} />}
@@ -207,7 +207,7 @@ function WalletSheet({ onClose, onConnected, problem: initial }: ConnectSheetPro
   return (
     <Sheet label={words.title} onClose={onClose}>
       <div data-testid={TID.kit.connectSheet} className="flex flex-col gap-5 pt-4">
-        <h2 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{words.title}.</h2>
+        <h2 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{words.title}</h2>
 
         <section className="flex flex-col gap-3" aria-labelledby="connect-found">
           <span id="connect-found" className="ah-label">

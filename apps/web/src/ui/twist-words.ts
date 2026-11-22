@@ -24,7 +24,7 @@ type StepWords = {
 
 const EN = {
   turnOver: "turn over to see what was checked",
-  turnBack: "turned over; press again to turn back",
+  turnBack: "turned over. Press again to turn back",
   tapBack: "Tap to turn back",
   backOfPass: "What this pass carries, checked here",
   backOfGive: "What this answer carries, checked here",
@@ -91,7 +91,7 @@ const EN = {
 
 const RU: typeof EN = {
   turnOver: "переверни — там то, что проверено",
-  turnBack: "перевёрнуто; нажми ещё раз, чтобы вернуть",
+  turnBack: "перевёрнуто. Нажми ещё раз, чтобы вернуть",
   tapBack: "Нажми, чтобы перевернуть обратно",
   backOfPass: "Что несёт эта передача — проверено здесь",
   backOfGive: "Что несёт этот ответ — проверено здесь",

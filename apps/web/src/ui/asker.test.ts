@@ -73,7 +73,7 @@ test("amounts in the words are found, folded for detection only", () => {
 });
 
 test("each hidden character has the name the OG card gives it, so the card and the app read alike", async () => {
-  const { visible } = (await import(`${"../../../view/src/bidi.ts"}`)) as { visible: (text: string) => string };
+  const { visible } = (await import(`${"../../../../packages/card/src/bidi.ts"}`)) as { visible: (text: string) => string };
   for (const [char, name] of Object.entries(HIDDEN_CHARS)) {
     expect(visible(`a${char}b`), name).toBe(`a‹${name}›b`);
   }

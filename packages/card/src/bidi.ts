@@ -1,12 +1,12 @@
 /**
- * The asker's words next to the server's own, so that no character in them can turn ours around.
+ * The asker's words next to the card's own, so that no character in them can turn ours around.
  *
  * In text a reader's program lays out (the page's <title>, the tags a messenger reads), the words
  * go inside a first-strong isolate: U+2068 FSI before, U+2069 PDI after. PDI closes every
  * embedding and override the words left open, so an unclosed RLO in a title cannot reverse
  * " · aHand" or the terms around it.
  *
- * On the card the server draws itself (satori, which has no bidi algorithm), direction controls and
+ * On the card the view server draws as a picture (satori, which has no bidi algorithm), direction controls and
  * invisible characters are drawn as visible tokens, ‹RLO›, ‹ZWSP›: the picture shows the bytes in
  * the order they are stored, and nothing in it is hidden or reversed. The brackets are U+2039 and
  * U+203A, which every font on the card has.

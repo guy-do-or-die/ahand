@@ -12,7 +12,7 @@ import { unlock, unlockedFor, useSessionVersion } from "./session";
 /** A section of the screen: a mono heading over a 1.5px ink rule. */
 export function Section({ title, children, testId, state }: { title: string; children: ReactNode; testId?: string; state?: string }) {
   return (
-    <section className="flex flex-col gap-4 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-4" data-testid={testId} data-state={state}>
+    <section className="flex flex-col gap-4 border-t-[length:var(--bw-hair)] border-[var(--ink-a12)] pt-4" data-testid={testId} data-state={state}>
       <h2 className="ah-meta ah-meta--ink m-0">{title}</h2>
       {children}
     </section>

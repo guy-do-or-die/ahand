@@ -541,7 +541,7 @@ function Band({ what, code }: { what: string; code?: string }) {
 
 function Section({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-5">
+    <section className="flex flex-col gap-3 border-t-[length:var(--bw-hair)] border-[var(--ink-a12)] pt-5">
       <h2 className="m-0 text-[length:var(--fs-title-m-sm)] font-extrabold leading-[1.06] tracking-[-0.03em]">{title}</h2>
       <p className="ah-label m-0">{lead}</p>
       {children}

@@ -4,22 +4,23 @@ import { join } from "node:path";
 
 /**
  * The tracked-files guard: the repository is public, so no tracked text file carries Russian
- * profanity, a path into someone's home folder, or a record id of a private working document. It reads every file `git ls-files` lists (the
- * whole clone, not only apps/web; contracts/lib is not tracked), skips binary files, and checks
- * each line.
+ * profanity, a path into someone's home folder, or a record id of a private working document. It
+ * reads every file `git ls-files` lists (the whole clone, not only apps/web; contracts/lib is not
+ * tracked), skips binary files, and checks each line.
  *
  * - Profanity: a short list of Russian stems, case-insensitive. The stems that also sit inside
  *   ordinary words (the Russian for "requires", "bread" or "to use") count only at the start of a
- *   word. The
- *   i18n catalogues and their tests are read too: none of their words matches, so they need no
- *   exemption.
+ *   word. The i18n catalogues and their tests are read too: none of their words matches, so they
+ *   need no exemption.
  * - Home folders: a Linux or macOS home path (the users folder too). Allowed, by file: the
  *   synthetic `me` paths of exit.html's file-serving tests and the CI runner's own home in the
  *   workflow. Nothing else.
  * - Private record ids: a capital letter group from a private working document's numbering
  *   followed by a dash and a number, such as the letter R, a dash and 3 (the groups are listed at
- *   PRIVATE_ID; capitals only, and only standing as a word of their own). No public file defines
- *   them, so they point at nothing a reader can open.
+ *   PRIVATE_ID; capitals only, and only standing as a word of their own). A finding's id is caught
+ *   with or without the dash: F, then one to three digits, standing alone. No public file defines
+ *   them, so they point at nothing a reader can open. A function key's name standing alone would
+ *   be caught too, so a line that needs one names the key in words.
  *
  * The patterns are written with escapes, so this file does not match itself.
  */
@@ -39,10 +40,11 @@ const PROFANITY = new RegExp(`(?:${ANYWHERE.join("|")})|(?<![\\u0430-\\u044f\\u0
 const HOME = /\/(?:home|Users)\/[^\s/"'`]+/;
 
 /**
- * A private record id: R, D, M, IN, U, C, A, W, O or L, a dash and a number, standing as a word of
- * its own (so a letter group inside a longer name, such as the end of SHA, is not one).
+ * A private record id: R, D, M, IN, U, C, A, W, O, L or F, a dash and a number, or F and one to
+ * three digits with no dash (a finding's id), standing as a word of its own: a letter group inside
+ * a longer name (the end of SHA), a hex number (0xF1) and a colour (#F00) are not one.
  */
-const PRIVATE_ID = /(?<![\w-])(?:R|D|M|IN|U|C|A|W|O|L)-\d+(?![\w-])/;
+const PRIVATE_ID = /(?<![\w#-])(?:(?:R|D|M|IN|U|C|A|W|O|L|F)-\d+|F\d{1,3})(?![\w-])/;
 
 /** The only home paths allowed, by file: each is synthetic or the CI runner's. */
 const HOME_ALLOWED: Record<string, string[]> = {
@@ -130,9 +132,16 @@ describe("tracked files: no profanity, no home paths and no private record ids",
 
   test("private record ids are caught; look-alikes in ordinary text are not", () => {
     const id = (group: string, n: number) => `${group}-${n}`;
-    const ids = [id("R", 3), id("D", 40), id("M", 1), id("IN", 21), id("U", 7), id("C", 12), id("A", 1), id("W", 2), id("O", 5), id("L", 1)];
+    const ids = [id("R", 3), id("D", 40), id("M", 1), id("IN", 21), id("U", 7), id("C", 12), id("A", 1), id("W", 2), id("O", 5), id("L", 1), id("F", 4)];
     for (const found of ids) {
       expect(offences("apps/web/src/x.ts", `// as decided (${found}).`)).toHaveLength(1);
+    }
+    // A finding's id with no dash, in a comment and in a test's title.
+    const finding = (n: number) => `F${n}`;
+    expect(offences("apps/web/src/x.ts", `// ${finding(5)}: the row says the address comes later.`)).toHaveLength(1);
+    expect(offences("tests/e2e/x.spec.ts", `test("the paste row comes after the gestures (${finding(17)})", () => {});`)).toHaveLength(1);
+    for (const ok of ["0xF1", "#F00", "F1a", "xF2", "FF1", `${finding(1234)}`, `${finding(2)}-b`, `${finding(3)}_x`]) {
+      expect(offences("apps/web/src/x.ts", `// ${ok}`)).toEqual([]);
     }
     expect(offences("tests/e2e/x.ts", `// ${id("A", 1)} to ${id("A", 4)} are fixed`)).toHaveLength(1);
     const fine = ["UTF-8", "SHA-1", "SHA-256", "ERC-6492", "EIP-712", "NIP-17", "x-1", "L2", "WCAG 2.2 AA", "l-1", "a-1", `${id("AR", 3)}`, `${id("R", 3)}a`, `${id("L", 1)}a`, `x${id("W", 2)}`, `${id("O", 5)}-b`];

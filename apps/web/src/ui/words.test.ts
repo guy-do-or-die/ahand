@@ -29,8 +29,9 @@ test("Russian has a sentence for every English one, and none is left in English"
   const en = sentences(WORDS.en);
   const ru = sentences(WORDS.ru);
   expect(ru.length).toBe(en.length);
-  // The one empty string is the half of "[$40] reward" that a language does not use.
-  const untranslated = ru.filter((sentence) => sentence !== "" && !/[а-яё]/i.test(sentence));
+  // The one empty string is the half of "[$40] reward" that a language does not use; a string
+  // with no letter in it (each language's quotation marks) is not a sentence to translate.
+  const untranslated = ru.filter((sentence) => /\p{L}/u.test(sentence) && !/[а-яё]/i.test(sentence));
   expect(untranslated).toEqual([]);
 });
 
@@ -55,7 +56,7 @@ test("the Russian deal card keeps the condition, and the hand is what is open", 
   expect(WORDS.ru.deal.ifHelp).toBe("Если поможешь и тебя поблагодарят");
   expect(WORDS.ru.deal.openUntil("29 янв")).toBe("рука открыта до 29 янв");
   expect(WORDS.ru.deal.wasOpenUntil("29 янв")).toBe("рука была открыта до 29 янв");
-  expect(`${WORDS.ru.deal.reward[0]}$50 · ${WORDS.ru.deal.openUntil("29 янв")}`).toBe("Награда $50 · рука открыта до 29 янв");
+  expect(WORDS.ru.deal.ofWhole("$40", "$12")).toBe("из $40: $12 оставили себе по пути");
 });
 
 test("the asker's words, the amount note and the copy buttons are said in both languages", () => {

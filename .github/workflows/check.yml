@@ -3,13 +3,14 @@
 # records, every forge test (unit, invariants, the hostile invariants, the SDK vectors and gas
 # fixtures Core writes, the deployment), the fixtures unchanged after the tests rewrote them from
 # Core, the exit kit's self-test, the typecheck of the SDK, its tests, the ABI package, the delivery
-# package, the test relay, the view server, the stand, the web app, the command-line tool and the
-# browser suites, the SDK's tests, which compare it with those fixtures
+# package, the preview card, the test relay, the view server, the stand, the web app, the
+# command-line tool and the browser suites, the SDK's tests, which compare it with those fixtures
 # and run it against Core on local chains, the ABI package's tests, the tests of the delivery package
-# and the test relay, which run on 127.0.0.1 only and contact no public relay, and the view server's
-# tests, which read local chains and scripted JSON-RPC nodes on 127.0.0.1 only, the web app's tests,
-# the stand's and the command-line tool's, which start their own anvil and relay on 127.0.0.1, and
-# the app's build. The browser suites (tests/e2e) need a running stand and are run by hand.
+# and the test relay, which run on 127.0.0.1 only and contact no public relay, the preview card's
+# tests, and the view server's tests, which read local chains and scripted JSON-RPC nodes on
+# 127.0.0.1 only, the web app's tests, the stand's and the command-line tool's, which start their
+# own anvil and relay on 127.0.0.1, and the app's build. The browser suites (tests/e2e) need a
+# running stand and are run by hand.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
 name: check
 
@@ -119,6 +120,11 @@ jobs:
       # copies, CLOSED, NIP-42 AUTH, refusals), and the outbox's retries and delivered rule.
       - name: Delivery package tests
         run: bun run test:deliver
+
+      # The link's preview card shared by the view server and the raise screen: its words, its
+      # model, and the same drawing for satori and for a page.
+      - name: Preview card tests
+        run: bun run test:card
 
       - name: Test relay tests
         run: bun run test:relay

@@ -86,6 +86,7 @@ async function inApp(page: Page, to: string): Promise<void> {
 }
 
 async function toRussian(page: Page): Promise<void> {
+  await page.getByTestId("shell-lang").click();
   await page.getByTestId("shell-lang-ru").click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
 }
@@ -438,7 +439,7 @@ test("/core derives the Core in use, lists the twelve limits, and labels the ser
   await expect(page.getByTestId("core-limit-here")).toHaveText(/With this site's default of 250 thousand gas per payout: 55 paid passes at worst\./i);
   await expect(page.getByTestId("core-command")).toContainText("cast\" keccak");
   await expect(page.getByTestId("core-unaudited")).toHaveText(
-    "Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.",
+    "Unaudited: seven AI reviews and one AI scan found no defect. No professional audit has been done.",
   );
   // A built stand serves /build.json and the page shows its hash; a dev stand serves none and says so.
   const served = await request.get("/build.json");
@@ -467,18 +468,18 @@ test("/check says a thanked, refunded or ended Hand's state before Core's senten
   await checkPasted(page, fixtures.thanked.giveAddress);
   const state = page.getByTestId("check-hand-state");
   await expect(state).toHaveAttribute("data-value", "thanked");
-  await expect(state).toContainText(/This hand is closed: thanked on \d{1,2} \w{3}\. The route is valid, but nobody can be paid through it any more\./);
+  await expect(state).toContainText(/This hand is closed: thanked on \d{1,2} \w{3,4}\. The route is valid, but nobody can be paid through it any more\./);
   await expect(page.getByTestId("check-core-answer")).toHaveAttribute("data-value", "accepted");
   await expect(page.getByTestId("check-core-answer")).not.toContainText("The asker can thank it");
 
   await checkPasted(page, fixtures.refunded.address);
   await expect(state).toHaveAttribute("data-value", "refunded");
-  await expect(state).toContainText(/This hand is closed: the reward went back to the asker on \d{1,2} \w{3}\./);
+  await expect(state).toContainText(/This hand is closed: the reward went back to the asker on \d{1,2} \w{3,4}\./);
   await expect(page.getByTestId("check-core-answer")).not.toContainText("of the reward");
 
   await checkPasted(page, fixtures.expired.address);
   await expect(state).toHaveAttribute("data-value", "expired");
-  await expect(state).toContainText(/Time's up on \d{1,2} \w{3}; only sending the reward back is possible now\./);
+  await expect(state).toContainText(/Time's up on \d{1,2} \w{3,4}\. Only sending the reward back is possible now\./);
 
   await checkPasted(page, fixtures.unlisted.address);
   await expect(state).toHaveAttribute("data-value", "open");
@@ -526,7 +527,7 @@ test("the printed receipt says what was asked, how and when the hand closed and 
   await expect(head).toHaveAttribute("data-closing", "thanked", { timeout: 20_000 });
   await expect(head).toContainText(`Receipt · hand #${fixtures.thanked.handId}`);
   await expect(head).toContainText(fixtures.thanked.title);
-  await expect(head).toContainText(/Thanked on \d{1,2} \w{3} \d{4}, block \d+/);
+  await expect(head).toContainText(/Thanked on \d{1,2} \w{3,4} \d{4}, block \d+/);
   await expect(head).toContainText(/Asked by 0x[0-9a-fA-F]{40}/);
 
   await page.emulateMedia({ media: "print" });

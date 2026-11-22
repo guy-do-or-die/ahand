@@ -24,7 +24,7 @@ const DAY = 86_400;
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 border-t-[length:var(--bw-emph)] border-[var(--ink)] pt-4">
+    <section className="flex flex-col gap-3 border-t-[length:var(--bw-hair)] border-[var(--ink-a12)] pt-4">
       <h2 className="ah-meta ah-meta--ink m-0">{title}</h2>
       {children}
     </section>

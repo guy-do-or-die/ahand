@@ -37,6 +37,28 @@ export function expiryFor(chainTime: number, days: number, maxExpiryPeriod: numb
   return expiryAfter(chainTime, days * DAY, maxExpiryPeriod);
 }
 
+/** A moment as the date a date field holds, in the reader's own zone: "2027-02-28". */
+export function fieldDate(seconds: number): string {
+  const at = new Date(seconds * 1000);
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+}
+
+/** Whole days from one field date to a later one (noon to noon, so a clock change in between does not count). */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((new Date(`${to}T12:00:00`).getTime() - new Date(`${from}T12:00:00`).getTime()) / (DAY * 1000));
+}
+
+/**
+ * The days a date picked in the field stands for, counted from the network's own today: at least
+ * one, at most what Core allows. The last date the field offers is the cap itself, whatever the
+ * hour, so "as long as it can be" is always the whole cap.
+ */
+export function daysForDate(picked: string, chainTime: number, maxExpiryPeriod: number): number {
+  const most = Math.floor(maxExpiryPeriod / DAY);
+  if (picked === fieldDate(chainTime + maxExpiryPeriod - 600)) return most;
+  return Math.min(Math.max(daysBetween(fieldDate(chainTime), picked), 1), most);
+}
+
 /** How many paid passes a fresh route still has room for at worst, with this room per payout. */
 export function passesAt(payoutGasK: number): number {
   const hand: Hand = { handId: 1n, raiser: zeroAddress, token: zeroAddress, rootKey: zeroAddress, payoutGasK, minClaimBps: 7000, dataHash: zeroHash };

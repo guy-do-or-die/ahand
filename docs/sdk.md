@@ -76,6 +76,7 @@ const calls = [setupCall(setup), thankCall(core, handId, shakes, give)]; // than
 
 - `setupCall` is `forwarder.aggregate3([{ factory, factoryData }])`, **never a call in the sender's own name**: a wrapper can name any contract and any calldata (for example "the token: transfer to me"), and sent from the raiser's account it would act for the raiser. The forwarder holds nothing and has no allowances (Multicall3 on real networks; `contracts/test/mocks/Forwarder.sol` on a local chain). Tests: "wraps the setup call in the forwarder's aggregate3, never in the sender's own name", "is refused bare, accepted with the setup, and closes the Hand as thanked by [setupCall, thankCall]" and "a wrapper whose "factory" is the token" (`packages/sdk/tests/tx.test.ts`).
 - An application can send both as one EIP-5792 batch where the wallet reports atomic support, or in two steps with Core asked again between them.
+- Status: only the two-step path (set up, then thank) has run end to end, in the browser with the dev wallet against the stand's forwarder (`tests/e2e/smoke/thank.spec.ts`, "the undeployed account"). The one-batch path is covered by unit tests with a wallet double (`apps/web/src/wallet/send.test.ts`), not in a real wallet, and Multicall3 as the forwarder on a real network has not been run.
 
 ## Errors
 

@@ -58,7 +58,7 @@ describe("words: review round 1", () => {
 
   test("the fit line says the worst case is only a check, and what is sent is the wallet's estimate", () => {
     expect(en["thank.lens.fit"]).toMatch(/Worst case \{gas\} gas.*only to check.*estimate is what is sent/);
-    expect(ru["thank.lens.fit"]).toMatch(/В худшем случае \{gas\} gas.*только.*проверк.*отправляется оценка/);
+    expect(ru["thank.lens.fit"]).toMatch(/В худшем случае \{gas\} gas.*только.*проверк.*[Оо]тправляется оценка/);
   });
 
   test("a long hand is promised a button, not a reminder that arrives by itself", () => {

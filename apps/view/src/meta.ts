@@ -1,19 +1,12 @@
-import { isolate } from "./bidi.ts";
-import { termsOf, type Preview } from "./preview.ts";
-import { WORDS, termsLine, type Lang } from "./words.ts";
+import { metaOf, type Lang } from "@ahand/card";
+
+import { factsOf, type Preview } from "./preview.ts";
+
+export { oneLine } from "@ahand/card";
 
 /** Text for an HTML attribute or element: the five characters that could end it are escaped. */
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
-
-/** A description fit for a preview: one line, at most `max` characters, cut at a word. */
-export function oneLine(text: string, max: number): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= max) return flat;
-  const cut = flat.slice(0, max - 1);
-  const space = cut.lastIndexOf(" ");
-  return `${(space > max / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 export interface Card {
@@ -38,33 +31,27 @@ function imageQuery(d: string | undefined, dark: boolean, lang: Lang): string {
   return parts.length > 0 ? `?${parts.join("&")}` : "";
 }
 
-/** What the preview tags say for an address, in the reader's language. */
+/**
+ * What the preview tags say for an address, in the reader's language: the shared card's title
+ * and description (packages/card `metaOf`), the very lines the raise screen shows under its card.
+ */
 export function cardOf(preview: Preview, site: string, lang: Lang, dark: boolean, pathname = "/"): Card {
-  const w = WORDS[lang];
+  const text = metaOf(factsOf(preview, lang), lang);
   if (preview.kind === "generic") {
     return {
-      title: w.genericTitle,
-      description: w.genericLine,
+      ...text,
       image: `${site}/og/generic.png${imageQuery(undefined, dark, lang)}`,
-      imageAlt: w.genericAlt,
       url: `${site}${pathname}`,
       lang,
     };
   }
-  // The chain's terms come first and stand alone; the asker's words follow, quoted, labelled and
-  // isolated, so nothing they say runs into the terms or turns them around.
-  const asked = preview.title === undefined ? undefined : isolate(oneLine(preview.title, 160));
-  const line = termsLine(termsOf(preview, lang), lang);
-  const description = preview.content ? `${line}. ${w.quoted(isolate(oneLine(preview.content, 200)))}` : `${line}.`;
-  const query = imageQuery(preview.d, dark, lang);
+  const titled = preview.title !== undefined;
   return {
-    title: asked ?? w.genericTitle,
-    description,
-    image: `${site}/og${preview.path}.png${query}`,
-    imageAlt: w.imageAlt(asked, line),
+    ...text,
+    image: `${site}/og${preview.path}.png${imageQuery(preview.d, dark, lang)}`,
     url: `${site}${preview.path}${preview.d ? `?d=${preview.d}` : ""}`,
     lang,
-    ...(asked ? { pageTitle: `${asked} · aHand` } : {}),
+    ...(titled ? { pageTitle: `${text.title} · aHand` } : {}),
   };
 }
 

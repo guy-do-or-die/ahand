@@ -8,8 +8,8 @@
  * mines its own blocks (`evm_mine`) instead of waiting for the chain's interval, and holds a lock
  * per chain so that two runs never race for account 1's nonces. Time is read from the chain only.
  *
- * The raiser is anvil account 1. Its root and inbox keys are derived as the app derives them
- *: `keysTypedData` signed by account 1, one fixed test book (`TEST_BOOK`), and `n`
+ * The raiser is anvil account 1. Its root and inbox keys are derived as the app derives them:
+ * `keysTypedData` signed by account 1, one fixed test book (`TEST_BOOK`), and `n`
  * counting up from Core's `handsCount()` at the start of the run, so no two runs on a chain share
  * an `n`. The output names the book and each `n`, so a test can rebuild a link or listen on an inbox.
  *

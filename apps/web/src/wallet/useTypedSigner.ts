@@ -13,8 +13,8 @@ import { connectedWallet, switchToAppChain } from "./state";
  * included: a Give carries it unchanged) and what kind of account answered.
  *
  * The typed data names the build's chain, and a wallet on another network refuses it (or worse,
- * shows it under the wrong network). So the wallet is first asked to switch, as `useSend` does
- *; a switch that fails is "wrong-network", and nothing is asked to be signed.
+ * shows it under the wrong network). So the wallet is first asked to switch, as `useSend` does;
+ * a switch that fails is "wrong-network", and nothing is asked to be signed.
  */
 
 export type TypedOutcome = ({ ok: true } & TypedAnswer) | { ok: false; reason: "no-wallet" | "rejected" | "failed" | "wrong-network"; message?: string };

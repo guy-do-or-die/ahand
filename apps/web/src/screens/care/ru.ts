@@ -2,7 +2,7 @@ import type en from "./en";
 
 // The care screen's words in Russian: the same keys as en.ts, checked by the type.
 const ru: Record<keyof typeof en, string> = {
-  "care.title": "Позаботиться о руке.",
+  "care.title": "Позаботиться о руке",
   "care.kicker": "Рука {id}",
   "care.kicker.calm": "Твоя рука",
   "care.words": "Текст руки передаётся только внутри ссылки. Эта страница читает то, что хранит сеть.",

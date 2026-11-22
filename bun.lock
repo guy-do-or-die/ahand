@@ -19,6 +19,7 @@
       "name": "@ahand/view",
       "version": "0.1.0",
       "dependencies": {
+        "@ahand/card": "workspace:*",
         "@ahand/sdk": "workspace:*",
         "@resvg/resvg-js": "2.6.2",
         "react": "19.3.1",
@@ -37,6 +38,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@ahand/abi": "workspace:*",
+        "@ahand/card": "workspace:*",
         "@ahand/deliver": "workspace:*",
         "@ahand/sdk": "workspace:*",
         "@fontsource-variable/onest": "5.3.1",
@@ -106,6 +108,21 @@
         "viem": "2.52.0",
       },
     },
+    "packages/card": {
+      "name": "@ahand/card",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "1.4.4",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+        "typescript": "5.9.3",
+      },
+      "peerDependencies": {
+        "react": "19.3.1",
+      },
+    },
     "packages/deliver": {
       "name": "@ahand/deliver",
       "version": "0.1.0",
@@ -153,6 +170,8 @@
     "@adraffy/ens-normalize": ["@adraffy/ens-normalize@1.11.1", "", {}, "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ=="],
 
     "@ahand/abi": ["@ahand/abi@workspace:packages/abi"],
+
+    "@ahand/card": ["@ahand/card@workspace:packages/card"],
 
     "@ahand/deliver": ["@ahand/deliver@workspace:packages/deliver"],
 

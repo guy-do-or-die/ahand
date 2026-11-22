@@ -8,7 +8,7 @@ import { getTransformedRoutes } from "@vercel/routing-utils";
 import { fromBase64Url, refundCall, toText } from "@ahand/sdk";
 import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 
-import { isolate } from "../../view/src/bidi.ts";
+import { isolate } from "@ahand/card";
 import { viewTokensOf, tokensOf } from "../../view/src/config.ts";
 import { viewFunction, type FunctionConfig } from "../../view/src/function.ts";
 import { metaOf, pngSize, raiseHand, send, unescape, USD, type RaiseOptions } from "../../view/tests/hands.ts";
@@ -310,7 +310,7 @@ describe("the view server's Vercel Function, called with Requests as Vercel's No
     const page = await call(before);
     expect(page.status).toBe(200);
     expect(unescape(metaOf(page.text, "og:title"))).toBe(isolate(title));
-    expect(metaOf(page.text, "og:description")).toMatch(/^\$40 reward on chain · open until \d{1,2} [A-Z][a-z]{2}\.$/);
+    expect(metaOf(page.text, "og:description")).toMatch(/^Reward \$40 · open until \d{1,2}\u00a0[A-Z][a-z]{2}\.$/);
     expect(page.text).not.toContain("Hidden from robots");
     expect(unescape(metaOf(page.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}`);
     expect(unescape(metaOf(page.text, "og:url"))).toBe(`${SITE}${before}`);
@@ -324,7 +324,7 @@ describe("the view server's Vercel Function, called with Requests as Vercel's No
     for (const [name, value] of Object.entries(serve(before.split("?")[0]!).headers)) expect({ name, value: page.header(name) }).toEqual({ name, value });
 
     const ru = await call(before, { headers: { "Accept-Language": "ru-RU,ru;q=0.9" } });
-    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 в сети · открыта до ");
+    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 · рука открыта до ");
     expect(unescape(metaOf(ru.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}&l=ru`);
 
     const head = await call(before, { method: "HEAD" });
@@ -355,7 +355,7 @@ describe("the view server's Vercel Function, called with Requests as Vercel's No
     const { before } = await raise({ mode: "unlisted", title: "Not for robots without d", reward: 25n * USD });
     const numbered = await call(before.split("?")[0]!);
     expect(unescape(metaOf(numbered.text, "og:title"))).toBe(GENERIC_TITLE);
-    expect(metaOf(numbered.text, "og:description")).toStartWith("$25 reward on chain · open until ");
+    expect(metaOf(numbered.text, "og:description")).toStartWith("Reward $25 · open until ");
     expect(numbered.text).not.toContain("Not for robots");
     expect(numbered.text).toContain("<title>aHand</title>");
 
@@ -385,7 +385,7 @@ describe("the view server's Vercel Function, called with Requests as Vercel's No
     }
     // The dark Hand's own number gives its terms only, never its words.
     const terms = await call(darkNumbered);
-    expect(metaOf(terms.text, "og:description")).toStartWith("$5 reward on chain · open until ");
+    expect(metaOf(terms.text, "og:description")).toStartWith("Reward $5 · open until ");
     expect(terms.text).not.toContain("Dark words");
     // A card for a huge d is the generic card too.
     const huge = await call(`/og/31337/${unlisted.handId}.png?d=${"A".repeat(20_000)}`);
@@ -412,11 +412,11 @@ describe("the view server's Vercel Function, called with Requests as Vercel's No
 
   test("a closed Hand follows the chain: the reward went back", async () => {
     const { handId, before } = await raise({ mode: "unlisted", title: "Short one", reward: 3n * USD, seconds: 3_600 });
-    expect(metaOf((await call(before)).text, "og:description")).toStartWith("$3 reward on chain · open until ");
+    expect(metaOf((await call(before)).text, "og:description")).toStartWith("Reward $3 · open until ");
     await (chain.client.request as (a: { method: string; params: unknown[] }) => Promise<unknown>)({ method: "evm_increaseTime", params: [7_200] });
     await (chain.client.request as (a: { method: string; params: unknown[] }) => Promise<unknown>)({ method: "evm_mine", params: [] });
     await send(chain, ANVIL_KEYS[4]!, refundCall(chain.core, handId));
-    expect(metaOf((await call(before)).text, "og:description")).toStartWith("The $3 reward went back on ");
+    expect(metaOf((await call(before)).text, "og:description")).toMatch(/^Reward \$3\. The reward went back on \d{1,2}\u00a0[A-Z][a-z]{2}\.$/);
   });
 
   test("the page names the host the visitor asked for (X-Forwarded-Host, as Vercel's proxy sets it), https, and nothing that is not a host", async () => {
@@ -455,7 +455,7 @@ describe("the function as Vercel puts it together: the build's folder, traced, a
       VIEW_CANONICAL: config.cores.canonical,
       VIEW_RELAYS: config.relays.join(","),
       VIEW_SITE: config.site,
-      // Test USDC, the one token the public configuration lists, as a dollar token (review H1).
+      // Test USDC, the one token the public configuration lists, as a dollar token.
       VIEW_TOKENS: "0x036CbD53842c5426634e7929541eC2318f3dCF7e:6:USDC:$",
       VIEW_PRIVY: "1",
     });

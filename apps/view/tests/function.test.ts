@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { fromBase64Url, refundCall, toText } from "@ahand/sdk";
 import { ANVIL_KEYS, startChain, type Chain } from "@ahand/sdk/testing";
 
-import { isolate } from "../src/bidi.ts";
+import { isolate } from "@ahand/card";
 import { tokensOf, viewTokensOf } from "../src/config.ts";
 import { viewFunction, type FunctionConfig } from "../src/function.ts";
 import { cspFor, inlineScriptHashes } from "../src/headers.ts";
@@ -62,7 +62,7 @@ describe("the view function, called with Requests", () => {
     const page = await call(before);
     expect(page.status).toBe(200);
     expect(unescape(metaOf(page.text, "og:title"))).toBe(isolate(title));
-    expect(metaOf(page.text, "og:description")).toMatch(/^\$40 reward on chain · open until \d{1,2} [A-Z][a-z]{2}\.$/);
+    expect(metaOf(page.text, "og:description")).toMatch(/^Reward \$40 · open until \d{1,2}\u00a0[A-Z][a-z]{2}\.$/);
     expect(page.text).not.toContain("Hidden from robots");
     expect(unescape(metaOf(page.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}`);
     expect(unescape(metaOf(page.text, "og:url"))).toBe(`${SITE}${before}`);
@@ -78,7 +78,7 @@ describe("the view function, called with Requests", () => {
     expect(page.header("strict-transport-security")).toBeNull();
 
     const ru = await call(before, { headers: { "Accept-Language": "ru-RU,ru;q=0.9" } });
-    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 в сети · открыта до ");
+    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 · рука открыта до ");
     expect(unescape(metaOf(ru.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}&l=ru`);
 
     const head = await call(before, { method: "HEAD" });
@@ -109,7 +109,7 @@ describe("the view function, called with Requests", () => {
     const { before } = await raise({ mode: "unlisted", title: "Not for robots without d", reward: 25n * USD });
     const numbered = await call(before.split("?")[0]!);
     expect(unescape(metaOf(numbered.text, "og:title"))).toBe(GENERIC_TITLE);
-    expect(metaOf(numbered.text, "og:description")).toStartWith("$25 reward on chain · open until ");
+    expect(metaOf(numbered.text, "og:description")).toStartWith("Reward $25 · open until ");
     expect(numbered.text).not.toContain("Not for robots");
     expect(numbered.text).toContain("<title>aHand</title>");
 
@@ -139,7 +139,7 @@ describe("the view function, called with Requests", () => {
     }
     // The dark Hand's own number gives its terms only, never its words.
     const terms = await call(darkNumbered);
-    expect(metaOf(terms.text, "og:description")).toStartWith("$5 reward on chain · open until ");
+    expect(metaOf(terms.text, "og:description")).toStartWith("Reward $5 · open until ");
     expect(terms.text).not.toContain("Dark words");
     // A card for a huge d is the generic card too.
     const huge = await call(`/og/31337/${unlisted.handId}.png?d=${"A".repeat(20_000)}`);
@@ -165,12 +165,12 @@ describe("the view function, called with Requests", () => {
 
   test("a closed Hand follows the chain: the reward went back", async () => {
     const { handId, before } = await raise({ mode: "unlisted", title: "Short one", reward: 3n * USD, seconds: 3_600 });
-    expect(metaOf((await call(before)).text, "og:description")).toStartWith("$3 reward on chain · open until ");
+    expect(metaOf((await call(before)).text, "og:description")).toStartWith("Reward $3 · open until ");
     const rpc = chain.client.request as (a: { method: string; params: unknown[] }) => Promise<unknown>;
     await rpc({ method: "evm_increaseTime", params: [7_200] });
     await rpc({ method: "evm_mine", params: [] });
     await send(chain, ANVIL_KEYS[4]!, refundCall(chain.core, handId));
-    expect(metaOf((await call(before)).text, "og:description")).toStartWith("The $3 reward went back on ");
+    expect(metaOf((await call(before)).text, "og:description")).toMatch(/^Reward \$3\. The reward went back on \d{1,2}\u00a0[A-Z][a-z]{2}\.$/);
   });
 
   test("the page names the host the visitor asked for (X-Forwarded-Host, as a proxy in front sets it), https, and nothing that is not a host", async () => {
@@ -243,7 +243,7 @@ describe("the view function, called with Requests", () => {
       const { before } = await raise({ mode: "unlisted", title, reward: 7n * USD });
       const page = await (await bundled.fetch(new Request(`http://127.0.0.1:3${before}`))).text();
       expect(unescape(metaOf(page, "og:title"))).toBe(isolate(title));
-      expect(metaOf(page, "og:description")).toStartWith("$7 reward on chain · open until ");
+      expect(metaOf(page, "og:description")).toStartWith("Reward $7 · open until ");
       expect(unescape(metaOf(page, "og:url"))).toBe(`${SITE}${before}`);
       const card = await bundled.fetch(new Request(`${SITE}/og/generic.png`));
       expect(card.headers.get("content-type")).toBe("image/png");

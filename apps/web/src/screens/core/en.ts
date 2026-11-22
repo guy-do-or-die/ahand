@@ -1,7 +1,7 @@
 // The /core screen's words in English. Keys are dotted ids; ru.ts has the same keys.
 // `core.<Error>` keys belong to i18n/common; this screen's keys never take an error's name.
 const en = {
-  "core.title": "This contract.",
+  "core.title": "This contract",
   "core.intro": "Every hand on this site lives in one contract. Here is how to know it is the one built from the published code, without taking this site's word for it.",
   "core.address": "The contract in use",
   "core.chain": "Network",
@@ -10,8 +10,8 @@ const en = {
   "core.code.none": "No code was found at this address.",
   "core.reading": "Reading the contract…",
   "core.offline": "Can't reach the network right now.",
-  "core.offline.kept": "The figures read from the contract are missing below; the rest still stands.",
-  "core.absent.body": "No code was found at this address on this network just now. Its figures can't be read until the contract is put here; where its address comes from, below, still stands.",
+  "core.offline.kept": "The figures read from the contract are missing below. The rest still stands.",
+  "core.absent.body": "No code was found at this address on this network just now. Its figures can't be read until the contract is put here. Where its address comes from, below, still stands.",
 
   "core.domainTitle": "Its name for confirmations",
   "core.domain.body": "Every confirmation on a route names this contract and this network, so it can't be replayed anywhere else. Read from the contract now:",
@@ -33,7 +33,7 @@ const en = {
 
   "core.buildTitle": "This site's own files",
   "core.build.served": "Served by this site",
-  "core.build.body": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare. A Hand's address and its card carry the preview tags and image this server adds; /index.html is the file as built.",
+  "core.build.body": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare. A Hand's address and its card carry the preview tags and image this server adds. /index.html is the file as built.",
   "core.build.body.static": "The fingerprint of every file of this site, read from /build.json just now. Hash the files you got and compare. This site adds nothing to its pages: every page address serves /index.html as built.",
   "core.build.none": "There is no build to hash: this server makes its pages as they are asked for (a development server), so it serves no /build.json.",
   "core.build.reading": "Reading /build.json…",
@@ -45,7 +45,7 @@ const en = {
 
   "core.limitsTitle": "What it accepts it can't do",
   "core.limits.body": "The twelve limits Core accepts by design.",
-  "core.unaudited": "Unaudited: seven AI reviews and one AI scan found no defect; no professional audit has been done.",
+  "core.unaudited": "Unaudited: seven AI reviews and one AI scan found no defect. No professional audit has been done.",
 
   // The specialist layer: Core's accepted limits in its own vocabulary.
   "core.lens.domain": "eip712Domain()",

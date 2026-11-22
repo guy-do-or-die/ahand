@@ -38,7 +38,7 @@ import { createPublicClient, encodeAbiParameters, http, keccak256, numberToHex, 
 import { fromBase64Url, toText } from "@ahand/sdk";
 import { ANVIL_KEYS, type ChainToken } from "@ahand/sdk/testing";
 
-import { isolate } from "../../../apps/view/src/bidi.ts";
+import { isolate } from "../../../packages/card/src/bidi.ts";
 import { metaOf, raiseHand, unescape, USD, type RaiseChain } from "../../../apps/view/tests/hands.ts";
 import { buildApp, copyFunction, FUNCTION_ENTRY, functionFileList, PUBLIC_CONFIG, stageFunction } from "../../../apps/web/deploy.ts";
 import { buildRecord } from "../../../tools/manifest.ts";
@@ -291,13 +291,13 @@ async function previews(configFile: string, dist: string): Promise<void> {
 
   for (const [name, answer] of Object.entries(by)) expectThat(answer.status === 200, `${name} answers 200`, answer.status);
   expectThat(titleOf("described") === isolate(title), "the described address shows the title", titleOf("described"));
-  expectThat(descriptionOf("described").startsWith("$5 reward on chain · open until "), "the described address shows the terms", descriptionOf("described"));
+  expectThat(/^Reward \$5 · open until \d{1,2}\u00a0[A-Z][a-z]{2}\.$/.test(descriptionOf("described")), "the described address shows the terms", descriptionOf("described"));
   expectThat(!by.described!.text!.includes("Hidden from robots"), "an unlisted Hand's details stay hidden", "");
   expectThat(unescape(metaOf(by.described!.text!, "og:image")) === `${ORIGIN}${card}`, "og:image names the card", metaOf(by.described!.text!, "og:image"));
   expectThat(by.described!.headers["cache-control"] === "no-cache" && by.described!.headers["content-type"] === "text/html; charset=utf-8", "a page is no-cache HTML", by.described!.headers);
-  expectThat(titleOf("numbered") === "Someone raised a hand." && descriptionOf("numbered").startsWith("$5 reward on chain"), "a numbered address shows the terms only", [titleOf("numbered"), descriptionOf("numbered")]);
+  expectThat(titleOf("numbered") === "Someone raised a hand." && descriptionOf("numbered").startsWith("Reward $5 · "), "a numbered address shows the terms only", [titleOf("numbered"), descriptionOf("numbered")]);
   expectThat(titleOf("public") === isolate("Fork check: who can fix a 1978 Vespa?") && descriptionOf("public").includes(isolate("It stalls at idle.")), "a public Hand shows its details", descriptionOf("public"));
-  expectThat(descriptionOf("dark").startsWith("$1 reward on chain") && !by.dark!.text!.includes("dark words"), "a dark Hand's number shows terms, never words", descriptionOf("dark"));
+  expectThat(descriptionOf("dark").startsWith("Reward $1 · ") && !by.dark!.text!.includes("dark words"), "a dark Hand's number shows terms, never words", descriptionOf("dark"));
   for (const name of ["unknown", "changed", "otherChain", "huge"]) {
     expectThat(titleOf(name) === "Someone raised a hand." && descriptionOf(name) === "Open to see.", `${name} gives the generic card`, [titleOf(name), descriptionOf(name)]);
   }

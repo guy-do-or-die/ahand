@@ -6,13 +6,13 @@ NotoSans-400.ttf, NotoSans-700.ttf
   Copyright 2022 The Noto Project Authors
   (https://github.com/notofonts/latin-greek-cyrillic)
 
-SchibstedGrotesk-400.ttf, SchibstedGrotesk-700.ttf, SchibstedGrotesk-900.ttf
+SchibstedGrotesk-400.ttf, SchibstedGrotesk-700.ttf
   Copyright 2023 The Schibsted-Grotesk Project Authors
   (https://github.com/schibsted/schibsted-grotesk)
 
-ibm-plex-mono-latin-500-normal.woff
-  Copyright 2017 IBM Corp. with Reserved Font Name "Plex"
-  (https://github.com/IBM/plex)
+onest-cyrillic-400-normal.woff, onest-cyrillic-700-normal.woff
+  Copyright 2021 The Onest Project Authors
+  (https://github.com/simpals/onest)
 
 
 -----------------------------------------------------------

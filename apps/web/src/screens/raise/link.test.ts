@@ -207,3 +207,31 @@ describe("raise: the first link, in each shape", () => {
     await expect(writeLinks({ site: SITE, chainId: 31337, core: CORE, hand, seed: newSeed(), described, options })).rejects.toThrow();
   });
 });
+
+describe("raise: the asker's own date", () => {
+  const { fieldDate, daysBetween, daysForDate } = require("./link") as typeof import("./link");
+  const CAP = 180 * 86_400;
+  // Noon UTC on 1 March 2027: the same calendar day in every time zone a test machine is likely in.
+  const NOW = Date.UTC(2027, 2, 1, 12) / 1000;
+
+  test("a moment is written as the date a date field holds", () => {
+    expect(fieldDate(NOW)).toMatch(/^2027-03-01$/);
+    expect(daysBetween("2027-03-01", "2027-03-08")).toBe(7);
+    // A clock change in between does not make a day longer or shorter.
+    expect(daysBetween("2027-03-20", "2027-04-05")).toBe(16);
+  });
+
+  test("a picked date stands for whole days from the network's today, at least one and at most Core's cap", () => {
+    expect(daysForDate("2027-03-15", NOW, CAP)).toBe(14);
+    expect(daysForDate("2027-03-01", NOW, CAP)).toBe(1);
+    expect(daysForDate("2030-01-01", NOW, CAP)).toBe(180);
+  });
+
+  test("the last date the field offers is the whole cap, whatever the hour", () => {
+    const last = fieldDate(NOW + CAP - 600);
+    expect(daysForDate(last, NOW, CAP)).toBe(180);
+    // A few minutes after midnight the cap less ten minutes falls on the day before: still the cap.
+    const lateNight = Date.UTC(2027, 2, 1, 0, 5) / 1000;
+    expect(daysForDate(fieldDate(lateNight + CAP - 600), lateNight, CAP)).toBe(180);
+  });
+});

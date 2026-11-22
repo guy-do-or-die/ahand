@@ -38,6 +38,8 @@ export interface ChainRailProps {
   next?: boolean;
   /** The line under the rail: "3 hands so far." */
   caption?: boolean;
+  /** Opens a hand's person (the shell's person sheet) for a hand whose address is known, where hands do not turn (the calm view). */
+  onPerson?: (hand: RailHand) => void;
   className?: string;
 }
 
@@ -89,7 +91,7 @@ function showYou(list: HTMLElement, smooth: boolean): void {
  */
 export type { LeftOut, RailHand } from "./rail";
 
-export function ChainRail({ hands, route, you = true, next = you, caption = true, className }: ChainRailProps) {
+export function ChainRail({ hands, route, you = true, next = you, caption = true, onPerson, className }: ChainRailProps) {
   const words = useWords();
   const twist = useTwistWords();
   const reduced = useReducedMotion();
@@ -166,6 +168,11 @@ export function ChainRail({ hands, route, you = true, next = you, caption = true
                     </>
                   )}
                 />
+              ) : onPerson && hand.address && !hand.dropped ? (
+                // In the calm view a hand does not turn; one whose address is known opens its person.
+                <button type="button" className="ah-rail__person" data-testid={TID.kit.railPerson} onClick={() => onPerson(hand)}>
+                  {face}
+                </button>
               ) : (
                 face
               )}

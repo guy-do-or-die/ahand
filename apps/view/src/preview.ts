@@ -4,7 +4,7 @@ import { LinkError, chainNow, readDescriptionOf, readHand, viewOf, type Hand, ty
 
 import type { ViewConfig, ListedToken } from "./config.ts";
 import { Lru } from "./lru.ts";
-import { amountText, type CardState, type Lang, type Terms } from "./words.ts";
+import { amountText, type CardState, type HandFacts, type Lang, type Terms } from "@ahand/card";
 
 /**
  * What the view server may say about the address a preview robot fetched: the part before `#`, nothing else.
@@ -240,4 +240,15 @@ export function termsOf(preview: Extract<Preview, { kind: "hand" }>, lang: Lang)
   if (!reward) return { state, date };
   if (!reward.token) return { state, date, unknownToken: true };
   return { state, date, amount: amountText(reward.amount, reward.token, lang) };
+}
+
+/** What the preview may say of an address, as the shared card reads it. */
+export function factsOf(preview: Preview, lang: Lang): HandFacts {
+  if (preview.kind === "generic") return { kind: "generic" };
+  return {
+    kind: "hand",
+    ...(preview.title !== undefined ? { title: preview.title } : {}),
+    ...(preview.content ? { details: preview.content } : {}),
+    terms: termsOf(preview, lang),
+  };
 }

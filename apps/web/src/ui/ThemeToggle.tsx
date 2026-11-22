@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 
-import { currentTheme, setTheme, type Theme } from "../design/theme";
+import { currentTheme, setTheme, subscribeTheme, type Theme } from "../design/theme";
 import { useWords } from "./words";
 
 /**
@@ -9,15 +9,17 @@ import { useWords } from "./words";
  *
  * A half-filled disc, the usual contrast glyph, and not a sun or a moon: emoji are kept for
  * the brand's gestures.
+ *
+ * It shows the theme on <html>, not one of its own: the person sheet has a second switch, and
+ * each follows whichever was pressed.
  */
 export function ThemeToggle({ className, label = false }: { className?: string; label?: boolean }) {
   const words = useWords();
-  const [theme, setShown] = useState<Theme>(() => currentTheme());
+  const theme = useSyncExternalStore(subscribeTheme, currentTheme, currentTheme);
 
   const flip = () => {
     const next: Theme = currentTheme() === "dark" ? "light" : "dark";
     setTheme(next);
-    setShown(next);
   };
 
   return (

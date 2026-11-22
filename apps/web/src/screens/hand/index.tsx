@@ -1,4 +1,4 @@
-import { viewOf, passesLeft, readDescriptionOf, type Hand, type OpenedAddress } from "@ahand/sdk";
+import { marginOf, passesLeft, readDescriptionOf, viewOf, type Hand, type OpenedAddress } from "@ahand/sdk";
 import { messageIdOf } from "@ahand/sdk/app";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isAddressEqual, type Address } from "viem";
@@ -15,6 +15,7 @@ import { ChainRail, CopyRow, DealCard, dealDescriptionOf, Disclose, ErrorBand, M
 import { ConnectButton, LinkAgain, useWallet } from "../../wallet";
 import { Closed } from "./Closed";
 import { arrivalOf, canRetry, failureOf, holderStatements, proofPathOf, routeHands, type Failure, type Held } from "./held";
+import { showPerson } from "../../shell/person";
 import { SendBack } from "./SendBack";
 import { Unreachable } from "./Unreachable";
 import { LINK_OPTIONS, cardDescription, getHand, peekHeld, pollNow, useDecimals, useGiveCheck, useOpening, useReread, type GiveCheck } from "./useHeld";
@@ -226,6 +227,11 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
   // keyboard would cover the bar or push it over the field being typed in, so while one is open
   // the buttons stand in the page instead: they are never absent.
   const bar = actions && narrow && !typing;
+  // In the calm view the card is the route's spine, so no separate rail is drawn; under the lens
+  // the card stands in full and the rail's hands turn over.
+  const person = (hand: RailHand) => {
+    if (hand.address) showPerson(hand.address, { role: hand.role === "asker" ? "asker" : "onRoute", ...(hand.name ? { name: hand.name } : {}) });
+  };
 
   const card = (
     <div data-testid={TID.hand.dealCard} data-state={shown ?? "unknown"} data-offline={cut} data-description={description.status} data-reward={view.reward.toString()}>
@@ -239,18 +245,26 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
         {...(closed ? { closedAt: view.closedAt } : {})}
         {...(claimBps !== undefined ? { claimBps } : {})}
         raiser={view.raiser}
+        onRaiser={() => showPerson(view.raiser, { role: "asker" })}
         handId={view.handId}
         offlineSaid={cut && !closed}
         {...(block ? { block } : {})}
+        {...(opened ? { spine: { hands: routeHands(opened), shares: opened.signedShakes.map(({ shake }) => marginOf(view.reward, shake.claimBps, shake.nextClaimBps)), onPerson: person, testId: TID.hand.rail } } : {})}
       />
     </div>
   );
 
   // On a phone the column of actions comes right after the card, before the route and the
-  // evidence, so "Pass it on" and "I can help" are not pushed below the first screen; from md up it is the sticky right column beside both.
+  // evidence, so "Pass it on" and "I can help" are not pushed below the first screen; from md up
+  // it is the sticky right column beside both.
   const body = (
     <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_380px] md:grid-rows-[auto_1fr] md:items-start md:gap-x-10 md:gap-y-6">
-      <div className="flex min-w-0 flex-col gap-6 md:col-start-1 md:row-start-1">{description.status === "lost" ? <div data-testid={TID.hand.lost}>{card}</div> : card}</div>
+      {/* The message, then the people it came through: who asks and who passed it on are read
+          together, before what can be done about it. */}
+      <div className="flex min-w-0 flex-col gap-5 md:col-start-1 md:row-start-1">
+        {description.status === "lost" ? <div data-testid={TID.hand.lost}>{card}</div> : card}
+        {opened && lens ? <Route opened={opened} reward={view.reward} decimals={decimals} you={live && !closed} next={live && state === "open" && (left ?? 0) > 0} onPerson={person} /> : null}
+      </div>
 
       <aside className="flex min-w-0 flex-col gap-5 md:sticky md:top-6 md:col-start-2 md:row-span-2 md:row-start-1">
         {cut && !closed ? (
@@ -283,7 +297,6 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
 
       {opened ? (
         <div className="flex min-w-0 flex-col gap-6 md:col-start-1 md:row-start-2">
-          <Route opened={opened} reward={view.reward} decimals={decimals} you={live && !closed} next={live && state === "open" && (left ?? 0) > 0} closed={closed} />
           <Evidence opened={opened} left={left ?? 0} lens={lens} proof={proof} check={state === "open"} />
         </div>
       ) : null}
@@ -434,11 +447,11 @@ function Actions({ left, until, funded, inBar, off }: { left: number; until: str
 }
 
 /**
- * The route as people, with who is on it so far ("So far: the asker and 2 more."), said only while
- * the Hand is not closed: a closed Hand's receipt names its people. The rail gets
+ * The route as people, right under the message: who asked, who passed it on, the viewer, and the
+ * place of whoever is next. The rail names each of them, so no sentence repeats it. The rail gets
  * the signed route for the flip; a pass at the asker's own address carries the "asker" flag.
  */
-function Route({ opened, reward, decimals, you, next, closed }: { opened: OpenedAddress; reward: bigint; decimals: number; you: boolean; next: boolean; closed: boolean }) {
+function Route({ opened, reward, decimals, you, next, onPerson }: { opened: OpenedAddress; reward: bigint; decimals: number; you: boolean; next: boolean; onPerson: (hand: RailHand) => void }) {
   const hands: RailHand[] = routeHands(opened);
   return (
     <div className="flex flex-col gap-2" data-testid={TID.hand.rail} data-value={hands.length}>
@@ -456,12 +469,8 @@ function Route({ opened, reward, decimals, you, next, closed }: { opened: Opened
         you={you}
         next={next}
         caption={false}
+        onPerson={onPerson}
       />
-      {closed ? null : (
-        <p className="ah-label m-0" data-testid={TID.hand.handsSoFar} data-value={hands.length}>
-          {t("hand.soFar", { n: hands.length - 1 })}
-        </p>
-      )}
     </div>
   );
 }

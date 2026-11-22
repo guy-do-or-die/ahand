@@ -98,7 +98,7 @@ describe("the receipt variant", () => {
   });
 });
 
-describe("the printed receipt's head (F14)", () => {
+describe("the printed receipt's head", () => {
   const log = (eventName: ReceiptRow["eventName"], blockNumber: bigint): ReceiptRow => ({
     eventName,
     log: { eventName, args: {}, blockNumber, blockHash: `0x${"00".repeat(32)}`, transactionHash: `0x${"11".repeat(32)}`, logIndex: 0 },

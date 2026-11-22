@@ -12,7 +12,7 @@ import { foundry } from "viem/chains";
 import { fromBase64Url, refundCall, toText, type Call } from "@ahand/sdk";
 import { ANVIL_KEYS, freePort, startChain, type Chain } from "@ahand/sdk/testing";
 
-import { isolate } from "../src/bidi.ts";
+import { isolate } from "@ahand/card";
 import { USD, metaOf, pngSize, raiseHand, send as sendFrom, unescape, type RaiseOptions } from "./hands.ts";
 import { viewTokensOf, tokensOf, type ViewConfig } from "../src/config.ts";
 import { createView, type ViewOptions } from "../src/server.ts";
@@ -98,8 +98,8 @@ describe("previews of a Hand", () => {
     expect(page.status).toBe(200);
     expect(unescape(metaOf(page.text, "og:title"))).toBe(isolate(title));
     expect(unescape(metaOf(page.text, "twitter:title"))).toBe(isolate(title));
-    expect(metaOf(page.text, "og:description")).toMatch(/^\$40 reward on chain · open until \d{1,2} [A-Z][a-z]{2}\.$/);
-    expect(page.text).toContain("$40 reward");
+    expect(metaOf(page.text, "og:description")).toMatch(/^Reward \$40 · open until \d{1,2}\u00a0[A-Z][a-z]{2}\.$/);
+    expect(page.text).toContain("Reward $40");
     expect(page.text).not.toContain("Hidden from robots");
     expect(unescape(metaOf(page.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}`);
     expect(page.text).toContain(`<title>${isolate(title)} · aHand</title>`);
@@ -124,7 +124,7 @@ describe("previews of a Hand", () => {
     // In Russian, by Accept-Language.
     const ru = await get(before, { "Accept-Language": "ru-RU,ru;q=0.9" });
     expect(unescape(metaOf(ru.text, "og:title"))).toBe(isolate(title));
-    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 в сети · открыта до ");
+    expect(metaOf(ru.text, "og:description")).toStartWith("Награда $40 · рука открыта до ");
     expect(unescape(metaOf(ru.text, "og:image"))).toBe(`${SITE}/og${before.replace("?", ".png?")}&l=ru`);
   });
 
@@ -133,7 +133,7 @@ describe("previews of a Hand", () => {
     const numbered = before.split("?")[0]!;
     const page = await get(numbered);
     expect(unescape(metaOf(page.text, "og:title"))).toBe("Someone raised a hand.");
-    expect(metaOf(page.text, "og:description")).toStartWith("$25 reward on chain · open until ");
+    expect(metaOf(page.text, "og:description")).toStartWith("Reward $25 · open until ");
     expect(page.text).not.toContain("Not for robots");
   });
 
@@ -142,7 +142,7 @@ describe("previews of a Hand", () => {
     const page = await get(before);
     expect(unescape(metaOf(page.text, "og:title"))).toBe(isolate("Who can fix a 1978 Vespa?"));
     const description = metaOf(page.text, "og:description")!;
-    expect(description).toStartWith("No reward on chain: a thank-you only · open until ");
+    expect(description).toStartWith("No reward: a thank-you only · open until ");
     expect(description).toEndWith(`. The asker wrote: “${isolate("It stalls at idle.")}”`);
     expect(page.text).not.toContain("$");
   });
@@ -163,18 +163,18 @@ describe("previews of a Hand", () => {
 
   it("judges time's up by the chain's clock, then shows the reward went back", async () => {
     const { handId, before } = await raise({ mode: "unlisted", title: "Short one", reward: 3n * USD, seconds: 3_600 });
-    expect(metaOf((await get(before)).text, "og:description")).toStartWith("$3 reward on chain · open until ");
+    expect(metaOf((await get(before)).text, "og:description")).toStartWith("Reward $3 · open until ");
 
     // The chain moves two hours on; this machine's clock (40 days behind the chain) does not.
     await rpc("evm_increaseTime", [7_200]);
     await rpc("evm_mine");
     await pause(TTL + 50);
-    expect(unescape(metaOf((await get(before)).text, "og:description"))).toStartWith("$3 reward on chain · time's up on ");
+    expect(unescape(metaOf((await get(before)).text, "og:description"))).toMatch(/^Reward \$3 · was open until \d{1,2}\u00a0[A-Z][a-z]{2}\. Time's up\.$/);
 
     await send(ANVIL_KEYS[4]!, refundCall(chain.core, handId));
     await pause(TTL + 50);
     const closed = await get(before);
-    expect(metaOf(closed.text, "og:description")).toStartWith("The $3 reward went back on ");
+    expect(metaOf(closed.text, "og:description")).toMatch(/^Reward \$3\. The reward went back on \d{1,2}\u00a0[A-Z][a-z]{2}\.$/);
     expect(unescape(metaOf(closed.text, "og:title"))).toBe(isolate("Short one"));
   });
 });
@@ -527,7 +527,7 @@ describe("under a burst of cold cards", () => {
     try {
       const page = (await raw(port, before)).body.toString("utf8");
       const description = metaOf(page, "og:description")!;
-      expect(description).toContain("a reward in a token aHand does not list");
+      expect(description).toContain("A reward in a token aHand does not list");
       expect(description).not.toContain("$");
       const png = await raw(port, `/og${before.replace("?", ".png?")}`);
       expect(png.status).toBe(200);
@@ -562,7 +562,7 @@ describe("under a burst of cold cards", () => {
       for (const lang of ["en", "ru"]) {
         const page = (await raw(port, `${before}&l=${lang}`)).body.toString("utf8");
         const description = metaOf(page, "og:description")!;
-        expect(description).toContain(lang === "en" ? "a reward in a token aHand does not list" : "в токене, которого aHand не знает");
+        expect(description).toContain(lang === "en" ? "A reward in a token aHand does not list" : "в токене, которого aHand не знает");
         expect(description).not.toContain("$");
         expect(description).not.toContain("1,000,000");
         expect(description).not.toContain(listed.symbol);

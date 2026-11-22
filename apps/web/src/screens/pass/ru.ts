@@ -2,7 +2,7 @@ import type en from "./en";
 
 // The pass screen's words in Russian: the same keys as en.ts, checked by the type.
 const ru: Record<keyof typeof en, string> = {
-  "pass.title": "Передать дальше.",
+  "pass.title": "Передать дальше",
   "pass.lead": "Оставь себе чуть-чуть — или передай всё дальше.",
   "pass.slider": "Твоя доля",
   "pass.share": "{pct} — около {amount}, если за этот путь поблагодарят",
@@ -16,7 +16,7 @@ const ru: Record<keyof typeof en, string> = {
   "pass.darker.hint": "Заголовок и описание уйдут в часть ссылки после #, которую не видят ни сайт, ни превью.",
   "pass.make": "Сделать мою ссылку",
   "pass.making": "Делаем твою ссылку здесь, в этой вкладке…",
-  "pass.made": "Твоя ссылка готова.",
+  "pass.made": "Твоя ссылка готова",
   "pass.readBack.share": "Эта ссылка платит {payee} {pct}, если за её путь поблагодарят.",
   "pass.readBack.calm": "Ты получишь {pct}, если спросивший поблагодарит кого-то дальше по этой ссылке.",
   "pass.readBack.none": "Эта ссылка не оставляет тебе доли: всё идёт дальше.",

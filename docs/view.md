@@ -4,6 +4,8 @@
 
 It is optional. It holds no key, writes nothing to the chain and keeps no database. Without it every money action still works and links unfurl as the site's name only.
 
+The card itself (its words, its model and its drawing) is `@ahand/card` (`packages/card`), shared with the app's /raise, which shows the same preview before a Hand is raised. The view server reads the chain and the address, and hands what it found to the card.
+
 ## What it answers
 
 | Request | Answer |
@@ -22,7 +24,7 @@ The address before `#`, and nothing after it: a browser never sends the fragment
 
 From the chain, for one Hand: `hands(id)` and the latest block, sent together as one JSON-RPC batch to `VIEW_RPC` (a closed Hand adds `thanks(id)`). The reading has one deadline of 2.5 seconds, after which the answer is the generic card. CCIP-Read is off, so no contract can send the server to a URL of its choosing. Every state (open, time's up, thanked, refunded) is judged by the latest block's timestamp, never by the server's clock. The title and details are shown only after the SDK's `viewOf` matched `d` against the `dataHash` Core keeps; only Cores listed in `VIEW_CORES` on `VIEW_CHAIN` are read at all.
 
-It never calls a token. An amount is written only in a token listed in `VIEW_TOKENS`, with the decimals and symbol written there, and in dollars ("$40") only for a token marked as a dollar there. A reward in any other token reads "a reward in a token aHand does not list", with no amount: anyone can deploy a token whose `symbol()` says "USDC".
+It never calls a token. An amount is written only in a token listed in `VIEW_TOKENS`, with the decimals and symbol written there, and in dollars ("$40") only for a token marked as a dollar there. A reward in any other token reads "A reward in a token aHand does not list", with no amount: anyone can deploy a token whose `symbol()` says "USDC".
 
 ## What it keeps and logs
 
@@ -47,7 +49,7 @@ Every setting is public; nothing here is a secret.
 | `VIEW_SITE` | the site's own origin, for absolute `og:url` and `og:image` |
 | `VIEW_RELAYS` | optional: the relay URLs the app talks to (`ws:` or `wss:`), comma-separated, for the CSP's `connect-src` |
 | `VIEW_PRIVY` | optional: `1` when the app logs in through Privy; the CSP then names Privy's and WalletConnect's sources |
-| `VIEW_TOKENS` | optional: the tokens the app lists, comma-separated, each `<address>:<decimals>:<symbol>`, with `:$` after a dollar token; `viewTokensOf` writes it from the app's token list. Left out, no token is listed and every reward reads "a reward in a token aHand does not list" |
+| `VIEW_TOKENS` | optional: the tokens the app lists, comma-separated, each `<address>:<decimals>:<symbol>`, with `:$` after a dollar token; `viewTokensOf` writes it from the app's token list. Left out, no token is listed and every reward reads "A reward in a token aHand does not list" |
 
 Every variable but `VIEW_HOST` and `VIEW_DIST` is checked at start: a value that is missing where it is needed, or that cannot be read, stops the standalone server with one sentence naming the variable. `VIEW_HOST` is checked only when the server listens on it, and `VIEW_DIST` is not checked at all: a folder without the build answers `404` for the app's pages.
 
@@ -72,8 +74,8 @@ The view server adds its tags to the app's built `index.html` and serves it; it 
 
 ## Tests
 
-`bun run test:view` (or `bun test` in `apps/view`): the words, tags, card, configuration and caches on their own; the reader's own client against a scripted JSON-RPC node (one batch, CCIP-Read off, the deadline, the bounded memory); the server and the function against a local chain with Hands raised through the SDK, including a reward in an unlisted token that names itself like a listed dollar; the function bundled from `src/function-entry.ts` and loaded with `view.json`, `index.html`, the fonts and the lockup beside it; and the server started as its own program. Everything runs on `127.0.0.1`.
+`bun run test:view` (or `bun test` in `apps/view`): the words, tags, card, configuration and caches on their own; the reader's own client against a scripted JSON-RPC node (one batch, CCIP-Read off, the deadline, the bounded memory); the server and the function against a local chain with Hands raised through the SDK, including a reward in an unlisted token that names itself like a listed dollar; the function bundled from `src/function-entry.ts` and loaded with `view.json`, `index.html`, the fonts and the lockup beside it; and the server started as its own program. Everything runs on `127.0.0.1`. The card's own words, model and drawing are tested in `packages/card` by `bun run test:card` (or `bun test` in `packages/card`).
 
 ## Licence
 
-`@ahand/view` is AGPL-3.0-only (`apps/view/LICENSE`): whoever runs a changed copy for others to reach over a network offers them its source; the fonts in `apps/view/src/fonts` are OFL-1.1 (`apps/view/src/fonts/OFL.txt`).
+`@ahand/view` is AGPL-3.0-only (`apps/view/LICENSE`): whoever runs a changed copy for others to reach over a network offers them its source. So is `@ahand/card` (`packages/card/LICENSE`), the card it draws. The fonts in `apps/view/src/fonts` are OFL-1.1 (`apps/view/src/fonts/OFL.txt`).

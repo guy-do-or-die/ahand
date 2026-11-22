@@ -10,6 +10,11 @@ on. Exports: `src/index.ts`.
 | `parseDeployment`, `DeploymentError`, `Deployment` and its types | `src/deployment.ts`, hand-written |
 | `NETWORKS`, `networkOf`, `coreOf`, `usdcOf` | `src/networks.ts`, hand-written |
 
+The test contracts the local stand deploys (`BlacklistToken`, `Forwarder`, `KeyAccount`,
+`KeyAccountFactory`) are not exported, since nothing imports them from here: the stand declares the
+few functions it calls with viem's `parseAbi` (`infra/stand/seed.ts`), and the SDK's tests read forge's
+artifacts in `contracts/out` directly (`packages/sdk/tests/helpers/built.ts`).
+
 `aHandCoreAbi`, `mockUsdAbi` and `DEPLOYMENTS` live in `src/generated.ts`, which @wagmi/cli writes
 from `wagmi.config.ts`; the ABIs keep the names it gives them (`<contract in camelCase>Abi`). Do not
 edit that file by hand:

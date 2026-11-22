@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import en from "./en";
 import ru from "./ru";
 
-describe("defaults: the mono line under each row is Russian on the Russian page (F10)", () => {
+describe("defaults: the mono line under each row is Russian on the Russian page", () => {
   const values = (words: Record<string, string>) => Object.entries(words).filter(([key]) => key.startsWith("defaults.value."));
 
   test("every app-made value has both languages", () => {

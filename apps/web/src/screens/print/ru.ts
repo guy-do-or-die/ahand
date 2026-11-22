@@ -2,7 +2,7 @@ import type en from "./en";
 
 // The print screen's words in Russian: the same keys as en.ts, checked by the type.
 const ru: Record<keyof typeof en, string> = {
-  "print.title": "Печать.",
+  "print.title": "Печать",
   "print.kicker": "На бумаге",
   "print.lead": "Карточка на стену или бирка на посылку. В коде вся ссылка: кто отсканирует, сможет передать её дальше.",
   "print.none": "Сначала открой ссылку: вставь её сюда или открой печать со страницы руки.",
@@ -29,7 +29,7 @@ const ru: Record<keyof typeof en, string> = {
   "print.lens.tag": "бирка: 31 мм / ({modules} + 8) = {mm} мм",
   "print.lens.card": "карточка: 50 мм / ({modules} + 8) = {mm} мм",
 
-  "print.receipt.title": "Квитанция.",
+  "print.receipt.title": "Квитанция",
   "print.receipt.lead": "Все выплаты — по записям самой сети. Код ведёт к паспорту руки.",
   "print.receipt.open": "Эта рука ещё открыта: квитанции пока нет.",
   "print.receipt.scan": "Отсканируй, чтобы проверить всё заново.",

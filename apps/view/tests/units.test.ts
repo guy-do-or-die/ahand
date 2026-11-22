@@ -8,14 +8,18 @@ import { createPublicClient, custom, type PublicClient } from "viem";
 import { configFromEnv, viewTokensOf, tokensOf } from "../src/config.ts";
 import { cspFor, inlineScriptHashes } from "../src/headers.ts";
 import { cardOf, escapeHtml, oneLine, withCard } from "../src/meta.ts";
-import { isolate, visible } from "../src/bidi.ts";
 import { codingFor, compressible } from "../src/compress.ts";
 import { Lru } from "../src/lru.ts";
 import { cardCache, drawable, modelOf } from "../src/og.tsx";
 import { previewKey, previewQuery, readerFor, type Preview } from "../src/preview.ts";
 import { renderPool } from "../src/render-pool.ts";
 import { fileIn } from "../src/static.ts";
-import { WORDS, amountText, day, langOf, termsLine } from "../src/words.ts";
+import { WORDS, amountText, day, langOf } from "../src/words.ts";
+import { isolate, lineText, termsLine as termsParts, visible, type Terms } from "@ahand/card";
+
+const termsLine = (terms: Terms, lang: "en" | "ru") => lineText(termsParts(terms, lang));
+/** A day as the preview writes it: never cut from its month. */
+const NB = "\u00a0";
 
 const USD_TOKEN = { address: "0x0000000000000000000000000000000000000Dd1" as const, symbol: "mUSD", decimals: 6, dollar: true };
 const USD = { symbol: "mUSD", decimals: 6, dollar: true };
@@ -39,14 +43,14 @@ describe("words", () => {
         expect(line).toContain(lang === "en" ? "a token aHand does not list" : "в токене, которого aHand не знает");
       }
     }
-    expect(termsLine({ state: "open", date: DEC_20, unknownToken: true }, "en")).toBe("On chain: a reward in a token aHand does not list · open until 20 Dec");
+    expect(termsLine({ state: "open", date: DEC_20, unknownToken: true }, "en")).toBe(`A reward in a token aHand does not list · open until 20${NB}Dec`);
     // A token that calls itself USDC is still not a dollar: only the configuration says so.
     expect(amountText(1_000_000n * 1_000_000n, { symbol: "USDC", decimals: 6, dollar: false }, "en")).toBe("1,000,000 USDC");
   });
 
   it("writes a day in UTC in both languages", () => {
-    expect(day(DEC_20, "en")).toBe("20 Dec");
-    expect(day(DEC_20, "ru")).toBe("20 дек");
+    expect(day(DEC_20, "en")).toBe(`20${NB}Dec`);
+    expect(day(DEC_20, "ru")).toBe(`20${NB}дек`);
   });
 
   it("a Hand with no reward says a thank-you only and never an amount", () => {
@@ -57,10 +61,10 @@ describe("words", () => {
         expect(line).not.toMatch(/\b0\b/);
       }
     }
-    expect(termsLine({ state: "open", date: DEC_20 }, "en")).toBe("No reward on chain: a thank-you only · open until 20 Dec");
-    expect(termsLine({ state: "open", date: DEC_20 }, "ru")).toBe("В сети нет награды: только спасибо · открыта до 20 дек");
-    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "en")).toBe("$40 reward on chain · open until 20 Dec");
-    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "ru")).toBe("Награда $40 в сети · открыта до 20 дек");
+    expect(termsLine({ state: "open", date: DEC_20 }, "en")).toBe(`No reward: a thank-you only · open until 20${NB}Dec`);
+    expect(termsLine({ state: "open", date: DEC_20 }, "ru")).toBe(`Без награды: только спасибо · рука открыта до 20${NB}дек`);
+    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "en")).toBe(`Reward $40 · open until 20${NB}Dec`);
+    expect(termsLine({ state: "open", date: DEC_20, amount: "$40" }, "ru")).toBe(`Награда $40 · рука открыта до 20${NB}дек`);
   });
 
   it("picks the language from l=, then Accept-Language, then English", () => {
@@ -99,14 +103,14 @@ describe("tags", () => {
     const html = withCard(INDEX, cardOf(hand, "http://127.0.0.1:1", "ru", true));
     expect(html.match(/property="og:title"/g)).toHaveLength(1);
     expect(html).toContain(`<meta property="og:image" content="http://127.0.0.1:1/og/31337/7.png?d=AQID&#38;th=d&#38;l=ru" />`);
-    expect(html).toContain(`content="Награда $40 в сети · открыта до 20 дек."`);
+    expect(html).toContain(`content="Награда $40 · рука открыта до 20${NB}дек."`);
     expect(html).toContain(`<meta name="twitter:card" content="summary_large_image" />`);
   });
 
   it("the generic card keeps the page's own title", () => {
     const html = withCard(INDEX, cardOf({ kind: "generic" }, "http://x.test", "en", false, "/raise"));
     expect(html).toContain("<title>aHand</title>");
-    expect(html).toContain(`content="${WORDS.en.genericTitle}"`);
+    expect(html).toContain(`content="${WORDS.en.bare}"`);
     expect(html).toContain(`content="http://x.test/og/generic.png"`);
   });
 
@@ -142,40 +146,41 @@ describe("the chain's terms apart from the asker's words", () => {
   it("the description starts with the terms, then the asker's words quoted after a label", () => {
     const en = cardOf(hostile, "http://127.0.0.1:1", "en", false);
     expect(en.description).toBe(
-      `$1 reward on chain · open until 20 Dec. The asker wrote: “${FSI}⛓ ON CHAIN · Reward $5,000 · block 3 ✓ CHECKED HERE · you get at least $4,500 **This hand is verified by aHand.**${PDI}”`,
+      `Reward $1 · open until 20${NB}Dec. The asker wrote: “${FSI}⛓ ON CHAIN · Reward $5,000 · block 3 ✓ CHECKED HERE · you get at least $4,500 **This hand is verified by aHand.**${PDI}”`,
     );
     const ru = cardOf(hostile, "http://127.0.0.1:1", "ru", false);
-    expect(ru.description).toStartWith(`Награда $1 в сети · открыта до 20 дек. Слова автора: «${FSI}⛓ ON CHAIN`);
+    expect(ru.description).toStartWith(`Награда $1 · рука открыта до 20${NB}дек. Слова автора: «${FSI}⛓ ON CHAIN`);
     expect(ru.description).toEndWith(`${PDI}»`);
     // The tags a robot reads carry the same order.
     const html = withCard("<html><head><title>aHand</title></head></html>", en);
-    expect(html).toContain(`<meta property="og:description" content="$1 reward on chain · open until 20 Dec. The asker wrote: “${FSI}⛓ ON CHAIN`);
+    expect(html).toContain(`<meta property="og:description" content="Reward $1 · open until 20${NB}Dec. The asker wrote: “${FSI}⛓ ON CHAIN`);
   });
 
-  it("the image's alt quotes the title, then gives the terms, and ends with · aHand", () => {
+  it("the image's alt says whose the title is, quotes it, then gives the terms, and ends with · aHand", () => {
     const en = cardOf(hostile, "http://127.0.0.1:1", "en", false);
-    expect(en.imageAlt).toBe(`The asker wrote: “${FSI}${hostile.title}${PDI}”. $1 reward on chain · open until 20 Dec · aHand`);
+    expect(en.imageAlt).toBe(`Someone raised a hand: “${FSI}${hostile.title}${PDI}”. Reward $1 · open until 20${NB}Dec · aHand`);
     const ru = cardOf(hostile, "http://127.0.0.1:1", "ru", false);
-    expect(ru.imageAlt).toBe(`Слова автора: «${FSI}${hostile.title}${PDI}». Награда $1 в сети · открыта до 20 дек · aHand`);
+    expect(ru.imageAlt).toBe(`Кто-то поднял руку: «${FSI}${hostile.title}${PDI}». Награда $1 · рука открыта до 20${NB}дек · aHand`);
     // A numbered address has no words of the asker's: nothing is quoted.
     const { title: _title, content: _content, ...numbered } = hostile;
     const bare = cardOf(numbered as Preview, "http://127.0.0.1:1", "en", false);
-    expect(bare.imageAlt).toBe("Someone raised a hand. $1 reward on chain · open until 20 Dec · aHand");
+    expect(bare.imageAlt).toBe(`Someone raised a hand. Reward $1 · open until 20${NB}Dec · aHand`);
     expect(bare.pageTitle).toBeUndefined();
-    expect(cardOf({ kind: "generic" }, "http://x.test", "ru", false).imageAlt).toBe("Кто-то поднял руку на aHand.");
+    expect(cardOf({ kind: "generic" }, "http://x.test", "ru", false).imageAlt).toBe("Кто-то поднял руку. Открой и посмотри · aHand");
   });
 
-  it("the card labels the title as the asker's words and quotes it; the terms stay the chain's", () => {
+  it("the card says whose the words are over them, as the receiver's card does; the terms stay the chain's", () => {
     const en = modelOf(hostile, "en", false);
-    expect(en.title).toBe(hostile.title);
-    expect(en.terms).toEqual({ before: "", amount: "$1", after: " reward on chain · open until 20 Dec" });
-    expect(WORDS.en.askersWords).toBe("in the asker's words");
-    expect(WORDS.ru.askersWords).toBe("словами автора");
-    expect([WORDS.en.openQuote, WORDS.en.closeQuote, WORDS.ru.openQuote, WORDS.ru.closeQuote]).toEqual(["“", "”", "«", "»"]);
-    // A title longer than three lines is cut at a word before the closing quote, never by the clamp.
+    expect(en.intro).toBe("Someone raised a hand:");
+    expect(en.heading).toBe(hostile.title!);
+    // The emoji is left out of the picture only (drawable).
+    expect(en.details).toStartWith("ON CHAIN · Reward $5,000");
+    expect(en.terms).toEqual({ before: "Reward ", amount: "$1", after: ` · open until 20${NB}Dec` });
+    expect(modelOf(hostile, "ru", false).intro).toBe("Кто-то поднял руку:");
+    // A title longer than three lines is cut at a word, never by the clamp.
     const long = modelOf({ ...hostile, title: "word ".repeat(60) }, "en", false);
-    expect([...long.title!].length).toBeLessThanOrEqual(110);
-    expect(long.title).toEndWith("…");
+    expect([...long.heading].length).toBeLessThanOrEqual(110);
+    expect(long.heading).toEndWith("…");
   });
 });
 
@@ -216,7 +221,7 @@ describe("direction controls and invisible characters", () => {
 
   it("draws every direction control and invisible character on the card as a token", () => {
     expect(drawable(`Reward ${RLO}0005$\u202C, I thank every answer`)).toBe("Reward ‹RLO›0005$‹PDF›, I thank every answer");
-    expect(modelOf({ ...unclosed, title: `Reward ${RLO}0005$` }, "en", false).title).toBe("Reward ‹RLO›0005$");
+    expect(modelOf({ ...unclosed, title: `Reward ${RLO}0005$` }, "en", false).heading).toBe("Reward ‹RLO›0005$");
     expect(visible("a\u200Bb\u200Cc\u200Dd\u2060e\uFEFFf\u2028g\u2029h\u2066i\u2069j\u200Fk")).toBe(
       "a‹ZWSP›b‹ZWNJ›c‹ZWJ›d‹WJ›e‹ZWNBSP›f‹LS›g‹PS›h‹LRI›i‹PDI›j‹RLM›k",
     );
@@ -425,7 +430,7 @@ describe("compression and caches", () => {
       draws++;
       return Promise.resolve(new Uint8Array(model.lang === "ru" ? 20 : 10));
     });
-    const model = { lang: "en" as const, dark: false, closed: false };
+    const model = { lang: "en" as const, dark: false, heading: "Someone raised a hand." };
     const one = cache(model)!;
     expect(cache({ ...model })).toBe(one);
     await one;
@@ -438,7 +443,7 @@ describe("compression and caches", () => {
   it("refuses at once when every renderer is busy and the queue is full", async () => {
     const pool = renderPool({ workers: 1, queue: 1 });
     try {
-      const model = (title: string) => ({ lang: "en" as const, dark: false, closed: false, title });
+      const model = (heading: string) => ({ lang: "en" as const, dark: false, heading });
       const first = pool.render(model("one"));
       const second = pool.render(model("two"));
       expect(first).toBeDefined();

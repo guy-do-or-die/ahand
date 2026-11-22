@@ -14,7 +14,7 @@ export { railHandsOf, type LeftOut, type RailHand } from "./rail";
 export { ChipRow, type ChipOption, type ChipRowProps } from "./ChipRow";
 export { CopyRow, type CopyRowProps } from "./CopyRow";
 export { CostLine, type CostLineProps } from "./CostLine";
-export { AskerText, DealCard, dealDescriptionOf, type DealCardProps, type DealDescription } from "./DealCard";
+export { AskerText, DealCard, DealPicture, dealDescriptionOf, type DealCardProps, type DealDescription } from "./DealCard";
 export { Disclose, type DiscloseProps } from "./Disclose";
 export { Emoji } from "./Emoji";
 export { GESTURE_EMOJI, GESTURE_KEYFRAMES, GestureEmoji, type GestureKind } from "./Gesture";

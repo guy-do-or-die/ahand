@@ -1,13 +1,13 @@
 // The dev-wallet screen's words in English (local builds only, a specialist's page: it names
 // wallets, signatures and transactions as they are). Keys are dotted ids; ru.ts has the same keys.
 const en = {
-  "dev-wallet.title": "Test accounts.",
+  "dev-wallet.title": "Test accounts",
   "dev-wallet.intro": "This page exists only on a local test network. It connects one of anvil's public test accounts, asks it for the same typed message twice, compares the network's clock with this device's, and sends a test approve.",
   "dev-wallet.connect.heading": "1 · Account",
   "dev-wallet.connect.none": "No account is connected.",
   "dev-wallet.connect.role.key": "Answers the same way every time, like a key.",
   "dev-wallet.connect.role.entropy": "Answers differently each time (signs with added entropy).",
-  "dev-wallet.connect.role.unset": "Not set up yet: a smart account with no code. Its answers come wrapped per ERC-6492; it cannot send.",
+  "dev-wallet.connect.role.unset": "Not set up yet: a smart account with no code. Its answers come wrapped per ERC-6492. It cannot send.",
   "dev-wallet.connect.role.found": "A wallet found in this browser.",
   "dev-wallet.sayNo": "Say no to the next request",
   "dev-wallet.time.heading": "2 · Two clocks",
@@ -36,7 +36,7 @@ const en = {
   "dev-wallet.approve.what": "Allows Core to take {amount} {symbol} from this account. Simulated first, then sent.",
   "dev-wallet.approve.go": "Send the approve",
   "dev-wallet.approve.step": "Step {n} of {of}",
-  "dev-wallet.approve.reorged": "The block it was in was replaced; watching the same transaction again. Nothing was sent twice.",
+  "dev-wallet.approve.reorged": "The block it was in was replaced. Watching the same transaction again. Nothing was sent twice.",
   "dev-wallet.approve.done": "In a block.",
   "dev-wallet.approve.final": "Final.",
   "dev-wallet.approve.refused": "Core refused it before anything was sent: {name}",

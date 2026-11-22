@@ -3,12 +3,19 @@
  * mark's proportions lives here and only here.
  *
  * Consumers:
- *  - components/Logo.tsx        → live HTML lockup (native platform emoji)
- *  - scripts/generate-mark.ts   → frozen outlined SVGs for surfaces that
+ *  - ui/Logo.tsx                → live HTML lockup (native platform emoji)
+ *  - public/ahand-mark-*.svg    → frozen outlined SVGs for surfaces that
  *                                 can't adapt per-viewer (OG cards, print)
  *
+ * The frozen SVGs are kept as files. The script that outlined them
+ * (apps/web/scripts/generate-mark.ts, in git history:
+ * `git log -- apps/web/scripts/generate-mark.ts`) needed Schibsted Grotesk 900
+ * as a TTF, a vector raised-hands emoji and satori 0.26; none of these is in
+ * the tree any more, and a newer satori moves the outlines by a pixel, so a
+ * change to the mark means bringing those back and redrawing both files.
+ *
  * Horizontal centering of the hands is NOT a number: HTML centers them on
- * the H element structurally; the script centers them on the H's measured
+ * the H element structurally; the script centered them on the H's measured
  * ink box. Both express the same rule — "hands on the H, wherever it is."
  */
 export const MARK = {

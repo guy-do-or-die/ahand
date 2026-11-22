@@ -30,7 +30,18 @@ export async function compose(page: Page, c: Compose): Promise<void> {
     await page.locator('[data-testid="raise-reward-chip"][data-value="custom"]').click();
     await page.getByTestId("raise-reward-custom").locator("input").fill(c.reward.custom);
   }
-  await page.locator(`[data-testid="raise-expiry-chip"][data-value="${c.days ?? 30}"]`).click();
+  const days = c.days ?? 30;
+  if ([7, 30, 90].includes(days)) {
+    await page.locator(`[data-testid="raise-expiry-chip"][data-value="${days}"]`).click();
+  } else {
+    // Any other term is the asker's own date; 180 days is the last date the field offers (Core's cap).
+    if (days !== 180) throw new Error(`compose: ${days} days has no chip; only the cap (180) is picked as a date here`);
+    await page.getByTestId("raise-expiry-date").click();
+    const calendar = page.getByTestId("raise-expiry-calendar");
+    const last = (await calendar.getAttribute("data-max"))!;
+    for (let month = 0; month < 8 && (await calendar.locator(`[data-date="${last}"]`).count()) === 0; month++) await calendar.locator('[data-step="later"]').click();
+    await calendar.locator(`[data-date="${last}"]`).click();
+  }
   await page.locator(`[data-testid="raise-visibility"][data-value="${c.mode ?? "unlisted"}"]`).click();
 }
 

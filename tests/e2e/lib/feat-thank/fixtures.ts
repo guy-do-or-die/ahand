@@ -1,6 +1,6 @@
 /**
  * The thank smoke's own fixtures, on top of the seed's (tests/e2e/smoke/thank.spec.ts). Everything
- * runs through the craft tool in a child process,, except blocking a payee in
+ * runs through the craft tool in a child process, except blocking a payee in
  * the BlacklistToken, which is one plain transaction from anvil's public account 0 (the token
  * lets anyone block; the seed does the same).
  */

@@ -67,6 +67,42 @@ export function day(timestamp: number, lang: Lang, timeZone?: string): string {
   return text.replace(/\.$/, "");
 }
 
+/**
+ * How far off a moment is, as a person counts it on the calendar of their own zone: "1 month and
+ * 7 days" (24 Dec to 31 Jan), "12 days", and under a day whole hours ("5 hours"). Under an hour,
+ * or when the moment is not ahead, there is nothing to count: undefined, and the caller says so in
+ * its own words. Both moments are in seconds, and both come from the chain's clock.
+ */
+export function span(from: number, to: number, lang: Lang, timeZone?: string): string | undefined {
+  if (to - from < 3600) return undefined;
+  const unit = (count: number, name: "month" | "day" | "hour") => new Intl.NumberFormat(LOCALE[lang], { style: "unit", unit: name, unitDisplay: "long" }).format(count);
+  if (to - from < 86_400) return unit(Math.floor((to - from) / 3600), "hour");
+  const parts = (seconds: number) => {
+    const found = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(seconds * 1000));
+    const read = (type: string) => Number(found.find((part) => part.type === type)!.value);
+    return { year: read("year"), month: read("month"), day: read("day") };
+  };
+  const a = parts(from);
+  const b = parts(to);
+  const lastOf = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate();
+  // Whole months first, counted from the earlier date's own day (the 31st of a short month is its
+  // last day), then the days left over.
+  let months = (b.year - a.year) * 12 + (b.month - a.month);
+  const leftAfter = (count: number) => {
+    const at = new Date(Date.UTC(a.year, a.month - 1 + count, 1));
+    const anchor = Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), Math.min(a.day, lastOf(at.getUTCFullYear(), at.getUTCMonth() + 1)));
+    return Math.round((Date.UTC(b.year, b.month - 1, b.day) - anchor) / 86_400_000);
+  };
+  let days = leftAfter(months);
+  if (days < 0) {
+    months -= 1;
+    days = leftAfter(months);
+  }
+  const said = [...(months > 0 ? [unit(months, "month")] : []), ...(days > 0 ? [unit(days, "day")] : [])];
+  if (said.length === 0) return unit(1, "day");
+  return new Intl.ListFormat(LOCALE[lang], { style: "long", type: "conjunction" }).format(said);
+}
+
 /** "20 Nov 14:02" for the lens; `timestamp` is in seconds. */
 export function minute(timestamp: number, lang: Lang, timeZone?: string): string {
   const clock = new Intl.DateTimeFormat(LOCALE[lang], { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(

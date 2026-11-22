@@ -2,14 +2,13 @@
 // same keys. Shared words (the verbs, "Checking the link…", the link and Core sentences)
 // live in i18n/common and are used from there.
 const en = {
-  "hand.title": "A hand.",
-  "hand.helpNote": "The asker decides whether to thank. If they don't by {date}, the reward goes back to them.",
-  "hand.helpNote.noReward": "The asker decides whether to thank. If they don't by {date}, the hand closes.",
-  "hand.soFar": "{n, plural, =0 {So far only the asker.} other {So far: the asker and # more.}}",
+  "hand.title": "A hand",
+  "hand.helpNote": "The asker decides whether to thank.",
+  "hand.helpNote.noReward": "The asker decides whether to thank.",
   "hand.passesLeft": "Room for {n, plural, one {# more pass} other {# more passes}}.",
   "hand.passesNone": "This route can't go further. You can still help.",
   "hand.noLink": "To pass it on or help, open the link you were sent.",
-  "hand.nothing.title": "No link here.",
+  "hand.nothing.title": "No link here",
   "hand.nothing.body": "A hand opens from the link you were sent. Paste it on the start page, or open the message it came in.",
   "hand.toStart": "To the start",
   "hand.addressed": "This link shows a route that ends at an address. It can't be passed on or answered from here.",
@@ -67,7 +66,7 @@ const en = {
   // The network, while the page shows a Hand: said instead of "open".
   "hand.offline": "Can't reach the network right now. This was read at block {n} and may have changed.",
   "hand.offline.calm": "Can't reach the network right now. What you see here may have changed since.",
-  "hand.offline.opening": "Can't reach the network right now. Your link is still open in this tab; nothing was sent.",
+  "hand.offline.opening": "Can't reach the network right now. Your link is still open in this tab. Nothing was sent.",
   "hand.retry": "Try again",
 
   // The way to the Hand's own proof.

@@ -13,8 +13,9 @@ const LOCKUP_RATIO = 2.05;
  * The hands render with the PLATFORM emoji font on purpose: like every other
  * emoji in the app, the logo feels native — aHand is home anywhere. The one
  * surface that can't adapt per-viewer (the OG card PNG) uses the frozen
- * outlined marks from scripts/generate-mark.ts instead; keep the proportions
- * here (hands ≈0.91em, wrists at the baseline) in sync with that script.
+ * outlined marks in public/ahand-mark-*.svg instead (lib/markSpec.ts says how
+ * they were made); keep the proportions here (hands ≈0.91em, wrists at the
+ * baseline) in sync with those files.
  */
 export function Logo({
   size = 26,
