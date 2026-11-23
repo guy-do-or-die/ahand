@@ -21,7 +21,7 @@ them is needed to get money out.
 ## The contract libraries
 
 `contracts/lib` is not in the repository. Fetch the two libraries Core and its tests build against,
-pinned as the CI gate (`.github/workflows/check.yml`) pins them:
+pinned as the CI gate (`.github/actions/setup/action.yml`) pins them:
 
 ```sh
 mkdir -p contracts/lib
@@ -43,7 +43,10 @@ bun run check
 typecheck, `forge build`, the ABI package equal to the build, every forge test, the SDK vectors and
 gas fixtures unchanged after Core rewrote them, the exit kit's self-test, the tests of every package
 and app, and the web app's build. Each step is also a script of its own in `package.json`
-(`test:sdk`, `test:web`, `test:view` and the rest).
+(`test:sdk`, `test:web`, `test:view` and the rest). `infra/gate/gate.ts` runs them: the steps that
+rewrite generated files first, then the rest in lanes side by side, each step's output printed
+whole when it ends, and a table of the times at the end. The stand's tests take slots 6 and 7
+(`STAND_TEST_SLOTS="a,b"` picks others).
 
 ## The local stand
 
