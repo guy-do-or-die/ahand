@@ -905,7 +905,7 @@ function KeysCard({ ask, onDone, raiser }: { ask: { twice: boolean; answer: (yes
           <span className="ah-meta ah-meta--exact">chainId: {config.chain.id} · verifyingContract: {CORE}</span>
         </Disclose>
         <div className="flex flex-wrap items-center gap-3">
-          <SwipeButton gesture="raise" compact data-testid={TID.raise.keysConfirm} onClick={() => answer(true)}>
+          <SwipeButton gesture="raise" data-testid={TID.raise.keysConfirm} onClick={() => answer(true)}>
             {t("raise.keys.confirm")}
           </SwipeButton>
           <QuietButton compact onClick={() => answer(false)}>

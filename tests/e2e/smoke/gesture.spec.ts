@@ -123,6 +123,72 @@ test("landing: the raise button and each gesture card move their own way, and no
   await page.context().close();
 });
 
+test("one button at any width: on a phone and on a wide screen the two actions and the landing's own have the same height, the same hand above the button, and the same fade", async ({ browser }) => {
+  const look = (page: Page) =>
+    page.evaluate(() =>
+      (Array.from(document.querySelectorAll(".ah-swipe")) as HTMLElement[])
+        .filter((button) => button.getBoundingClientRect().width > 0)
+        .map((button) => {
+          const box = button.getBoundingClientRect();
+          const hand = button.querySelector(".ah-swipe__emoji") as HTMLElement;
+          const at = hand.getBoundingClientRect();
+          const fill = getComputedStyle(button, "::before");
+          const own = getComputedStyle(button);
+          // A length that may hold a percentage, resolved against the button itself.
+          const px = (name: string) => {
+            const probe = document.createElement("i");
+            probe.style.cssText = `position:absolute;visibility:hidden;width:${own.getPropertyValue(name)}`;
+            button.appendChild(probe);
+            const width = Math.round(probe.getBoundingClientRect().width);
+            probe.remove();
+            return width;
+          };
+          return {
+            id: button.dataset.testid,
+            classes: button.className.split(/\s+/).filter((name: string) => name.startsWith("ah-swipe")).join(" "),
+            top: Math.round(box.top),
+            height: Math.round(box.height),
+            hand: [getComputedStyle(hand).fontSize, Math.round(box.right - at.right), Math.round(box.right - at.left), Math.round(box.top - at.top)],
+            fade: [px("--swipe-from"), px("--swipe-to")],
+            masked: (fill.maskImage || fill.webkitMaskImage).includes("linear-gradient"),
+          };
+        }),
+    );
+  const sizes: Record<string, unknown[]> = {};
+  for (const [name, width, height] of [["phone", 390, 844], ["wide", 1280, 800]] as const) {
+    const context = await browser.newContext({ viewport: { width, height }, hasTouch: false, isMobile: false, reducedMotion: "reduce" });
+    if (stand.mode === "dev") await quietDevServer(context, stand.site!);
+    const page = await context.newPage();
+    await page.goto(run.fixtures.public!.address);
+    await expect(page.getByTestId("hand-pass").first()).toBeVisible({ timeout: 20_000 });
+    const hand = (await look(page)).filter((button) => button.id === "hand-pass" || button.id === "hand-help");
+    expect(hand.map((button) => button.id)).toEqual(["hand-pass", "hand-help"]);
+    // One over the other at either width, never side by side; no variant by size.
+    expect(hand[1]!.top).toBeGreaterThan(hand[0]!.top + hand[0]!.height);
+    expect(hand.map((button) => button.classes)).toEqual(["ah-swipe ah-swipe--ink", "ah-swipe ah-swipe--amber"]);
+    await page.goto("/");
+    await expect(page.getByTestId("landing-raise")).toBeVisible({ timeout: 20_000 });
+    const landing = (await look(page)).filter((button) => button.id === "landing-raise");
+    sizes[name] = [...hand, ...landing].map(({ height: tall, hand: drawn, fade, masked }) => ({ tall, drawn, fade, masked }));
+    await context.close();
+  }
+  // The same numbers at both widths, and the same for every button of a fill.
+  expect(sizes.phone).toEqual(sizes.wide);
+  const [pass, help, raise] = sizes.phone as { tall: number; drawn: [string, number, number, number]; fade: [number, number]; masked: boolean }[];
+  expect(pass!.tall).toBe(56);
+  expect(pass!.drawn[0]).toBe("64px");
+  // The hand stands above its button, and the fill is gone under it, not before it.
+  expect(pass!.drawn[3]).toBeGreaterThan(8);
+  expect(pass!.fade[0]).toBeGreaterThan(pass!.drawn[2]);
+  expect(pass!.fade[1]).toBeGreaterThan(pass!.drawn[1]);
+  expect(pass!.fade[1]).toBeLessThan(pass!.drawn[2]);
+  expect([pass!.masked, help!.masked, raise!.masked]).toEqual([true, true, true]);
+  expect(raise).toEqual(pass);
+  expect(help!.drawn).toEqual(pass!.drawn);
+  // Amber thins from further back than ink does.
+  expect(help!.fade[0]).toBeGreaterThan(pass!.fade[0]);
+});
+
 test("an open Hand: the Deal card's hand greets once, pass on shakes and help cheers in turn; a thanked Hand's hand rests", async ({ browser }) => {
   const page = await fresh(browser, run.fixtures.public!.address);
   const hand = page.getByTestId("hand-deal-card").locator("[data-gesture]").first();

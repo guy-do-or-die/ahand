@@ -361,10 +361,10 @@ export function Kit() {
           {say.thank}
         </SwipeButton>
         <div className="g-row">
-          <SwipeButton gesture="shake" compact>
+          <SwipeButton gesture="shake">
             {say.compact}
           </SwipeButton>
-          <SwipeButton gesture="cheer" variant="amber" compact disabled>
+          <SwipeButton gesture="cheer" variant="amber" disabled>
             {say.off}
           </SwipeButton>
         </div>

@@ -46,9 +46,16 @@
   --swipe-fill: var(--ink);
   --swipe-fill-hover: var(--ink-hover);
   --swipe-fill-press: var(--ink-press);
-  /* where the fade begins and where it is gone, from the right edge */
-  --swipe-from: min(120px, 42%);
-  --swipe-to: 30px;
+  /* The hand: one size and one place, on every button and for every gesture. It is drawn from
+     these two numbers (`.ah-swipe__emoji`), and the fill's fade is placed by the same two. */
+  --hand-size: 64px;
+  --hand-right: 2px;
+  /* Where the fill's fade begins and where it is gone, from the right edge: places on the hand,
+     so the fade is the same on every button. It begins nearly two hands back, long enough to be
+     seen as a fade and not as an edge, and is gone under the hand's middle. On a button too
+     narrow for that it begins no further back than 46% of the width, where the label ends. */
+  --swipe-from: min(calc(var(--hand-right) + var(--hand-size) * 1.8), 46%);
+  --swipe-to: calc(var(--hand-right) + var(--hand-size) * 0.4);
   --swipe-mask: linear-gradient(
     90deg,
     var(--ink) calc(100% - var(--swipe-from)),
@@ -83,10 +90,11 @@
   --swipe-fill: var(--amber);
   --swipe-fill-hover: var(--amber-hover);
   --swipe-fill-press: var(--amber-press);
-  --swipe-from: min(200px, 54%);
-  /* where the hand begins */
-  --swipe-hand: 78px;
-  --swipe-to: 14px;
+  /* A yellow hand is lost on amber, so this fill thins from three hands back, 22% of it is left
+     where the hand begins, and the rest goes under the hand. */
+  --swipe-hand: calc(var(--hand-right) + var(--hand-size) * 1.1);
+  --swipe-to: calc(var(--hand-right) + var(--hand-size) * 0.2);
+  --swipe-from: min(calc(var(--hand-right) + var(--hand-size) * 3), 60%);
   --swipe-mask: linear-gradient(
     90deg,
     var(--ink) calc(100% - var(--swipe-from)),
@@ -110,20 +118,6 @@
 /* Dark theme: the ink variant inverts to a paper fill via the tokens —
    amber stays the single accent, so paired CTAs keep their two voices. */
 
-.ah-swipe--compact {
-  height: 48px;
-  border-radius: var(--r-control-lg);
-  padding: 0 84px 0 18px;
-  font-size: var(--fs-body-md);
-  /* a smaller hand: the fade follows it */
-  --swipe-from: min(104px, 42%);
-  --swipe-to: 26px;
-}
-.ah-swipe--compact.ah-swipe--amber {
-  --swipe-from: min(172px, 54%);
-  --swipe-hand: 66px;
-  --swipe-to: 12px;
-}
 
 .ah-swipe:disabled {
   opacity: 0.4;
@@ -170,66 +164,21 @@
   position: absolute;
   /* clear of the button's thin top edge, which a hand's own top would otherwise cross */
   bottom: 9px;
+  right: var(--hand-right);
+  /* A box of one width in every emoji font, with the hand in its middle: a font's own advance
+     differs from system to system, and the fill's fade is placed against this box. */
+  width: 1.2em;
+  font-size: var(--hand-size);
+  text-align: center;
   line-height: 1;
   font-family: var(--emoji);
   transition: transform var(--dur-tone-out) var(--ease-tone);
   /* after the screen's own gesture, which goes first */
   --gesture-turn: 1.25s;
 }
-/* Per-gesture mock-exact size/offset; the move is the gesture's own, the button only says when */
-.ah-swipe__emoji--raise {
-  right: 4px;
-  font-size: 66px;
-}
 .ah-swipe__emoji--shake {
-  right: 10px;
-  font-size: 60px;
   /* "Pass it on" stands beside "I can help": the handshake answers half a round later */
   --gesture-turn: 3.75s;
-}
-.ah-swipe__emoji--cheer {
-  right: 0;
-  font-size: 68px;
-}
-.ah-swipe__emoji--bow {
-  right: 6px;
-  font-size: 64px;
-}
-.ah-swipe--compact .ah-swipe__emoji {
-  font-size: 54px;
-}
-
-/* Landing hero CTA (mock 01): bigger overhang */
-.ah-swipe--hero .ah-swipe__emoji {
-  font-size: 72px;
-  right: 8px;
-}
-.ah-swipe--hero.ah-swipe--amber {
-  --swipe-hand: 84px;
-}
-/* Landing illustration card (mock 01): densest compact pair */
-.ah-swipe--card {
-  padding: 0 58px 0 16px;
-  font-size: var(--fs-body-xs);
-  white-space: nowrap;
-  /* a narrow button: the label ends 58px from the edge, and the fade may not begin far before it */
-  --swipe-from: min(84px, 46%);
-  --swipe-to: 22px;
-}
-.ah-swipe--card.ah-swipe--amber {
-  --swipe-from: min(92px, 50%);
-  --swipe-hand: 52px;
-  --swipe-to: 8px;
-}
-.ah-swipe--card .ah-swipe__emoji--shake {
-  font-size: 48px;
-  right: 4px;
-  bottom: 8px;
-}
-.ah-swipe--card .ah-swipe__emoji--cheer {
-  font-size: 50px;
-  right: 0;
-  bottom: 8px;
 }
 
 /* The answer to the pointer: the whole fill steps in tone and the hand leans, both at once; leaving

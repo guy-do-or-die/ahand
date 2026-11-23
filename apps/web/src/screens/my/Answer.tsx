@@ -115,7 +115,7 @@ export function AnswerCard(props: {
       </Proof>
 
       {open ? (
-        <SwipeButton gesture="bow" variant="amber" compact data-testid={TID.my.answerThank} onClick={thank}>
+        <SwipeButton gesture="bow" variant="amber" data-testid={TID.my.answerThank} onClick={thank}>
           {t("my.answer.thank")}
         </SwipeButton>
       ) : (

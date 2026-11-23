@@ -5,11 +5,10 @@ import { GestureEmoji, type GestureKind } from "./Gesture";
 export type Gesture = GestureKind;
 
 export interface SwipeButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Picks the emoji, its idle animation and mock-exact size/offset. */
+  /** Picks the emoji and its idle animation. The hand's size and place are one for every gesture. */
   gesture: Gesture;
   /** ink = primary (amber on dark theme); amber = confirm/positive. */
   variant?: "ink" | "amber";
-  compact?: boolean;
   /** Override the gesture emoji (e.g. 👍 on Onboarding's connect). */
   emoji?: string;
   /** Suppress the idle animation (mock 02 keeps 👍 static). */
@@ -18,7 +17,8 @@ export interface SwipeButtonProps extends ButtonHTMLAttributes<HTMLButtonElement
 }
 
 /**
- * Marker-swipe button — the signature CTA. Its fill fades out toward the oversized gesture emoji,
+ * Marker-swipe button — the signature CTA, and one button: one height, one hand, one fade,
+ * wherever it stands and however wide it is. Its fill fades out toward the oversized gesture emoji,
  * which stands on the page background (overflow stays visible by design). The label is the
  * accessible name; the emoji is decorative. The emoji idles with its gesture's motion, pushes on
  * press, and stands still while the button is disabled.
@@ -34,7 +34,6 @@ const PRESS_SHOWN = 150;
 export function SwipeButton({
   gesture,
   variant = "ink",
-  compact = false,
   emoji,
   still = false,
   children,
@@ -66,7 +65,6 @@ export function SwipeButton({
       className={clsx(
         "ah-swipe",
         variant === "amber" ? "ah-swipe--amber" : "ah-swipe--ink",
-        compact && "ah-swipe--compact",
         className,
       )}
       data-pressed={pressed && !rest.disabled ? "" : undefined}

@@ -72,7 +72,8 @@ describe("gesture emoji", () => {
 
   test("a swipe button says only when its gesture moves, never a second animation", () => {
     expect(rule(components, ".ah-swipe__emoji")).toMatch(/--gesture-turn:\s*1\.25s/);
-    for (const kind of KINDS) expect(rule(components, `.ah-swipe__emoji--${kind}`)).not.toMatch(/animation/);
+    // A gesture's own rule on the hand, where there is one, says when it moves and nothing of how.
+    expect(components.match(/^\.ah-swipe__emoji--[a-z]+\s*\{[^}]*\}/gm)).toHaveLength(1);
     // "Pass it on" stands beside "I can help": the two never move together.
     expect(rule(components, ".ah-swipe__emoji--shake")).toMatch(/--gesture-turn:\s*3\.75s/);
   });
@@ -116,10 +117,17 @@ describe("the swipe button's fill", () => {
   });
 
   test("each fill has its own fade, anchored from the edge where the hand is: a short one for ink, a long one for amber that is nearly gone where the hand begins", () => {
-    expect(base).toMatch(/--swipe-from:\s*min\(120px, 42%\)/);
-    expect(base).toMatch(/--swipe-to:\s*30px/);
-    expect(amber).toMatch(/--swipe-from:\s*min\(200px, 54%\)/);
-    expect(amber).toMatch(/--swipe-hand:\s*78px/);
+    // Every anchor is a place on the hand, written from the hand's one size and place, so the fade
+    // is the same on every button: the ink fade begins nearly two hands back and is gone under
+    // the hand's middle; the amber one begins three hands back, is nearly gone where the hand
+    // begins and gone under it. A button too narrow for that keeps the fade off its label.
+    expect(base).toMatch(/--hand-size:\s*64px/);
+    expect(base).toMatch(/--hand-right:\s*2px/);
+    expect(base).toMatch(/--swipe-from:\s*min\(calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 1\.8\), 46%\)/);
+    expect(base).toMatch(/--swipe-to:\s*calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 0\.4\)/);
+    expect(amber).toMatch(/--swipe-from:\s*min\(calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 3\), 60%\)/);
+    expect(amber).toMatch(/--swipe-hand:\s*calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 1\.1\)/);
+    expect(amber).toMatch(/--swipe-to:\s*calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 0\.2\)/);
     // Every stop is placed from the right edge by the variables, so a variant only moves the anchors.
     for (const declarations of [base, amber]) {
       const mask = declarations.match(/--swipe-mask:\s*linear-gradient\(([\s\S]*?)\n  \);/)![1]!;
@@ -137,12 +145,21 @@ describe("the swipe button's fill", () => {
     expect(amber).toMatch(/rgb\(var\(--ink-rgb\) \/ 0\.2\d+\) calc\(100% - var\(--swipe-from\) \+ \(var\(--swipe-from\) - var\(--swipe-hand\)\) \* (0\.9\d+|1\.0+)\)/);
   });
 
-  test("a narrow or small button moves the anchors, never the curve", () => {
-    for (const selector of [".ah-swipe--compact", ".ah-swipe--compact.ah-swipe--amber", ".ah-swipe--card", ".ah-swipe--card.ah-swipe--amber"]) {
-      const declarations = rule(components, selector);
-      expect(declarations).toMatch(/--swipe-from:\s*min\(\d+px, \d+%\)/);
-      expect(declarations).not.toMatch(/--swipe-mask|linear-gradient/);
-    }
+  test("there is one button: one hand of one size in one place for every gesture, and no variant by size", () => {
+    // The hand is drawn from the same two numbers the fade reads, in a box of one width in every emoji font.
+    const hand = rule(components, ".ah-swipe__emoji");
+    expect(hand).toMatch(/right:\s*var\(--hand-right\)/);
+    expect(hand).toMatch(/font-size:\s*var\(--hand-size\)/);
+    expect(hand).toMatch(/width:\s*1\.2em/);
+    expect(hand).toMatch(/text-align:\s*center/);
+    // Two fills, and nothing else: no compact, hero or card button, and no size or place of a gesture's own.
+    expect([...new Set(components.match(/\.ah-swipe--[a-z]+/g))].sort()).toEqual([".ah-swipe--amber"]);
+    expect(components.match(/--hand-(?:size|right):/g)).toHaveLength(2);
+    expect(components.match(/--swipe-(?:from|to|hand):/g)).toHaveLength(5);
+    expect(components).not.toMatch(/\.ah-swipe__emoji--[a-z]+\s*\{[^}]*(?:font-size|right|bottom):/);
+    // And the component offers none.
+    const html = renderToStaticMarkup(<SwipeButton gesture="shake">Go</SwipeButton>);
+    expect(html).toMatch(/class="ah-swipe ah-swipe--ink"/);
   });
 
   test("the answer is a step of tone: under the pointer, deeper under a press at once, and the button gives 2%", () => {

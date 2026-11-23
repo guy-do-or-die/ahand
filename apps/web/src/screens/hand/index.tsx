@@ -383,11 +383,13 @@ function ActionBar({ left, off }: { left: number; off: boolean }) {
       className="sticky bottom-0 z-10 -mx-6 mt-8 border-0 border-t border-solid border-[color:var(--ink-a15)] bg-paper px-4 pt-5 pb-[max(12px,env(safe-area-inset-bottom))]"
       data-testid={TID.hand.actionBar}
     >
-      <div className="grid grid-cols-2 gap-2">
-        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0 || off} onClick={() => navigate("/pass")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
+      {/* The same two buttons a wide screen has, one over the other: a button is one thing at any
+          width. The room between them is for the lower hand, which stands above its own button. */}
+      <div className="flex flex-col gap-7">
+        <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0 || off} onClick={() => navigate("/pass")} className="w-full">
           {t("common.word.passOn")}
         </SwipeButton>
-        <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} disabled={off} onClick={() => navigate("/give")} className="ah-swipe--card w-full min-w-0 whitespace-normal! leading-[1.15]!">
+        <SwipeButton gesture="cheer" variant="amber" data-testid={TID.hand.help} disabled={off} onClick={() => navigate("/give")} className="w-full">
           {t("common.word.canHelp")}
         </SwipeButton>
       </div>

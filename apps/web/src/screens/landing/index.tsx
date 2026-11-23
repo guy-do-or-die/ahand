@@ -214,7 +214,7 @@ export default function LandingScreen() {
             <p className="m-0 max-w-[560px] text-[length:var(--fs-body-xl)] leading-[1.45]">{t("landing.lead")}</p>
           </header>
           <div className="flex flex-col gap-3 sm:max-w-[420px]">
-            <SwipeButton gesture="raise" className="ah-swipe--hero w-full" data-testid={TID.landing.raise} aria-describedby="landing-raise-note" onClick={() => navigate("/raise")}>
+            <SwipeButton gesture="raise" className="w-full" data-testid={TID.landing.raise} aria-describedby="landing-raise-note" onClick={() => navigate("/raise")}>
               {t("landing.raise")}
             </SwipeButton>
             <p id="landing-raise-note" className="lp-hero__note m-0">
