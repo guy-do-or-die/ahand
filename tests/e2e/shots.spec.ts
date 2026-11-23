@@ -19,6 +19,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { account, pickDevAccount } from "./lib/accounts";
 import { fixtureOf, quiet, seedFixtures, visit, type SeedRun } from "./guards/lib/guard";
 import { lensOn } from "./lib/lens";
+import { settled, settleProof } from "./lib/settle";
 import { readStand, seed, standSlot } from "./lib/stand";
 
 const stand = readStand();
@@ -48,6 +49,8 @@ interface Shot {
   go(page: Page): Promise<void>;
   /** The shell's main region by default; exit.html has its own page. */
   ready?: (page: Page) => Promise<void>;
+  /** Shows a live clock (the block, its time), which changes the picture every block. */
+  clock?: true;
 }
 
 const at = (path: string) => async (page: Page) => {
@@ -103,7 +106,7 @@ const SCREENS: Shot[] = [
   { slug: "core", go: at("/core") },
   { slug: "defaults", go: at("/defaults") },
   { slug: "without-us", go: at("/without-us") },
-  { slug: "dev-wallet", go: at("/dev/wallet") },
+  { slug: "dev-wallet", go: at("/dev/wallet"), clock: true },
   { slug: "not-found", go: at("/no/such/place") },
   {
     slug: "exit-page",
@@ -136,7 +139,7 @@ async function settle(page: Page, ready?: Shot["ready"]): Promise<void> {
   if (ready) await ready(page);
   else await expect(page.getByTestId("shell-main")).toBeVisible({ timeout: 20_000 });
   // The first block arrives and skeletons settle, as the a11y guard waits.
-  await page.waitForTimeout(1_200);
+  await settled(page);
 }
 
 for (const shot of SCREENS) {
@@ -149,7 +152,17 @@ for (const shot of SCREENS) {
           try {
             await shot.go(page);
             await settle(page, shot.ready);
-            await page.screenshot({ path: fileOf(shot.slug, lang, theme, width), fullPage: true, animations: "disabled" });
+            const picture = await page.screenshot({ path: fileOf(shot.slug, lang, theme, width), fullPage: true, animations: "disabled" });
+            if (settleProof) {
+              // The fixed pause the wait replaced: the picture must not change after it. A screen
+              // with a live clock is compared by its words, its numbers left out.
+              const words = async () => (await page.evaluate(() => document.body.innerText)).replace(/\d+/g, "#");
+              const before = shot.clock ? await words() : "";
+              await page.waitForTimeout(1_200);
+              const what = `${shot.slug} ${lang.id} ${theme} ${width}: the screen changed 1.2 s after it settled`;
+              if (shot.clock) expect(await words(), what).toBe(before);
+              else expect((await page.screenshot({ fullPage: true, animations: "disabled" })).equals(picture), what).toBe(true);
+            }
           } finally {
             await context.close();
           }

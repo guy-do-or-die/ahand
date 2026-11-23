@@ -102,9 +102,13 @@ Chromium only; the first time, `bunx playwright install chromium`.
 STAND_SLOT=3 bunx playwright test tests/e2e/smoke                # one file per screen and flow
 STAND_SLOT=3 bunx playwright test tests/e2e/guards               # a11y, fail-closed, hygiene, Russian, the wall clock
 STAND_BASE_URL=http://127.0.0.1:18330 bunx playwright test ...   # any served build instead of a slot
+STAND_SLOTS=3,4 bunx playwright test tests/e2e                     # the whole suite, one worker per stand
 ```
 
 The site comes from the slot's `stand.json`, so a stand on `STAND_PORT_BASE` needs nothing more.
+One stand is one chain, so its spec files run one at a time. With `STAND_SLOTS` (stands up on
+each slot first) every worker takes a slot of its own and the files are shared out among them;
+two stands about halve the suite's time.
 The default project is `phone` (390×844); `--project desk` adds 1280×800. Each spec file that needs a chain seeds its
 own fixtures and names the slot or the URL it was written for in its header. Also there:
 `clock.spec.ts`, `drill.spec.ts`, `shots.spec.ts` and `lens-shots.spec.ts` (screenshots), and

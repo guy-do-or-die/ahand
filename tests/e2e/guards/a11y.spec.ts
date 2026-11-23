@@ -14,6 +14,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 
 import { account } from "../lib/accounts";
 import { fixtureOf, quiet, seedFixtures, visit, type SeedRun } from "./lib/guard";
+import { settled, settleProof } from "../lib/settle";
 import { readStand } from "../lib/stand";
 
 const stand = readStand();
@@ -95,6 +96,18 @@ interface Seen {
   summary: string;
 }
 
+/**
+ * What axe found, rule by rule, with the nodes of each: violations, passes and the undecided. A
+ * node's selector may name a chain time (/raise: p[data-expiry="1801487466"]), which moves with
+ * every block while the node stays the same, so long numbers in attribute values are left out.
+ */
+function axeOutcome(result: Awaited<ReturnType<AxeBuilder["analyze"]>>): Record<string, string[]> {
+  const node = (target: string) => target.replace(/="\d{6,}"/g, '="…"');
+  const of = (results: typeof result.violations) =>
+    results.map((rule) => `${rule.id}: ${rule.nodes.map((n) => node(n.target.join(" "))).sort().join(" | ")}`).sort();
+  return { violations: of(result.violations), passes: of(result.passes), incomplete: of(result.incomplete) };
+}
+
 async function audit(browser: Browser, route: Route, width: number, scheme: "light" | "dark"): Promise<Seen[]> {
   const context = await browser.newContext({ viewport: { width, height: width < 768 ? 844 : 800 }, colorScheme: scheme, reducedMotion: "reduce" });
   await quiet(context, stand.site!);
@@ -103,8 +116,14 @@ async function audit(browser: Browser, route: Route, width: number, scheme: "lig
     await route.go(page);
     await expect(page.getByTestId("shell-main")).toBeVisible({ timeout: 20_000 });
     // Let the first block arrive and skeletons settle, so axe sees the screen a person reads.
-    await page.waitForTimeout(1_200);
+    await settled(page);
     const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+    if (settleProof) {
+      // The fixed pause the wait replaced: axe must see the same screen after it.
+      await page.waitForTimeout(1_200);
+      const later = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+      expect(axeOutcome(later), `${route.name} at ${width}, ${scheme}: axe saw another screen 1.2 s after it settled`).toEqual(axeOutcome(result));
+    }
     return result.violations.map((v) => ({
       width,
       scheme,
