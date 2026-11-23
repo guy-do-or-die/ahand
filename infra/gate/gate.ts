@@ -88,52 +88,75 @@ export const DRAIN_MS = 2_000;
 const running = new Set<ChildProcess>();
 
 /** The signal the gate was stopped with; once set, no step starts. */
-let interruptedBy: NodeJS.Signals | undefined;
+let interruptedBy: (typeof STOPPING)[number] | undefined;
 let interruptedAt = 0;
 
+/** Sends `signal` to the process group of every running step. */
+function toSteps(signal: NodeJS.Signals): void {
+  for (const child of running) {
+    try {
+      if (child.pid) process.kill(-child.pid, signal);
+    } catch {
+      // already gone
+    }
+  }
+}
+
+const STOPPING = ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"] as const;
+
 /**
- * On SIGINT, SIGTERM or SIGHUP (a closed terminal): no further step starts, the signal goes to the
- * process group of every running step (a step's tests and the servers they started), and each of
- * those steps ends and is reported with whatever output it had; the table then names the steps
- * that did not run, and the gate exits with 128 + the signal's number. A second signal, a second
- * or more later, exits at once. Stands brought up by a step may outlive it, as they did under a chain of `&&`.
+ * The steps run in process groups of sessions of their own, so a signal from the terminal reaches
+ * the gate only; the gate passes it on.
+ *
+ * On SIGINT, SIGTERM, SIGHUP (a closed terminal) or SIGQUIT: no further step starts, the signal
+ * goes to the process group of every running step (its tests and the servers they started), and
+ * each of those steps ends and is reported with whatever output it had; the table then names the
+ * steps that did not run, and the gate exits with 128 + the signal's number. A second signal, a
+ * second or more after the first, kills the process group of every step still running (SIGKILL)
+ * and exits at once: a step that caught the first one and is slow to end is not left behind. A
+ * process a step started in a session of its own (a stand's services) is in no step's group and
+ * gets neither signal.
+ *
+ * Ctrl-Z (SIGTSTP) stops the running steps with SIGSTOP and then the gate; SIGCONT (fg, bg)
+ * goes on to the steps too.
  */
 export function stopOnSignals(): void {
-  // The steps run in process groups of their own, so a signal from the terminal reaches the gate
-  // only; it is passed on here.
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+  for (const signal of STOPPING) {
     process.on(signal, () => {
       // From a terminal the signal comes twice at once: to the gate, and passed on by `bun run`.
       // Only one that comes later is a second signal.
       if (interruptedBy) {
-        if (performance.now() - interruptedAt > 1_000) process.exit(exitCodeOf(false));
+        if (performance.now() - interruptedAt > 1_000) {
+          process.stderr.write(`\n${signal} again: killing the ${running.size} steps still running\n`);
+          toSteps("SIGKILL");
+          process.exit(exitCodeOf(false));
+        }
         return;
       }
       interruptedBy = signal;
       interruptedAt = performance.now();
       process.stderr.write(`\n${signal}: no further step starts; stopping the ${running.size} running\n`);
-      for (const child of running) {
-        try {
-          if (child.pid) process.kill(-child.pid, signal);
-        } catch {
-          // already gone
-        }
-      }
+      toSteps(signal);
     });
   }
+  process.on("SIGTSTP", () => {
+    toSteps("SIGSTOP");
+    process.kill(process.pid, "SIGSTOP");
+  });
+  process.on("SIGCONT", () => toSteps("SIGCONT"));
 }
 
 /** 0 when everything passed, 1 when anything failed, 128 + the signal's number after a signal. */
 export function exitCodeOf(ok: boolean): number {
-  if (interruptedBy) return 128 + { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }[interruptedBy as "SIGHUP" | "SIGINT" | "SIGTERM"];
+  if (interruptedBy) return 128 + { SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SIGTERM: 15 }[interruptedBy];
   return ok ? 0 : 1;
 }
 
 /**
  * Runs one step to its end, its output kept rather than printed. The step ends when its process
  * exits: its output is read for at most `drainMs` more, and when something it started still holds
- * the output then, the output is closed and the report says so. That process is left running, as
- * a chain of `&&` leaves it.
+ * the output then, the gate closes the pipes, does not wait for that process, and the report says
+ * so. The gate does not kill it; with its output closed it may end at its next write.
  */
 export function run(step: Step, drainMs = DRAIN_MS): Promise<Ran> {
   const started = performance.now();
@@ -164,7 +187,7 @@ export function run(step: Step, drainMs = DRAIN_MS): Promise<Ran> {
         if (ended) return;
         child.stdout.destroy();
         child.stderr.destroy();
-        end(ok, `${stopped}\n(the step exited; a process it started still held its output ${drainMs / 1000} s later and was left running)\n`);
+        end(ok, `${stopped}\n(the step exited; a process it started still held its output ${drainMs / 1000} s later: the gate closed the pipes and did not wait for it)\n`);
       }, drainMs).unref();
     });
   });

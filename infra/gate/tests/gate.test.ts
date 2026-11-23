@@ -4,8 +4,9 @@
  * program (tests/plan.ts): a slow reader gets everything, and a signal stops it cleanly.
  */
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 import { FIRST, LANES, LAST, PROJECTS, inOrder, run, sideBySide, summaryText, type Ran } from "../gate.ts";
 
@@ -123,6 +124,74 @@ describe("the gate as a program", () => {
     const pid = Number(/pid (\d+)/.exec(text)?.[1]);
     expect(pid).toBeGreaterThan(0);
     expect(() => process.kill(pid, 0)).toThrow();
+  }, 20_000);
+});
+
+describe("the gate under more signals", () => {
+  const PLAN = resolve(import.meta.dirname, "plan.ts");
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  /** The state letter of a process in /proc (T: stopped), or undefined when it is gone. */
+  const state = (pid: number) => {
+    try {
+      return readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1]?.[0];
+    } catch {
+      return undefined;
+    }
+  };
+  const pidIn = async (file: string) => {
+    for (let tries = 0; tries < 50 && !existsSync(file); tries++) await Bun.sleep(100);
+    return Number(readFileSync(file, "utf8"));
+  };
+  const scratch = () => mkdtempSync(join(tmpdir(), "gate-test-"));
+
+  test("a second signal a second later kills a step that caught the first, and exits at once", async () => {
+    const file = join(scratch(), "pid");
+    const plan = JSON.stringify({ first: [], lanes: [[["stubborn", `trap 'echo caught' INT; echo $$ > ${file}; while :; do sleep 0.2; done`]]], last: [] });
+    const gate = Bun.spawn([process.execPath, PLAN, plan], { stdout: "ignore", stderr: "ignore" });
+    const pid = await pidIn(file);
+    gate.kill("SIGINT");
+    await Bun.sleep(1_500);
+    expect(alive(pid)).toBe(true);
+    gate.kill("SIGINT");
+    expect(await gate.exited).toBe(130);
+    await Bun.sleep(200);
+    expect(alive(pid)).toBe(false);
+  }, 20_000);
+
+  test("SIGQUIT is passed on to the steps, and the gate exits 131 with its table", async () => {
+    const file = join(scratch(), "pid");
+    const plan = JSON.stringify({ first: [], lanes: [[["slow", `echo $$ > ${file}; sleep 30`]]], last: [["last", "true"]] });
+    const gate = Bun.spawn([process.execPath, PLAN, plan], { stdout: "pipe", stderr: "ignore" });
+    const pid = await pidIn(file);
+    gate.kill("SIGQUIT");
+    expect(await gate.exited).toBe(131);
+    expect(await new Response(gate.stdout).text()).toMatch(/not run +last\nINTERRUPTED by SIGQUIT in [0-9.]+ s\n$/);
+    expect(alive(pid)).toBe(false);
+  }, 20_000);
+
+  test.skipIf(!existsSync("/proc/self/stat"))("Ctrl-Z stops the steps with the gate, and SIGCONT starts them again", async () => {
+    const file = join(scratch(), "pid");
+    const plan = JSON.stringify({ first: [], lanes: [[["loop", `echo $$ > ${file}; while :; do sleep 0.1; done`]]], last: [] });
+    const gate = Bun.spawn([process.execPath, PLAN, plan], { stdout: "ignore", stderr: "ignore" });
+    const pid = await pidIn(file);
+    gate.kill("SIGTSTP");
+    await Bun.sleep(500);
+    expect(state(gate.pid)).toBe("T");
+    expect(state(pid)).toBe("T");
+    gate.kill("SIGCONT");
+    await Bun.sleep(500);
+    expect(state(gate.pid)).not.toBe("T");
+    expect(state(pid)).not.toBe("T");
+    gate.kill("SIGTERM");
+    expect(await gate.exited).toBe(143);
+    expect(alive(pid)).toBe(false);
   }, 20_000);
 });
 
