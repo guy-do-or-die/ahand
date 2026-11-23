@@ -267,16 +267,31 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # The browsers are kept between runs under a key of the lockfile, which pins Playwright's
-      # version; the system libraries Chromium needs are installed every time. Headless runs use
-      # the headless shell only.
+      # Headless runs use the headless shell only. It is kept between runs under a key of the
+      # lockfile, which pins Playwright's version. So are the system packages Playwright installs
+      # for it (libraries and the fonts pages are drawn with), as .deb files, under the runner
+      # image's version too: from four runners at once the package mirror took up to two minutes.
+      # When the kept packages do not install, Playwright installs them as before.
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
+      - uses: actions/cache@v4
+        id: debs
+        with:
+          path: ~/chromium-debs
+          key: chromium-debs-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('bun.lock') }}
+
       - name: Chromium for Playwright
-        run: bunx playwright install --with-deps --only-shell chromium
+        run: |
+          if [ "${{ steps.debs.outputs.cache-hit }}" = true ] && sudo dpkg -i ~/chromium-debs/*.deb > /dev/null; then
+            bunx playwright install --only-shell chromium
+          else
+            bunx playwright install --with-deps --only-shell chromium
+            mkdir -p ~/chromium-debs
+            cp /var/cache/apt/archives/*.deb ~/chromium-debs/
+          fi
 
       - name: Build contracts
         working-directory: contracts
