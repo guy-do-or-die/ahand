@@ -17,6 +17,15 @@ describe("run", () => {
     expect((await run(sh("fails", "exit 3"))).ok).toBe(false);
     expect((await run({ name: "missing", command: "/no/such/program", args: [] })).ok).toBe(false);
   });
+
+  test("ends when the step exits, though a process it left behind still holds its output", async () => {
+    const started = performance.now();
+    const ran = await run(sh("holds", "sleep 3 & echo hi; exit 1"), 300);
+    expect((performance.now() - started) / 1000).toBeLessThan(2);
+    expect(ran.ok).toBe(false);
+    expect(ran.output).toStartWith("hi\n");
+    expect(ran.output).toContain("still held its output");
+  });
 });
 
 describe("sideBySide", () => {

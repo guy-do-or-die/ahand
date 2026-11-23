@@ -74,18 +74,48 @@ export interface Ran {
   output: string;
 }
 
-/** Runs one step to its end, its output kept rather than printed. */
-export function run(step: Step): Promise<Ran> {
+/**
+ * How long a step's output is still read after the step exited. A process the step started and
+ * left behind (a test's server, after an assertion failed before its cleanup) keeps the step's
+ * output open; without this limit the lane would wait for it for ever, printing nothing.
+ */
+export const DRAIN_MS = 2_000;
+
+/**
+ * Runs one step to its end, its output kept rather than printed. The step ends when its process
+ * exits: its output is read for at most `drainMs` more, and when something it started still holds
+ * the output then, the output is closed and the report says so. That process is left running, as
+ * a chain of `&&` leaves it.
+ */
+export function run(step: Step, drainMs = DRAIN_MS): Promise<Ran> {
   const started = performance.now();
   return new Promise((done) => {
     const child = spawn(step.command, step.args, { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
     const chunks: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => chunks.push(chunk));
-    const end = (ok: boolean, extra = "") =>
+    let ended = false;
+    const end = (ok: boolean, extra = "") => {
+      if (ended) return;
+      ended = true;
       done({ name: step.name, ok, seconds: (performance.now() - started) / 1000, output: Buffer.concat(chunks).toString("utf8") + extra });
+    };
     child.on("error", (error) => end(false, `\n${error.message}\n`));
-    child.on("close", (code, signal) => end(code === 0, signal ? `\nstopped by ${signal}\n` : ""));
+    // Both events carry the exit; "close" also says every holder of the output let it go.
+    const verdict = (code: number | null, signal: NodeJS.Signals | null) => ({ ok: code === 0, stopped: signal ? `\nstopped by ${signal}\n` : "" });
+    child.on("close", (code, signal) => {
+      const { ok, stopped } = verdict(code, signal);
+      end(ok, stopped);
+    });
+    child.on("exit", (code, signal) => {
+      const { ok, stopped } = verdict(code, signal);
+      setTimeout(() => {
+        if (ended) return;
+        child.stdout.destroy();
+        child.stderr.destroy();
+        end(ok, `${stopped}\n(the step exited; a process it started still held its output ${drainMs / 1000} s later and was left running)\n`);
+      }, drainMs).unref();
+    });
   });
 }
 
