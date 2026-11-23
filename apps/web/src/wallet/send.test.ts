@@ -476,9 +476,15 @@ describe("after sending", () => {
     let ticks2 = 0;
     const sent = await sendCalls({ ...env(stop2.signal), tick: async () => {
       ticks2++;
-      if (!reorgDone && progress.some((p) => p.reached === "in-block")) {
+      const landed = progress.find((p) => p.reached === "in-block");
+      if (!reorgDone && landed) {
         reorgDone = true;
-        await rpc("anvil_reorg", [1, []]);
+        // Every block from the one that holds the transaction is replaced. Not only the latest:
+        // when the receipt came a moment after the automined block (a busy machine), a tick has
+        // mined an empty block on top of it before the engine saw it in a block.
+        const { blockNumber } = await client.getTransactionReceipt({ hash: landed.hash! });
+        const latest = await client.getBlockNumber({ cacheTime: 0 });
+        await rpc("anvil_reorg", [Number(latest - blockNumber) + 1, []]);
         return;
       }
       await mine();
