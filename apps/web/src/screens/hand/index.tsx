@@ -317,9 +317,12 @@ const NARROW = "(max-width: 767.98px) and (min-height: 560px), (min-width: 600px
 /**
  * Whether the screen is narrower than the two-column layout (Tailwind's `md`, 768 px) and has
  * room for the bar of two actions. From 600px of width the two stand side by side in it, a row
- * 89px tall, which any height takes (a phone held sideways). Narrower than that they stand one
- * over the other, 173px, which wants 560px of height: on a screen both narrow and short the bar
+ * 88px tall, which any height takes (a phone held sideways). Narrower than that they stand one
+ * over the other, 172px, which wants 560px of height: on a screen both narrow and short the bar
  * would cover a third of it and more, so there the actions stand in the page.
+ *
+ * This is about the screen's own size. A keyboard is another matter and has its own check
+ * (`useTyping`): on iOS the height a media query sees does not shrink when a keyboard opens.
  */
 function useNarrow(): boolean {
   return useSyncExternalStore(
@@ -381,8 +384,15 @@ function ActionBar({ left, off }: { left: number; off: boolean }) {
     const root = document.documentElement;
     const before = root.style.scrollPaddingBottom;
     // The bar and the thick part of the haze over it: a control brought into view stops clear of both.
-    root.style.scrollPaddingBottom = `${(bar.current?.offsetHeight ?? 0) + 36}px`;
+    // The bar is one row or two as the screen is turned, so the room is kept as tall as the bar is now.
+    const keep = () => {
+      root.style.scrollPaddingBottom = `${(bar.current?.offsetHeight ?? 0) + 36}px`;
+    };
+    keep();
+    const watch = typeof ResizeObserver === "function" && bar.current ? new ResizeObserver(keep) : undefined;
+    if (bar.current) watch?.observe(bar.current);
     return () => {
+      watch?.disconnect();
       root.style.scrollPaddingBottom = before;
     };
   }, []);

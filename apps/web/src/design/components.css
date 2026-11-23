@@ -51,7 +51,10 @@
   --hand-size: 64px;
   --hand-right: 2px;
   /* The room a label has, from the button's left edge: its 22px of padding and about 128px of
-     words. No fade begins inside it, so a label is read on the solid fill. */
+     words. On a button wide enough no fade begins inside it, so a label of that length is read
+     on the solid fill. That holds from about 186px of width for this fill and 230px for amber:
+     narrower than that a fade keeps a length of its own (8px past where it ends or where the
+     hand begins) and starts inside the room. A longer label runs past the room on any button. */
   --label-room: 150px;
   /* Where the fill's fade begins and where it is gone, from the right edge: places on the hand,
      so the fade is the same on every button. It begins nearly two hands back, long enough to be

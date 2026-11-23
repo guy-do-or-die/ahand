@@ -511,6 +511,18 @@ test("on a phone both actions of an open hand are on the first screen, in Englis
     expect(Math.abs(row.pass.width - row.help.width)).toBeLessThanOrEqual(1);
     expect(row.bar.height / 375, `${lang}: the bar's share of a sideways screen`).toBeLessThan(0.3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${lang}: no sideways scroll when held sideways`).toBe(true);
+    // Turning the phone changes the bar from a row to two, and the room kept at the foot for a
+    // control brought into view follows it: it is the bar's height now, and the haze's thick part.
+    const kept = () => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom));
+    await expect.poll(kept, { message: `${lang}: room kept when held sideways` }).toBe(Math.round(row.bar.height) + 36);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await expect(page.getByTestId("hand-action-bar")).toBeVisible();
+    const upright = (await page.getByTestId("hand-action-bar").boundingBox())!;
+    expect(upright.height, `${lang}: two rows are taller than one`).toBeGreaterThan(row.bar.height + 60);
+    await expect.poll(kept, { message: `${lang}: room kept after turning upright` }).toBe(Math.round(upright.height) + 36);
+    await page.setViewportSize({ width: 667, height: 375 });
+    await expect.poll(kept, { message: `${lang}: room kept after turning back` }).toBe(Math.round(row.bar.height) + 36);
+
     // Narrow and short at once (a split screen): no room for two rows, so no bar, and the two buttons stand in the page.
     await page.setViewportSize({ width: 390, height: 500 });
     await expect(page.getByTestId("hand-action-bar")).toHaveCount(0);
