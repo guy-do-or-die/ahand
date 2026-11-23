@@ -6,7 +6,7 @@
  *   STAND_SLOT=0 bunx playwright test tests/e2e/smoke/nav.spec.ts
  */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import { fixtureOf, quiet, seedFixtures, visit, type SeedRun } from "../guards/lib/guard";
 import { account, pickDevAccount } from "../lib/accounts";
@@ -353,13 +353,6 @@ test("/raise on a phone shows a section at a time: the strip stays at the top an
 /** The day a moment falls on in a zone, as the card writes it (UTC's) or as a reader there counts it. */
 const dayIn = (expiry: number, timeZone: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone }).format(new Date(expiry * 1000));
 
-/**
- * A zone whose day of `expiry` is not UTC's. Kiritimati (UTC+14) is on the next day from 10:00 UTC,
- * Etc/GMT+12 (UTC−12) on the day before until 12:00 UTC: the choice turns at 11:00, an hour from
- * either edge, so the chain's clock moving on between two pages does not change the answer.
- */
-const zoneApart = (expiry: number) => (new Date(expiry * 1000).getUTCHours() >= 11 ? "Pacific/Kiritimati" : "Etc/GMT+12");
-
 /** The expiry the screen counts from and the UTC line in the date's section, read in one look at the page. */
 const readUtcNote = (page: Page) =>
   page.evaluate(() => ({
@@ -394,10 +387,10 @@ test("/raise's preview writes its date in UTC, as the card does: where the reade
 
 test("/raise on a wide screen: the examples and the action stand beside the sections in a box no taller than the window, the strip has no item for them, and the next section comes up in shade as on a phone", async ({ browser }) => {
   // Where the reader's day of the expiry is not UTC's, the date's section gains a line saying the
-  // preview's day. The box of examples must not change with it: it is measured first in UTC, where
-  // the line never shows, then in a zone picked from the expiry so that it does, at any hour.
+  // preview's day. The box of examples must not take it: the chat's preview, drawn in UTC, is
+  // measured first in UTC, where the line never shows, then in a zone where it does.
   const wide = { viewport: { width: 1280, height: 720 }, hasTouch: false, isMobile: false, deviceScaleFactor: 1 };
-  const examples = (page: Page) => page.locator("#raise-preview").evaluate((box) => box.scrollHeight);
+  const unfurl = (page: Page) => page.getByTestId("raise-unfurl").evaluate((box) => box.scrollHeight);
   const utc = await browser.newContext({ ...wide, timezoneId: "UTC" });
   const inUtc = await utc.newPage();
   await inUtc.goto("/raise");
@@ -405,20 +398,33 @@ test("/raise on a wide screen: the examples and the action stand beside the sect
   await expect(inUtc.getByTestId("raise-expiry-utc")).toHaveCount(0);
   await expect(inUtc.getByTestId("raise-unfurl")).toBeInViewport();
   await expect(inUtc.getByTestId("raise-preview")).toBeInViewport();
-  const plain = await examples(inUtc);
-  const timezoneId = zoneApart((await readUtcNote(inUtc)).expiry);
+  const plain = await unfurl(inUtc);
   await utc.close();
 
-  const context = await browser.newContext({ ...wide, timezoneId });
-  const page = await context.newPage();
-  await page.goto("/raise");
+  // Kiritimati (UTC+14) is on the next day from 10:00 UTC to midnight, Etc/GMT+12 (UTC−12) on the
+  // day before from midnight to 12:00: the zone whose page shows the line is kept, whatever the hour.
+  let context: BrowserContext | undefined;
+  let page!: Page;
+  for (const timezoneId of ["Pacific/Kiritimati", "Etc/GMT+12"]) {
+    context = await browser.newContext({ ...wide, timezoneId });
+    page = await context.newPage();
+    await page.goto("/raise");
+    await expect(page.getByTestId("raise-expiry-line")).toBeVisible({ timeout: 20_000 });
+    const seen = await readUtcNote(page);
+    if (dayIn(seen.expiry, timezoneId) !== dayIn(seen.expiry, "UTC")) {
+      expect(seen.anywhere).toBe(1);
+      break;
+    }
+    expect(seen.anywhere).toBe(0);
+    await context.close();
+    context = undefined;
+  }
+  if (!context) throw new Error("neither zone put the reader's day apart from UTC's");
   const strip = page.getByTestId("raise-nav");
-  await expect(strip).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("raise-expiry-line")).toBeVisible();
-  const apart = await readUtcNote(page);
-  expect(dayIn(apart.expiry, timezoneId)).not.toBe(dayIn(apart.expiry, "UTC"));
+  await expect(strip).toBeVisible();
   await expect(page.locator("#raise-expiry").getByTestId("raise-expiry-utc")).toBeVisible();
-  expect(await examples(page)).toBe(plain);
+  await expect(page.locator(".ah-sided__side").getByTestId("raise-expiry-utc")).toHaveCount(0);
+  expect(await unfurl(page)).toBe(plain);
   const look = () => lookAtRaise(page);
   // Four sections to move between: the examples are beside them, in view throughout.
   await expect(strip.locator(".ah-strip__item:visible")).toHaveCount(4);
