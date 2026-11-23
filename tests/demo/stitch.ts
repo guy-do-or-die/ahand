@@ -26,7 +26,9 @@ interface Clip {
 function seconds(file: string): number {
   const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" });
   const value = Number(probe.stdout.trim());
-  return Number.isFinite(value) ? value : 0;
+  // Without a length the page could not be placed on the timeline: stop rather than guess.
+  if (probe.status !== 0 || probe.stdout.trim() === "" || !Number.isFinite(value)) throw new Error(`ffprobe could not read the length of ${file}${probe.stderr ? `: ${probe.stderr.trim()}` : ""}`);
+  return value;
 }
 
 /**

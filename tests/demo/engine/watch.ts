@@ -1,6 +1,5 @@
 /**
- * A persona's browser, watched from the side (moved here from tests/e2e/lib/e2e-life/people.ts,
- * which only the life spec used):
+ * A persona's browser, watched from the side (its pattern is tests/e2e/lib/e2e-life/people.ts's):
  *
  * - every request and WebSocket it opens is logged with its origin and the JSON-RPC methods it
  *   carried; with `local-only`, a request to any host other than 127.0.0.1 is intercepted, aborted

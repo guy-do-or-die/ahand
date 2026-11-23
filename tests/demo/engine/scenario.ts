@@ -118,7 +118,7 @@ export type Expectation =
   | { assert: NamedCheck; on?: string; arg?: string };
 
 export type NamedCheck =
-  /** The raise's tx rail went sent → in-block → safe → final, each step drawn done. */
+  /** The raise's tx rail went from sent to final in order (a state may pass in one poll), each of its four steps drawn done. */
   | "raise-rail-four-states"
   /** The raised terms on the chain: raiser, 30-day window, dataHash on the screen, finalized block past the raise. */
   | "raise-terms-on-chain"

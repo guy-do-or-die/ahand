@@ -138,7 +138,7 @@ export default defineScenario({
     { who: "alice", do: "open", link: "bike" },
     { who: "alice", do: "pass", keepBps: 1000, payee: { fresh: "blocked" }, as: "bike-via-alice" },
     { who: "bob", do: "open", link: "bike-via-alice" },
-    { who: "bob", do: "give", words: "My neighbour sells one, nearly new.", payee: { fresh: "helper2" }, as: "bike-give" },
+    { who: "bob", do: "give", words: "My neighbour sells one, nearly new.", payee: { fresh: "helper2" }, as: "bike-give", expect: [{ see: "give.delivered", says: ["give.delivered.one", { acks: "1" }], exact: true, attr: { "data-value": "1/1" } }] },
     { do: "block", address: "@blocked", blocked: true },
     {
       who: "nina",
@@ -199,8 +199,8 @@ export default defineScenario({
     { who: "alice", do: "open", link: "book", expect: [{ see: "hand.dealCard", says: "kit.deal.noReward" }] },
     { who: "alice", do: "pass", as: "book-via-alice", form: [{ see: "pass.noReward" }, { see: "pass.slider", count: 0 }] },
     { who: "gina", do: "open", link: "book-via-alice" },
-    { who: "gina", do: "give", words: BOOK, payee: { fresh: "gina-book" }, as: "book-give", expect: [{ give: "book-give", core: "accepted" }] },
-    { who: "nina", do: "read-answers", hand: "book", words: BOOK },
+    { who: "gina", do: "give", words: BOOK, payee: { fresh: "gina-book" }, as: "book-give", expect: [{ give: "book-give", core: "accepted" }, { see: "give.delivered", says: ["give.delivered.one", { acks: "1" }], exact: true, attr: { "data-value": "1/1" } }] },
+    { who: "nina", do: "read-answers", hand: "book", words: BOOK, total: 1 },
     {
       who: "nina",
       do: "thank",

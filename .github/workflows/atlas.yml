@@ -18,6 +18,13 @@ on:
       - "infra/stand/**"
       - "infra/relay/**"
       - "tests/demo/**"
+      - "tests/e2e/**"
+      - "apps/view/**"
+      - "tools/**"
+      - "contracts/script/**"
+      - "contracts/test/mocks/**"
+      - "playwright.demo.config.ts"
+      - ".github/workflows/atlas.yml"
       - "package.json"
       - "bun.lock"
   workflow_dispatch:

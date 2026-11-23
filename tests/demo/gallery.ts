@@ -58,7 +58,7 @@ async function record(): Promise<void> {
   } finally {
     run(bun, ["infra/stand/stand.ts", "down", "--slot", String(slot)]);
   }
-  if (played !== 0) failures.push(`a scenario failed (Playwright exited ${played}): see tests/demo/report`);
+  if (played !== 0) failures.push(`a scenario failed (Playwright exited ${played}): its error is in the log above, its videos in ${output}`);
   // Each test's folder starts with "scenarios-<id>-": stitch its phones into one video.
   mkdirSync(join(OUT, "videos"), { recursive: true });
   const folders = existsSync(output) ? readdirSync(output).map((n) => join(output, n)).filter((p) => statSync(p).isDirectory()) : [];

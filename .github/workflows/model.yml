@@ -7,7 +7,8 @@
 name: model
 
 # GitHub runs a schedule only from the default branch's copy of this file, against that branch:
-# the nightly run tests main, and starts once this file is on main. On other branches, run it by hand.
+# the nightly run tests main, and starts once this file is on main. Running it by hand (on any
+# branch, with "Use workflow from") also needs this file on main first, for GitHub to list it.
 on:
   schedule:
     - cron: "30 2 * * *"

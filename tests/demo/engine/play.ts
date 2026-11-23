@@ -5,8 +5,8 @@
  * then the end checks and the `watch` invariants. Whatever happens, the stand gets back what a
  * fault step took (a stopped relay, a blocked address) and every context is closed.
  */
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { expect, test, type Browser, type TestInfo } from "@playwright/test";
 
@@ -135,9 +135,24 @@ export async function play(written: Scenario, browser: Browser, info: TestInfo):
       for (const one of cast) await one.context.close().catch(() => undefined);
       await director.close();
       if (video && !keepVideo && !failed) for (const key of Object.keys(scenario.personas)) rmSync(info.outputPath(`video-${key}`), { recursive: true, force: true });
+      // A failed scenario's videos go into the HTML report with its trace (CI uploads the report only).
+      if (video && failed) {
+        for (const key of Object.keys(scenario.personas)) {
+          const folder = info.outputPath(`video-${key}`);
+          if (!existsSync(folder)) continue;
+          const files = readdirSync(folder).filter((f) => f.endsWith(".webm"));
+          // One file per page the persona opened (a second page: exit.html).
+          for (const [i, file] of files.entries()) await info.attach(files.length > 1 ? `video of ${key}, page ${i + 1}` : `video of ${key}`, { path: join(folder, file), contentType: "video/webm" });
+        }
+      }
     }
-    // The scenario's own error stands; a failed restore fails a scenario that passed.
-    if (!failed && restoreErrors.length) throw new AggregateError(restoreErrors, `the stand was not given back: ${restoreErrors.map((e) => e.message).join("; ")}`);
+    // The scenario's own error stands; a failed restore fails a scenario that passed, and is told beside one that failed.
+    if (restoreErrors.length) {
+      const message = `the stand was not given back: ${restoreErrors.map((e) => e.message).join("; ")}`;
+      if (!failed) throw new AggregateError(restoreErrors, message);
+      console.error(`${written.id}: ${message}`);
+      info.annotations.push({ type: "restore failed", description: message });
+    }
   }
 }
 

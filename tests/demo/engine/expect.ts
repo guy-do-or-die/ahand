@@ -174,7 +174,13 @@ async function named(ctx: Ctx, actor: Actor, name: NamedCheck, arg: string | und
     case "raise-rail-four-states": {
       await expect(page.getByTestId(TID.raise.txRail)).toHaveAttribute("data-value", "final", { timeout: 30_000 });
       const rail = await page.evaluate(() => (window as unknown as { __demoRail?: string[] }).__demoRail ?? []);
-      expect(rail, "the raise's rail, in order").toEqual(["sent", "in-block", "safe", "final"]);
+      // In order, from sent to final. On a local chain one poll can bring two states at once (a block
+      // and its "safe" a block later), so a state may be passed over; every step is drawn done below.
+      const ORDER = ["sent", "in-block", "safe", "final"];
+      expect(rail[0], "the raise's rail starts at sent").toBe("sent");
+      expect(rail.at(-1), "the raise's rail ends at final").toBe("final");
+      expect(rail.map((v) => ORDER.indexOf(v)), "the raise's rail, in order").toEqual([...rail.map((v) => ORDER.indexOf(v))].sort((a, b) => a - b));
+      expect(new Set(rail).size, "no state twice").toBe(rail.length);
       const steps = page.getByTestId(TID.raise.txRail).locator("li.ah-tx__step");
       await expect(steps).toHaveCount(4);
       for (let i = 0; i < 4; i++) await expect(steps.nth(i)).toHaveAttribute("data-state", "done");

@@ -15,6 +15,13 @@ on:
       - "infra/stand/**"
       - "infra/relay/**"
       - "tests/demo/**"
+      - "tests/e2e/**"
+      - "apps/view/**"
+      - "tools/**"
+      - "contracts/script/**"
+      - "contracts/test/mocks/**"
+      - "playwright.demo.config.ts"
+      - ".github/workflows/gallery.yml"
       - "package.json"
       - "bun.lock"
   workflow_dispatch:
@@ -78,9 +85,12 @@ jobs:
         run: sudo apt-get install -y ffmpeg
 
       - name: Gallery, English
+        id: english
         run: bun tests/demo/gallery.ts
 
       - name: Gallery, Russian
+        # Recorded even when the English run failed (not when the job failed before it): the two say different things.
+        if: ${{ !cancelled() && (steps.english.outcome == 'success' || steps.english.outcome == 'failure') }}
         run: bun tests/demo/gallery.ts --ru
 
       - uses: actions/upload-artifact@v4

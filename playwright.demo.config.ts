@@ -25,8 +25,9 @@ export default defineConfig({
   // One target is one chain: scenarios share its accounts (and their nonces), its clock, its relay.
   workers: 1,
   forbidOnly: true,
-  // In CI a broken stand stops the run after three failed scenarios instead of failing them all.
-  maxFailures: process.env.CI ? 3 : 0,
+  // In CI a broken stand stops the run after three failed scenarios instead of failing them all;
+  // not a recording (DEMO=1, the gallery), which keeps every scenario it can.
+  maxFailures: process.env.CI && process.env.DEMO !== "1" ? 3 : 0,
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {

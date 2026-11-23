@@ -41,12 +41,13 @@ const PROFANITY = new RegExp(`(?:${ANYWHERE.join("|")})|(?<![\\u0430-\\u044f\\u0
 const HOME = /\/(?:home|Users)\/[^\s/"'`]+/;
 
 /**
- * A private record id: R, D, M, IN, U, C, A, W, O, L or F, a dash and a number, F and one to three
- * digits with no dash (a finding's id), U and one or two digits with no dash (a private list of use
- * cases), standing as a word of its own; or a section of a private UX spec ("UX" and the section sign): a letter group inside
- * a longer name (the end of SHA), a hex number (0xF1) and a colour (#F00) are not one.
+ * A private record id, standing as a word of its own: R, D, M, IN, U, C, A, W, O, L or F, a dash
+ * and a number; F and one to three digits with no dash (a finding's id); U and one or two digits
+ * with no dash (a private list of use cases), unless a plus sign stands before it (a Unicode code
+ * point, U+00A7); or a section of a private UX spec ("UX" and the section sign). A letter group
+ * inside a longer name (the end of SHA), a hex number (0xF1) and a colour (#F00) are not one.
  */
-const PRIVATE_ID = /(?<![\w#+-])(?:(?:R|D|M|IN|U|C|A|W|O|L|F)-\d+|F\d{1,3}|U\d{1,2})(?![\w-])|UX ?\u00a7/u;
+const PRIVATE_ID = /(?<![\w#-])(?:(?:R|D|M|IN|U|C|A|W|O|L|F)-\d+|F\d{1,3})(?![\w-])|(?<![\w#+-])U\d{1,2}(?![\w-])|UX ?\u00a7/u;
 
 /** The only home paths allowed, by file: each is synthetic or the CI runner's. */
 const HOME_ALLOWED: Record<string, string[]> = {

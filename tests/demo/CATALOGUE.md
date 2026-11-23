@@ -45,7 +45,7 @@ Play one: `DEMO=1 DEMO_ONLY=<id> STAND_SLOT=<n> bunx playwright test -c playwrig
 | flow:give Give: payee choices, delivery, thread | ✅ | [first-loop](#first-loop), [life](#life), [first-thanks](#first-thanks), [first-thanks-injected-helper](#first-thanks-injected-helper), [relay-down](#relay-down) |  |
 | flow:waiting Waiting: take out, deliver for someone else | ✅ | [life](#life), [blocked-payee-waits](#blocked-payee-waits), [take-out](#take-out) |  |
 | flow:proof Proof passport and check any link | ✅ | [proof-and-check](#proof-and-check), [public-pages](#public-pages) |  |
-| flow:about-pages Print, limits, defaults, without us | ✅ | [lost-and-found-tag](#lost-and-found-tag), [public-pages](#public-pages) |  |
+| flow:about-pages Print, defaults, without us | ✅ | [lost-and-found-tag](#lost-and-found-tag), [public-pages](#public-pages) |  |
 
 ✅ a scenario shows it · 📝 planned · ⬜ no scenario yet · ⚙️ tested below the browser only · — no screen for it
 
@@ -226,6 +226,7 @@ Runs on: stand · covers: uc:chain, uc:household, uc:zero-reward, uc:no-disputes
 14. Alice passes it on, keeping 10%
 15. Bob opens the link
 16. Bob can help and answers
+   - screen: `give.delivered` shows, says give.delivered.one (acks=1), data-value=1/1
 17. The token blocks blocked
 18. Nina thanks the answer: one transaction pays everyone
    - screen: 1 × `thank.payout`, says thank.waiting
@@ -273,6 +274,7 @@ Runs on: stand · covers: uc:chain, uc:household, uc:zero-reward, uc:no-disputes
 29. Gina opens the link
 30. Gina can help and answers
    - Core's checkGive on book-give: accepted
+   - screen: `give.delivered` shows, says give.delivered.one (acks=1), data-value=1/1
 31. Nina opens My hands on the device that raised it and reads the answer
 32. Nina thanks the answer: one transaction pays everyone
    - before the swipe: screen: `thank.noReward` shows

@@ -222,7 +222,7 @@ const SCREEN_NAMES: Record<string, [string, string]> = {
   landing: ["The start", "Главная"], raise: ["Raise a hand", "Поднять руку"], hand: ["A hand", "Рука"], pass: ["Pass it on", "Передать дальше"],
   give: ["Answer", "Ответить"], thank: ["Thank", "Поблагодарить"], proof: ["The passport", "Паспорт"], waiting: ["Money waiting", "Ожидающие деньги"],
   care: ["Care", "Забота о руке"], my: ["My hands", "Мои руки"], print: ["Print", "Печать"], check: ["Check", "Проверка"], core: ["The contract", "Контракт"],
-  limits: ["What it can't promise", "Чего aHand не обещает"], defaults: ["The defaults", "Настройки по умолчанию"], "without-us": ["Without us", "Без нас"],
+  defaults: ["The defaults", "Настройки по умолчанию"], "without-us": ["Without us", "Без нас"],
   "not-found": ["No such page", "Нет такой страницы"], exit: ["The exit page", "Страница выхода"],
 };
 /** The switches' own words. */

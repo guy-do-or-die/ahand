@@ -49,7 +49,7 @@ export const USE_CASES: UseCase[] = [
   { id: "flow:give", name: "Give: payee choices, delivery, thread", reach: "browser" },
   { id: "flow:waiting", name: "Waiting: take out, deliver for someone else", reach: "browser" },
   { id: "flow:proof", name: "Proof passport and check any link", reach: "browser" },
-  { id: "flow:about-pages", name: "Print, limits, defaults, without us", reach: "browser" },
+  { id: "flow:about-pages", name: "Print, defaults, without us", reach: "browser" },
 ];
 
 /** Scenarios to write next: the catalogue lists them as planned, so the gap is visible. */
