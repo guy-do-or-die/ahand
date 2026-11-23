@@ -23,7 +23,7 @@
  * end names every step: passed, failed, or not run (after a failure in `first`). The gate fails
  * when any step failed or did not run.
  */
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 
@@ -84,6 +84,51 @@ export interface Ran {
  */
 export const DRAIN_MS = 2_000;
 
+/** The steps running now, each the leader of a process group of its own. */
+const running = new Set<ChildProcess>();
+
+/** The signal the gate was stopped with; once set, no step starts. */
+let interruptedBy: NodeJS.Signals | undefined;
+let interruptedAt = 0;
+
+/**
+ * On SIGINT, SIGTERM or SIGHUP (a closed terminal): no further step starts, the signal goes to the
+ * process group of every running step (a step's tests and the servers they started), and each of
+ * those steps ends and is reported with whatever output it had; the table then names the steps
+ * that did not run, and the gate exits with 128 + the signal's number. A second signal, a second
+ * or more later, exits at once. Stands brought up by a step may outlive it, as they did under a chain of `&&`.
+ */
+export function stopOnSignals(): void {
+  // The steps run in process groups of their own, so a signal from the terminal reaches the gate
+  // only; it is passed on here.
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.on(signal, () => {
+      // From a terminal the signal comes twice at once: to the gate, and passed on by `bun run`.
+      // Only one that comes later is a second signal.
+      if (interruptedBy) {
+        if (performance.now() - interruptedAt > 1_000) process.exit(exitCodeOf(false));
+        return;
+      }
+      interruptedBy = signal;
+      interruptedAt = performance.now();
+      process.stderr.write(`\n${signal}: no further step starts; stopping the ${running.size} running\n`);
+      for (const child of running) {
+        try {
+          if (child.pid) process.kill(-child.pid, signal);
+        } catch {
+          // already gone
+        }
+      }
+    });
+  }
+}
+
+/** 0 when everything passed, 1 when anything failed, 128 + the signal's number after a signal. */
+export function exitCodeOf(ok: boolean): number {
+  if (interruptedBy) return 128 + { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }[interruptedBy as "SIGHUP" | "SIGINT" | "SIGTERM"];
+  return ok ? 0 : 1;
+}
+
 /**
  * Runs one step to its end, its output kept rather than printed. The step ends when its process
  * exits: its output is read for at most `drainMs` more, and when something it started still holds
@@ -93,7 +138,9 @@ export const DRAIN_MS = 2_000;
 export function run(step: Step, drainMs = DRAIN_MS): Promise<Ran> {
   const started = performance.now();
   return new Promise((done) => {
-    const child = spawn(step.command, step.args, { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    // A process group of its own (detached), so that a signal to the gate reaches all of the step.
+    const child = spawn(step.command, step.args, { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    running.add(child);
     const chunks: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -101,6 +148,7 @@ export function run(step: Step, drainMs = DRAIN_MS): Promise<Ran> {
     const end = (ok: boolean, extra = "") => {
       if (ended) return;
       ended = true;
+      running.delete(child);
       done({ name: step.name, ok, seconds: (performance.now() - started) / 1000, output: Buffer.concat(chunks).toString("utf8") + extra });
     };
     child.on("error", (error) => end(false, `\n${error.message}\n`));
@@ -170,6 +218,10 @@ export async function inOrder(
 ): Promise<boolean> {
   let ok = true;
   for (const [index, step] of steps.entries()) {
+    if (interruptedBy) {
+      options.notRun.push(...steps.slice(index).map((later) => later.name));
+      return false;
+    }
     const ran = await run(step);
     (options.onEnd ?? report)(ran);
     all.push(ran);
@@ -183,11 +235,23 @@ export async function inOrder(
 }
 
 /** Runs `steps` with at most `limit` at once; true when every one passed. */
-export async function sideBySide(steps: readonly Step[], limit: number, all: Ran[], onEnd: (ran: Ran) => void = report): Promise<boolean> {
+export async function sideBySide(
+  steps: readonly Step[],
+  limit: number,
+  all: Ran[],
+  onEnd: (ran: Ran) => void = report,
+  notRun: string[] = [],
+): Promise<boolean> {
   let next = 0;
   let ok = true;
   const worker = async () => {
     while (next < steps.length) {
+      if (interruptedBy) {
+        notRun.push(...steps.slice(next).map((step) => step.name));
+        next = steps.length;
+        ok = false;
+        return;
+      }
       const ran = await run(steps[next++]);
       onEnd(ran);
       all.push(ran);
@@ -204,7 +268,8 @@ export function summaryText(all: readonly Ran[], notRun: readonly string[], seco
     ...all.map((ran) => `  ${ran.ok ? "ok    " : "FAILED"} ${ran.seconds.toFixed(1).padStart(6)} s  ${ran.name}`),
     ...notRun.map((name) => `  not run           ${name}`),
   ];
-  return `\n${lines.join("\n")}\n${ok ? "passed" : "FAILED"} in ${seconds.toFixed(1)} s\n`;
+  const verdict = interruptedBy ? `INTERRUPTED by ${interruptedBy}` : ok ? "passed" : "FAILED";
+  return `\n${lines.join("\n")}\n${verdict} in ${seconds.toFixed(1)} s\n`;
 }
 
 function summary(all: Ran[], notRun: string[], seconds: number, ok: boolean): void {
@@ -216,35 +281,54 @@ async function typecheck(jobs: number): Promise<boolean> {
   const all: Ran[] = [];
   const started = performance.now();
   const steps = PROJECTS.map((project) => ({ name: `tsc -p ${project}`, command: tsc, args: ["--noEmit", "-p", project] }));
-  const ok = await sideBySide(steps, jobs, all);
-  summary(all, [], (performance.now() - started) / 1000, ok);
-  return ok;
-}
-
-async function gate(): Promise<boolean> {
-  const all: Ran[] = [];
   const notRun: string[] = [];
-  const started = performance.now();
-  let ok = await inOrder(FIRST.map(script), all, { stopAtFailure: true, notRun });
-  if (ok) {
-    const lanes = await Promise.all(LANES.map((lane) => inOrder(lane.map(script), all, { stopAtFailure: false, notRun })));
-    ok = lanes.every(Boolean);
-  } else {
-    notRun.push(...LANES.flat());
-  }
-  ok = (await inOrder(LAST.map(script), all, { stopAtFailure: false, notRun })) && ok;
+  const ok = await sideBySide(steps, jobs, all, report, notRun);
   summary(all, notRun, (performance.now() - started) / 1000, ok);
   return ok;
 }
 
-if (import.meta.main) {
-  const [what, flag, value] = process.argv.slice(2);
+/** What the gate runs: `first` in order, then the lanes side by side, then `last`. */
+export interface Plan {
+  first: readonly Step[];
+  lanes: readonly (readonly Step[])[];
+  last: readonly Step[];
+}
+
+/** Runs a plan as the gate does and prints the table; true when every step ran and passed. */
+export async function runPlan(plan: Plan): Promise<boolean> {
+  const all: Ran[] = [];
+  const notRun: string[] = [];
+  const started = performance.now();
+  let ok = await inOrder(plan.first, all, { stopAtFailure: true, notRun });
+  if (ok) {
+    const lanes = await Promise.all(plan.lanes.map((lane) => inOrder(lane, all, { stopAtFailure: false, notRun })));
+    ok = lanes.every(Boolean);
+  } else {
+    notRun.push(...plan.lanes.flat().map((step) => step.name));
+  }
+  ok = (await inOrder(plan.last, all, { stopAtFailure: false, notRun })) && ok;
+  summary(all, notRun, (performance.now() - started) / 1000, ok);
+  return ok;
+}
+
+const gate = () => runPlan({ first: FIRST.map(script), lanes: LANES.map((lane) => lane.map(script)), last: LAST.map(script) });
+
+/** The gate as a program: the exit code it should end with. */
+export async function main(argv: readonly string[]): Promise<number> {
+  const [what, flag, value] = argv;
   // tsc checks on one thread: by default as many at once as there are cores, at most six, which is
   // about all a laptop's memory carries; --jobs N when the gate shares the machine.
   const jobs = flag === "--jobs" && /^[1-9][0-9]*$/.test(value ?? "") ? Number(value) : Math.min(6, availableParallelism());
   if (!(what === undefined || (what === "typecheck" && (flag === undefined || jobs === Number(value))))) {
-    console.error("usage: bun infra/gate/gate.ts [typecheck [--jobs N]]");
-    process.exit(2);
+    process.stderr.write("usage: bun infra/gate/gate.ts [typecheck [--jobs N]]\n");
+    return 2;
   }
-  process.exit((await (what === "typecheck" ? typecheck(jobs) : gate())) ? 0 : 1);
+  return exitCodeOf(await (what === "typecheck" ? typecheck(jobs) : gate()));
+}
+
+if (import.meta.main) {
+  stopOnSignals();
+  // An exit code and a normal end, not process.exit(): Bun drops what is still queued for a slow
+  // pipe at process.exit(), the table and its FAILED lines included.
+  process.exitCode = await main(process.argv.slice(2));
 }

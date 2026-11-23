@@ -1,6 +1,7 @@
 /**
  * The gate's runner: a step that fails fails the gate, every step runs to its end, a lane goes on
- * past a failure, no more run at once than the limit, and the table names what did not run.
+ * past a failure, no more run at once than the limit, and the table names what did not run. As a
+ * program (tests/plan.ts): a slow reader gets everything, and a signal stops it cleanly.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -80,6 +81,49 @@ describe("inOrder", () => {
     expect(text).toMatch(/not run .* c\n/);
     expect(text).toEndWith("FAILED in 3.0 s\n");
   });
+});
+
+describe("the gate as a program", () => {
+  const PLAN = resolve(import.meta.dirname, "plan.ts");
+
+  test("a slow reader still gets the whole output and the table, FAILED lines included", async () => {
+    // 2 MB from a step that fails, read by a pipe that waits a second before it reads at all.
+    const plan = JSON.stringify({ first: [], lanes: [[["loud", "yes x | head -c 2000000; exit 1"]]], last: [] });
+    const reader = Bun.spawn(["bash", "-c", `${process.execPath} ${PLAN} '${plan}' | (sleep 1; cat); exit \${PIPESTATUS[0]}`], { stdout: "pipe" });
+    const text = await new Response(reader.stdout).text();
+    expect(await reader.exited).toBe(1);
+    expect(text.length).toBeGreaterThan(2_000_000);
+    expect(text).toContain("── loud FAILED");
+    expect(text).toMatch(/FAILED +[0-9.]+ s +loud\nFAILED in [0-9.]+ s\n$/);
+  }, 20_000);
+
+  test("SIGINT stops the running steps, starts no other, prints what it had, and exits 130", async () => {
+    const plan = JSON.stringify({
+      first: [["first", "true"]],
+      lanes: [[["slow", "echo pid $$; sleep 30"], ["after", "true"]], [["quick", "true"]]],
+      last: [["last", "true"]],
+    });
+    const gate = Bun.spawn([process.execPath, PLAN, plan], { stdout: "pipe", stderr: "pipe" });
+    await Bun.sleep(1_500);
+    const started = performance.now();
+    // Twice at once, as from a terminal: to the gate and passed on by `bun run`.
+    gate.kill("SIGINT");
+    gate.kill("SIGINT");
+    const code = await gate.exited;
+    const text = await new Response(gate.stdout).text();
+    expect(code).toBe(130);
+    expect((performance.now() - started) / 1000).toBeLessThan(5);
+    expect(text).toContain("── slow FAILED");
+    expect(text).toMatch(/ok +[0-9.]+ s +quick\n/);
+    expect(text).toMatch(/not run +after\n/);
+    expect(text).toMatch(/not run +last\n/);
+    expect(text).toEndWith(` s\n`);
+    expect(text).toMatch(/INTERRUPTED by SIGINT in [0-9.]+ s\n$/);
+    // The step's shell got the signal too: it is gone, not left running.
+    const pid = Number(/pid (\d+)/.exec(text)?.[1]);
+    expect(pid).toBeGreaterThan(0);
+    expect(() => process.kill(pid, 0)).toThrow();
+  }, 20_000);
 });
 
 describe("what the gate runs", () => {
