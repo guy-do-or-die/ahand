@@ -65,16 +65,18 @@ Every scenario, headless (25 scenarios, about 6 minutes):
 STAND_PORT_BASE=47000 STAND_SLOT=5 bunx playwright test -c playwright.demo.config.ts
 ```
 
-As CI runs it (`.github/workflows/check.yml`: the catalogue and atlas-route checks in the main
-job, no stand; job `scenarios`): a fresh stand, every scenario with `CI=1` (a trace only for a
-failed scenario, and the run stops after three failures) and `DEMO_VIDEO=on-failure` (every
-persona's video kept only for a failed scenario), then the stand down; on failure the job uploads
-the HTML report, which holds the traces, screenshots and videos:
+As CI runs it (`.github/workflows/check.yml`: the catalogue and atlas-route checks in job
+`typecheck`, no stand; job `scenarios`): the scenarios split by count into four shards
+(`--fully-parallel --shard N/4`), each shard on a runner of its own with a fresh stand, its
+scenarios one after another, with `CI=1` (a trace only for a failed scenario, and a shard stops
+after three failures) and `DEMO_VIDEO=on-failure` (every persona's video kept only for a failed
+scenario), then the stand down; on failure the shard uploads the HTML report, which holds the
+traces, screenshots and videos. One shard by hand:
 
 ```bash
 bun tests/demo/catalogue.ts --check
 STAND_PORT_BASE=47000 bun infra/stand/stand.ts up --slot 6
-CI=1 DEMO_VIDEO=on-failure STAND_PORT_BASE=47000 STAND_SLOT=6 bunx playwright test -c playwright.demo.config.ts
+CI=1 DEMO_VIDEO=on-failure STAND_PORT_BASE=47000 STAND_SLOT=6 bunx playwright test -c playwright.demo.config.ts --fully-parallel --shard 1/4
 STAND_PORT_BASE=47000 bun infra/stand/stand.ts down --slot 6
 ```
 

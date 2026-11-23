@@ -2,16 +2,20 @@
 # Sepolia is the Core this tree builds, the ABI package equal to forge's build and to the deployment
 # records, every forge test (unit, invariants, the hostile invariants, the SDK vectors and gas
 # fixtures Core writes, the deployment), the fixtures unchanged after the tests rewrote them from
-# Core, the exit kit's self-test, the typecheck of the SDK, its tests, the ABI package, the delivery
-# package, the preview card, the test relay, the view server, the stand, the web app, the
-# command-line tool and the browser suites, the SDK's tests, which compare it with those fixtures
-# and run it against Core on local chains, the ABI package's tests, the tests of the delivery package
-# and the test relay, which run on 127.0.0.1 only and contact no public relay, the preview card's
-# tests, and the view server's tests, which read local chains and scripted JSON-RPC nodes on
-# 127.0.0.1 only, the web app's tests, the stand's and the command-line tool's, which start their
-# own anvil and relay on 127.0.0.1, and the app's build. The browser suites (tests/e2e) need a
-# running stand and are run by hand; the demo engine's scenarios (job scenarios) bring their own.
+# Core, the exit kit's self-test, the typecheck of every TypeScript project, the SDK's tests, which
+# compare it with those fixtures and run it against Core on local chains, the ABI package's tests,
+# the tests of the delivery package and the test relay, which run on 127.0.0.1 only and contact no
+# public relay, the preview card's tests, the view server's tests, which read local chains and
+# scripted JSON-RPC nodes on 127.0.0.1 only, the web app's tests, the stand's and the command-line
+# tool's, which start their own anvil and relay on 127.0.0.1, the app's build, and every scenario of
+# the demo engine in a browser on a stand of its own. The browser suites (tests/e2e) need a running
+# stand and are run by hand.
 # It needs no secret and deploys nothing: every chain it uses is an anvil it starts itself.
+#
+# The checks run as parallel jobs, each on a runner of its own; the run passes when every job does.
+# Each job sets up only what it needs (.github/actions/setup) and checks that Core is unchanged
+# before and after. Each job that reads contracts/out runs forge build itself: nothing compiled is
+# cached, so the checks of the deployed Core and of the ABI package read what this run built.
 name: check
 
 on:
@@ -26,66 +30,30 @@ concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Every script calls Foundry by path (bare `forge` may be another program).
+  FOUNDRY_BIN: /home/runner/.foundry/bin
+  CORE_SHA256: 118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738
+
 jobs:
+  # Core: forge build, the deployed Core and the ABI package against that build, every forge test,
+  # the fixtures, the exit kit.
   contracts:
     runs-on: ubuntu-24.04
-    # The web app's, the stand's and the tool's tests and the app's build were added to this job and
-    # have not been timed on a runner yet: room above the 30 minutes the contracts and SDK needed.
-    timeout-minutes: 45
-    env:
-      # Every script calls Foundry by path (bare `forge` may be another program).
-      FOUNDRY_BIN: /home/runner/.foundry/bin
-      # The exit kit's self-test starts its own anvil on this port.
-      SELFTEST_PORT: "19210"
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Core is unchanged
-        run: echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+        run: echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
 
-      # contracts/lib is not in the repository. The two libraries Core and its tests build against.
-      - name: Contract libraries
-        run: |
-          mkdir -p contracts/lib
-          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
-          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
-
-      - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.8.6
-
-      - name: Foundry where the scripts look for it
-        run: |
-          mkdir -p "$FOUNDRY_BIN"
-          # foundry-toolchain may already install into $FOUNDRY_BIN: linking a tool onto itself would replace it with a loop.
-          for tool in forge cast anvil chisel; do
-            found=$(command -v $tool)
-            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
-          done
-          "$FOUNDRY_BIN/forge" --version
+      - uses: ./.github/actions/setup
 
       - name: Build
         working-directory: contracts
         run: '"$FOUNDRY_BIN/forge" build'
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
-
-      - name: Install
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      # The demo engine's catalogue is its scenarios', and the atlas has a place for every route of
-      # the app: both read source files only, no stand and no browser.
-      - name: Demo catalogue and atlas routes
-        run: |
-          bun run check:catalogue
-          bun run check:atlas
 
       # packages/abi/src/generated.ts holds Core's ABI and the deployment records: @wagmi/cli
       # regenerates it from the build above and contracts/deployments, and it must equal the commit.
@@ -113,15 +81,99 @@ jobs:
         run: git add -N contracts/test/fixtures && git diff --exit-code -- contracts/test/fixtures
 
       - name: Exit kit self-test
+        env:
+          # The self-test starts its own anvil on this port.
+          SELFTEST_PORT: "19210"
         run: bash contracts/exit/selftest.sh
 
-      # After the build and the fixtures: the SDK's tests read Core's artifacts from contracts/out,
-      # compare the SDK with the fixtures Core wrote, and start their own anvil from $FOUNDRY_BIN.
+      - name: Core is still unchanged
+        run: |
+          echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol
+
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Core is unchanged
+        run: echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+
+      - uses: ./.github/actions/setup
+        with:
+          contracts: "false"
+
+      # Every TypeScript project, several tsc at once (infra/gate/gate.ts).
+      - name: Typecheck
+        run: bun run typecheck
+
+      # The demo engine's catalogue is its scenarios', and the atlas has a place for every route of
+      # the app: both read source files only, no stand and no browser.
+      - name: Demo catalogue and atlas routes
+        run: |
+          bun run check:catalogue
+          bun run check:atlas
+
+      # The local gate's runner (bun run check): failures, the order, and that it runs every check.
+      - name: Gate runner tests
+        run: bun run test:gate
+
+      - name: Core is still unchanged
+        run: |
+          echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol
+
+  sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Core is unchanged
+        run: echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
+      # The SDK's tests read Core's artifacts from contracts/out, compare the SDK with the fixtures
+      # committed beside Core (the contracts job proves Core still writes them byte for byte), and
+      # start their own anvil from $FOUNDRY_BIN.
       - name: SDK tests
         run: bun run test:sdk
 
       - name: ABI package tests
         run: bun run test:abi
+
+      - name: Core is still unchanged
+        run: |
+          echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol
+
+  # The delivery package, the preview card, the test relay, the view server and the command-line tool.
+  services:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Core is unchanged
+        run: echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
 
       # NIP-17 wrapping, the transport against the test relay and against scripted relays (forged
       # copies, CLOSED, NIP-42 AUTH, refusals), and the outbox's retries and delivered rule.
@@ -141,6 +193,33 @@ jobs:
       - name: View server tests
         run: bun run test:view
 
+      # The command-line tool against local chains: inspect, pass, thank-calldata, verify, find, recover.
+      - name: Command-line tool tests
+        run: bun run test:tools
+
+      - name: Core is still unchanged
+        run: |
+          echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol
+
+  # The web app, the stand, and the app's build.
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Core is unchanged
+        run: echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        working-directory: contracts
+        run: '"$FOUNDRY_BIN/forge" build'
+
       # The web app: its units, its guards over the tree, the delivery outbox against the test relay,
       # the CSP and Vercel's settings, and raises and thanks against Core on local chains.
       - name: Web app tests
@@ -150,28 +229,32 @@ jobs:
       - name: Stand tests
         run: bun run test:stand
 
-      # The command-line tool against local chains: inspect, pass, thank-calldata, verify, find, recover.
-      - name: Command-line tool tests
-        run: bun run test:tools
-
       - name: Web app build
         run: bun run build
 
       - name: Core is still unchanged
         run: |
-          echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+          echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
           git diff --exit-code -- contracts/src/AHandCore.sol
 
-  # Every scenario of the demo engine (tests/demo), headless, on a stand the job brings up itself:
-  # an anvil, Core and the test contracts deployed by Deploy.s.sol, the relay, the built app. A
-  # scenario that fails leaves its trace, its screenshots and every persona's video as an
-  # artifact. Like the job above, this has not run on GitHub yet: the same commands were run by
-  # hand on a fresh slot (tests/demo/README.md, "As CI runs it").
+  # Every scenario of the demo engine (tests/demo), headless, on a stand each shard brings up
+  # itself: an anvil, Core and the test contracts deployed by Deploy.s.sol, the relay, the built
+  # app. The scenarios are split by count over four runners (--shard, --fully-parallel), each with a
+  # stand of its own, so no two shards share a chain; within a shard they run one after another as
+  # on one stand by hand. A scenario that fails leaves its trace, its screenshots and every
+  # persona's video as an artifact.
+  #
+  # On every push, not only for next and main: it is the one check in CI that drives the app in a
+  # browser, and work reaches next from exp/ branches only after review, so a scenario a change
+  # breaks should fail on the branch before the review, not on next after it.
   scenarios:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
-      FOUNDRY_BIN: /home/runner/.foundry/bin
       STAND_SLOT: "0"
       DEMO_VIDEO: on-failure
     steps:
@@ -179,33 +262,21 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Contract libraries
-        run: |
-          mkdir -p contracts/lib
-          git clone --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
-          git clone --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+      - name: Core is unchanged
+        run: echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
 
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: ./.github/actions/setup
+
+      # The browsers are kept between runs under a key of the lockfile, which pins Playwright's
+      # version; the system libraries Chromium needs are installed every time. Headless runs use
+      # the headless shell only.
+      - uses: actions/cache@v4
         with:
-          version: v1.8.6
-
-      - name: Foundry where the scripts look for it
-        run: |
-          mkdir -p "$FOUNDRY_BIN"
-          for tool in forge cast anvil chisel; do
-            found=$(command -v $tool)
-            if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
-          done
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
-
-      - name: Install
-        run: bun install --frozen-lockfile
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
       - name: Chromium for Playwright
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps --only-shell chromium
 
       - name: Build contracts
         working-directory: contracts
@@ -215,7 +286,7 @@ jobs:
         run: bun infra/stand/stand.ts up --slot 0
 
       - name: Scenarios
-        run: bunx playwright test -c playwright.demo.config.ts
+        run: bunx playwright test -c playwright.demo.config.ts --fully-parallel --shard ${{ matrix.shard }}/4
 
       - name: Stand logs
         if: failure()
@@ -229,8 +300,12 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: scenarios-failed
+          name: scenarios-failed-${{ matrix.shard }}
           # The HTML report holds every failed scenario's trace, screenshots and videos already.
           path: tests/demo/report/
           retention-days: 14
 
+      - name: Core is still unchanged
+        run: |
+          echo "$CORE_SHA256  contracts/src/AHandCore.sol" | sha256sum --check --strict
+          git diff --exit-code -- contracts/src/AHandCore.sol

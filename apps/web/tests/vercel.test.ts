@@ -142,8 +142,11 @@ function under(css: string, condition: RegExp): string[] {
 }
 
 test("the site is built with the Bun that CI pins, so bun.lock installs frozen on both", () => {
+  // Every job of the check workflow sets Bun up through this one action.
+  const setup = readFileSync(join(import.meta.dir, "../../../.github/actions/setup/action.yml"), "utf8");
+  expect(setup).toContain(`bun-version: ${BUN}`);
   const workflow = readFileSync(join(import.meta.dir, "../../../.github/workflows/check.yml"), "utf8");
-  expect(workflow).toContain(`bun-version: ${BUN}`);
+  expect(workflow).not.toContain("setup-bun");
 });
 
 describe("apps/web/vercel.json (the public test deployment)", () => {

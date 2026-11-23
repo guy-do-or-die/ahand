@@ -1,0 +1,54 @@
+# What every job of check.yml sets up after its checkout: the two contract libraries and Foundry
+# (unless `contracts` is "false"), then Bun and the workspace's packages. Bun's download cache is
+# kept between runs under a key of bun.lock; `bun install --frozen-lockfile` still checks every
+# package against the lockfile. Nothing Foundry builds is cached: each job that needs contracts/out
+# compiles it itself.
+name: setup
+description: Contract libraries, Foundry, Bun and the workspace's packages
+inputs:
+  contracts:
+    description: Clone the contract libraries and install Foundry ("true" or "false")
+    default: "true"
+runs:
+  using: composite
+  steps:
+    # contracts/lib is not in the repository. The two libraries Core and its tests build against.
+    - name: Contract libraries
+      if: inputs.contracts == 'true'
+      shell: bash
+      run: |
+        mkdir -p contracts/lib
+        git clone --quiet --depth 1 --branch v1.16.2 https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+        git clone --quiet --depth 1 --branch v5.6.1 https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+
+    - if: inputs.contracts == 'true'
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: v1.8.6
+
+    # Every script calls Foundry by path (bare `forge` may be another program).
+    - name: Foundry where the scripts look for it
+      if: inputs.contracts == 'true'
+      shell: bash
+      run: |
+        mkdir -p "$FOUNDRY_BIN"
+        # foundry-toolchain may already install into $FOUNDRY_BIN: linking a tool onto itself would replace it with a loop.
+        for tool in forge cast anvil chisel; do
+          found=$(command -v $tool)
+          if [ "$(readlink -f "$found")" != "$(readlink -f "$FOUNDRY_BIN/$tool" 2>/dev/null)" ]; then ln -sf "$found" "$FOUNDRY_BIN/$tool"; fi
+        done
+        "$FOUNDRY_BIN/forge" --version
+
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.4
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+        restore-keys: bun-${{ runner.os }}-
+
+    - name: Install
+      shell: bash
+      run: bun install --frozen-lockfile

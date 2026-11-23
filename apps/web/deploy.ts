@@ -199,7 +199,7 @@ export function writePublicConfig(dir: string, configFile = PUBLIC_CONFIG, deplo
 export const MIN_BUN = "1.3.2";
 
 /**
- * The Bun that installs and builds the public site: the one CI pins (.github/workflows/check.yml,
+ * The Bun that installs and builds the public site: the one CI pins (.github/actions/setup,
  * setup-bun) and the one bun.lock is written with. Vercel's build image carries its own Bun 1.x
  * (1.3.14 on 2026-11-21), which rewrites a lockfile made by 1.4 (it drops `libc` and adds
  * `hasInstallScript`) and so refuses `--frozen-lockfile`; npx fetches this exact one instead.

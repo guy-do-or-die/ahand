@@ -70,7 +70,7 @@ How it is checked (`bun run check`):
 Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c0baf7a09b66f2a768225a91e72ddfecb0a33ed6e7dc33fe`, 2 392 020 gas, built from be485ca, clean), and `script/check-deployment.sh` holds for its deployment file against `https://sepolia.base.org`. That file, `contracts/deployments/84532.json`, is in this branch, and the check workflow's step "Deployed Core is the Core this tree builds" reads it. Steps 1 to 5 are how it was put there, for a redeploy or another network.
 
 1. Put Base Sepolia ETH on the deployer's address. Core's deployment took 2 392 020 gas on a fork of Base Sepolia (11 659 bytes of calldata); at Base Sepolia's 0.006 gwei that is about 0.000015 ETH, and the L1 data part is under 0.00000001 ETH. 0.001 ETH leaves a wide margin. (The same gas on Base mainnet at 0.006 gwei is about 0.000014 ETH, $0.03 at $2 400; on Ethereum at 0.3 gwei about 0.00072 ETH, $1.72.)
-2. Deploy Core from a clone of this branch with `contracts/lib` in place (the two `git clone` lines of `.github/workflows/check.yml`), with the key in a Foundry keystore or a Ledger:
+2. Deploy Core from a clone of this branch with `contracts/lib` in place (the two `git clone` lines of `.github/actions/setup/action.yml`), with the key in a Foundry keystore or a Ledger:
 
    ```sh
    cd contracts && "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" build
