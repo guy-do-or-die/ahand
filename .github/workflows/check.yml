@@ -277,11 +277,16 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
+      # The runner's own variables, which expressions cannot read.
+      - name: Runner image
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
       - uses: actions/cache@v4
         id: debs
         with:
           path: ~/chromium-debs
-          key: chromium-debs-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('bun.lock') }}
+          key: chromium-debs-${{ steps.image.outputs.version }}-${{ hashFiles('bun.lock') }}
 
       - name: Chromium for Playwright
         run: |
