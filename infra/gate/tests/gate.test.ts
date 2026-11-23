@@ -1,12 +1,12 @@
 /**
- * The gate's runner: a step that fails fails the gate, every step runs to its end, and no more run
- * at once than the limit.
+ * The gate's runner: a step that fails fails the gate, every step runs to its end, a lane goes on
+ * past a failure, no more run at once than the limit, and the table names what did not run.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { FIRST, LANES, LAST, PROJECTS, run, sideBySide, type Ran } from "../gate.ts";
+import { FIRST, LANES, LAST, PROJECTS, inOrder, run, sideBySide, summaryText, type Ran } from "../gate.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const sh = (name: string, line: string) => ({ name, command: "bash", args: ["-c", line] });
@@ -43,6 +43,42 @@ describe("sideBySide", () => {
     const seconds = (performance.now() - started) / 1000;
     expect(seconds).toBeGreaterThan(0.55);
     expect(seconds).toBeLessThan(2);
+  });
+});
+
+describe("inOrder", () => {
+  const quiet = () => {};
+
+  test("a lane goes on past a failed step", async () => {
+    const all: Ran[] = [];
+    const notRun: string[] = [];
+    expect(await inOrder([sh("a", "exit 1"), sh("b", "true")], all, { stopAtFailure: false, notRun, onEnd: quiet })).toBe(false);
+    expect(all.map((ran) => ran.name)).toEqual(["a", "b"]);
+    expect(notRun).toEqual([]);
+  });
+
+  test("the first steps stop at a failure, and the steps after it are named as not run", async () => {
+    const all: Ran[] = [];
+    const notRun: string[] = [];
+    expect(await inOrder([sh("a", "true"), sh("b", "exit 1"), sh("c", "true"), sh("d", "true")], all, { stopAtFailure: true, notRun, onEnd: quiet })).toBe(false);
+    expect(all.map((ran) => ran.name)).toEqual(["a", "b"]);
+    expect(notRun).toEqual(["c", "d"]);
+  });
+
+  test("the table names every step: passed, failed and not run", () => {
+    const text = summaryText(
+      [
+        { name: "a", ok: true, seconds: 1, output: "" },
+        { name: "b", ok: false, seconds: 2, output: "" },
+      ],
+      ["c"],
+      3,
+      false,
+    );
+    expect(text).toMatch(/ok .* a\n/);
+    expect(text).toMatch(/FAILED .* b\n/);
+    expect(text).toMatch(/not run .* c\n/);
+    expect(text).toEndWith("FAILED in 3.0 s\n");
   });
 });
 

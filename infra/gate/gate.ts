@@ -11,14 +11,17 @@
  *   first   one after another: Core is unchanged; forge build; the ABI package regenerated
  *           (check:abi writes packages/abi/src/generated.ts); the SDK's fixtures rewritten from
  *           Core (test:vectors writes contracts/test/fixtures/*.json). Every later step reads what
- *           these wrote, so none of them runs while they write.
+ *           these wrote, so none of them runs while they write, and none runs when one of them
+ *           failed.
  *   lanes   side by side, each lane's steps one after another (LANES below). Lanes share no port:
  *           each package's tests take ports of their own range or free ones, and the stand's tests
- *           take the slots in STAND_TEST_SLOTS.
- *   last    Core is still unchanged.
+ *           take the slots in STAND_TEST_SLOTS. The steps of a lane do not depend on each other:
+ *           a lane goes on past a step that failed.
+ *   last    Core is still unchanged, whatever failed before.
  *
- * A step's output is printed whole when the step ends, under its name and time. Every lane runs to
- * its end even when another failed, so one run names every failure; the gate fails when any did.
+ * A step's output is printed whole when the step ends, under its name and time. The table at the
+ * end names every step: passed, failed, or not run (after a failure in `first`). The gate fails
+ * when any step failed or did not run.
  */
 import { spawn } from "node:child_process";
 import { availableParallelism } from "node:os";
@@ -156,15 +159,27 @@ function script(name: string): Step {
   return BACKGROUND.has(name) ? { name, command: "nice", args: ["-n", "10", process.execPath, ...args] } : { name, command: process.execPath, args };
 }
 
-/** Runs `steps` one after another, stopping at the first that fails. */
-async function inOrder(steps: readonly Step[], all: Ran[]): Promise<boolean> {
-  for (const step of steps) {
+/**
+ * Runs `steps` one after another; true when every one passed. With `stopAtFailure` the steps after
+ * a failed one are not run and their names go to `notRun`.
+ */
+export async function inOrder(
+  steps: readonly Step[],
+  all: Ran[],
+  options: { stopAtFailure: boolean; notRun: string[]; onEnd?: (ran: Ran) => void },
+): Promise<boolean> {
+  let ok = true;
+  for (const [index, step] of steps.entries()) {
     const ran = await run(step);
-    report(ran);
+    (options.onEnd ?? report)(ran);
     all.push(ran);
-    if (!ran.ok) return false;
+    ok &&= ran.ok;
+    if (!ran.ok && options.stopAtFailure) {
+      options.notRun.push(...steps.slice(index + 1).map((later) => later.name));
+      break;
+    }
   }
-  return true;
+  return ok;
 }
 
 /** Runs `steps` with at most `limit` at once; true when every one passed. */
@@ -183,9 +198,17 @@ export async function sideBySide(steps: readonly Step[], limit: number, all: Ran
   return ok;
 }
 
-function summary(all: Ran[], seconds: number, ok: boolean): void {
-  const lines = all.map((ran) => `  ${ran.ok ? "ok    " : "FAILED"} ${ran.seconds.toFixed(1).padStart(6)} s  ${ran.name}`);
-  process.stdout.write(`\n${lines.join("\n")}\n${ok ? "passed" : "FAILED"} in ${seconds.toFixed(1)} s\n`);
+/** The table at the end: every step that ran with its time, then every step that did not. */
+export function summaryText(all: readonly Ran[], notRun: readonly string[], seconds: number, ok: boolean): string {
+  const lines = [
+    ...all.map((ran) => `  ${ran.ok ? "ok    " : "FAILED"} ${ran.seconds.toFixed(1).padStart(6)} s  ${ran.name}`),
+    ...notRun.map((name) => `  not run           ${name}`),
+  ];
+  return `\n${lines.join("\n")}\n${ok ? "passed" : "FAILED"} in ${seconds.toFixed(1)} s\n`;
+}
+
+function summary(all: Ran[], notRun: string[], seconds: number, ok: boolean): void {
+  process.stdout.write(summaryText(all, notRun, seconds, ok));
 }
 
 async function typecheck(jobs: number): Promise<boolean> {
@@ -194,20 +217,23 @@ async function typecheck(jobs: number): Promise<boolean> {
   const started = performance.now();
   const steps = PROJECTS.map((project) => ({ name: `tsc -p ${project}`, command: tsc, args: ["--noEmit", "-p", project] }));
   const ok = await sideBySide(steps, jobs, all);
-  summary(all, (performance.now() - started) / 1000, ok);
+  summary(all, [], (performance.now() - started) / 1000, ok);
   return ok;
 }
 
 async function gate(): Promise<boolean> {
   const all: Ran[] = [];
+  const notRun: string[] = [];
   const started = performance.now();
-  let ok = await inOrder(FIRST.map(script), all);
+  let ok = await inOrder(FIRST.map(script), all, { stopAtFailure: true, notRun });
   if (ok) {
-    const lanes = await Promise.all(LANES.map((lane) => inOrder(lane.map(script), all)));
+    const lanes = await Promise.all(LANES.map((lane) => inOrder(lane.map(script), all, { stopAtFailure: false, notRun })));
     ok = lanes.every(Boolean);
+  } else {
+    notRun.push(...LANES.flat());
   }
-  ok = (await inOrder(LAST.map(script), all)) && ok;
-  summary(all, (performance.now() - started) / 1000, ok);
+  ok = (await inOrder(LAST.map(script), all, { stopAtFailure: false, notRun })) && ok;
+  summary(all, notRun, (performance.now() - started) / 1000, ok);
   return ok;
 }
 
