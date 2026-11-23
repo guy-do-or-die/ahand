@@ -10,8 +10,9 @@ import { useMyHands, usePassed } from "../screens/my/hooks";
 import { TID } from "../testids";
 import { CopyRow, QuietButton, Sheet, ThemeToggle, money } from "../ui";
 import { PersonDisc } from "../ui/PersonDisc";
-import { ConnectSheet, disconnectWallet, useWallet, useWalletWords } from "../wallet";
+import { addPasskey, ConnectSheet, disconnectWallet, useWallet, useWalletWords } from "../wallet";
 import { askToEnter, doneEntering } from "./person";
+import { addPasskeyAside, clearPasskeyNote, PasskeyRow, usePasskeyNote } from "./passkey";
 import { Faucets, OnExplorer } from "./OnExplorer";
 import { toggleLens, useLens } from "./lens";
 import { hidePerson, type PersonShown } from "./person";
@@ -22,7 +23,8 @@ import { hidePerson, type PersonShown } from "./person";
  * one place whoever it is: who they are, then what belongs to them. For someone else that is
  * only the address today; for the viewer it is also the money at that address and what waits for
  * them in the contract, the hands this device raised and passed on, this device's settings, and
- * the way out of the account.
+ * the way out of the account; for an account whose wallet Privy keeps, also a way to add a passkey
+ * (passkey.tsx).
  *
  * It is a layer over the page (ui/Sheet), never a place: opening and closing it moves nothing, so
  * the link this tab holds and a half-written form stay where they were. A row that leads to a
@@ -37,7 +39,7 @@ export default function PersonSheet({ shown }: { shown: PersonShown }) {
   const own = wallet.status === "connected" ? wallet.address : undefined;
   const me = shown.who === "me" || (own !== undefined && isAddressEqual(own, shown.address));
   return (
-    <Sheet label={t(me ? "common.person.sheet.me" : "common.person.sheet.other")} onClose={hidePerson}>
+    <Sheet label={t(me ? "common.person.sheet.me" : "common.person.sheet.other")} onClose={close}>
       <div className="ah-person" data-testid={TID.shell.person} data-who={me ? "me" : "other"}>
         {me ? <Me address={own} /> : shown.who === "other" ? <Other address={shown.address} name={shown.name} role={shown.role} /> : null}
       </div>
@@ -45,9 +47,15 @@ export default function PersonSheet({ shown }: { shown: PersonShown }) {
   );
 }
 
+/** Closes the sheet; what it said after a press belongs to that visit only. */
+function close(): void {
+  clearPasskeyNote();
+  hidePerson();
+}
+
 /** Go to a screen from the sheet: the sheet closes first, so the screen is not left under a layer. */
 function go(path: string): void {
-  hidePerson();
+  close();
   navigate(path);
 }
 
@@ -100,6 +108,7 @@ function Head({ address, title, sub }: { address?: Address | undefined; title: s
 function Me({ address }: { address: Address | undefined }) {
   const wallet = useWallet();
   const words = useWalletWords();
+  const note = usePasskeyNote();
   const viaPrivy = config.privy !== undefined;
   return (
     <>
@@ -119,6 +128,9 @@ function Me({ address }: { address: Address | undefined }) {
         </QuietButton>
       )}
 
+      {/* Only an account whose wallet Privy keeps has a count (wallet/state.ts `passkeys`). */}
+      {address && wallet.passkeys !== undefined ? <PasskeyRow passkeys={wallet.passkeys} note={note} onAdd={() => void addPasskeyAside(addPasskey)} /> : null}
+
       {address ? <Money address={address} /> : null}
       <Hands />
       <Settings />
@@ -130,7 +142,7 @@ function Me({ address }: { address: Address | undefined }) {
           className="self-start"
           onClick={() => {
             void disconnectWallet();
-            hidePerson();
+            close();
           }}
         >
           {wallet.privy ? words.privy.logOut : words.disconnect}

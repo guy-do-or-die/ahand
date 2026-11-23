@@ -51,6 +51,20 @@ export function doneEntering(connected: boolean): void {
   set(connected ? { who: "me" } : undefined);
 }
 
+/**
+ * The viewer's sheet steps aside while `run` lasts and comes back after it, whatever its end: for
+ * a window of Privy's own asked for from the sheet ("Add a passkey"), which would open under the
+ * sheet for the reason `askToEnter` gives.
+ */
+export async function asideWhile<T>(run: () => Promise<T>): Promise<T> {
+  set(undefined);
+  try {
+    return await run();
+  } finally {
+    set({ who: "me" });
+  }
+}
+
 export function useEntering(): boolean {
   return useSyncExternalStore(
     (listener) => {
@@ -60,6 +74,11 @@ export function useEntering(): boolean {
     () => entering,
     () => false,
   );
+}
+
+/** The sheet shown now, read outside React. */
+export function personShown(): PersonShown | undefined {
+  return shown;
 }
 
 export function usePersonShown(): PersonShown | undefined {

@@ -81,6 +81,27 @@ export interface PrivyHost {
   restore(): Promise<PrivySession | undefined>;
   /** Ends the Privy session on this device. */
   signOut(): Promise<void>;
+  /** How many passkeys the account holds now (Privy's `linkedAccounts` of type "passkey"); 0 with no session. */
+  passkeys(): number;
+  /**
+   * Opens Privy's own passkey window over the page (`useLinkAccount().linkPasskey`), where the
+   * person adds a passkey, or removes one, and resolves with the account's count once the window
+   * closes. Privy says in that window why a passkey could not be made. Rejects when it does not open.
+   */
+  addPasskey(): Promise<number>;
+}
+
+/**
+ * What became of "Add a passkey" (`privyAddPasskey`): one more passkey on the account, one fewer
+ * (removed in Privy's window), the same count (the window was closed, or the device said no),
+ * a browser without passkeys (WebAuthn), or Privy's window that did not open.
+ */
+export type PasskeyOutcome = "added" | "removed" | "none" | "unsupported" | "failed";
+
+/** Whether this browser can make a passkey at all (WebAuthn): asked before Privy's window opens. */
+export function passkeysSupported(): boolean {
+  const w = globalThis as { PublicKeyCredential?: unknown; navigator?: { credentials?: { create?: unknown } } };
+  return typeof w.PublicKeyCredential === "function" && typeof w.navigator?.credentials?.create === "function";
 }
 
 /** What `connect` may ask of this connector beyond wagmi's own parameters (state.ts passes it). */
@@ -191,6 +212,8 @@ export function privyConnector(settings: PrivyConfig, chain: ChainConfig, load: 
   const viemChain = chainOf(chain);
   return createConnector<EIP1193Provider>((wagmi) => {
     let host: Promise<PrivyHost> | undefined;
+    /** The host once loaded, read synchronously by `privyPasskeys` (state.ts reads it on each change). */
+    let loaded: PrivyHost | undefined;
     let session: (Omit<PrivySession, "provider"> & { provider: ReturnType<typeof guardedProvider> }) | undefined;
 
     const onAccounts = (accounts: unknown) => {
@@ -201,10 +224,13 @@ export function privyConnector(settings: PrivyConfig, chain: ChainConfig, load: 
     const onChain = (id: unknown) => wagmi.emitter.emit("change", { chainId: Number(id) });
 
     const hostOf = (): Promise<PrivyHost> => {
-      host ??= load(settings, chain).catch((error: unknown) => {
-        host = undefined;
-        throw error instanceof PrivyUnavailableError ? error : new PrivyUnavailableError(error instanceof Error ? error.message : String(error));
-      });
+      host ??= load(settings, chain).then(
+        (h) => (loaded = h),
+        (error: unknown) => {
+          host = undefined;
+          throw error instanceof PrivyUnavailableError ? error : new PrivyUnavailableError(error instanceof Error ? error.message : String(error));
+        },
+      );
       return host;
     };
 
@@ -228,6 +254,25 @@ export function privyConnector(settings: PrivyConfig, chain: ChainConfig, load: 
       /** The account is a wallet Privy keeps (email, social, passkey), whose window shows only with the lens on. */
       privyEmbedded(): boolean {
         return session?.embedded === true;
+      },
+      /**
+       * The passkeys of an account whose wallet Privy keeps; undefined for a crypto wallet logged in
+       * through Privy, whose money a passkey cannot reach on a device without that wallet.
+       */
+      privyPasskeys(): number | undefined {
+        return session?.embedded && loaded ? loaded.passkeys() : undefined;
+      },
+      /** Adds a passkey to that account in Privy's own window; never throws. */
+      async privyAddPasskey(): Promise<PasskeyOutcome> {
+        if (!session?.embedded || !loaded) return "failed";
+        if (!passkeysSupported()) return "unsupported";
+        const before = loaded.passkeys();
+        try {
+          const after = await loaded.addPasskey();
+          return after > before ? "added" : after < before ? "removed" : "none";
+        } catch {
+          return "failed";
+        }
       },
       async connect(parameters) {
         const ask: PrivyAsk = (parameters as { privy?: PrivyAsk } | undefined)?.privy ?? {};
@@ -304,4 +349,16 @@ export function privyConnector(settings: PrivyConfig, chain: ChainConfig, load: 
 export function isPrivyEmbedded(connector: unknown): boolean {
   const c = connector as { type?: string; privyEmbedded?: () => boolean } | undefined;
   return c?.type === PRIVY_TYPE && c.privyEmbedded?.() === true;
+}
+
+/** The passkeys of the Privy account a wagmi connector holds, when its wallet is one Privy keeps; undefined otherwise. */
+export function privyPasskeysOf(connector: unknown): number | undefined {
+  const c = connector as { type?: string; privyPasskeys?: () => number | undefined } | undefined;
+  return c?.type === PRIVY_TYPE ? c.privyPasskeys?.() : undefined;
+}
+
+/** Adds a passkey through the Privy connector; "failed" for any other connector. */
+export function privyAddPasskeyOf(connector: unknown): Promise<PasskeyOutcome> {
+  const c = connector as { type?: string; privyAddPasskey?: () => Promise<PasskeyOutcome> } | undefined;
+  return c?.type === PRIVY_TYPE && c.privyAddPasskey ? c.privyAddPasskey() : Promise.resolve("failed");
 }

@@ -11,7 +11,10 @@ import { reviveTypedData } from "./dev";
 import {
   guardedProvider,
   isPrivyEmbedded,
+  passkeysSupported,
   PRIVY_METHODS,
+  privyAddPasskeyOf,
+  privyPasskeysOf,
   privyAllowsOrigin,
   privyConnector,
   privyPhase,
@@ -101,9 +104,10 @@ function fakePrivyProvider(startChain = 1, behaviour: { refusesSwitch?: boolean 
  * A host that does what privy-host.tsx does once the person is in: a wallet Privy keeps is moved to
  * the build's chain and handed over; a crypto wallet is handed over where it is (the connector asks it).
  */
-function fakeHost(fake: Fake, behaviour: { closes?: boolean; external?: boolean; session?: boolean } = {}) {
-  const seen = { signIns: 0, signOuts: 0, restores: 0, methods: [] as (readonly PrivyLoginMethod[])[] };
+function fakeHost(fake: Fake, behaviour: { closes?: boolean; external?: boolean; session?: boolean; passkeys?: number; passkeyWindow?: "adds" | "removes" | "closes" | "fails" } = {}) {
+  const seen = { signIns: 0, signOuts: 0, restores: 0, passkeyWindows: 0, methods: [] as (readonly PrivyLoginMethod[])[] };
   let session = behaviour.session ?? false;
+  let passkeys = behaviour.passkeys ?? 0;
   const handOver = async () => {
     if (!behaviour.external) await fake.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: numberToHex(SEPOLIA.id) }] });
     return { address: KEY.address, provider: fake.provider, embedded: !behaviour.external };
@@ -123,6 +127,17 @@ function fakeHost(fake: Fake, behaviour: { closes?: boolean; external?: boolean;
     async signOut() {
       seen.signOuts++;
       session = false;
+    },
+    passkeys() {
+      return session ? passkeys : 0;
+    },
+    // Privy's passkey window: the person adds one, removes one, or closes it; or it never opens.
+    async addPasskey() {
+      seen.passkeyWindows++;
+      if (behaviour.passkeyWindow === "fails") throw new Error("Privy's passkey window did not open");
+      if (behaviour.passkeyWindow === "adds") passkeys++;
+      if (behaviour.passkeyWindow === "removes") passkeys--;
+      return passkeys;
     },
   };
   return { host, seen };
@@ -426,5 +441,77 @@ describe("logging in through Privy, as a wagmi connector over the EIP-1193 provi
     expect(await guarded.request({ method: "eth_chainId" })).toBe("0x14a34");
     guarded.end();
     await expect(guarded.request({ method: "eth_chainId" })).rejects.toMatchObject({ code: 4100 });
+  });
+});
+
+/** A browser with passkeys (WebAuthn), for the length of `run`: Bun has none. */
+async function withWebAuthn<T>(run: () => Promise<T>): Promise<T> {
+  const g = globalThis as { PublicKeyCredential?: unknown; navigator?: { credentials?: unknown } };
+  const had = { credential: g.PublicKeyCredential, credentials: g.navigator?.credentials };
+  g.PublicKeyCredential = function PublicKeyCredential() {};
+  if (g.navigator) Object.defineProperty(g.navigator, "credentials", { value: { create: async () => null }, configurable: true });
+  try {
+    return await run();
+  } finally {
+    g.PublicKeyCredential = had.credential;
+    if (g.navigator) Object.defineProperty(g.navigator, "credentials", { value: had.credentials, configurable: true });
+  }
+}
+
+describe("adding a passkey to a Privy account (the person sheet's \"Add a passkey\")", () => {
+  async function inWith(behaviour: Parameters<typeof fakeHost>[1]) {
+    const fake = fakePrivyProvider(84532);
+    const { host, seen } = fakeHost(fake, behaviour);
+    const { config, connector } = wagmiWith(async () => host);
+    await connect(config, { connector, chainId: SEPOLIA.id });
+    return { config, seen, connector: getConnection(config).connector };
+  }
+
+  test("an account whose wallet Privy keeps reports its passkeys; one added in Privy's window is \"added\" and the count follows", async () => {
+    const { connector, seen } = await inWith({ passkeyWindow: "adds" });
+    expect(privyPasskeysOf(connector)).toBe(0);
+    expect(await withWebAuthn(() => privyAddPasskeyOf(connector))).toBe("added");
+    expect(seen.passkeyWindows).toBe(1);
+    expect(privyPasskeysOf(connector)).toBe(1);
+    // Privy keeps several per account: the same window adds another.
+    expect(await withWebAuthn(() => privyAddPasskeyOf(connector))).toBe("added");
+    expect(privyPasskeysOf(connector)).toBe(2);
+  });
+
+  test("the window closed with nothing new is \"none\", one removed there is \"removed\", a window that did not open is \"failed\": none of them throws", async () => {
+    const closed = await inWith({ passkeys: 1, passkeyWindow: "closes" });
+    expect(await withWebAuthn(() => privyAddPasskeyOf(closed.connector))).toBe("none");
+    expect(privyPasskeysOf(closed.connector)).toBe(1);
+    const removed = await inWith({ passkeys: 1, passkeyWindow: "removes" });
+    expect(await withWebAuthn(() => privyAddPasskeyOf(removed.connector))).toBe("removed");
+    expect(privyPasskeysOf(removed.connector)).toBe(0);
+    const failed = await inWith({ passkeyWindow: "fails" });
+    expect(await withWebAuthn(() => privyAddPasskeyOf(failed.connector))).toBe("failed");
+  });
+
+  test("a browser without passkeys is told so before Privy's window opens", async () => {
+    expect(passkeysSupported()).toBe(false);
+    const { connector, seen } = await inWith({ passkeyWindow: "adds" });
+    expect(await privyAddPasskeyOf(connector)).toBe("unsupported");
+    expect(seen.passkeyWindows).toBe(0);
+    expect(await withWebAuthn(async () => passkeysSupported())).toBe(true);
+  });
+
+  test("a crypto wallet logged in through Privy has no count and nothing to add; nor has an account after Log out, or any other connector", async () => {
+    const external = await inWith({ external: true, passkeyWindow: "adds" });
+    expect(privyPasskeysOf(external.connector)).toBeUndefined();
+    expect(await withWebAuthn(() => privyAddPasskeyOf(external.connector))).toBe("failed");
+    expect(external.seen.passkeyWindows).toBe(0);
+
+    const kept = await inWith({ passkeys: 2, passkeyWindow: "adds" });
+    const connector = kept.connector!;
+    expect(privyPasskeysOf(connector)).toBe(2);
+    await disconnect(kept.config);
+    expect(privyPasskeysOf(connector)).toBeUndefined();
+    expect(await withWebAuthn(() => privyAddPasskeyOf(connector))).toBe("failed");
+
+    expect(privyPasskeysOf(undefined)).toBeUndefined();
+    expect(privyPasskeysOf({ type: "injected" })).toBeUndefined();
+    expect(await privyAddPasskeyOf({ type: "injected" })).toBe("failed");
   });
 });

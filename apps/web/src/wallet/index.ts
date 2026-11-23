@@ -22,6 +22,7 @@ export {
 export { approvalProbe, extendedProbe, fundedProbe, raisedProbe, refundedProbe, thankedProbe, withdrawnProbe } from "./effects";
 export { useKeptSend, type KeptSend } from "./useKeptSend";
 export {
+  addPasskey,
   connectedWallet,
   connectWallet,
   disconnectWallet,
@@ -36,6 +37,7 @@ export {
   type WalletOption,
   type WalletState,
 } from "./state";
+export type { PasskeyOutcome } from "./privy";
 export { useSend, type SendState, type UseSend } from "./useSend";
 export { signTypedWith, type TypedAnswer } from "./typed";
 export { useTypedSigner, type TypedOutcome, type UseTypedSigner } from "./useTypedSigner";

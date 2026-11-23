@@ -39,6 +39,8 @@ export const TID = {
     personAddress: "shell-person-address",
     personLogIn: "shell-person-log-in",
     personLogOut: "shell-person-log-out",
+    personPasskey: "shell-person-passkey", // an account whose wallet Privy keeps; data-value: its passkeys
+    personPasskeyAdd: "shell-person-passkey-add",
     personBalance: "shell-person-balance", // data-value: the token's balance in its smallest units
     personWaiting: "shell-person-waiting",
     personHands: "shell-person-hands",

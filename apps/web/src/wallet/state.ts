@@ -8,7 +8,7 @@ import { pollMsOf } from "../config/schema";
 import { chainOf } from "../chain/clients";
 import { walletConfig } from "./config";
 import { FALLBACK_ID } from "./fallback";
-import { PRIVY_ID, PRIVY_TYPE, isPrivyEmbedded, PRIVY_METHODS, privyUnavailable, type PrivyAsk } from "./privy";
+import { PRIVY_ID, PRIVY_TYPE, isPrivyEmbedded, PRIVY_METHODS, privyAddPasskeyOf, privyPasskeysOf, privyUnavailable, type PasskeyOutcome, type PrivyAsk } from "./privy";
 import { privyMarked, privyReturning } from "./privy-mark";
 import type { DevRole, DevWho } from "./dev";
 import { unknownNetwork } from "./errors";
@@ -47,6 +47,12 @@ export interface WalletState {
   email?: boolean;
   /** Logged in through Privy (any way in): the control says "Log out", not "Disconnect". */
   privy?: boolean;
+  /**
+   * The passkeys on a Privy account whose wallet Privy keeps (the person sheet offers to add one).
+   * Not set for any other account: a crypto wallet logged in through Privy still has to be on the
+   * device to send, so a passkey would let its owner in where their money cannot move.
+   */
+  passkeys?: number;
 }
 
 export interface WalletOption {
@@ -98,6 +104,7 @@ function read(config: Config): Snapshot {
   const connection = getConnection(config);
   const connector = connection.connector;
   const extra = connector as unknown as { devRole?: DevRole } | undefined;
+  const passkeys = privyPasskeysOf(connector);
   const status = connection.status === "connected" ? "connected" : connection.status === "disconnected" ? "disconnected" : "connecting";
   const state: WalletState = {
     ready: true,
@@ -110,6 +117,7 @@ function read(config: Config): Snapshot {
     ...(extra?.devRole ? { devRole: extra.devRole } : {}),
     ...(connector?.type === PRIVY_TYPE ? { privy: true } : {}),
     ...(isPrivyEmbedded(connector) ? { email: true } : {}),
+    ...(passkeys !== undefined ? { passkeys } : {}),
   };
   return { state, options: getConnectors(config).map(optionOf) };
 }
@@ -205,6 +213,18 @@ export function restoreSession(): Promise<void> {
     await connect(config, { connector, chainId: app.chain.id, privy: ask } as Parameters<typeof connect>[1]).catch(() => undefined);
   })();
   return restoring;
+}
+
+/**
+ * Opens Privy's own passkey window for the account logged in now (a wallet Privy keeps), and
+ * reports what became of it once the window closes; the state then carries the new count.
+ * Never throws: an account that is not Privy's, or a window that did not open, is "failed".
+ */
+export async function addPasskey(): Promise<PasskeyOutcome> {
+  const config = await start();
+  const outcome = await privyAddPasskeyOf(getConnection(config).connector);
+  emit(read(config));
+  return outcome;
 }
 
 export async function disconnectWallet(): Promise<void> {

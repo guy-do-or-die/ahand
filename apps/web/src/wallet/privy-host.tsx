@@ -1,4 +1,4 @@
-import { PrivyProvider, useCreateWallet, useLogin, useLogout, usePrivy, useWallets, type ConnectedWallet, type PrivyClientConfig, type User } from "@privy-io/react-auth";
+import { PrivyProvider, useCreateWallet, useLinkAccount, useLogin, useLogout, usePrivy, useWallets, type ConnectedWallet, type PrivyClientConfig, type User } from "@privy-io/react-auth";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getAddress, UserRejectedRequestError, type Address, type EIP1193Provider } from "viem";
@@ -18,7 +18,7 @@ import { PrivyUnavailableError, setPrivyPhase, type PrivyHost, type PrivyLoginMe
  * or an action that needs an account, or on idle when this browser holds the mark of a session).
  * It renders Privy's provider into a root of its own beside the app, so nothing in the app's tree
  * waits on it, and hands the connector a `PrivyHost`: log in, restore, get the wallet the person
- * is in with on the build's chain, log out.
+ * is in with on the build's chain, log out, add a passkey.
  *
  * Choices:
  *
@@ -64,6 +64,8 @@ interface Live {
   login: ReturnType<typeof useLogin>["login"];
   logout: () => Promise<void>;
   createWallet: () => Promise<unknown>;
+  /** Opens Privy's own passkey window for a logged-in person (a no-op while nobody is in). */
+  linkPasskey: () => void;
 }
 
 /**
@@ -117,6 +119,9 @@ function Bridge() {
   const { wallets, ready: walletsReady } = useWallets();
   const { logout } = useLogout();
   const { createWallet } = useCreateWallet();
+  // No callbacks: Privy's passkey window shows its own errors and success, and `addPasskey` reads
+  // the outcome from the account once the window closes.
+  const { linkPasskey } = useLinkAccount();
   const { login } = useLogin({
     onComplete: () => {
       loginOutcome?.resolve();
@@ -129,7 +134,7 @@ function Bridge() {
     },
   });
   useEffect(() => {
-    publish({ ready, authenticated, user, modalOpen: isModalOpen, walletsReady, wallets, login, logout, createWallet: () => createWallet() });
+    publish({ ready, authenticated, user, modalOpen: isModalOpen, walletsReady, wallets, login, logout, createWallet: () => createWallet(), linkPasskey: () => linkPasskey() });
   });
   return null;
 }
@@ -313,6 +318,11 @@ export function accountWallet(now: Pick<Live, "walletsReady" | "wallets" | "user
   return now.wallets.find((wallet) => wallet.address.toLowerCase() === named);
 }
 
+/** How many passkeys a Privy account holds: its linked accounts of type "passkey" (Privy lists several, and adds or removes them in one window). */
+export function passkeysOf(user: Pick<User, "linkedAccounts"> | null | undefined): number {
+  return user?.linkedAccounts.filter((account) => account.type === "passkey").length ?? 0;
+}
+
 /** Whether the Privy account names no wallet yet, or names one Privy keeps (which only needs time to appear). */
 const keptOrNone = (now: Live): boolean => !now.user?.wallet || privyKept(now.user.wallet.walletClientType);
 
@@ -416,6 +426,19 @@ function host(chain: ChainConfig): PrivyHost {
     },
     async signOut() {
       if (live?.authenticated) await live.logout();
+    },
+    passkeys() {
+      return live?.authenticated ? passkeysOf(live.user) : 0;
+    },
+    async addPasskey() {
+      if (!live?.authenticated) throw new Error("nobody is logged in");
+      live.linkPasskey();
+      // Privy's window opens at once (its code is here already); then the person adds a passkey,
+      // removes one or closes it. Its success screen ("Passkeys updated") comes after the account
+      // is updated, so the count is read as the window closes.
+      await when((l) => (l.modalOpen ? true : undefined), READY_MS, () => new Error("Privy's passkey window did not open"));
+      await when((l) => (l.modalOpen ? undefined : true), LOGIN_MS, () => new Error("the passkey window stayed open too long"));
+      return passkeysOf(live?.user);
     },
   };
 

@@ -6,7 +6,7 @@ import type { ChainConfig } from "../config/schema";
 import { AMBER_HEX, SURFACE_DARK_HEX } from "../design/tokens";
 import { i18n } from "../i18n";
 import { initLens } from "../shell/lens";
-import { accountWallet, lookKey, lookNow, PRIVY_RU, PRIVY_WORDS, privyClientConfig, privyKept, watchLook } from "./privy-host";
+import { accountWallet, lookKey, passkeysOf, lookNow, PRIVY_RU, PRIVY_WORDS, privyClientConfig, privyKept, watchLook } from "./privy-host";
 import { PRIVY_METHODS } from "./privy";
 
 /**
@@ -151,5 +151,17 @@ describe("a wallet Privy keeps", () => {
     expect(privyKept("privy")).toBe(true);
     expect(privyKept("privy-v2")).toBe(true);
     for (const other of ["metamask", "wallet_connect", "coinbase_wallet", "", undefined]) expect(privyKept(other)).toBe(false);
+  });
+});
+
+describe("the passkeys of a Privy account", () => {
+  const linked = (...types: string[]) => ({ linkedAccounts: types.map((type) => ({ type })) }) as unknown as User;
+
+  test("are its linked accounts of type \"passkey\", however many; none without an account", () => {
+    expect(passkeysOf(linked("email", "wallet"))).toBe(0);
+    expect(passkeysOf(linked("email", "passkey", "wallet"))).toBe(1);
+    expect(passkeysOf(linked("passkey", "google_oauth", "passkey"))).toBe(2);
+    expect(passkeysOf(null)).toBe(0);
+    expect(passkeysOf(undefined)).toBe(0);
   });
 });
