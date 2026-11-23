@@ -37,6 +37,7 @@ import { buildApp, PUBLIC_CONFIG } from "../../apps/web/deploy.ts";
 import { buildRecord } from "../../tools/manifest.ts";
 import { burnerAddresses } from "./engine/burners.ts";
 import { privyWallets } from "./engine/privy.ts";
+import { parseConfig } from "../../apps/web/src/config/load.ts";
 
 const REPO = resolve(import.meta.dirname, "../..");
 const RUN = join(REPO, "tests/demo/.run/fork");
@@ -163,7 +164,7 @@ async function up(): Promise<void> {
     save();
     await waitFor("the site", 15_000, async () => (await fetch(`${site}/build.json`)).ok);
 
-    const stand = { slot: null, mode: "built", fork: true, forkedFrom: { url: FORK_URL, block: Number(forkBlock) }, site, rpc, relay, chainId: CHAIN_ID, core, tokens: [{ address: usdc, symbol: "USDC", decimals: 6, kind: "usd" }], forwarder: config.forwarder, accountFactory: null, aheadSeconds: 0, privy: privyPort !== undefined };
+    const stand = { slot: null, mode: "built", fork: true, forkedFrom: { url: FORK_URL, block: Number(forkBlock) }, site, rpc, relay, chainId: CHAIN_ID, core, tokens: [{ address: usdc, symbol: "USDC", decimals: 6, kind: "usd" }], forwarder: parseConfig(config).forwarder, accountFactory: null, aheadSeconds: 0, privy: privyPort !== undefined };
     writeFileSync(join(RUN, "stand.json"), `${JSON.stringify(stand, null, 2)}\n`);
     console.log(`fork: up — site ${site}, rpc ${rpc}, relay ${relay}\n  DEMO_TARGET=fork bunx playwright test -c playwright.demo.config.ts`);
   } catch (error) {

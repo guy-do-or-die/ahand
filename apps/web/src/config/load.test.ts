@@ -40,6 +40,43 @@ describe("chain.local belongs to chain 31337 only", () => {
   });
 });
 
+/**
+ * A configuration names its chain by id; viem/chains says the rest (config/chains.ts). The four
+ * public networks are Ethereum, Sepolia, Base and Base Sepolia; 31337 is the stand's anvil.
+ */
+describe("the chain comes from viem/chains", () => {
+  test("each known id reads as viem names it, with Base's real pace", () => {
+    const read = (id: number) => parseConfig(on(id, false)).chain;
+    expect(read(1)).toMatchObject({ name: "Ethereum", blockTimeMs: 12_000, hasL1: false, testnet: false, explorer: "https://etherscan.io" });
+    expect(read(11_155_111)).toMatchObject({ name: "Sepolia", blockTimeMs: 12_000, hasL1: false, testnet: true, explorer: "https://sepolia.etherscan.io" });
+    expect(read(8453)).toMatchObject({ name: "Base", blockTimeMs: 200, hasL1: true, testnet: false, explorer: "https://basescan.org" });
+    expect(read(84532)).toMatchObject({ name: "Base Sepolia", blockTimeMs: 200, hasL1: true, testnet: true, explorer: "https://sepolia.basescan.org" });
+    expect(parseConfig(example).chain).toMatchObject({ id: LOCAL_CHAIN_ID, name: "Local test network", blockTimeMs: 1_000, hasL1: false, testnet: true });
+  });
+
+  test("an id aHand does not know is refused", () => {
+    expect(() => parseConfig(on(10, false))).toThrow(/chain.id must be one of the chains aHand knows \(1, 8453, 31337, 84532, 11155111\)/);
+  });
+
+  test("a field viem answers, left in an older configuration (a stand's slot), is passed over: viem's value stands", () => {
+    const old = on(84532, false) as unknown as { chain: Record<string, unknown> };
+    Object.assign(old.chain, { name: "Other", blockTimeMs: 2_000, hasL1: false, testnet: false, explorer: "https://x.example" });
+    expect(parseConfig(old).chain).toMatchObject({ name: "Base Sepolia", blockTimeMs: 200, hasL1: true, testnet: true, explorer: "https://sepolia.basescan.org" });
+  });
+
+  test("the forwarder is the chain's Multicall3 unless the configuration names one; the stand's anvil has none", () => {
+    const unnamed = (id: number) => {
+      const { forwarder: _, ...rest } = on(id, id === LOCAL_CHAIN_ID) as ReturnType<typeof on> & { forwarder?: unknown };
+      return rest;
+    };
+    expect(parseConfig(unnamed(84532)).forwarder).toBe("0xcA11bde05977b3631167028862bE2a173976CA11");
+    expect(parseConfig(unnamed(1)).forwarder).toBe("0xcA11bde05977b3631167028862bE2a173976CA11");
+    expect(parseConfig(unnamed(LOCAL_CHAIN_ID)).forwarder).toBeNull();
+    expect(parseConfig({ ...on(84532, false), forwarder: null }).forwarder).toBeNull();
+    expect(parseConfig({ ...on(84532, false), forwarder: "0x00000000000000000000000000000000000000c1" }).forwarder).toBe("0x00000000000000000000000000000000000000c1");
+  });
+});
+
 describe("the public test network's fields", () => {
   const sepolia = JSON.parse(readFileSync(new URL("./base-sepolia.json", import.meta.url), "utf8"));
 
@@ -58,19 +95,17 @@ describe("the public test network's fields", () => {
     expect(parseConfig(sepolia).relays).toEqual(RECOMMENDED_RELAYS.map((relay) => relay.url));
   });
 
-  test("the fields are optional, and a configuration without them reads as before", () => {
+  test("the fields are optional; without them there are no faucets or previews, and the stand's anvil is a test network with no explorer", () => {
     const config = parseConfig(example);
-    expect(config.chain.testnet).toBeUndefined();
+    expect(config.chain.testnet).toBe(true);
     expect(config.chain.explorer).toBeUndefined();
     expect(config.faucets).toBeUndefined();
     expect(config.previews).toBeUndefined();
   });
 
-  test("an explorer is an https URL without a trailing slash; faucets belong to a test network", () => {
-    expect(parseConfig({ ...sepolia, chain: { ...sepolia.chain, explorer: "https://x.example/" } }).chain.explorer).toBe("https://x.example");
-    expect(() => parseConfig({ ...sepolia, chain: { ...sepolia.chain, explorer: "javascript:alert(1)" } })).toThrow(/chain.explorer/);
+  test("a faucet is an https URL, and faucets belong to a test network", () => {
     expect(() => parseConfig({ ...sepolia, faucets: [{ asset: "ETH", url: "http://x.example" }] })).toThrow(/faucets\[0\].url/);
-    expect(() => parseConfig({ ...sepolia, chain: { ...sepolia.chain, testnet: false } })).toThrow(/faucets belong to a test network/);
+    expect(() => parseConfig({ ...on(8453, false), faucets: sepolia.faucets })).toThrow(/faucets belong to a test network/);
   });
 });
 

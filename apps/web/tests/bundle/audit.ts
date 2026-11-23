@@ -25,6 +25,7 @@ import { join, relative } from "node:path";
 import { bytesToHex } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
+import { KNOWN_CHAINS } from "../../src/config/chains.ts";
 import { PRIVY_CSP } from "../../csp.ts";
 
 /** anvil's public test mnemonic (the dev wallet's, local builds only). */
@@ -58,6 +59,22 @@ export const LIBRARY_TEXT: Readonly<Record<string, string>> = {
   "https://ipfs.io": "viem's ENS avatar parser default gateway: the app never reads an avatar",
   "https://arweave.net": "viem's ENS avatar parser default gateway: the app never reads an avatar",
 };
+
+/**
+ * Origins in viem/chains' descriptions of the networks aHand knows (src/config/chains.ts): their
+ * public RPCs, explorers and explorer APIs. The bundle carries all of them so the configuration can
+ * name any of those chains by id. None is ever requested: chainOf puts the configured RPC in place
+ * of viem's, an explorer is only a link, and the CSP's connect-src names the configured RPC alone.
+ * Read from the same objects the app ships, so a viem upgrade that changes one moves this list too.
+ */
+export const CHAIN_TEXT: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    KNOWN_CHAINS.flatMap((chain) => {
+      const urls = [...Object.values(chain.rpcUrls).flatMap((r) => [...r.http, ...(r.webSocket ?? [])]), ...Object.values(chain.blockExplorers ?? {}).flatMap((e) => [e.url, ...(e.apiUrl ? [e.apiUrl] : [])])];
+      return urls.map((url) => [new URL(url).origin, `viem/chains' description of ${chain.name} (${chain.id}), never requested`] as const);
+    }),
+  ),
+);
 
 /** exit.html's own text: the one-line local web server command it prints for a page opened from disk. */
 const EXIT_LOCAL_HINT = "http://127.0.0.1:";
@@ -151,7 +168,7 @@ export function audit(folder: string, config: AuditConfig): { findings: Finding[
       const origin = match[0].replace(/\/+$/, "");
       if (!seen.has(origin)) seen.set(origin, new Set());
       seen.get(origin)!.add(file);
-      if (allowed.has(origin) || origin in LIBRARY_TEXT) continue;
+      if (allowed.has(origin) || origin in LIBRARY_TEXT || origin in CHAIN_TEXT) continue;
       if (config.privy && privySdk.has(file)) continue;
       if (file === "exit.html" && `${origin}:`.startsWith(EXIT_LOCAL_HINT)) continue;
       findings.push({ file, what: `an address that is not the configured RPC, relay or site: ${origin}` });
@@ -182,7 +199,7 @@ if (import.meta.main) {
   console.log(`addresses in ${folder} (local build: ${config.chain.local}${config.privy ? `, Privy's SDK in ${privySdk.size} chunks` : ""}):`);
   for (const [origin, files] of [...seen].sort()) {
     const onlyPrivy = [...files].every((file) => privySdk.has(file));
-    const why = LIBRARY_TEXT[origin] ?? (onlyPrivy ? "Privy's SDK text (the CSP lets it reach auth.privy.io only)" : origin.startsWith("http://127.0.0.1") && !config.chain.rpcUrls.some((url) => url.startsWith(origin)) ? "exit.html's local server hint" : "configured");
+    const why = LIBRARY_TEXT[origin] ?? CHAIN_TEXT[origin] ?? (onlyPrivy ? "Privy's SDK text (the CSP lets it reach auth.privy.io only)" : origin.startsWith("http://127.0.0.1") && !config.chain.rpcUrls.some((url) => url.startsWith(origin)) ? "exit.html's local server hint" : "configured");
     console.log(`  ${origin.padEnd(36)} ${why} · ${[...files].join(", ")}`);
   }
   for (const finding of findings) console.log(`FINDING ${finding.file}: ${finding.what}`);

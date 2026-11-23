@@ -36,7 +36,7 @@ import { PRICES } from "@ahand/sdk/app";
 import { getContractAddress } from "viem";
 
 import { viewTokensOf } from "../../apps/view/src/config.ts";
-import type { AppConfig } from "../../apps/web/src/config/schema.ts";
+import type { AppConfigInput } from "../../apps/web/src/config/schema.ts";
 import { buildRecord } from "../../tools/manifest.ts";
 import { forge, foundryPath } from "./foundry.ts";
 import { checkSlot, pathsOf, portsOf, REPO_ROOT, slotFromEnv, SLOT_COUNT, type SlotPorts } from "./ports.ts";
@@ -167,10 +167,10 @@ export const siteUrl = (ports: SlotPorts) => `http://${HOST}:${ports.site}`;
 export const devUrl = (ports: SlotPorts) => `http://${HOST}:${ports.dev}`;
 
 /** The app's configuration for a slot, from its deployment file. */
-export function configOf(deployment: DeploymentIn, ports: SlotPorts, site: string): AppConfig {
-  const prices: AppConfig["prices"] = { ...PRICES };
+export function configOf(deployment: DeploymentIn, ports: SlotPorts, site: string): AppConfigInput {
+  const prices: AppConfigInput["prices"] = { ...PRICES };
   return {
-    chain: { id: deployment.chainId, name: "Local test network", rpcUrls: [rpcUrl(ports)], blockTimeMs: 1000, local: true, hasL1: false },
+    chain: { id: deployment.chainId, rpcUrls: [rpcUrl(ports)], local: true },
     cores: { trusted: [{ chainId: deployment.chainId, core: deployment.core }], canonical: deployment.core },
     deployment: {
       factory: deployment.factory,
@@ -554,7 +554,7 @@ async function httpOk(url: string): Promise<boolean> {
 
 function setConfigSite(slot: number, site: string): void {
   const paths = pathsOf(slot);
-  const config = readJson<AppConfig>(paths.config);
+  const config = readJson<AppConfigInput>(paths.config);
   if (!config) throw new Error(`slot ${slot} has no ${paths.config}: bun infra/stand/stand.ts up --slot ${slot}`);
   writeJson(paths.config, { ...config, site });
 }
@@ -604,7 +604,7 @@ async function startView(slot: number): Promise<{ ok: true } | { ok: false; why:
   if (!existsSync(VIEW_SERVER)) return { ok: false, why: "apps/view/src/server.ts does not exist" };
   if (!existsSync(join(paths.dist, "index.html"))) throw new Error(`no build in ${paths.dist}: bun infra/stand/stand.ts build --slot ${slot}`);
   const stand = needStand(slot);
-  const config = readJson<AppConfig>(paths.config);
+  const config = readJson<AppConfigInput>(paths.config);
   const trusted = config?.cores.trusted.map((t) => t.core) ?? [stand.core];
   const entry = await spawnService(slot, "site", "view", process.execPath, [VIEW_SERVER], {
     env: {

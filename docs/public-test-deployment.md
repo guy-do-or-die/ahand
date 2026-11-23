@@ -1,23 +1,29 @@
 # Public test deployment on Base Sepolia
 
-The branch `next` is served as a static site, with one Vercel Function for link previews, at `https://next.ahand.in`: the repository's Vercel project builds every pushed branch, and the `branch-domains` workflow registers `<branch>.ahand.in` for it. The site is the built `apps/web` against Base Sepolia (chain 84532), with the configuration [`apps/web/src/config/base-sepolia.json`](../apps/web/src/config/base-sepolia.json): RPC `https://sepolia.base.org`, Core `0x65ac707E2AE7392583de5d6192C619F1D8862309` (the CREATE2 address, the same on every chain that has the deterministic deployer), Circle's test USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals), Multicall3 as the forwarder, and the five relays `@ahand/deliver` recommends (`RECOMMENDED_RELAYS` in `packages/deliver/src/relays.ts`: `wss://relay.primal.net`, `wss://nos.lol`, `wss://relay.nos.social`, `wss://relay.ditto.pub`, `wss://relay.coinos.io`; a test holds the configuration to that list, and the CSP's `connect-src` is written from it). `chain.local` is false: the build has no dev wallet and no gallery; a visitor logs in through Privy's one window, with email, Google, Apple, X, Farcaster, a passkey or a crypto wallet (`privy.appId` `clt69jwp204btq1o3q72cupji`, see [app.md](app.md#logging-in-through-privy)).
+The branch `next` is served as a static site, with one Vercel Function for link previews, at `https://next.ahand.in`: the repository's Vercel project builds every pushed branch, and the `branch-domains` workflow registers `<branch>.ahand.in` for it. The site is the built `apps/web` against Base Sepolia (chain 84532), with the configuration [`apps/web/src/config/base-sepolia.json`](../apps/web/src/config/base-sepolia.json): RPC `https://sepolia.base.org`, Core `0x65ac707E2AE7392583de5d6192C619F1D8862309` (the CREATE2 address, the same on every chain that has the deterministic deployer), Circle's test USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals), Multicall3 as the forwarder (the file names none, so the chain's own from viem/chains), and the five relays `@ahand/deliver` recommends (`RECOMMENDED_RELAYS` in `packages/deliver/src/relays.ts`: `wss://relay.primal.net`, `wss://nos.lol`, `wss://relay.nos.social`, `wss://relay.ditto.pub`, `wss://relay.coinos.io`; a test holds the configuration to that list, and the CSP's `connect-src` is written from it). `chain.local` is false: the build has no dev wallet and no gallery; a visitor logs in through Privy's one window, with email, Google, Apple, X, Farcaster, a passkey or a crypto wallet (`privy.appId` `clt69jwp204btq1o3q72cupji`, see [app.md](app.md#logging-in-through-privy)).
 
-Four optional fields describe a public test site (a stand's configuration has none of them and reads as before):
+The file names its chain by id only. Everything else about the chain comes from viem/chains for that id ([`apps/web/src/config/chains.ts`](../apps/web/src/config/chains.ts), which knows Ethereum, Sepolia, Base, Base Sepolia and the stand's anvil): such a field left in an older file is passed over, and a file on any other id is refused:
+
+| From viem/chains | Here | What it changes |
+|---|---|---|
+| name | `Base Sepolia` | the name a wallet stores when it adds the network; screens show the catalogue's name for chain 84532, «Base Sepolia (тестовая сеть)» in Russian |
+| test network | yes | the header's ribbon says "Base Sepolia (test network) · Test dollars" («Base Sepolia (тестовая сеть) · Тестовые доллары»), the wallet is told the chain is a testnet, USDC is called "Test USDC" («Тестовые USDC») and /raise starts at the $5 chip |
+| explorer | `https://sepolia.basescan.org` | handed to the wallet as `blockExplorerUrls`; every transaction a screen shows (raise, send back, a closed Hand, thanks, /waiting, the passport) and Core's address on `/core` and `/without-us` link to it |
+| pace | 200 ms | Base makes a block every 200 ms (blocks 61 429 229 and 61 441 608 are 2 476 s apart). The SDK's `findBlockAt` guesses a block from a time with it: five reads find a Hand's block, where 2 000 took 35. viem 2.52 still says 2 000 for Base, so `chains.ts` sets 200 until viem is past 2.58 |
+| settles on Ethereum | yes (`sourceId`) | the transaction rail shows "Recorded on Ethereum" |
+| Multicall3 | `0xcA11bde05977b3631167028862bE2a173976CA11` | the forwarder, when the file names none |
+
+Two optional fields describe a public test site (a stand's configuration has neither):
 
 | Field | Value here | What it changes |
 |---|---|---|
-| `chain.testnet` | `true` | the header's ribbon says "Base Sepolia (test network) · Test dollars" («Base Sepolia (тестовая сеть) · Тестовые доллары»), the wallet is told the chain is a testnet, USDC is called "Test USDC" («Тестовые USDC») and /raise starts at the $5 chip |
-| `chain.explorer` | `https://sepolia.basescan.org` | handed to the wallet as `blockExplorerUrls`; every transaction a screen shows (raise, send back, a closed Hand, thanks, /waiting, the passport) and Core's address on `/core` and `/without-us` link to it |
-| `faucets` | Circle's USDC faucet, Base's list of ETH faucets | where test money comes from is said on /raise when the reward runs short ("You need $5 and a little ETH for the cost"), and in the person sheet under the money |
+| `faucets` | Circle's USDC faucet, Base's list of ETH faucets | where test money comes from is said on /raise when the reward runs short ("You need $5 and a little ETH for the cost"), and in the person sheet under the money; refused on a network that is not a test network |
 | `previews` | `true` | the view server's Vercel Function writes a Hand's address's link-preview tags and its card (below): /raise's "In a chat it looks like this" shows the title, details and reward as a chat will, and `/core` says a Hand's address and its card carry what this server adds. `false` is for a static-only host: no rewrite reaches the function, the preview is the site's name only and /raise says so |
 
-`chain.name` is `Base Sepolia`, the name a wallet stores when it adds the network; screens show the catalogue's name for chain 84532, «Base Sepolia (тестовая сеть)» in Russian.
-
-Three chain fields set how the site meets the network (2026-11-21; a stand sets only the first, 1 000):
+Two chain fields set how the site meets the network (a stand sets neither):
 
 | Field | Value here | What it changes |
 |---|---|---|
-| `chain.blockTimeMs` | `200` | the chain's real pace: Base makes a block every 200 ms (blocks 61 429 229 and 61 441 608 are 2 476 s apart). The SDK's `findBlockAt` guesses a block from a time with it: five reads find a Hand's block, where the 2 000 written before took 35 |
 | `chain.pollMs` | `2000` | how often the app asks for news: the block watcher, viem's and wagmi's polling, `exit.html`'s refresh (four times this). Absent, it is the block time but at least a second; here it keeps the public RPC from being asked five times a second |
 | `chain.logWindow` | `200` | the widest `eth_getLogs` range the public RPC takes (wider: HTTP 413, `{"code":-32614,"message":"eth_getLogs is limited to a 200 range"}`). Every log read starts at it. Absent, reads start at 2 000 blocks and a refused window shrinks by itself |
 

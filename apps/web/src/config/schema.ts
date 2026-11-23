@@ -6,15 +6,16 @@
 export type Hex = `0x${string}`;
 export type Address = Hex;
 
-export interface ChainConfig {
+/**
+ * The chain section a configuration file writes: the chain's id and what belongs to this one
+ * deployment. Everything else about the chain (its name, pace, explorer, Multicall3, whether it is a
+ * test network or an OP Stack chain) comes from viem/chains by id (config/chains.ts). Such a field
+ * left in an older file (a stand slot brought up before) is passed over, and viem's value stands.
+ */
+export interface ChainInput {
+  /** One of the chains aHand knows: 1, 11155111, 8453, 84532, or the stand's 31337. */
   id: number;
-  name: string;
   rpcUrls: string[];
-  /**
-   * The chain's real pace: one block every so many milliseconds (Base: 200). The SDK's
-   * `findBlockAt` guesses a block from a time with it. Not how often the app asks: see `pollMs`.
-   */
-  blockTimeMs: number;
   /**
    * How often the app asks the chain for news (the block watcher, viem's and wagmi's polling), in
    * milliseconds. Absent: the block time, but at least a second (`pollMsOf`). Base Sepolia sets
@@ -29,14 +30,25 @@ export interface ChainConfig {
   logWindow?: number;
   /** A local test chain: the dev wallet and the LOCAL STAND-IN tags exist only here. */
   local: boolean;
+}
+
+/** A configuration's chain as the app reads it: the file's section and viem's facts for its id. */
+export interface ChainConfig extends ChainInput {
+  /** viem's name for the chain ("Base Sepolia"), the one a wallet stores when it adds the network. */
+  name: string;
+  /**
+   * The chain's real pace: one block every so many milliseconds (Base: 200). The SDK's
+   * `findBlockAt` guesses a block from a time with it. Not how often the app asks: see `pollMs`.
+   */
+  blockTimeMs: number;
   /** An OP Stack chain with Ethereum behind it (L1 fee, "Recorded on Ethereum"). */
   hasL1: boolean;
   /**
-   * A public test network (Base Sepolia): its money is worth nothing, and the header says so.
-   * Absent means `local` (a local chain is a test network too). See `isTestnet`.
+   * A test network (Sepolia, Base Sepolia, the stand): its money is worth nothing, and the header
+   * says so. See `isTestnet`.
    */
-  testnet?: boolean;
-  /** The chain's block explorer, e.g. "https://sepolia.basescan.org": transactions and addresses link there. */
+  testnet: boolean;
+  /** The chain's block explorer, e.g. "https://sepolia.basescan.org": transactions and addresses link there. None on the stand. */
   explorer?: string;
 }
 
@@ -112,7 +124,11 @@ export interface AppConfig {
   cores: { trusted: TrustedCoreConfig[]; canonical: Address | null };
   deployment: DeploymentFacts | null;
   tokens: TokenConfig[];
-  /** The forwarder that runs an undeployed account's setup call (Multicall3 on real networks). */
+  /**
+   * The forwarder that runs an undeployed account's setup call. A file that leaves it out gets the
+   * chain's Multicall3 from viem/chains (none on the stand's anvil, so null there); the stand writes
+   * the one it deploys.
+   */
   forwarder: Address | null;
   /** The test account factory; null off the stand. */
   accountFactory: Address | null;
@@ -140,7 +156,10 @@ export function pollMsOf(chain: Pick<ChainConfig, "blockTimeMs" | "pollMs">): nu
   return chain.pollMs ?? Math.max(chain.blockTimeMs, 1_000);
 }
 
-/** A test network: local, or marked `testnet` (its money is test money). */
+/** A test network: local, or one viem marks a testnet (its money is test money). */
 export function isTestnet(chain: Pick<ChainConfig, "local" | "testnet">): boolean {
-  return chain.testnet ?? chain.local;
+  return chain.testnet || chain.local;
 }
+
+/** A configuration as its file writes it: the chain by id with this deployment's fields, the forwarder optional. */
+export type AppConfigInput = Omit<AppConfig, "chain" | "forwarder"> & { chain: ChainInput; forwarder?: Address | null };

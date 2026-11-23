@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import type { StandInfo } from "../../e2e/lib/stand";
+import { parseConfig } from "../../../apps/web/src/config/load.ts";
 
 export type Target = "stand" | "fork" | "site";
 
@@ -47,7 +48,7 @@ export function targetStand(target: Target = targetOf(), env = process.env): Tar
       chainId: config.chain.id,
       core: config.cores.canonical,
       tokens: [{ address: config.tokens[0].address, symbol: config.tokens[0].symbol, decimals: config.tokens[0].decimals, kind: "usd" }],
-      forwarder: config.forwarder,
+      forwarder: parseConfig(config).forwarder,
       accountFactory: null,
       aheadSeconds: 0,
       privy: config.privy !== undefined,

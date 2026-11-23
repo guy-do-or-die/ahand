@@ -1,6 +1,7 @@
 import { setLogWindow } from "@ahand/sdk";
 import { createPublicClient, defineChain, fallback, http, type Chain, type PublicClient, type Transport } from "viem";
 
+import { knownChain } from "../config/chains";
 import { pollMsOf, type ChainConfig } from "../config/schema";
 import { ccipReadIsHere } from "./ccip";
 
@@ -11,20 +12,15 @@ import { ccipReadIsHere } from "./ccip";
  */
 
 /**
- * The viem chain a configuration describes. Its currency is ether on every chain aHand runs on.
- * Its `blockTime` is the chain's real pace (the SDK's `findBlockAt` guesses with it), not how often
- * the app polls (`pollMsOf`).
+ * The viem chain a configuration describes: viem's own description of its id (config/chains.ts),
+ * with the configuration's RPC URLs in place of viem's public ones. The name, currency, explorer,
+ * pace, Multicall3, ENS and Base's OP Stack formatters are viem's. Throws for an id aHand does not
+ * know (the configuration was refused before that).
  */
-export function chainOf(chain: ChainConfig): Chain {
-  return defineChain({
-    id: chain.id,
-    name: chain.name,
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: chain.rpcUrls } },
-    blockTime: chain.blockTimeMs,
-    testnet: chain.testnet ?? chain.local,
-    ...(chain.explorer ? { blockExplorers: { default: { name: new URL(chain.explorer).host, url: chain.explorer } } } : {}),
-  });
+export function chainOf(chain: Pick<ChainConfig, "id" | "rpcUrls">): Chain {
+  const known = knownChain(chain.id);
+  if (!known) throw new Error(`chain ${chain.id} is not one aHand knows`);
+  return defineChain({ ...known, rpcUrls: { default: { http: chain.rpcUrls } } });
 }
 
 /** How each request of a transport is tried: viem's default is 10 s and three retries. */

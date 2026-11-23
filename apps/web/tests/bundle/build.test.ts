@@ -27,7 +27,7 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
 function configOn(id: number, local: boolean) {
   return {
     ...example,
-    chain: { ...example.chain, id, local, name: local ? "Local test network" : "Public test", rpcUrls: local ? example.chain.rpcUrls : ["https://rpc.ahand-test.example"] },
+    chain: { ...example.chain, id, local, rpcUrls: local ? example.chain.rpcUrls : ["https://rpc.ahand-test.example"] },
     cores: { ...example.cores, trusted: example.cores.trusted.map((entry) => ({ ...entry, chainId: id })) },
     relays: local ? example.relays : ["wss://relay.ahand-test.example"],
     site: local ? example.site : "https://hand.ahand-test.example",

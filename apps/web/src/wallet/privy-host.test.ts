@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ConnectedWallet, User } from "@privy-io/react-auth";
 
+import { chainConfigOf } from "../config/chains";
 import type { ChainConfig } from "../config/schema";
 import { AMBER_HEX, SURFACE_DARK_HEX } from "../design/tokens";
 import { i18n } from "../i18n";
@@ -15,7 +16,7 @@ import { PRIVY_METHODS } from "./privy";
  * the lens on, the page's look and language.
  */
 
-const SEPOLIA: ChainConfig = { id: 84532, name: "Base Sepolia", rpcUrls: ["https://sepolia.base.org"], blockTimeMs: 2000, local: false, hasL1: true, testnet: true };
+const SEPOLIA: ChainConfig = chainConfigOf({ id: 84532, rpcUrls: ["https://sepolia.base.org"], local: false });
 
 describe("Privy's settings", () => {
   test("one window with email, Google, Apple, X, Farcaster, a passkey and crypto wallets; the build's chain only", () => {

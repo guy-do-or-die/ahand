@@ -108,7 +108,8 @@ describe("configuration and stand.json", () => {
     expect(() => parseConfig(config)).not.toThrow();
   });
   test("chain, Cores, deployment facts, tokens, helpers, relay, site, prices", () => {
-    expect(config.chain).toEqual({ id: 31337, name: "Local test network", rpcUrls: ["http://127.0.0.1:18635"], blockTimeMs: 1000, local: true, hasL1: false });
+    expect(config.chain).toEqual({ id: 31337, rpcUrls: ["http://127.0.0.1:18635"], local: true });
+    expect(parseConfig(config).chain).toMatchObject({ name: "Local test network", blockTimeMs: 1000, hasL1: false, testnet: true });
     expect(config.cores).toEqual({ trusted: [{ chainId: 31337, core: CORE }], canonical: CORE });
     expect(config.deployment).toEqual({
       factory: DEPLOYMENT.factory,

@@ -337,7 +337,7 @@ export async function findBlockAt(client: PublicClient, timestamp: number): Prom
     throw new RangeError(`no block at or after ${timestamp} yet: the latest is ${latest.timestamp}`);
   }
   const timeOf = async (blockNumber: bigint) => Number((await client.getBlock({ blockNumber })).timestamp);
-  // The chain's pace as its viem chain states it (the app's chains do: `blockTimeMs`), else a second.
+  // The chain's pace as its viem chain states it (the app's chains carry Base's real 200 ms), else a second.
   const pace = Math.max((client.chain?.blockTime ?? 1_000) / 1_000, 0.001);
   const distance = BigInt(Math.floor((Number(latest.timestamp) - timestamp) / pace));
   const guess = latest.number > distance ? latest.number - distance : 0n;

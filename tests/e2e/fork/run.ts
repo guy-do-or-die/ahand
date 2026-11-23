@@ -42,6 +42,7 @@ import { isolate } from "../../../packages/card/src/bidi.ts";
 import { metaOf, raiseHand, unescape, USD, type RaiseChain } from "../../../apps/view/tests/hands.ts";
 import { buildApp, copyFunction, FUNCTION_ENTRY, functionFileList, PUBLIC_CONFIG, stageFunction } from "../../../apps/web/deploy.ts";
 import { buildRecord } from "../../../tools/manifest.ts";
+import { parseConfig } from "../../../apps/web/src/config/load.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
 const FOUNDRY = process.env.FOUNDRY_BIN ?? join(homedir(), ".foundry/bin");
@@ -233,7 +234,7 @@ async function main(): Promise<void> {
   // 6. The browser life, then the SDK's own loop over a stand file that names this fork.
   playwright("life");
   const standFile = join(WORK, "stand.json");
-  writeFileSync(standFile, `${JSON.stringify({ slot: null, mode: "built", fork: true, site: SITE, rpc: RPC, relay: null, chainId: CHAIN_ID, core: CORE, tokens: [{ address: USDC, symbol: "USDC", decimals: 6, kind: "usd" }], forwarder: config.forwarder, accountFactory: null, aheadSeconds: 0 }, null, 2)}\n`);
+  writeFileSync(standFile, `${JSON.stringify({ slot: null, mode: "built", fork: true, site: SITE, rpc: RPC, relay: null, chainId: CHAIN_ID, core: CORE, tokens: [{ address: USDC, symbol: "USDC", decimals: 6, kind: "usd" }], forwarder: parseConfig(config).forwarder, accountFactory: null, aheadSeconds: 0 }, null, 2)}\n`);
   const loop = run("sdk-loop", process.execPath, ["infra/stand/loop.ts", "--stand", standFile, "--only", "usd"]);
   summary.sdkLoop = loop.trim().split("\n").filter((l) => l.trim()).slice(-3);
   say(`SDK loop: ${loop.trim().split("\n").pop()}`);

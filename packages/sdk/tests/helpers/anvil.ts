@@ -365,7 +365,7 @@ const TOKEN_LABELS: Record<TokenKind, string> = { usd: "Test dollars", blacklist
  */
 export function configOf(chain: Chain, site = "http://127.0.0.1", relays: string[] = []) {
   return {
-    chain: { id: chain.chainId, name: "Local test network", rpcUrls: [chain.rpc], blockTimeMs: 1000, local: true, hasL1: false },
+    chain: { id: chain.chainId, rpcUrls: [chain.rpc], local: true },
     cores: { trusted: [{ chainId: chain.chainId, core: chain.core }], canonical: chain.core },
     deployment: {
       factory: chain.factory,

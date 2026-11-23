@@ -1,5 +1,6 @@
+import { chainConfigOf, chainFacts, knownChain, KNOWN_CHAIN_IDS } from "./chains";
 import { localChainProblem } from "./local";
-import type { Address, AppConfig, Hex } from "./schema";
+import { isTestnet, type Address, type AppConfig, type Hex } from "./schema";
 
 /** A configuration that does not match the schema. The message names the first wrong field. */
 export class ConfigError extends Error {
@@ -17,6 +18,7 @@ const PRIVY_APP_ID = /^[a-z0-9]{16,40}$/;
 const PRIVY_ORIGIN = /^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$|^http:\/\/localhost:[0-9]{2,5}$/;
 
 type Json = Record<string, unknown>;
+
 
 function object(value: unknown, at: string): Json {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new ConfigError(`${at} must be an object`);
@@ -76,20 +78,16 @@ export function parseConfig(input: unknown): AppConfig {
   const prices = object(root.prices, "prices");
   const defaults = object(root.defaults, "defaults");
   const chainId = integer(chain.id, "chain.id", 1);
+  if (!knownChain(chainId)) throw new ConfigError(`chain.id must be one of the chains aHand knows (${KNOWN_CHAIN_IDS.join(", ")})`);
 
   const config: AppConfig = {
-    chain: {
+    chain: chainConfigOf({
       id: chainId,
-      name: string(chain.name, "chain.name"),
       rpcUrls: list(chain.rpcUrls, "chain.rpcUrls", (v, at) => url(v, at, ["http:", "https:"])),
-      blockTimeMs: integer(chain.blockTimeMs, "chain.blockTimeMs", 1),
       ...(chain.pollMs === undefined || chain.pollMs === null ? {} : { pollMs: integer(chain.pollMs, "chain.pollMs", 100) }),
       ...(chain.logWindow === undefined || chain.logWindow === null ? {} : { logWindow: integer(chain.logWindow, "chain.logWindow", 1, 2_000) }),
       local: boolean(chain.local, "chain.local"),
-      hasL1: boolean(chain.hasL1, "chain.hasL1"),
-      ...(chain.testnet === undefined ? {} : { testnet: boolean(chain.testnet, "chain.testnet") }),
-      ...(chain.explorer === undefined || chain.explorer === null ? {} : { explorer: url(chain.explorer, "chain.explorer", ["https:"]).replace(/\/+$/, "") }),
-    },
+    }),
     cores: {
       trusted: list(cores.trusted, "cores.trusted", (v, at) => {
         const entry = object(v, at);
@@ -121,7 +119,7 @@ export function parseConfig(input: unknown): AppConfig {
         label: string(t.label, `${at}.label`),
       };
     }),
-    forwarder: maybeAddress(root.forwarder, "forwarder"),
+    forwarder: root.forwarder === undefined ? chainFacts(chainId).multicall3 : maybeAddress(root.forwarder, "forwarder"),
     accountFactory: maybeAddress(root.accountFactory, "accountFactory"),
     relays: list(root.relays, "relays", (v, at) => url(v, at, ["ws:", "wss:"])),
     site: url(root.site, "site", ["http:", "https:"]),
@@ -167,7 +165,7 @@ export function parseConfig(input: unknown): AppConfig {
   const localProblem = localChainProblem(config.chain);
   if (localProblem) throw new ConfigError(localProblem);
   if (config.privy && config.chain.local) throw new ConfigError("privy belongs to a public network: Privy's wallets cannot reach a local chain");
-  if (config.faucets?.length && !(config.chain.testnet ?? config.chain.local)) throw new ConfigError("faucets belong to a test network: set chain.testnet");
+  if (config.faucets?.length && !isTestnet(config.chain)) throw new ConfigError("faucets belong to a test network");
   if (config.chain.rpcUrls.length === 0) throw new ConfigError("chain.rpcUrls must name at least one RPC");
   if (!config.cores.trusted.some((t) => t.chainId === chainId)) throw new ConfigError("cores.trusted must name a Core on chain.id");
   if (config.cores.canonical && !config.cores.trusted.some((t) => t.core.toLowerCase() === config.cores.canonical!.toLowerCase())) {

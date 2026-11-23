@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Hex, PublicClient } from "viem";
 
 import { startChain, type Chain } from "../../../../packages/sdk/tests/helpers/anvil";
+import { chainConfigOf } from "../config/chains";
 import { WATCH_TIMING, publicClientOf, watchClientOf } from "./clients";
 import { BlockWatcher, latestTip, staleAfterPolls, type Tip } from "./watcher";
 const HAND_PORT_BASE = process.env.HAND_TEST_PORT_BASE ? Number(process.env.HAND_TEST_PORT_BASE) : undefined;
@@ -116,7 +117,7 @@ describe("BlockWatcher with a scripted chain", () => {
       },
     });
     try {
-      const config = { id: 31337, name: "hang", rpcUrls: [`http://127.0.0.1:${server.port}`], blockTimeMs: 1000, local: true, hasL1: false };
+      const config = chainConfigOf({ id: 31337, rpcUrls: [`http://127.0.0.1:${server.port}`], local: true });
       expect(watchClientOf(config).transport).toMatchObject({ timeout: 4_000, retryCount: 1 });
       const quick = publicClientOf(config, { timeout: 150, retryCount: 1 });
       await expect(quick.getBlockNumber({ cacheTime: 0 })).rejects.toThrow();

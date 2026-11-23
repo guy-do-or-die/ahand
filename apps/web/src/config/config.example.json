@@ -1,11 +1,8 @@
 {
   "chain": {
     "id": 31337,
-    "name": "Local test network",
     "rpcUrls": ["http://127.0.0.1:18545"],
-    "blockTimeMs": 1000,
-    "local": true,
-    "hasL1": false
+    "local": true
   },
   "cores": {
     "trusted": [{ "chainId": 31337, "core": "0x65ac707E2AE7392583de5d6192C619F1D8862309" }],

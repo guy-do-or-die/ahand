@@ -4,6 +4,7 @@ import { createWalletClient, custom, parseErc6492Signature, recoverTypedDataAddr
 import { base, foundry } from "viem/chains";
 
 import { ANVIL_KEYS, startChain, type Chain } from "../../../../packages/sdk/tests/helpers/anvil";
+import { chainConfigOf } from "../config/chains";
 import { devAccounts, devAddress, devConnectors, devProvider, devUnsetSetup, reviveTypedData, sayNoNext, type DevWho } from "./dev";
 import { signTypedWith } from "./typed";
 import { privateKeyToAccount } from "viem/accounts";
@@ -134,7 +135,7 @@ describe("the dev wallet refuses any chain but 31337", () => {
   });
 
   const json = (value: unknown) => JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v));
-  const chainConfig = (id: number, local: boolean) => ({ id, name: "x", rpcUrls: [`http://127.0.0.1:${BASE_RPC_PORT}`], blockTimeMs: 1000, local, hasL1: false });
+  const chainConfig = (id: number, local: boolean) => chainConfigOf({ id, rpcUrls: [`http://127.0.0.1:${BASE_RPC_PORT}`], local });
 
   test("devConnectors refuses a configuration on chain 8453, or one that is not local", () => {
     expect(() => devConnectors({ chain: chainConfig(8453, true), accountFactory: null })).toThrow(/local chain 31337 only/);
