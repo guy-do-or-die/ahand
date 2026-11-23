@@ -13,7 +13,18 @@ import {
   type Statement,
 } from "../src/index.js";
 import type { AddressShape } from "../src/address.js";
-import { encodeLive, keyOfSeed, openLink, passOn, type Attachments, type LinkOptions, type OpenedLink } from "../src/link.js";
+import {
+  LinkError,
+  encodeLive,
+  keyOfSeed,
+  openLink,
+  passOn,
+  type Attachments,
+  type LinkErrorCode,
+  type LinkHead,
+  type LinkOptions,
+  type OpenedLink,
+} from "../src/link.js";
 
 /**
  * A Hand of the tests' own, whose root key comes from a seed: the live links that Core's fixtures
@@ -39,6 +50,27 @@ export function ownHand(dataHash: Hex = keccak256(stringToBytes("who can fix a 1
     minClaimBps: 5_000,
     dataHash,
   };
+}
+
+/**
+ * What the application gives openLink to read a Hand: the chain and the Core the link names are
+ * asked for the Hand the link names, and only this one Hand is there.
+ */
+export function handOnChain(hand: Hand): (head: LinkHead) => Promise<Hand> {
+  return async (head) => {
+    if (head.chainId !== ownDomain.chainId || head.core !== CORE || head.handId !== hand.handId) throw new Error("no such Hand");
+    return hand;
+  };
+}
+
+/** How a link fared: opened, refused with the LinkError's code, or failed some other way. */
+export async function code(run: Promise<unknown> | (() => Promise<unknown>)): Promise<LinkErrorCode | "opened" | "other error"> {
+  try {
+    await (typeof run === "function" ? run() : run);
+    return "opened";
+  } catch (error) {
+    return error instanceof LinkError ? error.code : "other error";
+  }
 }
 
 /** The address a test Shake pays: a different one at every place of the route. */

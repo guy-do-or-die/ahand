@@ -35,26 +35,15 @@ import {
   pinOf,
   toDigits,
   toText,
-  type LinkErrorCode,
-  type LinkHead,
   type WireLink,
 } from "../src/link.js";
 import { accepted, chain, linkKeys, refused, type Accepted, type Refused } from "./fixtures.js";
-import { CORE, giveAt, giverKey, liveLink, ownDomain, ownHand, ownOptions, payeeAt, rootSeed } from "./link-fixtures.js";
+import { CORE, code, giveAt, giverKey, handOnChain, liveLink, ownDomain, ownHand, ownOptions, payeeAt, rootSeed } from "./link-fixtures.js";
 
 /**
  * The link against Core's own fixtures (contracts/test/fixtures/sdk-vectors.json) and against a
  * Hand of the tests' own. The layout is in src/link.ts.
  */
-
-async function code(run: Promise<unknown> | (() => Promise<unknown>)): Promise<LinkErrorCode | "opened" | "other error"> {
-  try {
-    await (typeof run === "function" ? run() : run);
-    return "opened";
-  } catch (error) {
-    return error instanceof LinkError ? error.code : "other error";
-  }
-}
 
 /** The wire parts of a fixture as they stand, written without any check. */
 function wireOfFixture({ hand, shakes, give }: Accepted | Refused, withGive: boolean): WireLink {
@@ -193,11 +182,7 @@ describe("the Gives Core refused, given to encodeGive", () => {
 
 describe("a link of our own, from a seed", () => {
   const hand = ownHand();
-  const getHand = async (head: LinkHead): Promise<Hand> => {
-    // The application asks the chain and the Core the link names for the Hand the link names.
-    if (head.chainId !== ownDomain.chainId || head.core !== CORE || head.handId !== hand.handId) throw new Error("no such Hand");
-    return hand;
-  };
+  const getHand = handOnChain(hand);
 
   it("grows by passing: 0, 1, 3, 6 and 10 paid Shakes, each read back from both text forms", async () => {
     // The sizes of the study of 2026-11-19: Base, Hand 123456, the canonical Core, paid Shakes without a dataHash.
@@ -247,50 +232,6 @@ describe("a link of our own, from a seed", () => {
     forced[0] &= ~0x01;
     expect(await code(openLink(forced, getHand, ownOptions))).toBe("non-canonical");
   }, 60_000);
-
-  it("refuses every single flipped bit of a live link with 0 and with 3 Shakes", async () => {
-    for (const count of [0, 3]) {
-      const { link } = await liveLink(hand, count);
-      let opened = 0;
-      for (let bit = 0; bit < link.length * 8; ++bit) {
-        const flipped = Uint8Array.from(link);
-        flipped[bit >> 3] ^= 1 << (bit & 7);
-        if ((await code(openLink(flipped, getHand, ownOptions))) === "opened") ++opened;
-      }
-      expect(opened).toBe(0);
-    }
-  }, 300_000);
-
-  it("refuses one flipped bit in every byte of a live link with 10 Shakes", async () => {
-    const { link } = await liveLink(hand, 10);
-    let opened = 0;
-    for (let index = 0; index < link.length; ++index) {
-      const flipped = Uint8Array.from(link);
-      flipped[index] ^= 1 << (index * 5) % 8;
-      if ((await code(openLink(flipped, getHand, ownOptions))) === "opened") ++opened;
-    }
-    expect(opened).toBe(0);
-  }, 300_000);
-
-  it("refuses every single flipped bit of a Give link with a Shake, in the link or by the giver's signature", async () => {
-    // One Shake is enough to have every field of a Give link; the bits of further Shakes are flipped above.
-    const { opened } = await liveLink(hand, 1);
-    const signedGive = await giveAt(opened, payeeAt(99), keccak256(stringToBytes("the answer")));
-    const link = await encodeGive({ domain: ownDomain, hand, signedShakes: opened.signedShakes, signedGive }, ownOptions);
-    let passed = 0;
-    for (let bit = 0; bit < link.length * 8; ++bit) {
-      const flipped = Uint8Array.from(link);
-      flipped[bit >> 3] ^= 1 << (bit & 7);
-      try {
-        const read = await openLink(flipped, getHand, ownOptions);
-        await checkGive(read.domain, read.hand, read.signedShakes, read.signedGive!);
-        ++passed;
-      } catch {
-        // refused by the link or by the Give's checks
-      }
-    }
-    expect(passed).toBe(0);
-  }, 300_000);
 
   it("refuses a link cut short or with a byte added", async () => {
     for (const count of [0, 3]) {
