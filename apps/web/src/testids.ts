@@ -75,14 +75,14 @@ export const TID = {
     expiryChip: "raise-expiry-chip", // data-value: 7 | 30 | 90 (days)
     expiryDate: "raise-expiry-date", // the date the days come to, beside the chips (data-value: 2027-04-01); it opens the calendar
     expiryCalendar: "raise-expiry-calendar", // the app's own month of days (ui/DayPick.tsx); data-min, data-max, data-value
-    expiryLine: "raise-expiry-line", // what happens after the date, and that it can be extended
+    expiryLine: "raise-expiry-line", // what happens after the date, and that it can be extended; data-expiry: the expiry in seconds
+    expiryUtc: "raise-expiry-utc", // where the reader's day of the expiry is not UTC's: the day the link's preview will show
     later: "raise-reward-later", // "You can add to it later."
     nudge: "raise-nudge",
     visibility: "raise-visibility", // data-value: public | unlisted | dark
     unfurl: "raise-unfurl",
     unfurlCard: "raise-unfurl-card",
     unfurlTitle: "raise-unfurl-title",
-    unfurlUtc: "raise-unfurl-utc",
     fineTune: "raise-fine-tune",
     minClaim: "raise-min-claim",
     payoutRoom: "raise-payout-room",

@@ -2,7 +2,7 @@ import { approveCall, KEYS_PURPOSE, raiseCall, readLimits, type Call } from "@ah
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { erc20Abi, keccak256, stringToBytes, type Address } from "viem";
 
-import { config, TESTNET } from "../../config";
+import { config, PREVIEWS, TESTNET } from "../../config";
 import { clientOf, useChainStatus, useCost, useNow } from "../../chain";
 import { t, useLang } from "../../i18n";
 import { chainName } from "../../i18n/common/chain";
@@ -31,7 +31,7 @@ import {
   type Step,
   type Up,
 } from "./flow";
-import { daysForDate, expiryFor, fieldDate, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, weigh } from "./link";
+import { daysForDate, expiryFor, fieldDate, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, previewDayApart, weigh } from "./link";
 import { Chips, MODE_WORD, Opens, Part, Unfurl, Visibility } from "./parts";
 import { Share } from "./share";
 import { Faucets, OnExplorer } from "../../shell/OnExplorer";
@@ -486,6 +486,9 @@ export default function RaiseScreen() {
   const titleOver = weighed.over === "title";
   const detailsOver = weighed.over === "details";
   const untilDate = expiry !== undefined ? day(expiry, lang) : undefined;
+  // The link's preview writes the expiry's day in UTC; where the reader's day is another, the
+  // date's own section says which day the preview will show. A hidden Hand's preview has no date.
+  const previewDay = PREVIEWS && mode !== "dark" && expiry !== undefined ? previewDayApart(expiry, lang) : undefined;
 
   return (
     <Frame wide>
@@ -695,6 +698,11 @@ export default function RaiseScreen() {
           ) : (
             <p className="ah-note m-0">{t("common.time.offline")}</p>
           )}
+          {previewDay ? (
+            <p className="ah-label m-0" data-testid={TID.raise.expiryUtc}>
+              {t("raise.expiry.utc", { date: previewDay })}
+            </p>
+          ) : null}
           {days > NUDGE_DAYS ? (
             <p className="ah-label m-0" data-testid={TID.raise.nudge}>
               {t("raise.expiry.nudge")}

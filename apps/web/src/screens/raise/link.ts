@@ -21,8 +21,10 @@ import {
   type ReadDescription,
 } from "@ahand/sdk";
 import { PUBLIC_PART_MAX_CHARS } from "@ahand/sdk/app";
+import { day as cardDay, type Lang } from "@ahand/card";
 import { decodeEventLog, isAddressEqual, pad, slice, zeroAddress, zeroHash, type Address, type Hex, type TransactionReceipt } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { day } from "../../ui/format";
 
 /**
  * The pure half of /raise: the expiry by the network's
@@ -57,6 +59,16 @@ export function daysForDate(picked: string, chainTime: number, maxExpiryPeriod: 
   const most = Math.floor(maxExpiryPeriod / DAY);
   if (picked === fieldDate(chainTime + maxExpiryPeriod - 600)) return most;
   return Math.min(Math.max(daysBetween(fieldDate(chainTime), picked), 1), most);
+}
+
+/**
+ * The day a link's preview writes for the expiry, where it is not the reader's own day. The card
+ * counts the day in UTC (a preview robot has no zone) and the screen in the reader's zone, so near
+ * midnight the two differ: then the card's day, and undefined where they agree. `timeZone` is the
+ * reader's, the runtime's own when left out.
+ */
+export function previewDayApart(expiry: number, lang: Lang, timeZone?: string): string | undefined {
+  return day(expiry, lang, timeZone) !== day(expiry, lang, "UTC") ? cardDay(expiry, lang) : undefined;
 }
 
 /** How many paid passes a fresh route still has room for at worst, with this room per payout. */

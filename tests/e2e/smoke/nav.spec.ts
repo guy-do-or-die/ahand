@@ -350,7 +350,25 @@ test("/raise on a phone shows a section at a time: the strip stays at the top an
   await expect(page).toHaveURL(/\/raise$/);
 });
 
-test("/raise's preview writes its date in UTC, as the card does: where the reader's own day is another, a line under it says the preview's day", async ({ browser }) => {
+/** The day a moment falls on in a zone, as the card writes it (UTC's) or as a reader there counts it. */
+const dayIn = (expiry: number, timeZone: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone }).format(new Date(expiry * 1000));
+
+/**
+ * A zone whose day of `expiry` is not UTC's. Kiritimati (UTC+14) is on the next day from 10:00 UTC,
+ * Etc/GMT+12 (UTC−12) on the day before until 12:00 UTC: the choice turns at 11:00, an hour from
+ * either edge, so the chain's clock moving on between two pages does not change the answer.
+ */
+const zoneApart = (expiry: number) => (new Date(expiry * 1000).getUTCHours() >= 11 ? "Pacific/Kiritimati" : "Etc/GMT+12");
+
+/** The expiry the screen counts from and the UTC line in the date's section, read in one look at the page. */
+const readUtcNote = (page: Page) =>
+  page.evaluate(() => ({
+    expiry: Number(document.querySelector('[data-testid="raise-expiry-line"]')!.getAttribute("data-expiry")),
+    inSection: document.querySelector('#raise-expiry [data-testid="raise-expiry-utc"]')?.textContent ?? null,
+    anywhere: document.querySelectorAll('[data-testid="raise-expiry-utc"]').length,
+  }));
+
+test("/raise's preview writes its date in UTC, as the card does: where the reader's own day is another, the date's section says the day the preview will show", async ({ browser }) => {
   // Between them, these two zones put the reader's day apart from UTC's at any hour.
   let said = 0;
   for (const timezoneId of ["Pacific/Kiritimati", "Etc/GMT+12"]) {
@@ -358,30 +376,49 @@ test("/raise's preview writes its date in UTC, as the card does: where the reade
     await quiet(context, stand.site!);
     const page = await context.newPage();
     await page.goto("/raise");
-    const line = page.getByTestId("raise-expiry-line");
-    await expect(line).toBeVisible({ timeout: 20_000 });
-    const expiry = Number(await line.getAttribute("data-expiry"));
-    const dayIn = (timeZone: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone }).format(new Date(expiry * 1000));
-    const note = page.getByTestId("raise-unfurl-utc");
-    if (dayIn(timezoneId) === dayIn("UTC")) await expect(note).toHaveCount(0);
+    await expect(page.getByTestId("raise-expiry-line")).toBeVisible({ timeout: 20_000 });
+    // The expiry is the chain's clock plus the days: whether the days differ follows from it, not from the hour the suite runs.
+    const seen = await readUtcNote(page);
+    if (dayIn(seen.expiry, timezoneId) === dayIn(seen.expiry, "UTC")) expect(seen.anywhere).toBe(0);
     else {
-      await expect(note).toHaveText(`A preview counts the day in UTC, so there it says ${dayIn("UTC").replace(" ", "\u00a0")}.`);
+      expect(seen.anywhere).toBe(1);
+      expect(seen.inSection).toBe(`The link's preview counts days in UTC and will show ${dayIn(seen.expiry, "UTC").replace(" ", "\u00a0")}.`);
       said++;
     }
+    // Nothing about it stands with the preview itself.
+    await expect(page.locator("#raise-preview").getByText("UTC")).toHaveCount(0);
     await context.close();
   }
   expect(said).toBeGreaterThan(0);
 });
 
 test("/raise on a wide screen: the examples and the action stand beside the sections in a box no taller than the window, the strip has no item for them, and the next section comes up in shade as on a phone", async ({ browser }) => {
-  // The reader's clock is set to UTC: east or west of it, at some hours, the chat preview gains a line
-  // saying that a preview counts the day in UTC, and on a window this short that line alone
-  // decides whether the page's example begins on the screen. The layout is what is measured here.
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, hasTouch: false, isMobile: false, deviceScaleFactor: 1, timezoneId: "UTC" });
+  // Where the reader's day of the expiry is not UTC's, the date's section gains a line saying the
+  // preview's day. The box of examples must not change with it: it is measured first in UTC, where
+  // the line never shows, then in a zone picked from the expiry so that it does, at any hour.
+  const wide = { viewport: { width: 1280, height: 720 }, hasTouch: false, isMobile: false, deviceScaleFactor: 1 };
+  const examples = (page: Page) => page.locator("#raise-preview").evaluate((box) => box.scrollHeight);
+  const utc = await browser.newContext({ ...wide, timezoneId: "UTC" });
+  const inUtc = await utc.newPage();
+  await inUtc.goto("/raise");
+  await expect(inUtc.getByTestId("raise-expiry-line")).toBeVisible({ timeout: 20_000 });
+  await expect(inUtc.getByTestId("raise-expiry-utc")).toHaveCount(0);
+  await expect(inUtc.getByTestId("raise-unfurl")).toBeInViewport();
+  await expect(inUtc.getByTestId("raise-preview")).toBeInViewport();
+  const plain = await examples(inUtc);
+  const timezoneId = zoneApart((await readUtcNote(inUtc)).expiry);
+  await utc.close();
+
+  const context = await browser.newContext({ ...wide, timezoneId });
   const page = await context.newPage();
   await page.goto("/raise");
   const strip = page.getByTestId("raise-nav");
   await expect(strip).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("raise-expiry-line")).toBeVisible();
+  const apart = await readUtcNote(page);
+  expect(dayIn(apart.expiry, timezoneId)).not.toBe(dayIn(apart.expiry, "UTC"));
+  await expect(page.locator("#raise-expiry").getByTestId("raise-expiry-utc")).toBeVisible();
+  expect(await examples(page)).toBe(plain);
   const look = () => lookAtRaise(page);
   // Four sections to move between: the examples are beside them, in view throughout.
   await expect(strip.locator(".ah-strip__item:visible")).toHaveCount(4);

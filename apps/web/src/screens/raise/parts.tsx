@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { amountText, cardModelOf, day as cardDay, DOLLAR_KINDS, metaOf, type CardModel, type HandFacts, type Lang } from "@ahand/card";
+import { amountText, cardModelOf, DOLLAR_KINDS, metaOf, type CardModel, type HandFacts, type Lang } from "@ahand/card";
 import { Card, CARD_WIDTH } from "@ahand/card/Card";
 
 import { config, PREVIEWS } from "../../config";
@@ -9,7 +9,6 @@ import { clsx } from "../../lib/clsx";
 import type { Mode } from "../../store/db";
 import { t, useLang } from "../../i18n";
 import { TID } from "../../testids";
-import { day } from "../../ui/format";
 
 /**
  * Small pieces of the raise screen. `Chips` is the kit's chip row with a test id and a value on
@@ -149,9 +148,6 @@ export function Unfurl({ mode, host, title, content, reward, decimals, token, ex
           },
         };
   const meta = facts ? metaOf(facts, lang) : undefined;
-  // The card writes its date in UTC (a preview robot has no zone); this screen writes the reader's.
-  // Around midnight the two days differ, and the preview says which day it means.
-  const utcDay = facts?.kind === "hand" && expiry !== undefined && day(expiry, lang) !== day(expiry, lang, "UTC") ? cardDay(expiry, lang) : undefined;
   return (
     <div className="flex flex-col gap-2" data-testid={TID.raise.unfurl} data-mode={mode} data-previews={PREVIEWS ? "true" : "false"}>
       <span className="ah-meta">{t("raise.who.unfurl")}</span>
@@ -175,7 +171,6 @@ export function Unfurl({ mode, host, title, content, reward, decimals, token, ex
         )}
       </div>
       <p className="ah-label m-0">{PREVIEWS ? t(`raise.who.unfurl.${mode}`) : t("raise.who.noPreviews")}</p>
-      {PREVIEWS && utcDay ? <p className="ah-label m-0" data-testid={TID.raise.unfurlUtc}>{t("raise.who.utc", { date: utcDay })}</p> : null}
     </div>
   );
 }

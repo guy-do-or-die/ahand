@@ -235,3 +235,32 @@ describe("raise: the asker's own date", () => {
     expect(daysForDate(fieldDate(lateNight + CAP - 600), lateNight, CAP)).toBe(180);
   });
 });
+
+describe("raise: the day a link's preview shows", () => {
+  const { previewDayApart } = require("./link") as typeof import("./link");
+  // 23:30 UTC on 1 March 2027: still the 1st in UTC and west of it, already the 2nd far east.
+  const LATE = Date.UTC(2027, 2, 1, 23, 30) / 1000;
+  // 00:30 UTC on 2 March 2027: the 2nd in UTC, still the 1st far west.
+  const EARLY = Date.UTC(2027, 2, 2, 0, 30) / 1000;
+
+  test("where the reader's day is UTC's there is nothing to say", () => {
+    expect(previewDayApart(LATE, "en", "UTC")).toBeUndefined();
+    expect(previewDayApart(LATE, "en", "Europe/London")).toBeUndefined();
+    expect(previewDayApart(EARLY, "ru", "Africa/Lagos")).toBeUndefined();
+  });
+
+  test("where it is another, the preview's own day, as the card writes it", () => {
+    expect(previewDayApart(LATE, "en", "Pacific/Kiritimati")).toBe("1 Mar");
+    expect(previewDayApart(LATE, "en", "Asia/Tokyo")).toBe("1 Mar");
+    expect(previewDayApart(EARLY, "en", "Etc/GMT+12")).toBe("2 Mar");
+    expect(previewDayApart(EARLY, "ru", "America/Lima")).toBe("2 мар");
+  });
+
+  test("at any moment one of the two farthest zones has another day than UTC", () => {
+    for (let hour = 0; hour < 24; hour++) {
+      const at = Date.UTC(2027, 2, 1, hour, 10) / 1000;
+      const apart = [previewDayApart(at, "en", "Pacific/Kiritimati"), previewDayApart(at, "en", "Etc/GMT+12")].filter(Boolean);
+      expect(apart.length).toBeGreaterThan(0);
+    }
+  });
+});
