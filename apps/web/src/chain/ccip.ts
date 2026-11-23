@@ -1,7 +1,7 @@
 import { offchainLookup } from "viem";
 
 /**
- * viem 2.52.0 loads its CCIP-Read helper lazily, and does so in the handler of every failed
+ * viem (2.52.0 to 2.58.4 at least) loads its CCIP-Read helper lazily, and does so in the handler of every failed
  * `eth_call`, whatever made it fail (actions/public/call.ts: `await import("../../utils/ccip.js")`
  * comes before the error is even looked at). A bundler puts a lazy import in a file of its own, so
  * a call that fails because the network is gone asks the site for one more file exactly when

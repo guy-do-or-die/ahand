@@ -11,23 +11,22 @@ import type { ChainConfig, ChainInput } from "./schema";
  * read from here. A configuration on any other chain id is refused.
  *
  * What is changed from viem:
- * - Base and Base Sepolia make a block every 200 ms: blocks 61 429 229 and 61 441 608 are 2 476 s
- *   apart (2026-11-21), and over 10 000 blocks on both networks on 2026-11-23. viem 2.52 still says
- *   2 000 (2.58 says 200); the SDK's `findBlockAt` guesses with it and took 35 reads with 2 000
- *   where 200 takes five. Drop the line once viem is past 2.58.
  * - Sepolia has no `blockTime` in viem: 12 s, a slot, as Ethereum.
  * - The stand's anvil (31337) is viem's `foundry` with the name screens show, a second's pace (the
  *   stand mines a block a second) and marked a test network.
+ *
+ * Base and Base Sepolia are viem's as they are, pace included: a block every 200 ms (blocks
+ * 61 429 229 and 61 441 608 are 2 476 s apart, 2026-11-21; the same over 10 000 blocks on both
+ * networks, 2026-11-23). The SDK's `findBlockAt` guesses with it: five reads, where viem's 2 000
+ * before 2.58.1 took 35. A test holds viem to 200 (chain/clients.test.ts).
  */
-const BASE_BLOCK_MS = 200;
-
 export const LOCAL_CHAIN: Chain = defineChain({ ...foundry, name: "Local test network", blockTime: 1_000, testnet: true });
 
 const KNOWN: Readonly<Record<number, Chain>> = Object.freeze({
   [mainnet.id]: mainnet,
   [sepolia.id]: defineChain({ ...sepolia, blockTime: 12_000 }),
-  [base.id]: defineChain({ ...base, blockTime: BASE_BLOCK_MS }),
-  [baseSepolia.id]: defineChain({ ...baseSepolia, blockTime: BASE_BLOCK_MS }),
+  [base.id]: base,
+  [baseSepolia.id]: baseSepolia,
   [LOCAL_CHAIN_ID]: LOCAL_CHAIN,
 });
 

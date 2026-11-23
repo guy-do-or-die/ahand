@@ -83,9 +83,9 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((done) => server.close(() => done())));
 
 /**
- * A fresh viem client of one node, with viem's default retries: viem asks a -32005 refusal (and an
- * HTTP 413 with no JSON-RPC body) four times before the SDK sees it, and those requests are counted
- * here as the app makes them. Only the wait between them is shortened, to keep the test quick.
+ * A fresh viem client of one node, with viem's default retries: viem asks a -32005 refusal, and
+ * any answer with HTTP 413 (since 2.57.12 also one that carries a JSON-RPC error, as Base's does), four
+ * times before the SDK sees it, and those requests are counted here as the app makes them. Only the wait between them is shortened, to keep the test quick.
  */
 const clientOf = (mode: Mode): PublicClient => createPublicClient({ transport: http(`${url}/${mode}`, { retryDelay: 1 }) }) as PublicClient;
 const take = (mode: Mode) => asked.splice(0).filter((one) => one.mode === mode);
@@ -108,9 +108,10 @@ describe("readLogWindows: a window the node refuses for its range shrinks", () =
     asked.length = 0;
     expect(await handLogs(client, CORE, 2n, { fromBlock, toBlock: TIP })).toEqual([]);
     const first = take("base");
-    // 1 000 blocks: refused once, then the node's own 200 named in its refusal, five windows.
-    expect(spans(first)).toEqual([1_000, 200, 200, 200, 200, 200]);
-    expect(first[0]!.refused).toBe(true);
+    // 1 000 blocks: refused (asked four times by viem's retries), then the node's own 200 named in
+    // its refusal, five windows. The app's configuration starts Base Sepolia at 200 (`logWindow`).
+    expect(spans(first)).toEqual([1_000, 1_000, 1_000, 1_000, 200, 200, 200, 200, 200]);
+    expect(first.slice(0, 4).every((one) => one.refused)).toBe(true);
     coversOnce(first, fromBlock, TIP);
 
     // The client learnt it: the next read starts at 200 and is never refused; a fresh client starts at 2 000.
@@ -169,8 +170,9 @@ describe("readLogWindows: a window the node refuses for its range shrinks", () =
     asked.length = 0;
     const error = await handLogs(client, CORE, 2n, { fromBlock: TIP - 999n, toBlock: TIP }).catch((e: unknown) => e);
     expect((error as { code?: number }).code).toBe(-32614);
-    // 1 000, then the 200 the node named, then halving to one block: nothing was ever taken.
-    expect(spans(take("always"))).toEqual([1_000, 200, 100, 50, 25, 12, 6, 3, 1]);
+    // 1 000, then the 200 the node named, then halving to one block, each asked four times by viem's
+    // retries: nothing was ever taken.
+    expect(spans(take("always"))).toEqual([1_000, 200, 100, 50, 25, 12, 6, 3, 1].flatMap((span) => [span, span, span, span]));
     expect(logWindowOf(client)).toBe(LOG_WINDOW);
   });
 

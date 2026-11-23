@@ -212,7 +212,7 @@ describe("restoring on load", () => {
     expect(carry.restoreCarriedLink(true, T0 + 1)).toBe(true);
     await Bun.sleep(carry.MARK_EVERY_MS * 2); // Privy still finishing: its query is there, nothing changes
     expect(window.history.state).toEqual({ view: "hand" });
-    window.history.replaceState({}, "", "/"); // Privy 3.51.3's Dr()
+    window.history.replaceState({}, "", "/"); // Privy's cleanup of its query (3.51.3 `Dr()`, 3.52.0 `Kr()`)
     expect(window.history.state).toEqual({});
     await Bun.sleep(carry.MARK_EVERY_MS * 3);
     expect(window.history.state).toEqual({ view: "hand" });

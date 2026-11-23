@@ -10,7 +10,7 @@
     "@ahand/abi": "workspace:*",
     "@ahand/sdk": "workspace:*",
     "canonicalize": "^3.0.0",
-    "viem": "2.52.0",
+    "viem": "2.58.4",
     "zod": "^4.4.3"
   }
 }

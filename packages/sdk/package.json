@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@ahand/abi": "workspace:*",
-    "viem": "2.52.0",
+    "viem": "2.58.4",
     "zod": "3.25.76"
   },
   "devDependencies": {

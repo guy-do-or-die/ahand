@@ -486,7 +486,7 @@ export interface LogRangeRefusal {
  *   `{"code":-32614,"message":"eth_getLogs is limited to a 200 range"}`; viem reads a JSON-RPC
  *   error out of a failed response, so this arrives as an `RpcRequestError` with `code` -32614 and
  *   the node's message in `details`, not as an HTTP error. The code check is what catches Base;
- *   the status check below does not.
+ *   the status check below does not. Since 2.57.12 viem retries it three times by its 413 first.
  * - HTTP 413 with a body that is not JSON-RPC (viem's `HttpRequestError` with `status` 413). viem
  *   retries those three times before this sees them.
  * - Any other code (-32005 "limit exceeded", -32602 "invalid params", -32000…) whose message says

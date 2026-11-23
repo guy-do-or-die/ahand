@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { logWindowOf, LOG_WINDOW } from "@ahand/sdk";
 
-import { baseSepolia, mainnet } from "viem/chains";
+import { base, baseSepolia, mainnet } from "viem/chains";
 
 import { chainConfigOf } from "../config/chains";
 import { pollMsOf } from "../config/schema";
@@ -49,6 +49,11 @@ describe("chainOf", () => {
  */
 describe("pace, polling and the log window", () => {
   const sepolia = chainConfigOf({ id: 84532, rpcUrls: ["https://sepolia.base.org"], pollMs: 2_000, logWindow: 200, local: false });
+
+  test("viem itself says 200 ms for Base and Base Sepolia, so the app takes their pace as it is", () => {
+    expect(base.blockTime).toBe(200);
+    expect(baseSepolia.blockTime).toBe(200);
+  });
 
   test("the block time is the chain's pace; polling is pollMs, else the block time but at least a second", () => {
     expect(chainOf(sepolia).blockTime).toBe(200);

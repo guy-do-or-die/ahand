@@ -8,7 +8,7 @@ import { privyReturning } from "./wallet/privy-mark";
 /**
  * An opened link carried across one social login: the one exception to a reload forgetting an
  * opened link. Google, Apple and X through Privy send the person to the provider and back by a
- * fresh load of the same address (Privy 3.51.3 calls `window.location.assign`), and a fresh load
+ * fresh load of the same address (Privy 3.51.3 and 3.52.0 call `window.location.assign`), and a fresh load
  * forgets a link that lives only in this tab's memory (store/memory.ts). So it is carried across
  * that trip in this tab's `sessionStorage` and erased on return. A per-person setting kept
  * encrypted in ENS data records is a note for later, not built.
@@ -351,7 +351,7 @@ export const MARK_WITHIN_MS = 60_000;
 
 /**
  * Marks "/" as the Hand view again once Privy has taken its code out of the query. Privy 3.51.3
- * finishes a social return with `window.history.replaceState({}, "", url)` (its `Dr()`, in the
+ * and 3.52.0 finish a social return with `window.history.replaceState({}, "", url)` (minified `Dr()`, then `Kr()`, in the
  * `finally` of its OAuth login, so after a failed one too), which wipes the mark `restoreCarriedLink`
  * put on the entry without telling the router: the screen stays on the Hand view, but Back from the
  * next screen, or the next social login from this one (which reads `history.state`), would find the

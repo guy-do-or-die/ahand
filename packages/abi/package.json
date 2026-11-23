@@ -22,6 +22,6 @@
     "@types/bun": "1.4.4",
     "@wagmi/cli": "2.10.1",
     "typescript": "5.9.3",
-    "viem": "2.52.0"
+    "viem": "2.58.4"
   }
 }

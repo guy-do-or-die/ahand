@@ -9,6 +9,6 @@
     "@pimlico/alto": "0.0.20",
     "@pimlico/mock-paymaster": "0.0.8",
     "prool": "0.0.25",
-    "viem": "2.52.0"
+    "viem": "2.58.4"
   }
 }

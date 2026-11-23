@@ -13,7 +13,7 @@
     "@ahand/abi": "workspace:*",
     "@ahand/deliver": "workspace:*",
     "@ahand/sdk": "workspace:*",
-    "viem": "2.52.0"
+    "viem": "2.58.4"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",
