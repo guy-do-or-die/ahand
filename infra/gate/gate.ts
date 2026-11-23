@@ -96,18 +96,18 @@ function report(ran: Ran): void {
 
 /**
  * How many threads each of the three steps that would take every core may use while the gate runs
- * them beside the other lanes, so the machine is shared rather than overrun (all three at full
- * width loaded 14 cores about twice over, and tests that wait for a few seconds timed out): half
- * the cores for the SDK's tests, the longest lane, and a quarter each for tsc and forge. Run
- * alone, each step still takes every core.
+ * them beside the other lanes: a quarter of the cores each. The machine is shared rather than
+ * overrun: with all three at full width, or the SDK's tests on half the cores, the load stood at
+ * twice the cores, and tests that watch a chain or a relay within a deadline (a reorg seen before
+ * the block is safe, a relay's answer within 300 ms) failed. Run alone, each step still takes
+ * every core.
  */
 export function shares(cores: number): Record<string, string[]> {
-  const half = String(Math.max(2, Math.floor(cores / 2)));
   const quarter = String(Math.max(2, Math.floor(cores / 4)));
   return {
     typecheck: ["--jobs", quarter],
     "test:contracts": ["--threads", quarter],
-    "test:sdk": ["--maxWorkers", half, "--minWorkers", "1"],
+    "test:sdk": ["--maxWorkers", quarter, "--minWorkers", "1"],
   };
 }
 
@@ -118,7 +118,7 @@ const SHARES = shares(availableParallelism());
  * the lanes beside them whose tests wait for a relay's answer or a block within a deadline get
  * the CPU when they need it. Under a full machine a relay's 300 ms answer came late otherwise.
  */
-export const BACKGROUND = new Set(["typecheck", "test:contracts"]);
+export const BACKGROUND = new Set(["typecheck", "test:contracts", "test:sdk"]);
 
 /** `bun run <name>`, with its share of the machine when it has one (bun run passes the arguments on). */
 function script(name: string): Step {
