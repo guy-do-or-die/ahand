@@ -37,7 +37,7 @@ export {
   type WalletOption,
   type WalletState,
 } from "./state";
-export type { PasskeyOutcome } from "./privy";
+export type { PasskeyOutcome } from "./passkeys";
 export { useSend, type SendState, type UseSend } from "./useSend";
 export { signTypedWith, type TypedAnswer } from "./typed";
 export { useTypedSigner, type TypedOutcome, type UseTypedSigner } from "./useTypedSigner";

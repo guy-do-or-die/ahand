@@ -8,6 +8,7 @@ import { chainOf } from "../chain/clients";
 import { chainConfigOf } from "../config/chains";
 import type { ChainConfig } from "../config/schema";
 import { reviveTypedData } from "./dev";
+import { PASSKEYS_MOST, passkeyOutcome } from "./passkeys";
 import {
   guardedProvider,
   isPrivyEmbedded,
@@ -16,6 +17,7 @@ import {
   privyAddPasskeyOf,
   privyPasskeysOf,
   privyAllowsOrigin,
+  refusedAsFull,
   privyConnector,
   privyPhase,
   privyUnavailable,
@@ -104,10 +106,15 @@ function fakePrivyProvider(startChain = 1, behaviour: { refusesSwitch?: boolean 
  * A host that does what privy-host.tsx does once the person is in: a wallet Privy keeps is moved to
  * the build's chain and handed over; a crypto wallet is handed over where it is (the connector asks it).
  */
-function fakeHost(fake: Fake, behaviour: { closes?: boolean; external?: boolean; session?: boolean; passkeys?: number; passkeyWindow?: "adds" | "removes" | "closes" | "fails" } = {}) {
+function fakeHost(
+  fake: Fake,
+  behaviour: { closes?: boolean; external?: boolean; session?: boolean; passkeys?: number; passkeyWindow?: "adds" | "removes" | "swaps" | "closes" | "fails" | "refusesSixth" } = {},
+) {
   const seen = { signIns: 0, signOuts: 0, restores: 0, passkeyWindows: 0, methods: [] as (readonly PrivyLoginMethod[])[] };
   let session = behaviour.session ?? false;
-  let passkeys = behaviour.passkeys ?? 0;
+  let made = 0;
+  const make = () => `cred-${made++}`;
+  let passkeys = Array.from({ length: behaviour.passkeys ?? 0 }, make);
   const handOver = async () => {
     if (!behaviour.external) await fake.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: numberToHex(SEPOLIA.id) }] });
     return { address: KEY.address, provider: fake.provider, embedded: !behaviour.external };
@@ -129,14 +136,17 @@ function fakeHost(fake: Fake, behaviour: { closes?: boolean; external?: boolean;
       session = false;
     },
     passkeys() {
-      return session ? passkeys : 0;
+      return session ? passkeys : [];
     },
-    // Privy's passkey window: the person adds one, removes one, or closes it; or it never opens.
+    // Privy's passkey window: the person adds one, removes one, does both, or closes it; or it
+    // never opens, or Privy refuses before it opens (its own check of a sixth passkey).
     async addPasskey() {
       seen.passkeyWindows++;
       if (behaviour.passkeyWindow === "fails") throw new Error("Privy's passkey window did not open");
-      if (behaviour.passkeyWindow === "adds") passkeys++;
-      if (behaviour.passkeyWindow === "removes") passkeys--;
+      if (behaviour.passkeyWindow === "refusesSixth") throw new Error("User already has an account of type passkey linked");
+      if (behaviour.passkeyWindow === "adds") passkeys = [...passkeys, make()];
+      if (behaviour.passkeyWindow === "removes") passkeys = passkeys.slice(1);
+      if (behaviour.passkeyWindow === "swaps") passkeys = [...passkeys.slice(1), make()];
       return passkeys;
     },
   };
@@ -487,6 +497,31 @@ describe("adding a passkey to a Privy account (the person sheet's \"Add a passke
     expect(privyPasskeysOf(removed.connector)).toBe(0);
     const failed = await inWith({ passkeyWindow: "fails" });
     expect(await withWebAuthn(() => privyAddPasskeyOf(failed.connector))).toBe("failed");
+  });
+
+  test("one removed and another added in the same window is \"added\": the line never says nothing was added when one was", async () => {
+    const swapped = await inWith({ passkeys: 1, passkeyWindow: "swaps" });
+    expect(await withWebAuthn(() => privyAddPasskeyOf(swapped.connector))).toBe("added");
+    expect(privyPasskeysOf(swapped.connector)).toBe(1);
+  });
+
+  test("at Privy's most (5) the window is not opened, and Privy's own refusal of a sixth is \"full\" too", async () => {
+    const most = await inWith({ passkeys: PASSKEYS_MOST, passkeyWindow: "adds" });
+    expect(await withWebAuthn(() => privyAddPasskeyOf(most.connector))).toBe("full");
+    expect(most.seen.passkeyWindows).toBe(0);
+    const refused = await inWith({ passkeys: 2, passkeyWindow: "refusesSixth" });
+    expect(await withWebAuthn(() => privyAddPasskeyOf(refused.connector))).toBe("full");
+    expect(refused.seen.passkeyWindows).toBe(1);
+    expect(refusedAsFull(new Error("Privy's passkey window did not open"))).toBe(false);
+    expect(refusedAsFull("User already has an account of type passkey linked")).toBe(false);
+  });
+
+  test("the outcome compares credential ids, not counts", () => {
+    expect(passkeyOutcome([], ["a"])).toBe("added");
+    expect(passkeyOutcome(["a"], ["b"])).toBe("added");
+    expect(passkeyOutcome(["a", "b"], ["b"])).toBe("removed");
+    expect(passkeyOutcome(["a", "b"], ["b", "a"])).toBe("none");
+    expect(passkeyOutcome([], [])).toBe("none");
   });
 
   test("a browser without passkeys is told so before Privy's window opens", async () => {

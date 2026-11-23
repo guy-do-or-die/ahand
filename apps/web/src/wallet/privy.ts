@@ -3,6 +3,7 @@ import { createConnector, type CreateConnectorFn } from "wagmi";
 
 import type { ChainConfig, PrivyConfig } from "../config/schema";
 import { chainOf } from "../chain/clients";
+import { PASSKEYS_MOST, passkeyOutcome, type PasskeyOutcome } from "./passkeys";
 import { markPrivy } from "./privy-mark";
 
 /**
@@ -81,22 +82,22 @@ export interface PrivyHost {
   restore(): Promise<PrivySession | undefined>;
   /** Ends the Privy session on this device. */
   signOut(): Promise<void>;
-  /** How many passkeys the account holds now (Privy's `linkedAccounts` of type "passkey"); 0 with no session. */
-  passkeys(): number;
+  /** The account's passkeys now, by credential id (Privy's `linkedAccounts` of type "passkey"); none with no session. */
+  passkeys(): readonly string[];
   /**
    * Opens Privy's own passkey window over the page (`useLinkAccount().linkPasskey`), where the
-   * person adds a passkey, or removes one, and resolves with the account's count once the window
-   * closes. Privy says in that window why a passkey could not be made. Rejects when it does not open.
+   * person adds a passkey, or removes one, and resolves with the account's passkeys once the window
+   * closes. Privy says in that window why a passkey could not be made. Rejects at once when Privy
+   * refuses before its window opens (nobody in, the account at its most passkeys, the network),
+   * and when the window does not open.
    */
-  addPasskey(): Promise<number>;
+  addPasskey(): Promise<readonly string[]>;
 }
 
-/**
- * What became of "Add a passkey" (`privyAddPasskey`): one more passkey on the account, one fewer
- * (removed in Privy's window), the same count (the window was closed, or the device said no),
- * a browser without passkeys (WebAuthn), or Privy's window that did not open.
- */
-export type PasskeyOutcome = "added" | "removed" | "none" | "unsupported" | "failed";
+/** Privy's refusal, before its window opens, of a passkey over `PASSKEYS_MOST` (its message in 3.51.3). */
+export function refusedAsFull(error: unknown): boolean {
+  return error instanceof Error && /already has an account of type passkey/i.test(error.message);
+}
 
 /** Whether this browser can make a passkey at all (WebAuthn): asked before Privy's window opens. */
 export function passkeysSupported(): boolean {
@@ -260,18 +261,18 @@ export function privyConnector(settings: PrivyConfig, chain: ChainConfig, load: 
        * through Privy, whose money a passkey cannot reach on a device without that wallet.
        */
       privyPasskeys(): number | undefined {
-        return session?.embedded && loaded ? loaded.passkeys() : undefined;
+        return session?.embedded && loaded ? loaded.passkeys().length : undefined;
       },
       /** Adds a passkey to that account in Privy's own window; never throws. */
       async privyAddPasskey(): Promise<PasskeyOutcome> {
         if (!session?.embedded || !loaded) return "failed";
         if (!passkeysSupported()) return "unsupported";
         const before = loaded.passkeys();
+        if (before.length >= PASSKEYS_MOST) return "full";
         try {
-          const after = await loaded.addPasskey();
-          return after > before ? "added" : after < before ? "removed" : "none";
-        } catch {
-          return "failed";
+          return passkeyOutcome(before, await loaded.addPasskey());
+        } catch (error) {
+          return refusedAsFull(error) ? "full" : "failed";
         }
       },
       async connect(parameters) {

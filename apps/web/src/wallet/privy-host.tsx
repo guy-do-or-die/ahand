@@ -64,8 +64,12 @@ interface Live {
   login: ReturnType<typeof useLogin>["login"];
   logout: () => Promise<void>;
   createWallet: () => Promise<unknown>;
-  /** Opens Privy's own passkey window for a logged-in person (a no-op while nobody is in). */
-  linkPasskey: () => void;
+  /**
+   * Opens Privy's own passkey window for a logged-in person. Settles once the window is asked for;
+   * rejects when Privy refuses first (nobody in, the account at its most passkeys, the challenge
+   * not fetched).
+   */
+  linkPasskey: () => Promise<void>;
 }
 
 /**
@@ -120,7 +124,9 @@ function Bridge() {
   const { logout } = useLogout();
   const { createWallet } = useCreateWallet();
   // No callbacks: Privy's passkey window shows its own errors and success, and `addPasskey` reads
-  // the outcome from the account once the window closes.
+  // the outcome from the account once the window closes. Privy types `linkPasskey` as returning
+  // nothing, but in 3.51.3 it is async and rejects before its window opens (nobody in, a sixth
+  // passkey, the challenge not fetched), so its promise is kept and handed on.
   const { linkPasskey } = useLinkAccount();
   const { login } = useLogin({
     onComplete: () => {
@@ -134,7 +140,7 @@ function Bridge() {
     },
   });
   useEffect(() => {
-    publish({ ready, authenticated, user, modalOpen: isModalOpen, walletsReady, wallets, login, logout, createWallet: () => createWallet(), linkPasskey: () => linkPasskey() });
+    publish({ ready, authenticated, user, modalOpen: isModalOpen, walletsReady, wallets, login, logout, createWallet: () => createWallet(), linkPasskey: () => Promise.resolve(linkPasskey() as unknown).then(() => undefined) });
   });
   return null;
 }
@@ -318,9 +324,21 @@ export function accountWallet(now: Pick<Live, "walletsReady" | "wallets" | "user
   return now.wallets.find((wallet) => wallet.address.toLowerCase() === named);
 }
 
-/** How many passkeys a Privy account holds: its linked accounts of type "passkey" (Privy lists several, and adds or removes them in one window). */
-export function passkeysOf(user: Pick<User, "linkedAccounts"> | null | undefined): number {
-  return user?.linkedAccounts.filter((account) => account.type === "passkey").length ?? 0;
+/** The passkeys of a Privy account, by credential id: its linked accounts of type "passkey" (up to 5, added or removed in one window). */
+export function passkeysOf(user: Pick<User, "linkedAccounts"> | null | undefined): string[] {
+  return (user?.linkedAccounts ?? []).flatMap((account) => (account.type === "passkey" ? [account.credentialId] : []));
+}
+
+/**
+ * Privy's passkey window, in order: ask for it (`link`, which rejects at once when Privy refuses
+ * before the window opens, so nothing waits on a window that will not come and the sheet never
+ * comes back under one), see it open, then wait for it to close. `open(state, ms)` waits for the
+ * window to be open or closed, and rejects after `ms`.
+ */
+export async function passkeyWindow(link: () => Promise<void>, open: (state: boolean, ms: number) => Promise<void>): Promise<void> {
+  await link();
+  await open(true, READY_MS);
+  await open(false, LOGIN_MS);
 }
 
 /** Whether the Privy account names no wallet yet, or names one Privy keeps (which only needs time to appear). */
@@ -428,16 +446,16 @@ function host(chain: ChainConfig): PrivyHost {
       if (live?.authenticated) await live.logout();
     },
     passkeys() {
-      return live?.authenticated ? passkeysOf(live.user) : 0;
+      return live?.authenticated ? passkeysOf(live.user) : [];
     },
     async addPasskey() {
       if (!live?.authenticated) throw new Error("nobody is logged in");
-      live.linkPasskey();
-      // Privy's window opens at once (its code is here already); then the person adds a passkey,
-      // removes one or closes it. Its success screen ("Passkeys updated") comes after the account
-      // is updated, so the count is read as the window closes.
-      await when((l) => (l.modalOpen ? true : undefined), READY_MS, () => new Error("Privy's passkey window did not open"));
-      await when((l) => (l.modalOpen ? undefined : true), LOGIN_MS, () => new Error("the passkey window stayed open too long"));
+      // Privy fetches a challenge, then opens its window; the person adds a passkey, removes one or
+      // closes it. Its success screen ("Passkeys updated") comes after the account is updated, so
+      // the passkeys are read as the window closes.
+      await passkeyWindow(live.linkPasskey, (state, ms) =>
+        when((l) => (l.modalOpen === state ? true : undefined), ms, () => new Error(state ? "Privy's passkey window did not open" : "the passkey window stayed open too long")).then(() => undefined),
+      );
       return passkeysOf(live?.user);
     },
   };

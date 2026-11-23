@@ -6,7 +6,7 @@ import type { ChainConfig } from "../config/schema";
 import { AMBER_HEX, SURFACE_DARK_HEX } from "../design/tokens";
 import { i18n } from "../i18n";
 import { initLens } from "../shell/lens";
-import { accountWallet, lookKey, passkeysOf, lookNow, PRIVY_RU, PRIVY_WORDS, privyClientConfig, privyKept, watchLook } from "./privy-host";
+import { accountWallet, lookKey, lookNow, passkeysOf, passkeyWindow, PRIVY_RU, PRIVY_WORDS, privyClientConfig, privyKept, watchLook } from "./privy-host";
 import { PRIVY_METHODS } from "./privy";
 
 /**
@@ -155,13 +155,65 @@ describe("a wallet Privy keeps", () => {
 });
 
 describe("the passkeys of a Privy account", () => {
-  const linked = (...types: string[]) => ({ linkedAccounts: types.map((type) => ({ type })) }) as unknown as User;
+  const linked = (...types: string[]) => ({ linkedAccounts: types.map((type, i) => ({ type, credentialId: `cred-${i}` })) }) as unknown as User;
 
-  test("are its linked accounts of type \"passkey\", however many; none without an account", () => {
-    expect(passkeysOf(linked("email", "wallet"))).toBe(0);
-    expect(passkeysOf(linked("email", "passkey", "wallet"))).toBe(1);
-    expect(passkeysOf(linked("passkey", "google_oauth", "passkey"))).toBe(2);
-    expect(passkeysOf(null)).toBe(0);
-    expect(passkeysOf(undefined)).toBe(0);
+  test("are its linked accounts of type \"passkey\", by credential id; none without an account", () => {
+    expect(passkeysOf(linked("email", "wallet"))).toEqual([]);
+    expect(passkeysOf(linked("email", "passkey", "wallet"))).toEqual(["cred-1"]);
+    expect(passkeysOf(linked("passkey", "google_oauth", "passkey"))).toEqual(["cred-0", "cred-2"]);
+    expect(passkeysOf(null)).toEqual([]);
+    expect(passkeysOf(undefined)).toEqual([]);
+  });
+});
+
+describe("Privy's passkey window, in order", () => {
+  /** The window's steps as they happen: Privy asked, then the window seen open, then seen closed. */
+  function steps(link: () => Promise<void>) {
+    const seen: string[] = [];
+    const run = passkeyWindow(
+      async () => {
+        seen.push("asked");
+        await link();
+      },
+      async (open) => {
+        seen.push(open ? "opened" : "closed");
+      },
+    );
+    return { seen, run };
+  }
+
+  test("Privy is asked, then the window is seen open, then closed", async () => {
+    const { seen, run } = steps(async () => undefined);
+    await run;
+    expect(seen).toEqual(["asked", "opened", "closed"]);
+  });
+
+  test("the window is not waited for until Privy has asked for it (a slow challenge does not count against it)", async () => {
+    let fetched!: () => void;
+    const { seen, run } = steps(() => new Promise<void>((resolve) => (fetched = resolve)));
+    await Promise.resolve();
+    expect(seen).toEqual(["asked"]);
+    fetched();
+    await run;
+    expect(seen).toEqual(["asked", "opened", "closed"]);
+  });
+
+  test("Privy's refusal before its window opens (a sixth passkey, the network) rejects at once, with no wait on a window", async () => {
+    const { seen, run } = steps(() => Promise.reject(new Error("User already has an account of type passkey linked")));
+    await expect(run).rejects.toThrow("already has an account of type passkey");
+    expect(seen).toEqual(["asked"]);
+  });
+
+  test("a window that does not open rejects, and the close is not waited for", async () => {
+    const seen: boolean[] = [];
+    const run = passkeyWindow(
+      async () => undefined,
+      async (open) => {
+        seen.push(open);
+        if (open) throw new Error("Privy's passkey window did not open");
+      },
+    );
+    await expect(run).rejects.toThrow("did not open");
+    expect(seen).toEqual([true]);
   });
 });
