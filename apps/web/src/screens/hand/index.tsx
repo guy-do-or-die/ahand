@@ -225,7 +225,8 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
   const actions = state === "open" && live;
   // At phone width the two actions stand in a bar at the bottom of the screen. An on-screen
   // keyboard would cover the bar or push it over the field being typed in, so while one is open
-  // the buttons stand in the page instead: they are never absent.
+  // the buttons stand in the page instead: they are never absent. The same on a screen both
+  // narrow and short, where two buttons one over the other would take a third of it and more.
   const bar = actions && narrow && !typing;
   // In the calm view the card is the route's spine, so no separate rail is drawn; under the lens
   // the card stands in full and the rail's hands turn over.
@@ -310,9 +311,16 @@ function HandBody({ core, hand, opened, description, onRetry }: { core: Address;
   );
 }
 
-const NARROW = "(max-width: 767.98px)";
+// Written with max- and min-, never as a range: Safari before 16.4 does not read a range.
+const NARROW = "(max-width: 767.98px) and (min-height: 560px), (min-width: 600px) and (max-width: 767.98px)";
 
-/** Whether the screen is narrower than the two-column layout (Tailwind's `md`, 768 px). */
+/**
+ * Whether the screen is narrower than the two-column layout (Tailwind's `md`, 768 px) and has
+ * room for the bar of two actions. From 600px of width the two stand side by side in it, a row
+ * 89px tall, which any height takes (a phone held sideways). Narrower than that they stand one
+ * over the other, 173px, which wants 560px of height: on a screen both narrow and short the bar
+ * would cover a third of it and more, so there the actions stand in the page.
+ */
 function useNarrow(): boolean {
   return useSyncExternalStore(
     (listener) => {
@@ -372,7 +380,8 @@ function ActionBar({ left, off }: { left: number; off: boolean }) {
   useEffect(() => {
     const root = document.documentElement;
     const before = root.style.scrollPaddingBottom;
-    root.style.scrollPaddingBottom = `${(bar.current?.offsetHeight ?? 0) + 8}px`;
+    // The bar and the thick part of the haze over it: a control brought into view stops clear of both.
+    root.style.scrollPaddingBottom = `${(bar.current?.offsetHeight ?? 0) + 36}px`;
     return () => {
       root.style.scrollPaddingBottom = before;
     };
@@ -380,12 +389,14 @@ function ActionBar({ left, off }: { left: number; off: boolean }) {
   return (
     <div
       ref={bar}
-      className="sticky bottom-0 z-10 -mx-6 mt-8 border-0 border-t border-solid border-[color:var(--ink-a15)] bg-paper px-4 pt-5 pb-[max(12px,env(safe-area-inset-bottom))]"
+      className="ah-bar sticky bottom-0 z-10 -mx-6 px-4 pt-5 pb-[max(12px,env(safe-area-inset-bottom))]"
       data-testid={TID.hand.actionBar}
     >
-      {/* The same two buttons a wide screen has, one over the other: a button is one thing at any
-          width. The room between them is for the lower hand, which stands above its own button. */}
-      <div className="flex flex-col gap-7">
+      {/* The same two buttons a wide screen has: a button is one thing at any width. One over the
+          other on a phone held upright, with room between them for the lower hand, which stands
+          above its own button. Side by side from 600px, where each has the width for its label
+          and its fade (a phone held sideways). */}
+      <div className="flex flex-col gap-7 min-[600px]:grid min-[600px]:grid-cols-2 min-[600px]:gap-3">
         <SwipeButton gesture="shake" data-testid={TID.hand.pass} disabled={left === 0 || off} onClick={() => navigate("/pass")} className="w-full">
           {t("common.word.passOn")}
         </SwipeButton>

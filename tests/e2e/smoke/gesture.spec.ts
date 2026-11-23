@@ -163,7 +163,7 @@ test("one button at any width: on a phone and on a wide screen the two actions a
     await expect(page.getByTestId("hand-pass").first()).toBeVisible({ timeout: 20_000 });
     const hand = (await look(page)).filter((button) => button.id === "hand-pass" || button.id === "hand-help");
     expect(hand.map((button) => button.id)).toEqual(["hand-pass", "hand-help"]);
-    // One over the other at either width, never side by side; no variant by size.
+    // One over the other at both of these widths (side by side only on a phone held sideways, hand.spec.ts); no variant by size.
     expect(hand[1]!.top).toBeGreaterThan(hand[0]!.top + hand[0]!.height);
     expect(hand.map((button) => button.classes)).toEqual(["ah-swipe ah-swipe--ink", "ah-swipe ah-swipe--amber"]);
     await page.goto("/");
@@ -185,6 +185,7 @@ test("one button at any width: on a phone and on a wide screen the two actions a
   expect([pass!.masked, help!.masked, raise!.masked]).toEqual([true, true, true]);
   expect(raise).toEqual(pass);
   expect(help!.drawn).toEqual(pass!.drawn);
+  expect(help!.tall).toBe(pass!.tall);
   // Amber thins from further back than ink does.
   expect(help!.fade[0]).toBeGreaterThan(pass!.fade[0]);
 });

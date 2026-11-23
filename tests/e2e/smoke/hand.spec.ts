@@ -485,11 +485,44 @@ test("on a phone both actions of an open hand are on the first screen, in Englis
     expect(focused.y + focused.height, `${lang}: the focused control ends above the bar`).toBeLessThanOrEqual(over.y);
     await page.setViewportSize({ width: 390, height: 844 });
 
+    // No line over the bar: what scrolls up from under it leaves through a haze of the page's own
+    // colour, as on the raise screen, and the haze takes no taps.
+    const edge = await page.getByTestId("hand-action-bar").evaluate((bar) => {
+      const own = getComputedStyle(bar);
+      const haze = getComputedStyle(bar, "::before");
+      return { line: own.borderTopWidth, haze: haze.backgroundImage.includes("linear-gradient"), tall: haze.height, taps: haze.pointerEvents, above: haze.bottom };
+    });
+    expect(edge, `${lang}: the bar's edge`).toMatchObject({ line: "0px", haze: true, tall: "56px", taps: "none" });
+
     // At the foot of the page the bar rests above the footer and covers none of it.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const bar = (await page.getByTestId("hand-action-bar").boundingBox())!;
     const footer = (await page.getByTestId("shell-footer").boundingBox())!;
     expect(bar.y + bar.height).toBeLessThanOrEqual(footer.y);
+
+    // A phone held sideways is wide and short: the bar stays, with the two buttons side by side
+    // in one row, so it takes about a quarter of the screen and not half.
+    await page.setViewportSize({ width: 667, height: 375 });
+    await expect(page.getByTestId("hand-action-bar")).toBeVisible();
+    const row = { bar: (await page.getByTestId("hand-action-bar").boundingBox())!, pass: (await page.getByTestId("hand-pass").boundingBox())!, help: (await page.getByTestId("hand-help").boundingBox())! };
+    expect(Math.round(row.help.y), `${lang}: side by side when held sideways`).toBe(Math.round(row.pass.y));
+    expect(row.help.x).toBeGreaterThan(row.pass.x + row.pass.width);
+    expect([Math.round(row.pass.height), Math.round(row.help.height)]).toEqual([56, 56]);
+    expect(Math.abs(row.pass.width - row.help.width)).toBeLessThanOrEqual(1);
+    expect(row.bar.height / 375, `${lang}: the bar's share of a sideways screen`).toBeLessThan(0.3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${lang}: no sideways scroll when held sideways`).toBe(true);
+    // Narrow and short at once (a split screen): no room for two rows, so no bar, and the two buttons stand in the page.
+    await page.setViewportSize({ width: 390, height: 500 });
+    await expect(page.getByTestId("hand-action-bar")).toHaveCount(0);
+    await expect(page.getByTestId("hand-pass")).toHaveCount(1);
+    await expect(page.getByTestId("hand-help")).toHaveCount(1);
+    // Narrow and just tall enough: the bar is back, one button over the other, under a third of the screen.
+    await page.setViewportSize({ width: 390, height: 560 });
+    await expect(page.getByTestId("hand-action-bar")).toBeVisible();
+    const column = { bar: (await page.getByTestId("hand-action-bar").boundingBox())!, pass: (await page.getByTestId("hand-pass").boundingBox())!, help: (await page.getByTestId("hand-help").boundingBox())! };
+    expect(column.help.y).toBeGreaterThan(column.pass.y + column.pass.height);
+    expect(column.bar.height / 560, `${lang}: the bar's share of a 560px screen`).toBeLessThan(1 / 3);
+    await page.setViewportSize({ width: 390, height: 844 });
 
     // Wider than a phone: no bar, the two buttons stand in the page as before.
     await page.setViewportSize({ width: 1280, height: 800 });

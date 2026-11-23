@@ -72,8 +72,12 @@ describe("gesture emoji", () => {
 
   test("a swipe button says only when its gesture moves, never a second animation", () => {
     expect(rule(components, ".ah-swipe__emoji")).toMatch(/--gesture-turn:\s*1\.25s/);
-    // A gesture's own rule on the hand, where there is one, says when it moves and nothing of how.
+    // A gesture's own rule on the hand, where there is one, says when it moves and nothing of how:
+    // no rule whose selector names a gesture's hand holds an animation, however the selector is written.
     expect(components.match(/^\.ah-swipe__emoji--[a-z]+\s*\{[^}]*\}/gm)).toHaveLength(1);
+    const named = components.match(/[^{}]*\.ah-swipe__emoji--[a-z]+[^{}]*\{[^}]*\}/g) ?? [];
+    expect(named.length).toBeGreaterThan(0);
+    for (const found of named) expect(found.slice(found.indexOf("{"))).not.toMatch(/animation/);
     // "Pass it on" stands beside "I can help": the two never move together.
     expect(rule(components, ".ah-swipe__emoji--shake")).toMatch(/--gesture-turn:\s*3\.75s/);
   });
@@ -123,9 +127,11 @@ describe("the swipe button's fill", () => {
     // begins and gone under it. A button too narrow for that keeps the fade off its label.
     expect(base).toMatch(/--hand-size:\s*64px/);
     expect(base).toMatch(/--hand-right:\s*2px/);
-    expect(base).toMatch(/--swipe-from:\s*min\(calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 1\.8\), 46%\)/);
+    expect(base).toMatch(/--label-room:\s*150px/);
+    expect(base).toMatch(/--swipe-from:\s*max\(calc\(var\(--swipe-to\) \+ 8px\), min\(calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 1\.8\), calc\(100% - var\(--label-room\)\)\)\)/);
     expect(base).toMatch(/--swipe-to:\s*calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 0\.4\)/);
-    expect(amber).toMatch(/--swipe-from:\s*min\(calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 3\), 60%\)/);
+    // Neither fade begins inside the label's room: a narrow button has a shorter fade, never a faded label.
+    expect(amber).toMatch(/--swipe-from:\s*max\(calc\(var\(--swipe-hand\) \+ 8px\), min\(calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 3\), calc\(100% - var\(--label-room\)\)\)\)/);
     expect(amber).toMatch(/--swipe-hand:\s*calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 1\.1\)/);
     expect(amber).toMatch(/--swipe-to:\s*calc\(var\(--hand-right\) \+ var\(--hand-size\) \* 0\.2\)/);
     // Every stop is placed from the right edge by the variables, so a variant only moves the anchors.
@@ -151,7 +157,10 @@ describe("the swipe button's fill", () => {
     expect(hand).toMatch(/right:\s*var\(--hand-right\)/);
     expect(hand).toMatch(/font-size:\s*var\(--hand-size\)/);
     expect(hand).toMatch(/width:\s*1\.2em/);
-    expect(hand).toMatch(/text-align:\s*center/);
+    // Centred by layout: a glyph wider than the box hangs over both sides alike (text-align would start-align it).
+    expect(hand).toMatch(/display:\s*flex/);
+    expect(hand).toMatch(/justify-content:\s*center/);
+    expect(hand).not.toMatch(/text-align\s*:/);
     // Two fills, and nothing else: no compact, hero or card button, and no size or place of a gesture's own.
     expect([...new Set(components.match(/\.ah-swipe--[a-z]+/g))].sort()).toEqual([".ah-swipe--amber"]);
     expect(components.match(/--hand-(?:size|right):/g)).toHaveLength(2);

@@ -50,11 +50,14 @@
      these two numbers (`.ah-swipe__emoji`), and the fill's fade is placed by the same two. */
   --hand-size: 64px;
   --hand-right: 2px;
+  /* The room a label has, from the button's left edge: its 22px of padding and about 128px of
+     words. No fade begins inside it, so a label is read on the solid fill. */
+  --label-room: 150px;
   /* Where the fill's fade begins and where it is gone, from the right edge: places on the hand,
      so the fade is the same on every button. It begins nearly two hands back, long enough to be
      seen as a fade and not as an edge, and is gone under the hand's middle. On a button too
-     narrow for that it begins no further back than 46% of the width, where the label ends. */
-  --swipe-from: min(calc(var(--hand-right) + var(--hand-size) * 1.8), 46%);
+     narrow for that it begins where the label's room ends, and is shorter. */
+  --swipe-from: max(calc(var(--swipe-to) + 8px), min(calc(var(--hand-right) + var(--hand-size) * 1.8), calc(100% - var(--label-room))));
   --swipe-to: calc(var(--hand-right) + var(--hand-size) * 0.4);
   --swipe-mask: linear-gradient(
     90deg,
@@ -94,7 +97,7 @@
      where the hand begins, and the rest goes under the hand. */
   --swipe-hand: calc(var(--hand-right) + var(--hand-size) * 1.1);
   --swipe-to: calc(var(--hand-right) + var(--hand-size) * 0.2);
-  --swipe-from: min(calc(var(--hand-right) + var(--hand-size) * 3), 60%);
+  --swipe-from: max(calc(var(--swipe-hand) + 8px), min(calc(var(--hand-right) + var(--hand-size) * 3), calc(100% - var(--label-room))));
   --swipe-mask: linear-gradient(
     90deg,
     var(--ink) calc(100% - var(--swipe-from)),
@@ -165,11 +168,14 @@
   /* clear of the button's thin top edge, which a hand's own top would otherwise cross */
   bottom: 9px;
   right: var(--hand-right);
-  /* A box of one width in every emoji font, with the hand in its middle: a font's own advance
-     differs from system to system, and the fill's fade is placed against this box. */
+  /* A box of one width whatever the emoji font, with the hand centred on it: a font's own advance
+     differs from system to system (Noto's is 1.245em, wider than this box), and the fill's fade is
+     placed against the box. Centred by layout and not by text-align, which leaves a line wider
+     than its box at the box's start: this way what does not fit hangs over both sides alike. */
+  display: flex;
+  justify-content: center;
   width: 1.2em;
   font-size: var(--hand-size);
-  text-align: center;
   line-height: 1;
   font-family: var(--emoji);
   transition: transform var(--dur-tone-out) var(--ease-tone);

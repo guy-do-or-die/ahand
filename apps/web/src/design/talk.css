@@ -669,6 +669,32 @@ html:has(.ah-strip) {
 html:has(.ah-sided--paged) {
   scroll-snap-type: y proximity;
 }
+/* The Hand screen's pinned actions stand on the page's colour under the same haze as the raise
+   screen's pinned action below: what scrolls up from under them leaves through shade, as a band
+   goes round a drum, and not across a line. Here the haze only softens the bar's edge (there it
+   also shades the head of the next section), so it is 56px, and the bar keeps that much room
+   above itself: at the page's foot the haze lies over nothing that is read. It takes no taps. */
+.ah-bar {
+  margin-top: 56px;
+  background: var(--paper);
+}
+.ah-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 56px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(var(--paper-rgb) / 0.62) 32%,
+    rgb(var(--paper-rgb) / 0.86) 68%,
+    var(--paper)
+  );
+}
+
 /* The sections pass like a band on a drum: what comes up from below is in the drum's shade until
    it is the section in front. A haze of the page's own colour lies over the foot of the screen,
    thicker toward its edge, so the next section's head is seen but does not speak over the action

@@ -908,7 +908,7 @@ function KeysCard({ ask, onDone, raiser }: { ask: { twice: boolean; answer: (yes
           <SwipeButton gesture="raise" data-testid={TID.raise.keysConfirm} onClick={() => answer(true)}>
             {t("raise.keys.confirm")}
           </SwipeButton>
-          <QuietButton compact onClick={() => answer(false)}>
+          <QuietButton onClick={() => answer(false)}>
             {t("raise.keys.back")}
           </QuietButton>
         </div>
