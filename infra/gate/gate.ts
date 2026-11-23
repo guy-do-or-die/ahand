@@ -113,8 +113,18 @@ export function shares(cores: number): Record<string, string[]> {
 
 const SHARES = shares(availableParallelism());
 
+/**
+ * Steps that only compute, with no clock in any check: they run at a lower priority (nice 10), so
+ * the lanes beside them whose tests wait for a relay's answer or a block within a deadline get
+ * the CPU when they need it. Under a full machine a relay's 300 ms answer came late otherwise.
+ */
+export const BACKGROUND = new Set(["typecheck", "test:contracts"]);
+
 /** `bun run <name>`, with its share of the machine when it has one (bun run passes the arguments on). */
-const script = (name: string): Step => ({ name, command: process.execPath, args: ["run", name, ...(SHARES[name] ?? [])] });
+function script(name: string): Step {
+  const args = ["run", name, ...(SHARES[name] ?? [])];
+  return BACKGROUND.has(name) ? { name, command: "nice", args: ["-n", "10", process.execPath, ...args] } : { name, command: process.execPath, args };
+}
 
 /** Runs `steps` one after another, stopping at the first that fails. */
 async function inOrder(steps: readonly Step[], all: Ran[]): Promise<boolean> {
