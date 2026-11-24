@@ -3,7 +3,7 @@
  * and the connector (privy.ts) both read this file, so the sheet loads no wallet code for it.
  */
 
-/** The most passkeys Privy keeps on one account: its own check refuses a sixth (3.51.3). */
+/** The most passkeys Privy keeps on one account: its own check refuses a sixth (3.51.3 and 3.52.0). */
 export const PASSKEYS_MOST = 5;
 
 /**

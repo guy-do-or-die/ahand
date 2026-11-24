@@ -125,7 +125,7 @@ function Bridge() {
   const { createWallet } = useCreateWallet();
   // No callbacks: Privy's passkey window shows its own errors and success, and `addPasskey` reads
   // the outcome from the account once the window closes. Privy types `linkPasskey` as returning
-  // nothing, but in 3.51.3 it is async and rejects before its window opens (nobody in, a sixth
+  // nothing, but in 3.51.3 and 3.52.0 it is async and rejects before its window opens (nobody in, a sixth
   // passkey, the challenge not fetched), so its promise is kept and handed on.
   const { linkPasskey } = useLinkAccount();
   const { login } = useLogin({

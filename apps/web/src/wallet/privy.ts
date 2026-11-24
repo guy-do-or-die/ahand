@@ -94,7 +94,7 @@ export interface PrivyHost {
   addPasskey(): Promise<readonly string[]>;
 }
 
-/** Privy's refusal, before its window opens, of a passkey over `PASSKEYS_MOST` (its message in 3.51.3). */
+/** Privy's refusal, before its window opens, of a passkey over `PASSKEYS_MOST` (its message in 3.51.3 and 3.52.0). */
 export function refusedAsFull(error: unknown): boolean {
   return error instanceof Error && /already has an account of type passkey/i.test(error.message);
 }
