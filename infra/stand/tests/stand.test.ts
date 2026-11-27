@@ -23,13 +23,13 @@ import { AHEAD_SECONDS, anvilArgs, assertLocalChain, configOf, parseArgs, proces
 import { appCsp } from "../../../apps/web/csp.ts";
 import { contentSecurityPolicy, inlineScriptHashes, resolvePath, securityHeaders, startStatic } from "../static.ts";
 
-const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const DEPLOYMENT = {
   chainId: 31337,
   core: CORE,
   factory: "0x4e59b44847b379578588920cA78FbF26c0B4956C",
   salt: "0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d",
-  initcodeHash: "0x9f4031e9df87b432822254b2e546d1fc8b88a6bb8798522e7b47d1ab5a08de65",
+  initcodeHash: "0x9ccc895f301e01520380241bbf8a8a04afc8f0fed6f3b4a7d1ea9fc14ad6c47d",
   runtimeHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
   deployBlock: 3,
   tokens: [
@@ -189,7 +189,7 @@ describe("static server: rule and headers", () => {
     expect(resolvePath(root, "/build.json")).toEqual({ file: join(root, "build.json"), fallback: false });
     expect(resolvePath(root, "/assets/app-1.js")).toEqual({ file: join(root, "assets", "app-1.js"), fallback: false });
     expect(resolvePath(root, "/31337/1")).toEqual({ file: join(root, "index.html"), fallback: true });
-    expect(resolvePath(root, "/31337/0x65ac707E2AE7392583de5d6192C619F1D8862309/1")).toEqual({ file: join(root, "index.html"), fallback: true });
+    expect(resolvePath(root, "/31337/0x0f0555972388151D2C187f636A0855b6eE9B9685/1")).toEqual({ file: join(root, "index.html"), fallback: true });
     expect(resolvePath(root, "/assets")).toEqual({ file: join(root, "index.html"), fallback: true });
     expect(resolvePath(root, "/assets/app-2.js")).toEqual({ status: 404 });
   });

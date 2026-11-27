@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { payeeOf, readAddress, readMoney } from "./judge";
 
 const ctx = {
-  core: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+  core: "0x0f0555972388151D2C187f636A0855b6eE9B9685",
   raiser: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   token: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
 } as const;

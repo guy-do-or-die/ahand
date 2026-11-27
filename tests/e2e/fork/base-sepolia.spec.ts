@@ -32,7 +32,7 @@ import type { StandInfo } from "../lib/stand";
 
 const PHASE = process.env.FORK_PHASE ?? "";
 const RPC = process.env.FORK_RPC ?? "";
-const CORE = (process.env.FORK_CORE ?? "0x65ac707E2AE7392583de5d6192C619F1D8862309") as Address;
+const CORE = (process.env.FORK_CORE ?? "0x0f0555972388151D2C187f636A0855b6eE9B9685") as Address;
 const USDC = (process.env.FORK_USDC ?? "0x036CbD53842c5426634e7929541eC2318f3dCF7e") as Address;
 const CHAIN = 84532;
 const SITE = process.env.STAND_BASE_URL ?? "";

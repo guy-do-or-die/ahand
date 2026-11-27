@@ -151,7 +151,7 @@ describe("colour: raw values live in the token files only", () => {
     for (const bad of ["color: #fff;", "#F5B841", "fill='#10101480'", "rgba(16, 16, 20, .45)", "hsl(40 90% 61%)"]) {
       expect(HEX.test(bad) || FUNCTION.test(bad)).toBe(true);
     }
-    for (const good of ["0x65ac707E2AE7392583de5d6192C619F1D8862309", "href='/#main'", "color: var(--ink)", "rgb(var(--x))", "#root", "issue #1234x"]) {
+    for (const good of ["0x0f0555972388151D2C187f636A0855b6eE9B9685", "href='/#main'", "color: var(--ink)", "rgb(var(--x))", "#root", "issue #1234x"]) {
       expect(HEX.test(good) || FUNCTION.test(good)).toBe(false);
     }
   });

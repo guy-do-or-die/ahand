@@ -30,7 +30,7 @@ export const CANONICAL_CORE_BUILD: CoreBuild = {
   factory: "0x4e59b44847b379578588920cA78FbF26c0B4956C",
   // keccak256("aHand.core/1"): the same salt on every chain.
   salt: "0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d",
-  initcodeHash: "0x9f4031e9df87b432822254b2e546d1fc8b88a6bb8798522e7b47d1ab5a08de65",
+  initcodeHash: "0x9ccc895f301e01520380241bbf8a8a04afc8f0fed6f3b4a7d1ea9fc14ad6c47d",
 };
 
 /** The address CREATE2 gives a Core built this way. */
@@ -39,4 +39,4 @@ export function coreAddressOf(build: CoreBuild): Address {
 }
 
 /** The canonical Core's address, the same on every chain (tests check it is `coreAddressOf(CANONICAL_CORE_BUILD)`). */
-export const CANONICAL_CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+export const CANONICAL_CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";

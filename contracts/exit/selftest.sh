@@ -66,7 +66,7 @@ standin_kit() { # standin_kit <log> <env...> -- <ahand.sh args...>: ahand.sh aga
   while [[ $1 != -- ]]; do envs+=("$1"); shift; done
   shift
   : >"$log"
-  env FOUNDRY_BIN="$standin" RPC=http://127.0.0.1:1 CORE=0x65ac707E2AE7392583de5d6192C619F1D8862309 CAST_LOG="$log" "${envs[@]}" \
+  env FOUNDRY_BIN="$standin" RPC=http://127.0.0.1:1 CORE=0x0f0555972388151D2C187f636A0855b6eE9B9685 CAST_LOG="$log" "${envs[@]}" \
     bash "$kit" "$@" >/dev/null 2>&1
 }
 F=0x1111111111111111111111111111111111111111 # the sender the stand-in signs for: only named with --from

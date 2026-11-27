@@ -1,6 +1,6 @@
 # Public test deployment on Base Sepolia
 
-The branch `next` is served as a static site, with one Vercel Function for link previews, at `https://next.ahand.in`: the repository's Vercel project builds every pushed branch, and the `branch-domains` workflow registers `<branch>.ahand.in` for it. The site is the built `apps/web` against Base Sepolia (chain 84532), with the configuration [`apps/web/src/config/base-sepolia.json`](../apps/web/src/config/base-sepolia.json): RPC `https://sepolia.base.org`, Core `0x65ac707E2AE7392583de5d6192C619F1D8862309` (the CREATE2 address, the same on every chain that has the deterministic deployer), Circle's test USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals), Multicall3 as the forwarder (the file names none, so the chain's own from viem/chains), and the five relays `@ahand/deliver` recommends (`RECOMMENDED_RELAYS` in `packages/deliver/src/relays.ts`: `wss://relay.primal.net`, `wss://nos.lol`, `wss://relay.nos.social`, `wss://relay.ditto.pub`, `wss://relay.coinos.io`; a test holds the configuration to that list, and the CSP's `connect-src` is written from it). `chain.local` is false: the build has no dev wallet and no gallery; a visitor logs in through Privy's one window, with email, Google, Apple, X, Farcaster, a passkey or a crypto wallet (`privy.appId` `clt69jwp204btq1o3q72cupji`, see [app.md](app.md#logging-in-through-privy)).
+The branch `next` is served as a static site, with one Vercel Function for link previews, at `https://next.ahand.in`: the repository's Vercel project builds every pushed branch, and the `branch-domains` workflow registers `<branch>.ahand.in` for it. The site is the built `apps/web` against Base Sepolia (chain 84532), with the configuration [`apps/web/src/config/base-sepolia.json`](../apps/web/src/config/base-sepolia.json): RPC `https://sepolia.base.org`, Core `0x0f0555972388151D2C187f636A0855b6eE9B9685` (the CREATE2 address, the same on every chain that has the deterministic deployer), Circle's test USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals), Multicall3 as the forwarder (the file names none, so the chain's own from viem/chains), and the five relays `@ahand/deliver` recommends (`RECOMMENDED_RELAYS` in `packages/deliver/src/relays.ts`: `wss://relay.primal.net`, `wss://nos.lol`, `wss://relay.nos.social`, `wss://relay.ditto.pub`, `wss://relay.coinos.io`; a test holds the configuration to that list, and the CSP's `connect-src` is written from it). `chain.local` is false: the build has no dev wallet and no gallery; a visitor logs in through Privy's one window, with email, Google, Apple, X, Farcaster, a passkey or a crypto wallet (`privy.appId` `clt69jwp204btq1o3q72cupji`, see [app.md](app.md#logging-in-through-privy)).
 
 The file names its chain by id only. Everything else about the chain comes from viem/chains for that id ([`apps/web/src/config/chains.ts`](../apps/web/src/config/chains.ts), which knows Ethereum, Sepolia, Base, Base Sepolia and the stand's anvil): such a field left in an older file is passed over, and a file on any other id is refused:
 
@@ -69,7 +69,7 @@ How it is checked (`bun run check`):
 
 Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c0baf7a09b66f2a768225a91e72ddfecb0a33ed6e7dc33fe`, 2 392 020 gas, built from be485ca, clean), and `script/check-deployment.sh` holds for its deployment file against `https://sepolia.base.org`. That file, `contracts/deployments/84532.json`, is in this branch, and the check workflow's step "Deployed Core is the Core this tree builds" reads it. Steps 1 to 5 are how it was put there, for a redeploy or another network.
 
-1. Put Base Sepolia ETH on the deployer's address. Core's deployment took 2 392 020 gas on a fork of Base Sepolia (11 659 bytes of calldata); at Base Sepolia's 0.006 gwei that is about 0.000015 ETH, and the L1 data part is under 0.00000001 ETH. 0.001 ETH leaves a wide margin. (The same gas on Base mainnet at 0.006 gwei is about 0.000014 ETH, $0.03 at $2 400; on Ethereum at 0.3 gwei about 0.00072 ETH, $1.72.)
+1. Put Base Sepolia ETH on the deployer's address. Core's deployment took 2 423 827 gas on a fork of Base Sepolia (11 806 bytes of calldata); at Base Sepolia's 0.006 gwei that is about 0.000015 ETH, and the L1 data part is under 0.00000001 ETH. 0.001 ETH leaves a wide margin. (The same gas on Base mainnet at 0.006 gwei is about 0.000015 ETH, $0.03 at $2 400; on Ethereum at 0.3 gwei about 0.00073 ETH, $1.75.)
 2. Deploy Core from a clone of this branch with `contracts/lib` in place (the two `git clone` lines of `.github/actions/setup/action.yml`), with the key in a Foundry keystore or a Ledger:
 
    ```sh
@@ -77,7 +77,7 @@ Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c
    bash script/deploy.sh https://sepolia.base.org --account <keystore name> --sender <deployer address>
    ```
 
-   It writes `contracts/deployments/84532.json` with `commit` and `dirty` from git and ends with `deployment deployments/84532.json holds on chain 84532` from `script/check-deployment.sh`. The address must be `0x65ac707E2AE7392583de5d6192C619F1D8862309`.
+   It writes `contracts/deployments/84532.json` with `commit` and `dirty` from git and ends with `deployment deployments/84532.json holds on chain 84532` from `script/check-deployment.sh`. The address must be `0x0f0555972388151D2C187f636A0855b6eE9B9685`.
 3. Back at the root, rewrite the Vercel file (the build now takes the deployment's block, commit and dirty flag into the configuration, so `exit.html` changes) and check:
 
    ```sh
@@ -91,8 +91,8 @@ Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c
 
    ```sh
    cd contracts
-   "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" verify-contract 0x65ac707E2AE7392583de5d6192C619F1D8862309 src/AHandCore.sol:AHandCore --chain 84532 --verifier sourcify
-   "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" verify-contract 0x65ac707E2AE7392583de5d6192C619F1D8862309 src/AHandCore.sol:AHandCore --chain 84532 --verifier etherscan --etherscan-api-key "$ETHERSCAN_API_KEY"
+   "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" verify-contract 0x0f0555972388151D2C187f636A0855b6eE9B9685 src/AHandCore.sol:AHandCore --chain 84532 --verifier sourcify
+   "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" verify-contract 0x0f0555972388151D2C187f636A0855b6eE9B9685 src/AHandCore.sol:AHandCore --chain 84532 --verifier etherscan --etherscan-api-key "$ETHERSCAN_API_KEY"
    ```
 
 5. For a redeploy or another network, commit the new deployment file and `apps/web/vercel.json`, and push the branch. In the first Vercel build log read the `vercel: bun <version>` line.

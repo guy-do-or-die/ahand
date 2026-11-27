@@ -174,7 +174,7 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
     // The stand's server has no Privy: without it, the policy is the stand's word for word.
     expect(appHeaders({ rpcUrls: config.chain.rpcUrls, relays: config.relays })["Content-Security-Policy"]).toBe(contentSecurityPolicy(connect));
     const app = appOf();
-    for (const path of ["/", "/raise", "/84532/12/proof", "/84532/0x65ac707e2ae7392583de5d6192c619f1d8862309/12/proof", "/84532/abc", "/0x65ac707e2ae7392583de5d6192c619f1d8862309/12", "/84532/12/", "/my", "/my/84532/3", "/pass", "/give", "/thank", "/waiting", "/check", "/core", "/care/84532/1", "/print", "/limits", "/defaults", "/without-us", "/nowhere/at/all"]) {
+    for (const path of ["/", "/raise", "/84532/12/proof", "/84532/0x0f0555972388151d2c187f636a0855b6ee9b9685/12/proof", "/84532/abc", "/0x0f0555972388151d2c187f636a0855b6ee9b9685/12", "/84532/12/", "/my", "/my/84532/3", "/pass", "/give", "/thank", "/waiting", "/check", "/core", "/care/84532/1", "/print", "/limits", "/defaults", "/without-us", "/nowhere/at/all"]) {
       const answer = serve(path);
       expect({ path, status: answer.status, file: answer.file }).toEqual({ path, status: 200, file: join(dist, "index.html") });
       expect(answer.headers).toEqual(app);
@@ -310,8 +310,8 @@ describe("apps/web/vercel.json (the public test deployment)", () => {
 });
 
 describe("link previews: a Hand's address and its card reach the view server's Vercel Function", () => {
-  const HANDS = ["/84532/12", "/84532/0x65ac707e2ae7392583de5d6192c619f1d8862309/12", "/84532/0x65AC707E2AE7392583DE5D6192C619F1D8862309/12", "/31337/1", "/1/99"];
-  const CARDS = ["/og/generic.png", "/og/84532/12.png", "/og/84532/0x65ac707e2ae7392583de5d6192c619f1d8862309/12.png"];
+  const HANDS = ["/84532/12", "/84532/0x0f0555972388151d2c187f636a0855b6ee9b9685/12", "/84532/0x0F0555972388151D2C187F636A0855B6EE9B9685/12", "/31337/1", "/1/99"];
+  const CARDS = ["/og/generic.png", "/og/84532/12.png", "/og/84532/0x0f0555972388151d2c187f636a0855b6ee9b9685/12.png"];
 
   test("the function's files are exactly what the generator writes, and the configuration says previews", () => {
     for (const [path, text] of Object.entries(functionFiles())) expect(readFileSync(join(VERCEL_ROOT, path), "utf8")).toBe(text);

@@ -58,7 +58,7 @@ test("a give written into the app's IndexedDB outbox reaches the inbox through t
     const give: Omit<Envelope, "replyTo"> = {
       v: 1,
       kind: "give",
-      hand: { chainId: 31337, core: "0x65ac707E2AE7392583de5d6192C619F1D8862309", handId: "7" },
+      hand: { chainId: 31337, core: "0x0f0555972388151D2C187f636A0855b6eE9B9685", handId: "7" },
       giveLink: "http://127.0.0.1:18300/#AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
     };
     const box = openOutbox(transport, outboxStore<OutboxEntry>(), { retryMs: 60_000 });

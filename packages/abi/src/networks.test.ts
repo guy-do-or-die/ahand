@@ -19,7 +19,7 @@ describe("networks", () => {
     expect(usdcOf(84532)).toEqual({ address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", symbol: "USDC", name: "USDC", version: "2", decimals: 6 });
     const record = parseDeployment(readFileSync(join(RECORDS, "84532.json"), "utf-8"));
     expect(NETWORKS[84532].deployment).toEqual(record);
-    expect(coreOf(84532)).toBe("0x65ac707E2AE7392583de5d6192C619F1D8862309");
+    expect(coreOf(84532)).toBe("0x0f0555972388151D2C187f636A0855b6eE9B9685");
   });
 
   test("a chain aHand does not run on has nothing", () => {
@@ -39,11 +39,11 @@ describe("networks", () => {
     expect(() => {
       (record as { core: string }).core = "0x0000000000000000000000000000000000000001";
     }).toThrow(TypeError);
-    expect(coreOf(84532)).toBe("0x65ac707E2AE7392583de5d6192C619F1D8862309");
+    expect(coreOf(84532)).toBe("0x0f0555972388151D2C187f636A0855b6eE9B9685");
   });
 
-  test("Core's ABI is the protocol's: 17 functions, 11 events, 26 errors", () => {
+  test("Core's ABI is the protocol's: 20 functions, 11 events, 26 errors", () => {
     const count = (type: string) => aHandCoreAbi.filter((item) => item.type === type).length;
-    expect([count("function"), count("event"), count("error")]).toEqual([17, 11, 26]);
+    expect([count("function"), count("event"), count("error")]).toEqual([20, 11, 26]);
   });
 });

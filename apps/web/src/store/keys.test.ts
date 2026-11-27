@@ -10,7 +10,7 @@ import { repeatsOnDevice, unlock, type KeysTyped } from "./keys";
 
 // anvil's first public test key: never a real key.
 const raiser = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-const core = getAddress("0x65ac707e2ae7392583de5d6192c619f1d8862309");
+const core = getAddress("0x0f0555972388151d2c187f636a0855b6ee9b9685");
 
 let run = 0;
 afterEach(() => closeDb());

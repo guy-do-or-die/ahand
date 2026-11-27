@@ -18,7 +18,7 @@ import { DroppedError, follow } from "./finality";
  * form, on every visit. Now the account's nonce and the raise's own `Raised` log decide.
  */
 
-const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const RAISER: Address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const HASH: Hex = "0x161f7a8163430dd3a20d52ea21294bdfa65dceb29b8fabc8b152275646886059";
 const ROOT_KEY: Address = "0x00000000000000000000000000000000000000ab";

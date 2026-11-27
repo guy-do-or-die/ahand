@@ -33,7 +33,7 @@ concurrency:
 env:
   # Every script calls Foundry by path (bare `forge` may be another program).
   FOUNDRY_BIN: /home/runner/.foundry/bin
-  CORE_SHA256: 118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738
+  CORE_SHA256: e9612b54f0f60af275253d87b4d899bbceb2f59e749fcd06dd6b1fc51c655772
 
 jobs:
   # Core: forge build, the deployed Core and the ABI package against that build, every forge test,

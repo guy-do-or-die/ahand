@@ -133,9 +133,9 @@ describe("store: the app's stores", () => {
 
   test("records are found by their Hand", async () => {
     fresh();
-    const hand = handKey(31337, "0x65ac707E2AE7392583de5d6192C619F1D8862309", 7n);
-    expect(hand).toBe("31337:0x65ac707e2ae7392583de5d6192c619f1d8862309:7");
-    await put("passed", { id: "a", hand, chainId: 31337, core: "0x65ac707e2ae7392583de5d6192c619f1d8862309", handId: "7", position: 1 });
+    const hand = handKey(31337, "0x0f0555972388151D2C187f636A0855b6eE9B9685", 7n);
+    expect(hand).toBe("31337:0x0f0555972388151d2c187f636a0855b6ee9b9685:7");
+    await put("passed", { id: "a", hand, chainId: 31337, core: "0x0f0555972388151d2c187f636a0855b6ee9b9685", handId: "7", position: 1 });
     await put("passed", { id: "b", hand: handKey(31337, "0x01", 8), chainId: 31337, core: "0x01", handId: "8", position: 0 });
     expect((await forHand("passed", hand)).map((r) => r.id)).toEqual(["a"]);
   });

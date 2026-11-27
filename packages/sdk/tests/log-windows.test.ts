@@ -26,7 +26,7 @@ import { LOG_WINDOW, handLogs, logRangeRefusal, logWindowOf, logWindowsOver, rea
  */
 
 const TIP = 61_441_608n;
-const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const DENSE = TIP - 1_500n;
 
 type Mode = "base" | "results" | "broken" | "lag" | "dense" | "always";

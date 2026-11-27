@@ -60,7 +60,7 @@ async function thrown(run: () => unknown): Promise<LinkError> {
 
 describe("the canonical Core", () => {
   it("is the CREATE2 address of its factory, salt and initcode hash: the Core the deployment record names", () => {
-    expect(CANONICAL_CORE).toBe("0x65ac707E2AE7392583de5d6192C619F1D8862309");
+    expect(CANONICAL_CORE).toBe("0x0f0555972388151D2C187f636A0855b6eE9B9685");
     expect(coreAddressOf(CANONICAL_CORE_BUILD)).toBe(CANONICAL_CORE);
     expect(
       getContractAddress({

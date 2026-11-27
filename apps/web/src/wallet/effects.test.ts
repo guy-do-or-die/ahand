@@ -11,7 +11,7 @@ import { PROBE_REREAD, refundedProbe } from "./effects";
  * takes them.
  */
 
-const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const FROM: Address = "0x830bc5551e429DDbc4E9Ac78436f8Bf13Eca8434";
 const REFUND: Hex = `0x${"ab".repeat(32)}`;
 const SENT_AT = 61_440_000n;

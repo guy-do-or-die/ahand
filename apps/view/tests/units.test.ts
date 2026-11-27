@@ -81,7 +81,7 @@ describe("tags", () => {
   const hand: Preview = {
     kind: "hand",
     chainId: 31337,
-    core: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+    core: "0x0f0555972388151D2C187f636A0855b6eE9B9685",
     handId: 7n,
     path: "/31337/7",
     d: "AQID",
@@ -131,7 +131,7 @@ describe("the chain's terms apart from the asker's words", () => {
   const hostile: Preview = {
     kind: "hand",
     chainId: 31337,
-    core: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+    core: "0x0f0555972388151D2C187f636A0855b6eE9B9685",
     handId: 14n,
     path: "/31337/14",
     d: "AQID",
@@ -287,8 +287,8 @@ describe("configuration", () => {
     VIEW_DIST: "/tmp/x",
     VIEW_RPC: "http://127.0.0.1:18545",
     VIEW_CHAIN: "31337",
-    VIEW_CORES: "0x65ac707e2ae7392583de5d6192c619f1d8862309",
-    VIEW_CANONICAL: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+    VIEW_CORES: "0x0f0555972388151d2c187f636a0855b6ee9b9685",
+    VIEW_CANONICAL: "0x0f0555972388151D2C187f636A0855b6eE9B9685",
     VIEW_SITE: "http://127.0.0.1:18300/",
   };
 
@@ -296,8 +296,8 @@ describe("configuration", () => {
     const config = configFromEnv(env);
     expect(config.port).toBe(16199);
     expect(config.chainId).toBe(31337);
-    expect(config.trusted).toEqual(["0x65ac707E2AE7392583de5d6192C619F1D8862309"]);
-    expect(config.canonical).toBe("0x65ac707E2AE7392583de5d6192C619F1D8862309");
+    expect(config.trusted).toEqual(["0x0f0555972388151D2C187f636A0855b6eE9B9685"]);
+    expect(config.canonical).toBe("0x0f0555972388151D2C187f636A0855b6eE9B9685");
     expect(config.site).toBe("http://127.0.0.1:18300");
     expect(config.relays).toEqual([]);
   });
@@ -402,7 +402,7 @@ describe("compression and caches", () => {
 
   it("remembers a reading for its time, then reads again", async () => {
     let now = 1_000;
-    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x65ac707E2AE7392583de5d6192C619F1D8862309"], canonical: "0x65ac707E2AE7392583de5d6192C619F1D8862309", site: "http://x", relays: [], tokens: [], port: 0, dist: "/" };
+    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x0f0555972388151D2C187f636A0855b6eE9B9685"], canonical: "0x0f0555972388151D2C187f636A0855b6eE9B9685", site: "http://x", relays: [], tokens: [], port: 0, dist: "/" };
     const reader = readerFor(config as never, undefined, { ttlMs: 5_000, now: () => now });
     // Nothing listens on port 1: the reading is the generic card, never an error.
     const first = reader.preview("/31337/7", "d=AQID&l=ru");
@@ -414,7 +414,7 @@ describe("compression and caches", () => {
   });
 
   it("gives up on a chain that never answers at the deadline, with the generic card", async () => {
-    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x65ac707E2AE7392583de5d6192C619F1D8862309"], canonical: "0x65ac707E2AE7392583de5d6192C619F1D8862309", site: "http://x", relays: [], tokens: [], port: 0, dist: "/" };
+    const config = { rpc: "http://127.0.0.1:1", chainId: 31337, trusted: ["0x0f0555972388151D2C187f636A0855b6eE9B9685"], canonical: "0x0f0555972388151D2C187f636A0855b6eE9B9685", site: "http://x", relays: [], tokens: [], port: 0, dist: "/" };
     const silent = createPublicClient({ transport: custom({ request: () => new Promise(() => undefined) }) }) as PublicClient;
     const reader = readerFor(config as never, silent, { ttlMs: 0, deadlineMs: 50 });
     const started = performance.now();

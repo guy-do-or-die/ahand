@@ -20,7 +20,7 @@ import { testChain, testWallet, type TestChain, type TxIn } from "./testchain";
 
 const ACCOUNT: Address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const TOKEN: Address = "0x00000000000000000000000000000000000000aa";
-const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const PAYEE: Address = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 
 /** What the test chain's token and Core do: an approve logs `Approval`; a withdraw logs `Withdrawn` once, then refuses. */

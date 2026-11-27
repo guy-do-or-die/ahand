@@ -90,7 +90,7 @@ describe("check: what the Hand is at the block Core answered at", () => {
 
 /* Core's checkRoute and checkGive ignore the expiry and closedAt, so the page says the state. */
 
-const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as const;
+const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685" as const;
 const RAISER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as const;
 const EXPIRY = 1_801_210_959;
 const CLOSED = 1_798_618_000;

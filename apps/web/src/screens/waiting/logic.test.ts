@@ -4,7 +4,7 @@ import { encodeAbiParameters, encodeEventTopics, getAddress, zeroAddress, type A
 
 import { addressFromSearch, failureOf, knownHands, offerOf, pathFor, payeeOfPage, refusalFailure, tokenSaid, withdrawnIn } from "./logic";
 
-const CORE = getAddress("0x65ac707E2AE7392583de5d6192C619F1D8862309");
+const CORE = getAddress("0x0f0555972388151D2C187f636A0855b6eE9B9685");
 const TOKEN = getAddress("0x94e144781871a57F03745dA397dFE7a9588e943b");
 const PAYEE = getAddress("0x14dC79964da2C08b23698B3D3cc7Ca32193d9955");
 const OTHER = getAddress("0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc");

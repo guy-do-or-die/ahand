@@ -279,7 +279,7 @@ export function Header() {
 }
 
 /**
- * The footer's one mono line, under the lens only: "Core 0x65ac…2309", a quiet link to /core. The
+ * The footer's one mono line, under the lens only: "Core 0x0f05…9685", a quiet link to /core. The
  * address keeps its case (mono is exact data; the style sets the rest in capitals).
  *
  * The first build's line was "Unaudited · Core {core} · No owner · No fee" (the calm view without
