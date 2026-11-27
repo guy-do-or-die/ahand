@@ -10,7 +10,7 @@ import { giveOnChain } from "./give";
  * put to Core, and what an RPC failure becomes. The chain itself is exercised by the e2e flows.
  */
 
-const core: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const core: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const signer: Address = "0x00000000000000000000000000000000000000a1";
 const factory: Address = "0x00000000000000000000000000000000000000f1";
 const forwarder: Address = "0x00000000000000000000000000000000000000c1";

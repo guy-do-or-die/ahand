@@ -17,7 +17,7 @@
     "tools"
   ],
   "scripts": {
-    "check:core": "echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict",
+    "check:core": "echo 'e9612b54f0f60af275253d87b4d899bbceb2f59e749fcd06dd6b1fc51c655772  contracts/src/AHandCore.sol' | sha256sum --check --strict",
     "build:contracts": "cd contracts && ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge build",
     "check:abi": "bun run --cwd packages/abi check",
     "test:contracts": "cd contracts && ${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge test",

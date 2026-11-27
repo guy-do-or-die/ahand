@@ -86,7 +86,7 @@ export async function until(pred: () => boolean, ms = 5000, what = "condition"):
   }
 }
 
-export const HAND = { chainId: 31337, core: "0x65ac707E2AE7392583de5d6192C619F1D8862309", handId: "7" } as const;
+export const HAND = { chainId: 31337, core: "0x0f0555972388151D2C187f636A0855b6eE9B9685", handId: "7" } as const;
 
 /** A string shaped like a give address, exactly `bytes` characters long. */
 export function longGiveLink(bytes: number): string {

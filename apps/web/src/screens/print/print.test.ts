@@ -12,7 +12,7 @@ import { closingOf, namesHand, paperDate } from "./head";
 import en from "./en";
 import ru from "./ru";
 
-const CORE = getAddress("0x65ac707E2AE7392583de5d6192C619F1D8862309");
+const CORE = getAddress("0x0f0555972388151D2C187f636A0855b6eE9B9685");
 const RAISER = getAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
 const TOKEN = getAddress("0x6B867aFa284Ce84eE76424373420E1170da2eE7b");
 const SITE = "http://127.0.0.1:18351";

@@ -15,7 +15,7 @@ import ru from "../i18n/common/ru";
  * The footer as Since 2026-11-21: the footer keeps only the links and the two
  * switches. The lens switch is a bare glyph like the theme switch, with
  * no word shown and its name kept; the "Unaudited · No owner · No fee" line is gone from both
- * views; under the lens a quiet "Core 0x65ac…2309" links to /core, and off the lens there is no
+ * views; under the lens a quiet "Core 0x0f05…9685" links to /core, and off the lens there is no
  * Core line at all. The browser half is tests/e2e/smoke/lens.spec.ts.
  */
 

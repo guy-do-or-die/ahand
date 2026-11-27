@@ -153,7 +153,7 @@ async function walletClientOf(connector: ReturnType<typeof wagmiWith>["connector
 const noCode = { getCode: async () => undefined } as unknown as PublicClient;
 
 const GIVE: TypedDataDefinition = {
-  domain: { name: "aHand", version: "1", chainId: 84532, verifyingContract: "0x65ac707E2AE7392583de5d6192C619F1D8862309" },
+  domain: { name: "aHand", version: "1", chainId: 84532, verifyingContract: "0x0f0555972388151D2C187f636A0855b6eE9B9685" },
   types: { Give: [{ name: "handId", type: "uint256" }, { name: "to", type: "address" }, { name: "note", type: "string" }] },
   primaryType: "Give",
   message: { handId: 7n, to: "0x00000000000000000000000000000000000000aa", note: "for the ladder" },

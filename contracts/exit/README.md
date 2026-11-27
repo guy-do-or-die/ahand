@@ -18,7 +18,7 @@ pays a route a giver signed). `ahand.sh` also reads a Hand (`status`), and lets 
 
 ```sh
 export RPC=https://...            # any RPC of the chain
-export CORE=0x65ac707E2AE7392583de5d6192C619F1D8862309   # aHand's Core, the same on every chain
+export CORE=0x0f0555972388151D2C187f636A0855b6eE9B9685   # aHand's Core, the same on every chain
 bash ahand.sh status 12
 bash ahand.sh refund 12 -- --ledger
 bash ahand.sh pending <token> <payee>
@@ -68,7 +68,7 @@ tokens with no allowance approve first.
 Open the Core's address on the chain's explorer (Basescan, Etherscan, Blockscout), tab **Contract**.
 "Read Contract" needs nothing. "Write Contract" needs a connected wallet ("Connect to Web3") and a
 verified contract; if the explorer shows no form, use `ahand.sh` or `exit.html`. Check the address
-first: aHand's Core is `0x65ac707E2AE7392583de5d6192C619F1D8862309` on every chain.
+first: aHand's Core is `0x0f0555972388151D2C187f636A0855b6eE9B9685` on every chain.
 
 ### First, read the Hand: `hands(handId)`
 

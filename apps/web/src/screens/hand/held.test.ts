@@ -31,7 +31,7 @@ import ru from "./ru";
  * breaks. The chain is never asked: `getHand` answers with the terms made here.
  */
 
-const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const OTHER: Address = "0x1111111111111111111111111111111111111111";
 const RAISER: Address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const TOKEN: Address = "0x6B867aFa284Ce84eE76424373420E1170da2eE7b";

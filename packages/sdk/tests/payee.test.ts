@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { payeeProblem, payeeRefused, raiserHops } from "../src/payee.js";
 
 const ctx = {
-  core: getAddress("0x65ac707e2ae7392583de5d6192c619f1d8862309"),
+  core: getAddress("0x0f0555972388151d2c187f636a0855b6ee9b9685"),
   raiser: getAddress("0x70997970c51812dc3a010c7d01b50e0d17dc79c8"),
   token: getAddress("0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
 };

@@ -112,7 +112,7 @@ describe("Core's errors", () => {
 
 describe("message ids", () => {
   const seed = newSeed();
-  const core = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
+  const core = "0x0f0555972388151D2C187f636A0855b6eE9B9685" as Address;
   const hand: Hand = {
     handId: 5n,
     raiser: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",

@@ -8,7 +8,7 @@ case $1 in
   code) echo 0x6080 ;;
   sig) echo 0x12345678 ;;
   block) echo 1800000000 ;;
-  compute-address) echo 0x65ac707E2AE7392583de5d6192C619F1D8862309 ;; # the pinned Core; selftest.sh checks the real one on its chain
+  compute-address) echo 0x0f0555972388151D2C187f636A0855b6eE9B9685 ;; # the pinned Core; selftest.sh checks the real one on its chain
   parse-units) # whole tokens to units, exactly: "10" at 18 decimals is 10 followed by 18 zeros
     whole=${2%%.*} fraction=""
     [[ $2 == *.* ]] && fraction=${2#*.}
@@ -19,7 +19,7 @@ case $1 in
   send) printf 'transactionHash 0xabc\nstatus 1 (success)\nblockNumber 5\n' ;;
   call)
     case $3 in
-      eip712Domain*) printf '0x0f\n"aHand"\n"core"\n31337\n0x65ac707E2AE7392583de5d6192C619F1D8862309\n0x00\n[]\n' ;;
+      eip712Domain*) printf '0x0f\n"aHand"\n"core"\n31337\n0x0f0555972388151D2C187f636A0855b6eE9B9685\n0x00\n[]\n' ;;
       pending*) echo "$PENDING [x]" ;;
       allowance*) echo "$ALLOWANCE [x]" ;;
       decimals*) echo 18 ;;

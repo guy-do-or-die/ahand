@@ -7,7 +7,7 @@ import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { CORE_ABI } from "@ahand/sdk";
 import { assertNewRoot, expiryFor, inboxKeyOf, lengthOf, MAX_BEFORE_HASH, MAX_DETAILS, MAX_TITLE, passesAt, raisedIn, weigh, writeLinks } from "./link";
 
-const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
+const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685" as Address;
 const RAISER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
 const TOKEN = "0x6B867aFa284Ce84eE76424373420E1170da2eE7b" as Address;
 const SITE = "http://127.0.0.1:18311";

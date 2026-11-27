@@ -22,7 +22,7 @@ import { awaitsDelivery, claimAmount, claimText, deliveryState, onAppChain, from
 import { stillDelivering } from "./waiting";
 
 const SITE = "https://ahand.test";
-const CORE = getAddress("0x65ac707e2ae7392583de5d6192c619f1d8862309");
+const CORE = getAddress("0x0f0555972388151d2c187f636a0855b6ee9b9685");
 const RAISER = getAddress("0x70997970c51812dc3a010c7d01b50e0d17dc79c8");
 const TOKEN = getAddress("0x6b867afa284ce84ee76424373420e1170da2ee7b");
 const PAYEE = getAddress("0x14dc79964da2c08b23698b3d3cc7ca32193d9955");

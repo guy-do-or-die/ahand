@@ -28,7 +28,7 @@ import { readerFor } from "../src/preview.ts";
  * URL a contract names.
  */
 
-const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const DOLLAR: Address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const BLOCK_TIME = 1_797_724_800;
 

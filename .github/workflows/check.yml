@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Core is unchanged
-        run: echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+        run: echo 'e9612b54f0f60af275253d87b4d899bbceb2f59e749fcd06dd6b1fc51c655772  contracts/src/AHandCore.sol' | sha256sum --check --strict
 
       # contracts/lib is not in the repository. The two libraries Core and its tests build against.
       - name: Contract libraries
@@ -159,7 +159,7 @@ jobs:
 
       - name: Core is still unchanged
         run: |
-          echo '118f4d37f8a9d54d33245760b0f5871cbb79bf9bf4a7f152d89e84ef5713d738  contracts/src/AHandCore.sol' | sha256sum --check --strict
+          echo 'e9612b54f0f60af275253d87b4d899bbceb2f59e749fcd06dd6b1fc51c655772  contracts/src/AHandCore.sol' | sha256sum --check --strict
           git diff --exit-code -- contracts/src/AHandCore.sol
 
   # Every scenario of the demo engine (tests/demo), headless, on a stand the job brings up itself:

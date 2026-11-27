@@ -24,7 +24,7 @@ import ru from "./ru";
 import { rebuildBare, rebuildWithWords, seedFitsRoot } from "./rebuild";
 import { judgedOf } from "./answers";
 
-const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
+const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685" as Address;
 const SITE = "http://127.0.0.1:18351";
 const OPTIONS = { canonicalCore: CORE };
 const DOMAIN = domainOf(31337, CORE);

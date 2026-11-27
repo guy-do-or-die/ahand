@@ -7,7 +7,7 @@ import ru from "./ru";
 import { notCheckableKeyOf, sectionsOf, sentenceKeyOf } from "./model";
 import { bundleExtra, ethShort, feeOf, isPageCheck, moveFor, sentLines, timeChecks, withoutCoreBuild, withPageChecks, type PageFacts, type Sent } from "./sent";
 
-const CORE: Address = "0x65ac707E2AE7392583de5d6192C619F1D8862309";
+const CORE: Address = "0x0f0555972388151D2C187f636A0855b6eE9B9685";
 const TOKEN: Address = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 const RAISER: Address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const HOLDER: Address = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";

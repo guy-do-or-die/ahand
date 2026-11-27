@@ -181,7 +181,7 @@ contract DeployTest is Test, Deploy {
 contract DeploymentRecordTest is Test {
     string constant RECORD = "deployments/84532.json";
     /// @dev aHand's Core on every chain: what contracts/exit/ahand.sh pins.
-    address constant PINNED_CORE = 0x65ac707E2AE7392583de5d6192C619F1D8862309;
+    address constant PINNED_CORE = 0x0f0555972388151D2C187f636A0855b6eE9B9685;
     address constant FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     function test_deployment_baseSepoliaCoreIsTheCoreThisTreeBuilds() public view {

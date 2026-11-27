@@ -45,7 +45,7 @@ warn() { echo "WARN $*" >&2; }
 # The deterministic deployer (the same address on every chain that has it) and aHand's Core, which
 # it deploys from Core's initcode to the same address everywhere.
 FACTORY=0x4e59b44847b379578588920ca78fbf26c0b4956c
-PINNED_CORE=0x65ac707e2ae7392583de5d6192c619f1d8862309
+PINNED_CORE=0x0f0555972388151d2c187f636a0855b6ee9b9685
 lower() { tr '[:upper:]' '[:lower:]'; }
 field() { jq -r "$1" "$file"; }
 

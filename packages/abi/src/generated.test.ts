@@ -64,7 +64,7 @@ describe("a deployment record the plugin would ship", () => {
     ["another salt", { ...good, salt: keccak256(toHex("aHand.core/2")) }, /salt is/],
     ["another initcode", { ...good, initcodeHash: keccak256("0x00") }, /this tree builds hashes to/],
     ["a lowercase core", { ...good, core: good.core.toLowerCase() }, /core .* EIP-55 checksum/],
-    ["a core with a wrong checksum", { ...good, core: "0x65AC707E2AE7392583de5d6192C619F1D8862309" }, /core .* EIP-55 checksum/],
+    ["a core with a wrong checksum", { ...good, core: "0x0F0555972388151D2C187f636A0855b6eE9B9685" }, /core .* EIP-55 checksum/],
   ])("refuses %s", (_, record, message) => {
     expect(() => checkRecord("8453.json", record as typeof good, built)).toThrow(message);
   });

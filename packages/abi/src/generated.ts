@@ -134,6 +134,20 @@ export const aHandCoreAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'giveTypeHash',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'handTypeHash',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'handId', internalType: 'uint256', type: 'uint256' }],
     name: 'hands',
     outputs: [
@@ -195,6 +209,13 @@ export const aHandCoreAbi = [
     name: 'refundsCount',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'shakeTypeHash',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
   },
   {
     type: 'function',
@@ -835,18 +856,18 @@ export const DEPLOYMENTS: {
 } = Object.freeze({
   84532: freezeDeployment({
     chainId: 84532,
-    core: '0x65ac707E2AE7392583de5d6192C619F1D8862309',
+    core: '0x0f0555972388151D2C187f636A0855b6eE9B9685',
     factory: '0x4e59b44847b379578588920cA78FbF26c0B4956C',
     salt: '0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d',
     initcodeHash:
-      '0x9f4031e9df87b432822254b2e546d1fc8b88a6bb8798522e7b47d1ab5a08de65',
+      '0x9ccc895f301e01520380241bbf8a8a04afc8f0fed6f3b4a7d1ea9fc14ad6c47d',
     runtimeHash:
-      '0x43ae0189a4a322a03ce092d94780bb5a38d27abe41651eb294223c9e9b95357d',
-    deployBlock: 61391126,
+      '0x7fac6757a738f88ebc50fdcfc3b5aad3354a21164dd51682d95b204a9ba8d711',
+    deployBlock: 64450348,
     tokens: [],
     forwarder: null,
     accountFactory: null,
-    commit: 'be485ca61f73c06354b518fd412fbde53a73ade6',
+    commit: 'f22c62dd1a435566a0aecd8653cd6bf6f6ad29bd',
     dirty: false,
     solc: '0.8.35',
     optimizerRuns: 200,

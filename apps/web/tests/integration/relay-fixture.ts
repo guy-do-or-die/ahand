@@ -53,7 +53,7 @@ const loaded = (await import("../../src/config/index.ts")).config as unknown as 
 loaded.relays = [relay.url];
 
 export const CHAIN = 31337;
-export const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
+export const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685" as Address;
 export const SITE = "http://127.0.0.1:18300";
 const options = { canonicalCore: CORE };
 const dom = domain(CHAIN, CORE);

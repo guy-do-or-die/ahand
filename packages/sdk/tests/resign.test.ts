@@ -15,7 +15,7 @@ const giver = at("giver"), helped = at("helped");
 
 /** The route seen first: root → k1 → k2 → k3 → k4, every holder kept a share; the giver at k4. */
 const BASE = 8453;
-const CORE = "0x65ac707E2AE7392583de5d6192C619F1D8862309" as Address;
+const CORE = "0x0f0555972388151D2C187f636A0855b6eE9B9685" as Address;
 const earlier: SeenGive = {
   chainId: BASE,
   core: CORE,

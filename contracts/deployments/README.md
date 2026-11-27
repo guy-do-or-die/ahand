@@ -8,7 +8,7 @@ Files of the local chain, `31337*.json`, are ignored by git and not committed.
 
 ## `84532.json`: Base Sepolia
 
-aHand's Core is `0x65ac707E2AE7392583de5d6192C619F1D8862309`, on Base Sepolia and on every chain
+aHand's Core is `0x0f0555972388151D2C187f636A0855b6eE9B9685`, on Base Sepolia and on every chain
 where it is deployed through the same deployer. The Core there was built from the same source as
 this branch: its `initcodeHash` equals the hash of the AHandCore this tree builds, which the forge
 test `DeploymentRecordTest` checks offline on every run of the gate, together with

@@ -77,7 +77,7 @@ describe("l1FeeOf, on the helper chain", () => {
     await chain?.stop();
   });
 
-  const tx: Hex = serializeTransaction({ chainId: 31337, type: "eip1559", to: "0x65ac707E2AE7392583de5d6192C619F1D8862309".toLowerCase() as Hex, data: "0x12345678", nonce: 0, gas: 100_000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n });
+  const tx: Hex = serializeTransaction({ chainId: 31337, type: "eip1559", to: "0x0f0555972388151D2C187f636A0855b6eE9B9685".toLowerCase() as Hex, data: "0x12345678", nonce: 0, gas: 100_000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n });
 
   it("is undefined where the chain has no GasPriceOracle (anvil, like Ethereum)", async () => {
     expect(await l1FeeOf(chain.client, tx)).toBeUndefined();

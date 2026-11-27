@@ -18,7 +18,7 @@ import { keyOfSeed } from "../src/link.js";
 // anvil's first two public test keys: never a real key.
 const raiser = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const other = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f37c4bb5a3ff9d");
-const core: Address = getAddress("0x65ac707e2ae7392583de5d6192c619f1d8862309");
+const core: Address = getAddress("0x0f0555972388151d2c187f636a0855b6ee9b9685");
 const book: Hex = "0x0123456789abcdef";
 
 async function signatureOf(account = raiser, chainId = 8453): Promise<Hex> {

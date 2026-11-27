@@ -68,7 +68,7 @@ function parse(ics: string): { lines: string[]; blocks: string[] } {
 describe("the reminder file", () => {
   const base = {
     chainId: 31337,
-    core: "0x65ac707E2AE7392583de5d6192C619F1D8862309",
+    core: "0x0f0555972388151D2C187f636A0855b6eE9B9685",
     handId: 12n,
     stamp: NOW,
     url: "http://127.0.0.1:18351/care/31337/12",

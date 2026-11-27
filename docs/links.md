@@ -29,7 +29,7 @@ A live link with no Shakes carries a 16-byte pin: the first bytes of the EIP-712
 
 In the SDK the attachments in `d` are the public part (`publicPart`) and those after `#` the link part (`linkPart`): `describeHand` returns both, `toAddress` and `LinkOptions` take the public part, `openLink` returns both, and `viewOf` returns the public part matched.
 
-A link or an address that leaves Core's address out names the canonical Core, `0x65ac707E2AE7392583de5d6192C619F1D8862309`, the same on every chain (`CANONICAL_CORE`; see [the SDK](sdk.md)). With another Core, its address stands in the link and in the path: `<site>/<chainId>/<core>/<handId>`, in lower case. `d` is checked against the `dataHash` Core keeps before a word of it is shown. A holder may keep the shape or make it darker, never lighter (`canReshape` in `packages/sdk/src/describe.ts`, test "allows the same shape or bare, never lighter"). A QR code always carries the bare address with everything inside, as decimal digits.
+A link or an address that leaves Core's address out names the canonical Core, `0x0f0555972388151D2C187f636A0855b6eE9B9685`, the same on every chain (`CANONICAL_CORE`; see [the SDK](sdk.md)). With another Core, its address stands in the link and in the path: `<site>/<chainId>/<core>/<handId>`, in lower case. `d` is checked against the `dataHash` Core keeps before a word of it is shown. A holder may keep the shape or make it darker, never lighter (`canReshape` in `packages/sdk/src/describe.ts`, test "allows the same shape or bare, never lighter"). A QR code always carries the bare address with everything inside, as decimal digits.
 
 ## Three modes, and who sees what
 

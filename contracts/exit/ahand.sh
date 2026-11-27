@@ -38,7 +38,7 @@ HANDS_SIG="hands(uint256)(address,uint40,uint40,uint40,address,uint16,uint16,uin
 # Core's CREATE2 inputs, as in contracts/deployments/*.json.
 CORE_FACTORY=0x4e59b44847b379578588920cA78FbF26c0B4956C
 CORE_SALT=0x4f0ff848a233427c84043ed87224bdfcb9f141e864d27833ac5d1344e3a3347d # keccak256("aHand.core/1")
-CORE_INITCODE_HASH=0x9f4031e9df87b432822254b2e546d1fc8b88a6bb8798522e7b47d1ab5a08de65
+CORE_INITCODE_HASH=0x9ccc895f301e01520380241bbf8a8a04afc8f0fed6f3b4a7d1ea9fc14ad6c47d
 PENDING_EVENT="Pending(uint256,address,address,uint256)"
 
 THANK_SIG="thank(uint256,((address,address,uint16,uint16,bytes32),bytes)[],((address,address,uint16,bytes32,bytes32),bytes,bytes),bytes32)"
