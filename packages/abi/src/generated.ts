@@ -863,11 +863,11 @@ export const DEPLOYMENTS: {
       '0x9ccc895f301e01520380241bbf8a8a04afc8f0fed6f3b4a7d1ea9fc14ad6c47d',
     runtimeHash:
       '0x7fac6757a738f88ebc50fdcfc3b5aad3354a21164dd51682d95b204a9ba8d711',
-    deployBlock: 64450348,
+    deployBlock: 64476156,
     tokens: [],
     forwarder: null,
     accountFactory: null,
-    commit: 'f22c62dd1a435566a0aecd8653cd6bf6f6ad29bd',
+    commit: '9b40850276c7a99732bbaa45fe83d02ee6daf5f0',
     dirty: false,
     solc: '0.8.35',
     optimizerRuns: 200,
