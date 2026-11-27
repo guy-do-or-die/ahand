@@ -63,18 +63,19 @@ How it is checked (`bun run check`):
 
 Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c0baf7a09b66f2a768225a91e72ddfecb0a33ed6e7dc33fe`, 2 392 020 gas, built from be485ca, clean), and `script/check-deployment.sh` holds for its deployment file against `https://sepolia.base.org`. That file, `contracts/deployments/84532.json`, is in this branch, and the check workflow's step "Deployed Core is the Core this tree builds" reads it. Steps 1 to 5 are how it was put there, for a redeploy or another network.
 
-1. Put Base Sepolia ETH on the deployer's address. Core's deployment took 2 423 827 gas on a fork of Base Sepolia (11 806 bytes of calldata); at Base Sepolia's 0.006 gwei that is about 0.000015 ETH, and the L1 data part is under 0.00000001 ETH. 0.001 ETH leaves a wide margin. (The same gas on Base mainnet at 0.006 gwei is about 0.000015 ETH, $0.03 at $2 400; on Ethereum at 0.3 gwei about 0.00073 ETH, $1.75.)
+1. Put Base Sepolia ETH on the deployer's address. Core's deployment took 2 423 827 gas on a fork of Base Sepolia (11 806 bytes of calldata); at Base Sepolia's 0.006 gwei that is about 0.000015 ETH, and the L1 data part moves with Sepolia's blob fee: from a few thousand wei to about 0.00005 ETH. 0.001 ETH leaves a wide margin. (The same gas on Base mainnet at 0.006 gwei is about 0.000015 ETH, $0.03 at $2 400; on Ethereum at 0.3 gwei about 0.00073 ETH, $1.75.)
 2. Deploy Core from a clone of this branch with `contracts/lib` in place (the two `git clone` lines of `.github/workflows/check.yml`), with the key in a Foundry keystore or a Ledger:
 
    ```sh
    cd contracts && "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" build
-   bash script/deploy.sh https://sepolia.base.org --account <keystore name> --sender <deployer address>
+   DEPLOY_OVERWRITE=true bash script/deploy.sh https://sepolia.base.org --account <keystore name> --sender <deployer address>
    ```
 
-   It writes `contracts/deployments/84532.json` with `commit` and `dirty` from git and ends with `deployment deployments/84532.json holds on chain 84532` from `script/check-deployment.sh`. The address must be `0x0f0555972388151D2C187f636A0855b6eE9B9685`.
-3. Back at the root, rewrite the Vercel file (the build now takes the deployment's block, commit and dirty flag into the configuration, so `exit.html` changes) and check:
+   `DEPLOY_OVERWRITE=true` is for a deployment file that is already there, as it is in this branch: without it the script stops before any transaction. It writes `contracts/deployments/84532.json` with `commit` and `dirty` from git and ends with `deployment deployments/84532.json holds on chain 84532` from `script/check-deployment.sh`. The address must be `0x0f0555972388151D2C187f636A0855b6eE9B9685`.
+3. Back at the root, rewrite the ABI package's copy of the deployment file and the Vercel file (the build now takes the deployment's block, commit and dirty flag into the configuration, so `exit.html` changes) and check:
 
    ```sh
+   bun run --cwd packages/abi generate
    bun apps/web/deploy.ts write
    bun run --cwd apps/web test tests/vercel.test.ts
    ```
@@ -89,7 +90,7 @@ Core is on Base Sepolia since block 61 393 192 (transaction `0x421bd59585f3f709c
    "${FOUNDRY_BIN:-$HOME/.foundry/bin}/forge" verify-contract 0x0f0555972388151D2C187f636A0855b6eE9B9685 src/AHandCore.sol:AHandCore --chain 84532 --verifier etherscan --etherscan-api-key "$ETHERSCAN_API_KEY"
    ```
 
-5. For a redeploy or another network, commit the new deployment file and `apps/web/vercel.json`, and push the branch. In the first Vercel build log read the `vercel: bun <version>` line.
+5. For a redeploy or another network, commit the new deployment file, `packages/abi/src/generated.ts` and `apps/web/vercel.json`, and push the branch. In the first Vercel build log read the `vercel: bun <version>` line.
 
 Visitors need a little Base Sepolia ETH and test USDC; Circle's faucet (network Base Sepolia) and Base's list of ETH faucets are linked on /raise when the reward runs short, and in the person sheet. Someone with no crypto app logs in with email, Google, Apple, X, Farcaster or a passkey: Privy makes them a wallet, which then needs the same test ETH and USDC (nothing sponsors its gas). Someone with a crypto app picks "Continue with a wallet" in the same window: on a computer the browser's extension wallets (EIP-6963), on a phone WalletConnect's list (the wallet app opens and asks), or the site opened inside the wallet app's own browser.
 
@@ -111,7 +112,7 @@ Privy's docs say each way in the app asks for must also be on in Privy's dashboa
 bun tests/e2e/fork/run.ts      # FORK_PORT (32200) and FORK_SITE_PORT (32202) move it; FORK_KEEP=1 keeps it up; FORK_NODE names the Node for the function
 ```
 
-It forks Base Sepolia with anvil a few blocks behind the head as chain 84532 (now that Core is on Base Sepolia, at the last block before it came, found by `eth_getCode` bisection; `FORK_BLOCK` pins one), builds the public app against the fork, serves it with `infra/stand/static.ts`, checks the "not on Base Sepolia yet" sentence in both languages on every screen that reads Core, deploys Core with `contracts/script/deploy.sh` from anvil's public test account 0 (unlocked, `--unlocked --sender`), runs `check-deployment.sh`, writes 1 000 test USDC into Circle's balance slot for anvil accounts 1 to 5, and drives the life in Chromium: raise from an injected test wallet (`tests/e2e/lib/fork/key-wallet.ts`, anvil key 1), pass at 0%, help with a pasted payee, `/check` of the give link, thank by pasting that link into `/thank` (the public relays are blocked in the test), then `/core` and the passport. It also checks the ribbon in both languages, `/core`'s sentence on the preview tags this server adds and its explorer link, the one line under the reward on /raise ("You can add to it later.") and no issuer line in the calm view, the link preview with chain 84532 and the Hand's own words, the explorer link of the thanks, and a phone-style browser that sets only `window.ethereum` being offered and connecting. Then the SDK's own loop (`infra/stand/loop.ts --only usd`) runs on the same fork, and the view server's Vercel Function is built against the fork, gathered as Vercel gathers it, and called under `FORK_NODE` (Node 24, as Vercel runs it) for every shape of a Hand's address and its cards. Nothing is sent to Base Sepolia itself; the fork's deployment file goes to `tests/e2e/test-results/fork/`, never to `contracts/deployments`.
+It forks Base Sepolia with anvil a few blocks behind the head as chain 84532 (once Core is on Base Sepolia, at the last block before it came, found by `eth_getCode` bisection; `FORK_BLOCK` pins one), builds the public app against the fork, serves it with `infra/stand/static.ts`, checks the "not on Base Sepolia yet" sentence in both languages on every screen that reads Core, deploys Core with `contracts/script/deploy.sh` from anvil's public test account 0 (unlocked, `--unlocked --sender`), runs `check-deployment.sh`, writes 1 000 test USDC into Circle's balance slot for anvil accounts 1 to 5, and drives the life in Chromium: raise from an injected test wallet (`tests/e2e/lib/fork/key-wallet.ts`, anvil key 1), pass at 0%, help with a pasted payee, `/check` of the give link, thank by pasting that link into `/thank` (the public relays are blocked in the test), then `/core` and the passport. It also checks the ribbon in both languages, `/core`'s sentence on the preview tags this server adds and its explorer link, the one line under the reward on /raise ("You can add to it later.") and no issuer line in the calm view, the link preview with chain 84532 and the Hand's own words, the explorer link of the thanks, and a phone-style browser that sets only `window.ethereum` being offered and connecting. Then the SDK's own loop (`infra/stand/loop.ts --only usd`) runs on the same fork, and the view server's Vercel Function is built against the fork, gathered as Vercel gathers it, and called under `FORK_NODE` (Node 24, as Vercel runs it) for every shape of a Hand's address and its cards. Nothing is sent to Base Sepolia itself; the fork's deployment file goes to `tests/e2e/test-results/fork/`, never to `contracts/deployments`.
 
 ## What this site does not do
 
