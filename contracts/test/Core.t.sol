@@ -3,7 +3,16 @@ pragma solidity 0.8.35;
 
 import {Test, Vm} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {AHandCore, Shake, Give, SignedShake, SignedGive} from "../src/AHandCore.sol";
+import {
+    AHandCore,
+    Shake,
+    Give,
+    SignedShake,
+    SignedGive,
+    HAND_TYPEHASH,
+    SHAKE_TYPEHASH,
+    GIVE_TYPEHASH
+} from "../src/AHandCore.sol";
 import {MockUSD} from "./mocks/MockUSD.sol";
 import {SenderFeeToken, LateSenderFeeToken, ReceiverFeeToken, LateReceiverFeeToken} from "./mocks/FeeTokens.sol";
 import {NoReturnToken} from "./mocks/NoReturnToken.sol";
@@ -2440,6 +2449,39 @@ contract CoreTest is Test {
             assertFalse(passes);
         }
         assertEq(passes, lastKeySigns && giverSigns && hasPayee);
+    }
+
+    /*//////////////////////////// type hashes ////////////////////////////*/
+
+    /// Core returns the EIP-712 type hash of each of its three signed types. The type strings are
+    /// written out here letter for letter, as EIP-712 encodes a type.
+    function test_typeHashes_areTheHashesOfTheTypeStrings() public view {
+        assertEq(
+            core.handTypeHash(),
+            keccak256(
+                "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
+            )
+        );
+        assertEq(
+            core.shakeTypeHash(),
+            keccak256(
+                "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
+            )
+        );
+        assertEq(
+            core.giveTypeHash(),
+            keccak256(
+                "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
+            )
+        );
+    }
+
+    /// The same three stand at file level in Core's file: Solidity code that imports them gets
+    /// the values Core returns.
+    function test_typeHashes_importedAreTheOnesCoreReturns() public view {
+        assertEq(HAND_TYPEHASH, core.handTypeHash());
+        assertEq(SHAKE_TYPEHASH, core.shakeTypeHash());
+        assertEq(GIVE_TYPEHASH, core.giveTypeHash());
     }
 
     /*//////////////////////////// facts ////////////////////////////*/
