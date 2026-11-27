@@ -46,6 +46,25 @@ struct SignedGive {
     bytes giverSig;
 }
 
+/// @dev The EIP-712 type hash of what a Shake or a Give names its Hand by: its raiser and all
+///      that the raiser sets for good in `raise`, not the number alone. After a reorg the same
+///      number may belong to a Hand with other terms, and a signature must not pass there.
+///      Reward and expiry are not signed: a giver accepts a claim on the reward, not an amount,
+///      and the Hand's own expiry decides how long it can be thanked.
+///      The three type hashes stand at file level, like `Shake` and `Give`, so that Solidity
+///      code can import them instead of writing the type strings out again.
+bytes32 constant HAND_TYPEHASH = keccak256(
+    "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
+);
+/// @dev The EIP-712 type hash of a Shake.
+bytes32 constant SHAKE_TYPEHASH = keccak256(
+    "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
+);
+/// @dev The EIP-712 type hash of a Give.
+bytes32 constant GIVE_TYPEHASH = keccak256(
+    "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
+);
+
 /// @title  AHandCore
 /// @notice A Hand locks a reward in one ERC-20 until its expiry; its raiser can only add to the
 ///         reward and move the expiry later. Its link starts at a root key, and each shaker passes
@@ -92,21 +111,6 @@ contract AHandCore is EIP712 {
         // what the raiser stated with the thank, if anything
         bytes32 dataHash;
     }
-
-    /// @dev What a Shake or a Give names its Hand by: its raiser and all that the raiser sets for
-    ///      good in `raise`, not the number alone. After a reorg the same number may belong to a
-    ///      Hand with other terms, and a signature must not pass there. Reward and expiry are not
-    ///      signed: a giver accepts a claim on the reward, not an amount, and the Hand's own expiry
-    ///      decides how long it can be thanked.
-    bytes32 private constant HAND_TYPEHASH = keccak256(
-        "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
-    );
-    bytes32 private constant SHAKE_TYPEHASH = keccak256(
-        "Shake(Hand hand,address nextKey,address payee,uint16 claimBps,uint16 nextClaimBps,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
-    );
-    bytes32 private constant GIVE_TYPEHASH = keccak256(
-        "Give(Hand hand,address signer,address payee,uint16 claimBps,bytes32 routeHash,bytes32 dataHash)Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
-    );
 
     uint16 private constant BPS = 10_000; // the whole reward
 
@@ -469,6 +473,23 @@ contract AHandCore is EIP712 {
         if (give.payee == address(0)) revert ZeroPayee();
 
         return _checkGive(handId, hand, signedShakes, signedGive);
+    }
+
+    /// @notice The EIP-712 type hash of what a Shake or a Give names its Hand by. A type string
+    ///         written out elsewhere is Core's if it hashes to this.
+    /// @dev    Solidity code can import `HAND_TYPEHASH` from this file instead of calling.
+    function handTypeHash() external pure returns (bytes32) {
+        return HAND_TYPEHASH;
+    }
+
+    /// @notice The EIP-712 type hash of a Shake; see `handTypeHash`.
+    function shakeTypeHash() external pure returns (bytes32) {
+        return SHAKE_TYPEHASH;
+    }
+
+    /// @notice The EIP-712 type hash of a Give; see `handTypeHash`.
+    function giveTypeHash() external pure returns (bytes32) {
+        return GIVE_TYPEHASH;
     }
 
     /// @dev Checks the route and the Give that ends it, and returns the Give's hash. The Give
