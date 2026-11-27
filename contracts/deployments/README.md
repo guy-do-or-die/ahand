@@ -13,9 +13,9 @@ where it is deployed through the same deployer. The Core there was built from th
 this branch: its `initcodeHash` equals the hash of the AHandCore this tree builds, which the forge
 test `DeploymentRecordTest` checks offline on every run of the gate, together with
 `core = create2(factory, salt, initcodeHash)`. The recorded `commit` is on the history of the
-`exp/e2e` branch, where that deployment was made; the source of Core is the same here.
+`exp/core-type-hashes` branch, where that deployment was made; the source of Core is the same here.
 
-The recorded `deployBlock` (61391126) is earlier than the block that created Core (61393192): the
+The recorded `deployBlock` (64476156) is earlier than the block that created Core (64476300): the
 field promises a block at or before the creation, and a log scan that starts earlier only reads more
 blocks. The record is kept as it was written.
 
