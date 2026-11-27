@@ -7,7 +7,8 @@ import {HandView, handOf} from "../Helpers.sol";
 
 /// A reader outside Core, such as Signals or a bonus paid on top: from Core's storage and a route
 /// anyone hands it, it proves who helped in a thanked Hand and what each one was due. It reads no
-/// events and trusts no indexer. The signed formats are written out again here, as any reader must.
+/// events and trusts no indexer. The signed formats are written out again here; a reader in Solidity
+/// can import Core's three type hashes instead, and still writes out the order of the fields.
 contract FactsReader {
     bytes32 constant HAND_TYPEHASH = keccak256(
         "Hand(uint256 handId,address raiser,address token,address rootKey,uint16 payoutGasK,uint16 minClaimBps,bytes32 dataHash)"
